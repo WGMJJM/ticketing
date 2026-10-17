@@ -32,7 +32,7 @@ PowerShell 脚本为 UTF-8 BOM，Bash 为 LF UTF-8。脚本读取 `.env` 而不�
 7. 检查 `/about`、活动详情、场次选择及运营管理。演示活动须显式标记，无购票按钮。
 8. `npm run build` 同时完成 TypeScript 检查和生产打包。
 
-数据库测试位于 `DatabaseMigrationIT`，每项事务回滚，测试 ID 使用 900001 段，推荐独立开发库。`ActivityManagementIT` 补充活动与场次的真实数据库及 HTTP 层集成测试。当前共4项基础测试和11项集成测试，不证明下单并发、跨用户场次限购或核销正确性。
+数据库测试位于 `DatabaseMigrationIT`，测试 ID 使用 900001 段，推荐独立开发库。`ActivityManagementIT` 和 `TicketManagementIT` 补充活动、场次及票档的真实数据库和 HTTP 层测试。普通用例事务回滚；并发编辑用例使用独立提交的测试数据并在结束后定向清理。当前共19项基础测试和19项集成测试，不证明下单并发、跨用户场次限购或核销正确性。
 
 ## 开发管理员与演示数据
 
@@ -46,6 +46,12 @@ docker compose --env-file .env -f deploy/compose.yml exec -T mysql sh -c 'MYSQL_
 ```
 
 脚本仅导入名称标有“演示”的虚构活动和场次，不建立票档、订单等数据，也不会由通用 Flyway 迁移自动执行。首次不导入时页面显示真实空状态。封面可留空，或在图片失败时显示稳定分类占位。
+
+## 票档模块本地验收
+
+当前数据库为V3。执行原有普通Maven构建与真实MySQL profile，新增销售状态单元测试、票档HTTP集成测试及并发编辑冲突测试；具体结果见 `docs/08-ticket-inventory-verification.md`。需要票档样例时，手动将 `scripts/demo-tickets.sql` 复制到容器并按上文相同方式导入，不会由Flyway自动导入。
+
+用户在活动详情选择场次后查看票档；管理员在活动管理中打开“场次”，再进入“票档管理”。启用销售前需确认销售窗口；已启用时仅能修改总库存，下架后可改其他基本信息。表单输入人民币元，接口发送整数分字符串。状态以服务端查询结果为准，可点击刷新获取最新结果。
 
 ## Git 与本地文件
 
