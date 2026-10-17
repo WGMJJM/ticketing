@@ -31,13 +31,13 @@ class DatabaseMigrationIT {
     void prepareRelations() {
         jdbc.update("INSERT INTO user_account (id, username, password_hash) VALUES (900001, '集成测试用户', '不可登录的测试占位值')");
         jdbc.update("INSERT INTO activity (id, title, category, city, venue) VALUES (900001, '集成测试活动', 'CONCERT', '上海', '测试场馆')");
-        jdbc.update("INSERT INTO activity_session (id, activity_id, title, starts_at, ends_at) VALUES (900001, 900001, '测试场次', '2030-01-01 10:00:00', '2030-01-01 12:00:00')");
+        jdbc.update("INSERT INTO activity_session (id, activity_id, title, starts_at, ends_at, sale_starts_at) VALUES (900001, 900001, '测试场次', '2030-01-01 10:00:00', '2030-01-01 12:00:00', '2029-12-01')");
         jdbc.update("INSERT INTO ticket_sku (id, session_id, name, price_cents, total_stock, sale_starts_at, sale_ends_at) VALUES (900001, 900001, '测试票档', 29900, 10, '2029-01-01', '2029-12-31')");
     }
 
     @Test
     void flywayCreatesTenDomainTablesWithChecksAndIndexes() {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("1");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("2");
         flyway.validate();
         var tables = jdbc.queryForList("SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()", String.class);
         assertThat(tables).containsAll(List.of("user_account", "activity", "activity_session", "ticket_sku", "ticket_order", "ticket_order_item", "payment_record", "waitlist_entry", "electronic_ticket", "outbox_event"));
