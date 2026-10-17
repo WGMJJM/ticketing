@@ -39,7 +39,7 @@ public class ApiExceptionHandler {
     @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class,
             ConstraintViolationException.class, HandlerMethodValidationException.class})
     ResponseEntity<ApiResponse<Void>> invalidRequest(Exception exception) {
-        return ResponseEntity.badRequest().body(ApiResponse.failure("INVALID_ARGUMENT", "请求参数格式不正确，请检查编号、类别和带时区的日期"));
+        return ResponseEntity.badRequest().body(ApiResponse.failure("INVALID_ARGUMENT", "请求参数格式不正确，请检查填写内容和允许的字段"));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

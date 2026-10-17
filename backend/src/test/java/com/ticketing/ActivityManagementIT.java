@@ -9,8 +9,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,16 +22,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Transactional
 class ActivityManagementIT {
-    private static final String TEST_PASSWORD = UUID.randomUUID().toString();
     @Autowired private MockMvc mvc;
     @Autowired private ObjectMapper json;
-
-    @DynamicPropertySource
-    static void administrator(DynamicPropertyRegistry properties) {
-        properties.add("ticketing.dev-admin.enabled", () -> true);
-        properties.add("ticketing.dev-admin.username", () -> "integration-admin");
-        properties.add("ticketing.dev-admin.password", () -> TEST_PASSWORD);
-    }
 
     @Test
     void activityLifecycleRejectsHiddenAndIllegalTransitions() throws Exception {
@@ -129,10 +119,8 @@ class ActivityManagementIT {
                         .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
         mvc.perform(post("/api/v1/admin/activities").with(user("admin").roles("ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
-        mvc.perform(get("/api/v1/admin/session").with(httpBasic("integration-admin", TEST_PASSWORD)))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data.csrfToken").isNotEmpty())
-                .andExpect(header().string("Cache-Control", "no-store"));
-        mvc.perform(get("/api/v1/admin/session").with(httpBasic("integration-admin", "invalid")))
+        // 旧Basic入口已移除，真实Session链路由AuthenticationIT通过网络验证。
+        mvc.perform(get("/api/v1/admin/activities").with(httpBasic("integration-admin", UUID.randomUUID().toString())))
                 .andExpect(status().isUnauthorized());
     }
 
