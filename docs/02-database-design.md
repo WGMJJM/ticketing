@@ -1,12 +1,14 @@
-# 数据库 V1 至 V3
+# 数据库 V1 至 V4
 
-迁移文件：`backend/src/main/resources/db/migration/V1__ticketing_schema.sql`。使用 MySQL 8.4（最低需正确执行 CHECK 的 MySQL 8.0.16+）、InnoDB、utf8mb4、DATETIME(6)。Flyway 校验已应用迁移，后续修改新增 V2/V3，不能覆盖 V1。无业务种子数据。
+迁移文件位于 `backend/src/main/resources/db/migration/`。使用 MySQL 8.4（最低需正确执行 CHECK 的 MySQL 8.0.16+）、InnoDB、utf8mb4、DATETIME(6)。Flyway校验已应用迁移，V1至V4禁止覆盖；后续结构变化新增V5及更高版本。无业务种子数据。
 
 V2 新增 `V2__activity_session_management.sql`，V1 保持不变。V2 复用 description 作为详情，增加 summary、cover_url、published_at、version；活动状态为 DRAFT/PUBLISHED/OFFLINE，兼容将旧 CANCELLED 转为 OFFLINE。增加 `(status,published_at,id)` 支持公开列表排序。场次增加 sale_starts_at、version 及开售早于开始的 CHECK；旧数据按开始前30天补齐开售时间，新建必须输入。更新时间与版本由业务操作显式更新。
 
-当前为 V3，`V3__ticket_sku_version.sql` 只在既有 ticket_sku 增加 version 及非负 CHECK，原有外键、同场次名称唯一约束、库存 CHECK 和索引保留，V1/V2 未修改。票档名称在场次内不区分大小写唯一，写入前去除首尾空格。管理版本从0开始，成功修改递增。
+`V3__ticket_sku_version.sql`只在既有ticket_sku增加version及非负CHECK，原有外键、同场次名称唯一约束、库存CHECK和索引保留。票档名称在场次内不区分大小写唯一，写入前去除首尾空格。管理版本从0开始，成功修改、订单预占和释放均递增。
 
-第三阶段认证完整复用user_account现有字段，无新增字段，因此不创建无意义V4，V1至V3均未修改。用户名采用3至32位ASCII字母、数字、下划线且字母开头；唯一键与utf8mb4_0900_ai_ci负责大小写不敏感唯一性。注册仅创建USER/ACTIVE，password_hash保存Spring Security BCrypt编码，不保存明文。密码8至72个字符、UTF-8不超过72字节且无控制字符；数据库管理员初始化额外要求至少16个字符。角色与状态保留既有CHECK。Session及CSRF保存在单实例内存，不创建会话表、不引入Redis认证。
+第三阶段认证完整复用user_account现有字段，无新增迁移。用户名采用3至32位ASCII字母、数字、下划线且字母开头；唯一键与utf8mb4_0900_ai_ci负责大小写不敏感唯一性。注册仅创建USER/ACTIVE，password_hash保存Spring Security BCrypt编码，不保存明文。密码8至72个字符、UTF-8不超过72字节且无控制字符；数据库管理员初始化额外要求至少16个字符。角色与状态保留既有CHECK。Session及CSRF保存在单实例内存，不创建会话表、不引入Redis认证。
+
+第四阶段V4为 `V4__order_user_session_index.sql`，仅新增ticket_order索引 `idx_order_user_session_status(user_id,session_id,status,id)`，支持用户场次有效数量统计；复用V1的订单、明细、幂等唯一键及库存约束，不修改V1至V3。选择用户行锁保护全部占额和释放路径，不增加独立配额表及重复计数字段。
 
 票档价格为 BIGINT 整数分，API 以十进制字符串传输（0至9223372036854775807），前端通过 BigInt 换算人民币元，禁止浮点截断。库存与限购为 INT 整数，接口拒绝小数。只允许管理员修改 total_stock，locked_stock/sold_stock 为只读，可售量即时计算，不落库。
 
@@ -22,7 +24,7 @@ V2 新增 `V2__activity_session_management.sql`，V1 保持不变。V2 复用 de
 | activity | 活动分类、城市、场馆、发布状态 | 状态+城市+类别+ID 活动发现 |
 | activity_session | 活动外键；结束时间晚于开始时间 | 活动+开始时间+ID 场次列表 |
 | ticket_sku | 场次外键；同场次票档名唯一；库存、金额、窗口 CHECK | 场次列表；ID+场次复合引用 |
-| ticket_order | 用户与场次外键；订单号唯一；幂等域唯一 | 用户+创建时间+ID；状态+过期时间+ID |
+| ticket_order | 用户与场次外键；订单号唯一；幂等域唯一 | 用户+创建时间+ID；状态+过期时间+ID；V4用户+场次+状态+ID |
 | ticket_order_item | 订单唯一，第一版每单一个票档；复合外键确保票档与订单同场次 | 订单定位、SKU 关联 |
 | payment_record | 订单唯一、流水号唯一；一单一个可重试模拟支付流水 | 按订单查支付 |
 | waitlist_entry | 用户、SKU、预留订单外键；同用户同 SKU 仅一条有效候补 | SKU+状态+ID FIFO；用户记录；过期扫描 |
@@ -35,15 +37,23 @@ V2 新增 `V2__activity_session_management.sql`，V1 保持不变。V2 复用 de
 
 数据库强制 `total_stock >= 0`、`locked_stock >= 0`、`sold_stock >= 0`、`locked_stock + sold_stock <= total_stock`。可售量为 `total_stock - locked_stock - sold_stock`，不得独立维护另一份可售量。
 
-后续下单在一个 MySQL 事务内按开售窗口、票档状态、数量和可售量条件更新锁定库存，再插入订单、唯一明细及 Outbox，任何一步失败则整体回滚。支付将订单 `PENDING → PAID` 与库存 `locked → sold` 同事务提交；取消/过期按 `PENDING` 状态竞争释放，只有更新成功的一方释放库存。当前已验证票档管理的库存约束和并发编辑冲突，尚未实现交易业务流程或购票并发算法。
+下单在READ_COMMITTED事务内依次锁用户、活动、场次、SKU，校验账号ACTIVE、父级状态、统一销售窗口和两层限购。库存通过 `UPDATE ticket_sku SET locked_stock=locked_stock+quantity,version=version+1 ... WHERE status='ON_SALE' AND sale_starts_at<=UTC_TIMESTAMP(6) AND sale_ends_at>UTC_TIMESTAMP(6) AND total_stock-locked_stock-sold_stock>=quantity` 条件更新，活动和场次状态在父级锁内核验并稳定至提交。随后插入PENDING订单和唯一明细，任何写入失败全部回滚。订单总额通过Math.multiplyExact计算，明细保存票档名、单价分和数量快照。未写Outbox，本阶段无异步业务。
+
+统一锁序为user_account UPDATE→activity SHARE→activity_session SHARE→ticket_sku UPDATE→已有ticket_order UPDATE。活动变更只锁活动；管理场次/票档先活动SHARE、再场次UPDATE、再SKU更新，防止下架、取消或改窗口与下单交叉；初次不加锁查询只发现不可变的父级ID，锁定后读取最新状态。管理员库存更新保留version及 `total_stock>=locked_stock+sold_stock` 条件；与预占竞争后可能409，不能覆盖已有锁定量。
+
+主动取消同样先锁用户及父级/SKU再锁订单，仅PENDING允许转CANCELLED，条件释放locked_stock且检查受影响行数。重复取消CANCELLED直接返回原结果，其他状态409；释放与状态更新同事务回滚。活动下架或场次取消不自动处理旧订单，但不阻止用户主动取消。未来支付将PENDING→PAID与locked→sold同事务提交，超时关单与支付竞争仍须遵守上述用户锁及锁序。
 
 单价、总额、支付金额的相等关系，以及电子票数量不超过明细数量、候补预留订单与 SKU 一致，属于跨行业务不变量。CHECK 不能跨表验证，必须在后续事务代码中落实；外键和库存 CHECK 不能代替完整业务一致性。
 
-跨票档的用户/场次限购不能依靠并发 `SELECT COUNT(*)`。下一阶段选择事务内原子配额维护（新增迁移建立用户+场次唯一配额并条件增减），或按用户锁行串行处理所有占额、释放及支付路径；只有所有相关写入都遵循同一锁协议后，锁内统计才有效。当前未创建备用配额表。
+场次限额集中配置 `ticketing.order.max-per-user-session`，默认4。所有创建与取消先对该user_account执行FOR UPDATE；锁内以SUM明细quantity统计同用户同场次PENDING/PAID，跨票档共享额度。READ_COMMITTED确保等到前一事务提交后统计最新数量；统计加新数量不超过配置才允许预占。取消转终态后自然不再计入，交易失败不改变额度。单用户不同场次也串行，第一版接受此取舍，不使用无锁SUM或另一份配额计数。
+
+支付期限集中配置，默认15分钟。超过截止的PENDING仍占额、占库存，服务端返回paymentDeadlinePassed；未实现自动EXPIRED或回收。真正CANCELLED/EXPIRED不计入额度。后续支付、超时、候补分配必须先锁同一用户行再占额/释放，后台释放不得因账号停用跳过清理。当前没有上述未来写入路径。
 
 ## 幂等、候补与事件
 
 订单唯一键为 `(user_id, idempotency_operation, idempotency_key)`。`CREATE_ORDER` 与 `WAITLIST_CONFIRM` 是不同操作域；服务端决定域，客户端不能自行改域。幂等键采用区分大小写 ASCII，保留到订单事实保留期结束。`request_hash` 保存规范化 SKU、数量等参数的 SHA-256，同键同参返回原逻辑结果，同键异参返回 409。落库唯一约束兜底并发重复提交。
+
+当前创建域固定CREATE_ORDER，锁用户后首先查询旧键，哈希输入为规范化十进制 `skuId:quantity`。同用户同键并发被用户锁串行化，后到者读取已提交原单，不重复占库存/限额；不同用户可使用相同键。已取消原单仍返回CANCELLED，不重新下单。若插入时发生唯一键等异常，异常穿透事务回滚，统一错误响应，禁止在已回滚事务中捕获后返回成功；失败后同键可正常重试。
 
 候补使用自增 ID 作为同票档内部顺序；调度器未来按 `(sku_id, status, id)` 排队处理。事务提交次序可能不同于 ID 分配次序，严格 FIFO 若要覆盖尚未提交的加入操作，必须使用同 SKU 队列串行协议。数量不足时是否阻塞队首须在业务阶段明确；本计划默认不跳过队首。当前不承诺候补优先于新订单，若要严格优先，需让新订单与候补分配共享同 SKU 调度协议。
 

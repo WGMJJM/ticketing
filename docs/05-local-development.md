@@ -29,10 +29,10 @@ PowerShell 脚本为 UTF-8 BOM，Bash 为 LF UTF-8。脚本读取 `.env` 而不�
 4. `scripts/start-backend.ps1 -VerifyDatabase` 或 Bash `--verify-database`，运行真实 MySQL 集成测试；首次连接空库执行 V1，后续执行校验。不会用 H2 替代。
 5. 启动后端和前端，检查状态接口、Actuator 与 Vite 代理，确认首页为「服务运行正常」。
 6. 暂停后端，检查活动加载错误和状态连接失败；恢复后端再重试。
-7. 检查 `/about`、活动详情、场次选择及运营管理。演示活动须显式标记，无购票按钮。
+7. 检查 `/about`、活动详情、场次选择及运营管理。演示活动须显式标记；登录后可提交真实待支付订单、查看本人订单并主动取消，核对库存恢复。支付功能尚未开放。
 8. `npm run build` 同时完成 TypeScript 检查和生产打包。
 
-数据库测试位于 `DatabaseMigrationIT`，测试ID使用900001段，推荐独立开发库。`ActivityManagementIT`、`TicketManagementIT`覆盖原有业务；`AuthenticationIT`使用随机端口Tomcat、真实HTTP、Cookie、Session和MySQL完成认证及旧会话撤权，`SessionCookieIT`单独检查生产Secure属性。`CurrentAccountFilterTest`验证公开端点跳过账号查询及安全刷新Context。普通业务用例事务回滚；并发编辑与真实HTTP认证用例提交独立夹具并在结束后定向清理。当前30项基础测试加33项集成测试共63项，最新结果见 `docs/10-session-permission-verification.md`。不证明购票并发、跨用户场次限购或核销正确性。
+数据库测试位于 `DatabaseMigrationIT`，推荐独立开发库。`ActivityManagementIT`、`TicketManagementIT`覆盖原有业务；`AuthenticationIT`使用随机端口Tomcat、真实HTTP、Cookie、Session和MySQL完成认证及旧会话撤权，`SessionCookieIT`检查生产Secure属性。`CurrentAccountFilterTest`验证公开端点跳过账号查询及订单等受保护端点刷新身份。`OrderManagementIT`使用真实HTTP会话和多线程独立事务，检查最后一张库存、同键幂等、跨SKU限购、重复取消、管理员调整竞争及最终库存和订单数量。普通业务用例事务回滚；并发编辑、认证与订单用例提交独立夹具并定向清理。当前33项基础测试加46项MySQL集成测试共79项，第四阶段结果见 `docs/11-order-inventory-verification.md`。这些是功能与并发一致性验证，不是高并发吞吐压测。
 
 ## 账号初始化与本地认证
 
@@ -55,9 +55,15 @@ docker compose --env-file .env -f deploy/compose.yml exec -T mysql sh -c 'MYSQL_
 
 ## 票档模块本地验收
 
-当前数据库为V3。执行原有普通Maven构建与真实MySQL profile，新增销售状态单元测试、票档HTTP集成测试及并发编辑冲突测试；具体结果见 `docs/08-ticket-inventory-verification.md`。需要票档样例时，手动将 `scripts/demo-tickets.sql` 复制到容器并按上文相同方式导入，不会由Flyway自动导入。
+当前数据库为V4，V3票档验收历史见 `docs/08-ticket-inventory-verification.md`。原有销售状态单元测试、票档HTTP集成测试及并发编辑冲突测试继续回归。需要票档样例时，手动将 `scripts/demo-tickets.sql` 复制到容器并按上文相同方式导入，不会由Flyway自动导入。
 
 用户在活动详情选择场次后查看票档；管理员在活动管理中打开“场次”，再进入“票档管理”。启用销售前需确认销售窗口；已启用时仅能修改总库存，下架后可改其他基本信息。表单输入人民币元，接口发送整数分字符串。状态以服务端查询结果为准，可点击刷新获取最新结果。
+
+## 订单模块本地验收
+
+订单配置在application.yml集中声明：`ORDER_SESSION_LIMIT`默认4，`ORDER_PAYMENT_WINDOW_MINUTES`默认15。启动脚本读取.env；本地已有.env无需覆盖，未指定使用默认值。只允许正数。降低限额不会撤销既有订单，占额超出新限额时阻止继续下单，仍可主动取消。
+
+从活动详情选择正在售票的票档，未登录会跳转登录并返回活动；数量上限取库存、单笔及场次剩余额度的最小值。提交真实订单后查看 `/orders/{id}` 与 `/orders`，页面刷新重新查身份及订单。确认取消后查看CANCELLED，回活动页选择原场次或点击刷新票档核对库存与额度恢复。订单截止状态由服务端查询返回，页面提供手动刷新。当前没有支付、自动关单、候补或电子票入口，不要把截止提醒当成已自动回收。
 
 ## Git 与本地文件
 

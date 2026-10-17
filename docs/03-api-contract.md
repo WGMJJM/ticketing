@@ -1,6 +1,6 @@
 # 当前 API 契约
 
-统一前缀 /api/v1。成功响应为 ApiResponse 的 code=OK、message=操作成功、data=结果；业务错误沿用同一结构，data 为 null。当前使用400参数错误、401管理员未认证、403无权限或CSRF无效、404活动/场次不存在、409状态或版本冲突、500服务内部异常。错误文案为中文，不返回 SQL 或堆栈。
+统一前缀 /api/v1。成功响应为ApiResponse的code=OK、message=操作成功、data=结果；业务错误沿用同一结构，data为null。使用400参数错误、401未认证或账号失效、403无权限或CSRF无效、404资源不存在或订单不属于本人、409库存/限购/幂等/状态/版本冲突、500服务内部异常。错误文案为中文，不返回SQL或堆栈。
 
 ## 已实现公开读取
 
@@ -52,7 +52,7 @@ version从0开始，成功更新递增；遗漏版本为400，陈旧版本或非
 
 登录使用Spring Security标准表单过滤器；错误用户名和密码统一401及“用户名或密码不正确”，禁用账号401及中文禁用提示。成功登录更换Session ID并保存SecurityContext；后续只依靠Cookie恢复身份，Basic Authorization无效。role仅为USER或ADMIN，ID为字符串。后续服务通过AccountPrincipal获取用户ID，不能信任前端userId。
 
-GET auth/me及全部admin接口在授权前复查数据库当前账号；禁用或删除账号清除认证、销毁Session并清除Cookie，返回401、code=ACCOUNT_UNAVAILABLE及中文提示。恢复账号状态也不能复活旧会话，必须重新登录。角色变化刷新当前认证与会话中的身份，ADMIN变USER后管理接口403，auth/me返回USER；账号合法授权恢复后以数据库最新角色为准。无效CSRF写请求仍优先403。公开活动、场次、票档及认证端点不额外复查账号。变化在提交后的下一次有效受保护请求检查时生效，不追溯取消已通过检查或已执行的操作。
+GET auth/me及全部admin和orders接口在授权前复查数据库当前账号；禁用或删除账号清除认证、销毁Session并清除Cookie，返回401、code=ACCOUNT_UNAVAILABLE及中文提示。恢复账号状态也不能复活旧会话，必须重新登录。角色变化刷新当前认证与会话中的身份，ADMIN变USER后管理接口403，auth/me返回USER；账号合法授权恢复后以数据库最新角色为准。无效CSRF写请求仍优先403。公开活动、场次、票档及认证端点不额外复查账号。变化在提交后的下一次有效受保护请求检查时生效，不追溯取消已通过检查或已执行的操作；订单创建/取消事务另加用户行锁检查ACTIVE。
 
 CSRF保存在HttpSession，保留默认XOR保护。客户端先GET csrf，把响应token放到headerName指定的头，再提交注册、登录、退出或管理员写操作。登录和退出会清除旧CSRF，随后必须重新GET csrf。前端每次写请求前获取当前令牌，403不会自动重放写操作。Cookie为HttpOnly、SameSite=Lax，Session空闲30分钟，禁止URL会话跟踪；Secure默认true，仅本地HTTP显式配置false。前端同源访问Vite代理，服务端未开放跨域凭据访问。
 
@@ -60,7 +60,7 @@ CSRF保存在HttpSession，保留默认XOR保护。客户端先GET csrf，把响
 
 ## 已实现票档与库存管理
 
-以下路径均在 `/api/v1` 下，写操作复用 ADMIN 与 CSRF。读取票档不代表已经支持下单。
+以下路径均在 `/api/v1` 下，管理写操作复用ADMIN与CSRF。公开票档查询无需身份，下单使用下面的订单接口。
 
 | 方法与路径 | 语义 |
 | --- | --- |
@@ -77,10 +77,32 @@ CSRF保存在HttpSession，保留默认XOR保护。客户端先GET csrf，把响
 
 窗口统一为 `场次开售 <= 票档开售 < 票档停售 <= 场次开始`，实际销售区间左闭右开。场次开售是最早允许时间，不要求所有票档同一时刻开售。修改场次会检查所有已有票档（包含草稿、下架），冲突409，不会静默修改票档时间。已取消、已开始、已结束的场次不能新建、编辑或启用票档，但已有启用票档仍可下架。发布时销售窗口必须尚未结束；活动未发布时允许准备票档，但销售状态为不可售。
 
-ON_SALE 仅为管理状态。后端先判断活动发布、场次正常且未结束、票档启用及父子窗口一致，否则 UNAVAILABLE（暂不可售）；然后判断停售边界 STOPPED（已停售）、未开售 NOT_STARTED（暂未开售）、可售量为0 SOLD_OUT（已售罄），最后为 SELLING（正在售票）。活动隐藏时公开接口404；已取消/结束的公开场次可返回 ON_SALE 票档，但只会显示暂不可售。前端不得用本机时钟重算销售状态；“正在售票”仍不代表本阶段能下单。
+ON_SALE仅为管理状态。后端先判断活动发布、场次正常且未结束、票档启用及父子窗口一致，否则UNAVAILABLE（暂不可售）；然后判断停售边界STOPPED（已停售）、未开售NOT_STARTED（暂未开售）、可售量为0 SOLD_OUT（已售罄），最后为SELLING（正在售票）。活动隐藏时公开接口404；已取消/结束的公开场次可返回ON_SALE票档，但只会显示暂不可售。前端不得用本机时钟重算销售状态；提交订单必须再次在事务锁内检查，列表展示不能保证随后下单成功。
 
-同一场次票档名唯一，重复409；陈旧版本、非法状态转换、总库存低于锁定加已售为409。已启用销售只能改总库存，其他信息必须先下架。可售量只计算不存储，管理写接口从不改锁定和已售库存。每场次最多200票档，列表有界；本阶段无库存预占或购票扣减接口。
+同一场次票档名唯一，重复409；陈旧版本、非法状态转换、总库存低于锁定加已售为409。已启用销售只能改总库存，其他信息必须先下架。可售量只计算不存储，管理写接口从不改锁定和已售库存。每场次最多200票档，列表有界；订单预占和释放会递增票档version，陈旧的管理表单需刷新后重试。
+
+## 购票订单与库存预占
+
+全部 `/orders` 路径需要当前有效Session，USER与ADMIN均只能操作自己的订单。管理员没有跨用户例外。创建和取消必须携带当前CSRF；请求及响应沿用ApiResponse，敏感响应不缓存。
+
+| 方法与路径（均在 /api/v1 下） | 语义 |
+| --- | --- |
+| POST `/orders` | JSON仅 `{ "skuId":"10001", "quantity":2 }`，必需请求头Idempotency-Key；成功200返回OrderView |
+| GET `/orders?page=1&size=10` | 本人订单，按创建时间及ID降序，返回items/total/page/size；页码1至10000，每页1至50 |
+| GET `/orders/limits?sessionId=10001` | 当前用户该场次限额 `{maxPerSession,usedQuantity,remainingQuantity}`；供表单展示，下单时重新校验 |
+| GET `/orders/{orderId}` | 本人订单详情；不存在或属于其他用户统一404 |
+| POST `/orders/{orderId}/cancel` | 无业务请求体；仅PENDING转CANCELLED并释放库存和限额，重复CANCELLED返回原单，其他状态409 |
+
+skuId为正十进制字符串且不能超过Java long，quantity为正INT整数，拒绝小数。未知创建字段（userId、价格、金额、状态、库存等）400；身份和价格只能来自服务端。幂等键为1至128位可见ASCII字符（不含空格），区分大小写；缺失或非法400。操作域固定CREATE_ORDER，同一用户同键同参返回原单，同键异SKU/数量409 IDEMPOTENCY_CONFLICT，不同用户可共用键。旧单已取消仍返回CANCELLED，不重复预占；创建失败整个事务回滚，同键可以重新尝试。
+
+下单锁定父级并统一校验活动PUBLISHED、场次SCHEDULED及销售窗口、SKU ON_SALE、可售量；区间为 `[saleStartsAt,saleEndsAt)`。数量还受SKU单笔上限和跨SKU用户场次限额约束，默认每人每场4张，PENDING/PAID占额，CANCELLED/EXPIRED不占额。限额查询只是即时展示，无法替代服务端事务校验。库存或不可售409（TICKET_UNAVAILABLE/STOCK_UNAVAILABLE），超限409 PURCHASE_LIMIT，金额乘法溢出400 ORDER_AMOUNT_INVALID。数据库写入异常整体回滚，不返回半成品成功。
+
+OrderView字段：id/orderNo/activityId/activityTitle/sessionId/sessionTitle/sessionStartsAt/skuId/skuName/quantity/unitPriceCents/totalAmountCents/status/createdAt/expiresAt/paymentDeadlinePassed/canCancel/serverTime。ID和金额分为字符串，数量为整数，时间UTC带Z、页面北京时间。skuName、单价和数量来自下单明细快照，活动/场次名称及开始时间是当前关联资料。总额为服务端单价乘数量，不采用客户端预计金额。
+
+当前只创建PENDING（待支付）和主动转CANCELLED（已取消），保留模型中的PAID（已支付）/EXPIRED（已过期）供后续业务使用，当前没有支付或自动过期接口。支付窗口配置 `ticketing.order.payment-window-minutes` 默认15分钟；超过截止的PENDING仍占库存与限额，paymentDeadlinePassed=true且canCancel=true。该标志由后端查询时计算，页面显示截止提醒及主动取消，不伪装为已自动取消。支付功能尚未开放；未来支付必须拒绝截止及非PENDING订单。
+
+前端数量范围按可售量、单笔上限及限额查询取最小值，金额用BigInt。确认提交期间禁止重复点击，每次新尝试生成UUID幂等键；当前页面遇网络/5xx结果不明时保留键和数量供用户手动重试或查看我的订单，不自动重放POST。刷新或离开页面后先查订单，不能假定未创建。取消成功后重新查询订单，活动页通过刷新票档获取释放后的库存。
 
 ## 待开发方向
 
-下单锁票 → 模拟支付与超时关单 → FIFO候补 → 电子票核销。金额用人民币分整数、ID用字符串、日期带时区；下单只接收SKU和数量，价格由服务端计算。订单幂等、库存事务、Outbox、消费者幂等与限购方案仍遵循数据库设计，本轮没有提供订单/支付/候补占位成功接口。
+第五阶段模拟支付与自动超时关单，之后FIFO候补、电子票及核销。Outbox与消费者幂等尚未接入。本轮完成真实订单、预占和主动取消后停止，没有模拟支付成功、候补分配或电子票接口。
