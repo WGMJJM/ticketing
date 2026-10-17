@@ -23,7 +23,17 @@ export interface Order {
   expiresAt: string
   paymentDeadlinePassed: boolean
   canCancel: boolean
+  canPay: boolean
+  payment: Payment | null
   serverTime: string
+}
+export interface Payment {
+  orderId: string
+  paymentNo: string
+  amountCents: string
+  status: 'SUCCEEDED'
+  paidAt: string
+  simulated: boolean
 }
 export const orderStatusText = {
   PENDING: '待支付',
@@ -56,4 +66,11 @@ export const orderApi = {
       method: 'POST',
       url: '/orders/' + id + '/cancel',
     }),
+  pay: (id: string) =>
+    useAuthStore().request<Payment>({
+      method: 'POST',
+      url: '/orders/' + id + '/pay',
+    }),
+  payment: (id: string) =>
+    useAuthStore().request<Payment>({ url: '/orders/' + id + '/payment' }),
 }

@@ -46,7 +46,7 @@ async function logout() {
         当前账号没有运营管理权限
       </p>
       <p>
-        账号身份由服务端会话确认。可提交购票订单并主动取消，支付功能尚未开放。
+        账号身份由服务端会话确认。可提交购票订单、模拟支付及主动取消；超时订单自动关闭。
       </p>
       <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
       <div class="auth-links">

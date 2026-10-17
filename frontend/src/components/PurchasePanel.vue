@@ -82,7 +82,7 @@ async function purchase() {
     if (!uncertain.value) {
       try {
         await ElMessageBox.confirm(
-          `确认预订“${props.ticket.name}”${quantity.value}张？预计${estimate.value}，金额以服务端订单为准。提交后将占用库存，支付功能尚未开放。`,
+          `确认预订“${props.ticket.name}”${quantity.value}张？预计${estimate.value}，金额以服务端订单为准。提交后将占用库存，请在截止前完成模拟支付，超时自动关闭。`,
           '确认购票订单',
           {
             confirmButtonText: '确认提交订单',

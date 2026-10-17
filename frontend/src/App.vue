@@ -49,7 +49,7 @@ const auth = useAuthStore()
       <footer class="site-footer">
         <RouterLink class="footer-brand" to="/">票务交易平台</RouterLink>
         <span>让精彩发生，让热爱在场。</span>
-        <span class="footer-stage">购票下单与订单管理 · 支付功能筹备中</span>
+        <span class="footer-stage">购票订单与模拟支付 · 超时自动关闭</span>
         <RouterLink v-if="auth.isAdmin" to="/admin/activities"
           >运营管理</RouterLink
         >

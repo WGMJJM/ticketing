@@ -91,7 +91,7 @@ onBeforeUnmount(() => controller?.abort())
       </article>
     </div>
     <p class="ticket-query-note">
-      时间均为北京时间。提交订单会再次校验库存与限购，支付功能尚未开放。
+      时间均为北京时间。提交订单会再次校验库存与限购，支持模拟支付，超时自动关单。
     </p>
   </section>
 </template>

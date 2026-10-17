@@ -4,6 +4,7 @@ import { ElMessageBox } from 'element-plus'
 import 'element-plus/es/components/message-box/style/css'
 import { orderApi, type Order } from '../api/orders'
 import OrderCard from '../components/OrderCard.vue'
+import { formatCents } from '../utils/money'
 const props = defineProps<{ id?: string }>()
 const rows = ref<Order[]>([])
 const total = ref(0)
@@ -63,8 +64,42 @@ async function cancel(order: Order) {
     notice.value = '订单已取消，库存与限购额度已释放'
     await load()
   } catch (failure) {
-    error.value =
+    const message =
       failure instanceof Error ? failure.message : '取消失败，请刷新后重试'
+    await load()
+    error.value = message
+  } finally {
+    busy.value = false
+  }
+}
+async function pay(order: Order) {
+  busy.value = true
+  error.value = ''
+  notice.value = ''
+  try {
+    const current = await orderApi.detail(order.id)
+    if (!current.canPay) throw new Error('订单当前不可支付，请查看最新状态')
+    try {
+      await ElMessageBox.confirm(
+        `${current.activityTitle}，${current.sessionTitle}，${current.skuName} ${current.quantity}张，应付${formatCents(current.totalAmountCents)}。这是模拟支付，不会产生实际扣款。确认继续吗？`,
+        '确认模拟支付',
+        {
+          confirmButtonText: '确认模拟支付',
+          cancelButtonText: '暂不支付',
+          type: 'warning',
+        },
+      )
+    } catch {
+      return
+    }
+    const payment = await orderApi.pay(order.id)
+    notice.value = '模拟支付成功，未产生实际扣款。流水号 ' + payment.paymentNo
+    await load()
+  } catch (failure) {
+    const message =
+      failure instanceof Error ? failure.message : '模拟支付失败，请刷新后重试'
+    await load()
+    error.value = message
   } finally {
     busy.value = false
   }
@@ -89,7 +124,7 @@ function changePage(value: number) {
       >← 返回我的订单</RouterLink
     >
     <p>
-      仅展示本人真实订单。支付与自动超时关单尚未开放；截止状态以本次服务端查询为准。
+      模拟支付仅用于功能体验，不产生实际扣款。超时订单将自动关闭，可刷新查看最新状态。
     </p>
     <p v-if="notice" class="success-notice" role="status">{{ notice }}</p>
     <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
@@ -105,6 +140,7 @@ function changePage(value: number) {
       :detail="!!id"
       :busy="busy || loading"
       @cancel="cancel"
+      @pay="pay"
     />
     <div v-if="!id && total > 10" class="pagination">
       <ElButton
