@@ -8,6 +8,8 @@ import com.ticketing.event.dto.SessionWriteRequest;
 import com.ticketing.event.entity.ActivitySession;
 import com.ticketing.event.mapper.ActivitySessionMapper;
 import com.ticketing.event.model.SessionStatus;
+import com.ticketing.ticket.entity.TicketSku;
+import com.ticketing.ticket.mapper.TicketSkuMapper;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -20,10 +22,12 @@ public class SessionService {
     private static final int MAX_SESSIONS_PER_ACTIVITY = 200;
     private final ActivitySessionMapper mapper;
     private final ActivityService activityService;
+    private final TicketSkuMapper tickets;
 
-    public SessionService(ActivitySessionMapper mapper, ActivityService activityService) {
+    public SessionService(ActivitySessionMapper mapper, ActivityService activityService, TicketSkuMapper tickets) {
         this.mapper = mapper;
         this.activityService = activityService;
+        this.tickets = tickets;
     }
 
     public List<SessionView> list(long activityId, boolean publicOnly) {
@@ -56,9 +60,13 @@ public class SessionService {
 
     @Transactional
     public SessionView update(long id, SessionWriteRequest request) {
-        ActivitySession session = requireSession(id);
+        ActivitySession session = lockSession(id);
         if (!SessionStatus.SCHEDULED.name().equals(session.getStatus())) throw conflict("已取消或结束的场次不能修改");
         if (request.version() == null) throw new BusinessException(HttpStatus.BAD_REQUEST, "VERSION_REQUIRED", "缺少数据版本，请刷新页面");
+        long inconsistent = tickets.selectCount(new LambdaQueryWrapper<TicketSku>().eq(TicketSku::getSessionId, id)
+                .and(query -> query.lt(TicketSku::getSaleStartsAt, utc(request.saleStartsAt()))
+                        .or().gt(TicketSku::getSaleEndsAt, utc(request.startsAt()))));
+        if (inconsistent > 0) throw conflict("新的场次时间与已有票档销售窗口冲突，请先调整票档");
         var wrapper = mutation(session, request.version())
                 .set(ActivitySession::getTitle, request.title().trim())
                 .set(ActivitySession::getStartsAt, utc(request.startsAt()))
@@ -70,7 +78,7 @@ public class SessionService {
 
     @Transactional
     public SessionView cancel(long id, int version) {
-        ActivitySession session = requireSession(id);
+        ActivitySession session = lockSession(id);
         if (!SessionStatus.SCHEDULED.name().equals(session.getStatus())) throw conflict("只有正常场次可以取消");
         if (mapper.update(null, mutation(session, version).set(ActivitySession::getStatus, SessionStatus.CANCELLED.name())) != 1) {
             throw conflict("场次状态已变化，请刷新后重试");
@@ -80,6 +88,13 @@ public class SessionService {
 
     private ActivitySession requireSession(long id) {
         ActivitySession session = mapper.selectById(id);
+        if (session == null) throw new BusinessException(HttpStatus.NOT_FOUND, "SESSION_NOT_FOUND", "场次不存在");
+        return session;
+    }
+
+    private ActivitySession lockSession(long id) {
+        ActivitySession session = mapper.selectOne(new LambdaQueryWrapper<ActivitySession>()
+                .eq(ActivitySession::getId, id).last("FOR UPDATE"));
         if (session == null) throw new BusinessException(HttpStatus.NOT_FOUND, "SESSION_NOT_FOUND", "场次不存在");
         return session;
     }
