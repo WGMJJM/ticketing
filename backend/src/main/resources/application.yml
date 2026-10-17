@@ -77,6 +77,14 @@ mybatis-plus:
   global-config:
     banner: false
 ticketing:
+  checkin:
+    credential-keys: ${TICKET_CREDENTIAL_KEYS:}
+    current-key-version: ${TICKET_CREDENTIAL_CURRENT_VERSION:1}
+    opens-before-minutes: ${CHECKIN_OPENS_BEFORE_MINUTES:60}
+    backfill:
+      enabled: ${TICKET_BACKFILL_ENABLED:false}
+      batch-size: ${TICKET_BACKFILL_BATCH_SIZE:100}
+      scan-delay-ms: ${TICKET_BACKFILL_SCAN_DELAY_MS:30000}
   order:
     max-per-user-session: ${ORDER_SESSION_LIMIT:4}
     payment-window-minutes: ${ORDER_PAYMENT_WINDOW_MINUTES:15}

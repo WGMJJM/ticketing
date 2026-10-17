@@ -24,6 +24,7 @@ import com.ticketing.ticket.service.TicketService;
 import com.ticketing.waitlist.entity.WaitlistEntry;
 import com.ticketing.waitlist.mapper.WaitlistMapper;
 import com.ticketing.waitlist.messaging.InventoryEventWriter;
+import com.ticketing.checkin.service.TicketIssuer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -49,11 +50,12 @@ public class OrderService {
     private final ActivityMapper activities;
     private final WaitlistMapper waitlists;
     private final InventoryEventWriter events;
+    private final TicketIssuer ticketIssuer;
     private final int sessionLimit;
     private final int paymentMinutes;
 
     public OrderService(OrderMapper orders, PaymentMapper payments, UserAccountMapper users, TicketSkuMapper tickets,
-            ActivitySessionMapper sessions, ActivityMapper activities, WaitlistMapper waitlists, InventoryEventWriter events,
+            ActivitySessionMapper sessions, ActivityMapper activities, WaitlistMapper waitlists, InventoryEventWriter events, TicketIssuer ticketIssuer,
             @Value("${ticketing.order.max-per-user-session:4}") int sessionLimit,
             @Value("${ticketing.order.payment-window-minutes:15}") int paymentMinutes) {
         if (sessionLimit < 1 || paymentMinutes < 1) throw new IllegalArgumentException("限购数量和支付窗口必须为正数");
@@ -65,6 +67,7 @@ public class OrderService {
         this.activities = activities;
         this.waitlists = waitlists;
         this.events = events;
+        this.ticketIssuer = ticketIssuer;
         this.sessionLimit = sessionLimit;
         this.paymentMinutes = paymentMinutes;
     }
@@ -196,6 +199,7 @@ public class OrderService {
         record.setUpdatedAt(paid.getPaidAt());
         payments.insert(record);
         finishWaitlist(initial,"COMPLETED");
+        ticketIssuer.issuePaidOrder(orderId);
         return PaymentView.from(record);
     }
 
