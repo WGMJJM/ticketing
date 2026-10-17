@@ -8,19 +8,19 @@
     <div class="about-grid">
       <section class="about-card">
         <span class="section-kicker">当前阶段</span>
-        <h2>先打好基础</h2>
+        <h2>活动与场次已就绪</h2>
         <p>
-          目前已建立前后端工程、中文页面、系统状态检测，以及用户、活动、票档、订单等基础数据库结构。
+          目前已建立前后端工程、活动列表筛选、活动详情、场次选择，以及活动和场次的运营管理。
         </p>
         <p class="about-note">
-          这些是工程初始化能力。当前没有可购买的活动，也尚未开放登录、下单或支付。
+          当前只展示活动与场次。标记为“演示”的内容为虚构示例，尚未开放用户登录、下单或支付。
         </p>
       </section>
       <section class="about-card">
         <span class="section-kicker">接下来</span>
         <h2>让热爱逐步抵达</h2>
         <ol>
-          <li>活动、场次与票档查询</li>
+          <li>票档与开售状态查询</li>
           <li>用户注册登录与权限控制</li>
           <li>下单锁票、模拟支付与超时释放</li>
           <li>候补排队、电子票与入场核销</li>

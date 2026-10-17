@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { getSystemStatus } from '../api/system'
+import ActivityList from '../components/ActivityList.vue'
 
 const connection = ref<'loading' | 'online' | 'offline'>('loading')
 const lastChecked = ref<Date | null>(null)
@@ -138,7 +139,7 @@ onBeforeUnmount(() => controller.abort())
         </div>
         <h3>{{ category.name }}</h3>
         <p>{{ category.description }}</p>
-        <span class="category-caption">活动筹备中</span>
+        <span class="category-caption">发现现场灵感</span>
       </article>
     </div>
   </section>
@@ -147,22 +148,11 @@ onBeforeUnmount(() => controller.abort())
     <div class="section-heading">
       <div>
         <span class="section-kicker">好现场，值得等待</span>
-        <h2 id="upcoming-title">活动即将与您见面</h2>
+        <h2 id="upcoming-title">近期精彩现场</h2>
       </div>
-      <span class="coming-label">敬请期待</span>
+      <span class="coming-label">活动与场次展示</span>
     </div>
-    <div class="empty-events">
-      <div class="empty-ticket" aria-hidden="true"><span>✦</span></div>
-      <div>
-        <h3>下一场精彩，正在准备中</h3>
-        <p>
-          目前为工程初始化阶段，购票功能将在后续开放。<br />这里将呈现活动、场次和票档信息。
-        </p>
-      </div>
-      <RouterLink to="/about" class="text-link"
-        >了解平台进展 <span aria-hidden="true">↗</span></RouterLink
-      >
-    </div>
+    <ActivityList />
   </section>
 
   <section
