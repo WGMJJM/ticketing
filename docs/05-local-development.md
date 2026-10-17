@@ -32,7 +32,9 @@ PowerShell 脚本为 UTF-8 BOM，Bash 为 LF UTF-8。脚本读取 `.env` 而不�
 7. 检查 `/about`、活动详情、场次选择及运营管理。演示活动须显式标记；登录后真实下单、模拟支付、查看成功流水，再创建一单等待自动过期，核对库存及限额恢复；不产生实际扣款。
 8. `npm run build` 同时完成 TypeScript 检查和生产打包。
 
-数据库测试位于 `DatabaseMigrationIT`，推荐独立开发库。`ActivityManagementIT`、`TicketManagementIT`覆盖原有业务；`AuthenticationIT`使用随机端口Tomcat、真实HTTP、Cookie、Session和MySQL完成认证及旧会话撤权，`SessionCookieIT`检查生产Secure属性。`CurrentAccountFilterTest`验证公开端点跳过账号查询及订单等受保护端点刷新身份。`OrderManagementIT`现有25项用真实HTTP会话和多线程独立事务检查订单预占、幂等、限购、支付、取消、过期竞争、流水、回滚和最终库存；`OrderExpiryRecoveryIT`关闭再启动两个真实应用上下文，验证重启后的Scheduling自动回收历史过期订单。业务回归在test/resources/application.properties关闭后台线程，重启用例以启动参数显式启用并关闭上下文，避免测试间异步干扰。夹具定向清理，当前33项基础测试加59项MySQL集成测试共92项，最新结果见 `docs/12-payment-expiry-verification.md`。这些是功能与并发一致性验证，不是吞吐压测。
+数据库测试位于 `DatabaseMigrationIT`，推荐独立开发库。`ActivityManagementIT`、`TicketManagementIT`覆盖原有业务；`AuthenticationIT`使用随机端口Tomcat、真实HTTP、Cookie、Session和MySQL完成认证及旧会话撤权，`SessionCookieIT`检查生产Secure属性。`CurrentAccountFilterTest`验证公开端点跳过账号查询及订单/候补等受保护端点刷新身份。`OrderManagementIT`现有25项检查订单预占、幂等、限购、支付、取消、过期竞争、流水、回滚和最终库存；`OrderExpiryRecoveryIT`关闭再启动两个真实应用上下文，验证Scheduling重启补偿。`WaitlistManagementIT`新增25项，使用真实HTTP会话、独立MySQL事务及RabbitMQ检查FIFO、并发入队/调度、队首阻塞、状态联动、事件原子性、确认丢失、认领租约、消费重试/死信及数据库补偿。当前35项基础测试加84项集成测试共119项，最新结果见 `docs/13-waitlist-verification.md`。这些是功能与并发一致性验证，不是吞吐压测。
+
+业务回归默认关闭候补任务和消息；候补IT显式启用消息但停止自动后台任务，使用独立的ticketing.waitlist.it交换机及队列，逐例控制消费并只清空测试队列。夹具按所属用户、场次和SKU清理。Outbox发布器读取当前库待投事件，推荐专用测试库，避免与正在运行的业务实例并行执行；先停止本地后端再验收。测试故障通过Spy在真实事务中注入，队列、数据库和实际库存变化不使用内存替代。
 
 ## 账号初始化与本地认证
 
@@ -63,13 +65,21 @@ docker compose --env-file .env -f deploy/compose.yml exec -T mysql sh -c 'MYSQL_
 
 订单配置在application.yml集中声明：`ORDER_SESSION_LIMIT`默认4，`ORDER_PAYMENT_WINDOW_MINUTES`默认15。启动脚本读取.env；本地已有.env无需覆盖，未指定使用默认值。只允许正数。降低限额不会撤销既有订单，占额超出新限额时阻止继续下单，仍可主动取消。
 
-从活动详情选择正在售票的票档，未登录会跳转登录并返回活动；数量上限取库存、单笔及场次剩余额度的最小值。提交真实订单后查看 `/orders/{id}` 与 `/orders`，页面刷新重新查身份及订单。立即支付前核对活动、场次、票档、数量和金额，确认后显示PAID与真实模拟流水，不产生扣款。确认取消后查看CANCELLED，回活动页刷新库存及额度。创建另一单等待截止，截止即禁用支付按钮，后台转EXPIRED后刷新展示已过期、库存与额度恢复。支付仍占场次限额；截止提示不等于已关闭。尚无候补、电子票、退款或真实支付。
+从活动详情选择正在售票的票档，未登录会跳转登录并返回活动；数量上限取库存、单笔及场次剩余额度的最小值。提交真实订单后查看 `/orders/{id}` 与 `/orders`，页面刷新重新查身份及订单。立即支付前核对活动、场次、票档、数量和金额，确认后显示PAID与真实模拟流水，不产生扣款。确认取消后查看CANCELLED，回活动页刷新库存及额度。创建另一单等待截止，截止即禁用支付按钮，后台转EXPIRED后刷新展示已过期、库存与额度恢复。支付仍占场次限额；截止提示不等于已关闭。尚无电子票、退款或真实支付。
 
 ## 模拟支付与超时扫描配置
 
-ORDER_EXPIRY_ENABLED默认true，ORDER_EXPIRY_SCAN_DELAY_MS默认30000，ORDER_EXPIRY_BATCH_SIZE默认100（1至500）。启动立即扫描，逐笔独立事务处理，批次完成再等待间隔；使用MySQL时间与既有到期索引，账号禁用或父级不可售不影响释放。失败会记录订单ID并继续，游标扫到尾回绕重试；重启重新扫描历史PENDING。不引入RabbitMQ延迟消息或Outbox。
+ORDER_EXPIRY_ENABLED默认true，ORDER_EXPIRY_SCAN_DELAY_MS默认30000，ORDER_EXPIRY_BATCH_SIZE默认100（1至500）。启动立即扫描，逐笔独立事务处理，批次完成再等待间隔；使用MySQL时间与既有到期索引，账号禁用或父级不可售不影响释放。失败会记录订单ID并继续，游标扫到尾回绕重试；重启重新扫描历史PENDING。不引入RabbitMQ延迟关单，释放成功会同事务写候补Outbox事件。
 
 快速浏览器验收可只在启动进程临时设置ORDER_PAYMENT_WINDOW_MINUTES=1及ORDER_EXPIRY_SCAN_DELAY_MS=1000，等待真实截止并刷新状态；不要用修改订单状态SQL代替验收。验证后恢复默认15分钟/30秒，不提交本地.env。积压、锁等待和错误重试会造成关闭延迟，支付SQL仍严格按数据库截止拒绝。测试注入的库存/流水写入故障仅限测试代码，不出现在产品接口。
+
+## 候补与消息验收
+
+WAITLIST_MAX_WAIT_MINUTES默认60，实际申请截止不晚于票档停售。WAITLIST_OUTBOX_POLL_MS默认1000，WAITLIST_COMPENSATION_POLL_MS默认60000；WAITLIST_MESSAGING_ENABLED与WAITLIST_JOBS_ENABLED默认true。Outbox批量、确认超时、租约、总尝试上限、消费退避等集中在application.yml。消息关闭时数据库补偿仍能推进，不能将关闭消息当作正常生产验收结果。
+
+先由用户B在仅剩1张的演示票档创建真实待支付订单，再由用户A申请1张候补；B主动取消后，查询MySQL释放库存及PENDING/SENT事件，RabbitMQ触发A的真实预留订单。A刷新“我的候补”进入关联订单完成模拟支付，刷新候补应显示已完成；核对locked=0、sold=1、唯一支付流水。分配前只可取消候补，分配后须前往订单取消。WAITING不占场次限额，分配重新检查，不保证候补成功或优先于新购票。
+
+消费者队列ticketing.waitlist.dispatch及其.dead均持久化；检查失败日志、FAILED事件和死信数量。修复基础设施后PENDING/超时PROCESSING自动重投，FAILED保留人工排查；不删除业务事件绕过问题。低频扫描会补偿仍有WAITING的SKU，队首不足不越过。端到端为至少一次与数据库幂等。定时任务重启会再次读库，内存游标无需迁移；不要删除Docker数据卷模拟恢复。
 
 ## Git 与本地文件
 

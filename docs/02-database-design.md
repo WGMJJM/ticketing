@@ -12,6 +12,8 @@ V2 新增 `V2__activity_session_management.sql`，V1 保持不变。V2 复用 de
 
 第五阶段直接复用ticket_order、ticket_order_item、payment_record、ticket_sku及 `idx_order_expiry(status,expires_at,id)`。已有字段和约束足够，无V5迁移，V1至V4均未修改。
 
+第六阶段复用waitlist_entry、outbox_event及上述交易表，仍不新增迁移、不进行表结构重构。有效候补唯一键uk_waitlist_active、FIFO索引idx_waitlist_queue、本人查询索引idx_waitlist_user和Outbox认领索引idx_outbox_dispatch均继续使用。
+
 票档价格为 BIGINT 整数分，API 以十进制字符串传输（0至9223372036854775807），前端通过 BigInt 换算人民币元，禁止浮点截断。库存与限购为 INT 整数，接口拒绝小数。只允许管理员修改 total_stock，locked_stock/sold_stock 为只读，可售量即时计算，不落库。
 
 销售窗口必须满足 `场次开售 <= 票档开售 < 票档停售 <= 场次开始`。票档变更及场次修改共享场次行锁，修改场次前检查全部已有票档窗口；跨表规则由事务代码维护，不能用单表 CHECK 代替。旧数据窗口不一致时统一返回暂不可售。已启用销售仅可调整总库存，其他字段先下架再改；总库存条件更新仍须大于等于锁定与已售之和。
@@ -39,7 +41,7 @@ V2 新增 `V2__activity_session_management.sql`，V1 保持不变。V2 复用 de
 
 数据库强制 `total_stock >= 0`、`locked_stock >= 0`、`sold_stock >= 0`、`locked_stock + sold_stock <= total_stock`。可售量为 `total_stock - locked_stock - sold_stock`，不得独立维护另一份可售量。
 
-下单在READ_COMMITTED事务内依次锁用户、活动、场次、SKU，校验账号ACTIVE、父级状态、统一销售窗口和两层限购。库存通过 `UPDATE ticket_sku SET locked_stock=locked_stock+quantity,version=version+1 ... WHERE status='ON_SALE' AND sale_starts_at<=UTC_TIMESTAMP(6) AND sale_ends_at>UTC_TIMESTAMP(6) AND total_stock-locked_stock-sold_stock>=quantity` 条件更新，活动和场次状态在父级锁内核验并稳定至提交。随后插入PENDING订单和唯一明细，任何写入失败全部回滚。订单总额通过Math.multiplyExact计算，明细保存票档名、单价分和数量快照。未写Outbox，本阶段无异步业务。
+下单在READ_COMMITTED事务内依次锁用户、活动、场次、SKU，校验账号ACTIVE、父级状态、统一销售窗口和两层限购。库存通过 `UPDATE ticket_sku SET locked_stock=locked_stock+quantity,version=version+1 ... WHERE status='ON_SALE' AND sale_starts_at<=UTC_TIMESTAMP(6) AND sale_ends_at>UTC_TIMESTAMP(6) AND total_stock-locked_stock-sold_stock>=quantity` 条件更新，活动和场次状态在父级锁内核验并稳定至提交。随后插入PENDING订单和唯一明细，任何写入失败全部回滚。订单总额通过Math.multiplyExact计算，明细保存票档名、单价分和数量快照。库存释放与管理员增库存从第六阶段起同事务写Outbox。
 
 统一锁序为user_account UPDATE→activity SHARE→activity_session SHARE→ticket_sku UPDATE→已有ticket_order UPDATE。活动变更只锁活动；管理场次/票档先活动SHARE、再场次UPDATE、再SKU更新，防止下架、取消或改窗口与下单交叉；初次不加锁查询只发现不可变的父级ID，锁定后读取最新状态。管理员库存更新保留version及 `total_stock>=locked_stock+sold_stock` 条件；与预占竞争后可能409，不能覆盖已有锁定量。
 
@@ -63,9 +65,13 @@ payment_record复用一单唯一约束uk_payment_order和流水唯一约束uk_pa
 
 当前创建域固定CREATE_ORDER，锁用户后首先查询旧键，哈希输入为规范化十进制 `skuId:quantity`。同用户同键并发被用户锁串行化，后到者读取已提交原单，不重复占库存/限额；不同用户可使用相同键。已取消原单仍返回CANCELLED，不重新下单。若插入时发生唯一键等异常，异常穿透事务回滚，统一错误响应，禁止在已回滚事务中捕获后返回成功；失败后同键可正常重试。
 
-候补使用自增 ID 作为同票档内部顺序；调度器未来按 `(sku_id, status, id)` 排队处理。事务提交次序可能不同于 ID 分配次序，严格 FIFO 若要覆盖尚未提交的加入操作，必须使用同 SKU 队列串行协议。数量不足时是否阻塞队首须在业务阶段明确；本计划默认不跳过队首。当前不承诺候补优先于新订单，若要严格优先，需让新订单与候补分配共享同 SKU 调度协议。
+候补使用自增ID作为同票档内部顺序，调度器按 `(sku_id,status,id)` 读取WAITING队首。入队先锁同SKU再生成ID，锁持有至提交，避免先拿较小ID却晚提交造成FIFO反转。分配先非锁定查询候选用户，再按用户UPDATE→活动SHARE→场次SHARE→SKU UPDATE顺序获取当前状态并重新查询队首；旧候选失效即释放全部锁再选，不锁着SKU等待下一用户。队首库存不足就停止，不跳过。队首过期、账号停用、父级/窗口失效或限额不足时条件转EXPIRED再处理下一位。FIFO仅限同SKU候补内部，不承诺优先于普通新购票。
 
-`active_marker` 在 WAITING/ALLOCATED 时为 1，终态为 NULL；唯一键限制有效重复候补，同时保留历史。Outbox 与交易同事务写入；代理确认后标记 SENT，PROCESSING 使用 `next_retry_at` 作为租约截止，超时恢复。消费端需通过状态条件更新或后续新增消费去重表实现幂等，不能把发出消息当作业务成功。
+`active_marker`在WAITING/ALLOCATED时为1，终态NULL；唯一键限制有效重复候补，同时保留历史。WAITING不占库存或场次限额，入队及分配均校验真实限额。分配调用OrderService共用预占方法，固定WAITLIST_CONFIRM域、waitlist-{候补ID}键及SKU/数量哈希；创建订单、明细、预占及候补转ALLOCATED同事务，先订单后候补。reserved_order_id唯一且外键核对用户；代码另行核对场次、SKU及数量，查询JOIN也校验，不以单表CHECK代替。支付转COMPLETED，取消/超时转EXPIRED，均在订单事务末端检查关联并更新，失配全部回滚。等待截止不晚于票档停售，已分配订单使用独立支付截止。
+
+Outbox与库存释放/管理员增库存同事务；候补入队/退出也写调度提示，不在业务事务内发MQ。事件载荷只含eventId、skuId及reason。发布器短事务FOR UPDATE SKIP LOCKED取到期PENDING或租约超时PROCESSING并递增retry_count，next_retry_at记录租约；事务提交后发持久消息，代理确认且无mandatory退回才条件标SENT。SENT/重试更新须匹配PROCESSING和本次retry_count，旧发布器不能覆盖新认领者。确认丢失或崩溃允许重复消息，超过配置总次数转FAILED保留错误摘要。
+
+消费端验证消息与已提交Outbox一致，以同SKU队首、有效状态条件和唯一订单键保证幂等，不新增消费去重表。部分分配成功后再失败，重投只处理剩余WAITING。持久队列/交换机、有界消费退避和死信保护消息链路；独立数据库扫描补偿WAITING队列，不以消息SENT宣称分配成功。至少一次投递不等于端到端Exactly Once。内存扫描游标只控制公平分页，任务重启仍按库中事实恢复。
 
 ## 电子票安全方案（待实现）
 

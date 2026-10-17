@@ -65,6 +65,7 @@ class OrderManagementIT {
     @AfterEach
     void cleanup() {
         if (sessionId != 0) {
+            jdbc.update("DELETE e FROM outbox_event e JOIN ticket_sku s ON e.aggregate_id=s.id WHERE e.aggregate_type='TICKET_SKU' AND s.session_id=?",sessionId);
             jdbc.update("DELETE p FROM payment_record p JOIN ticket_order o ON p.order_id=o.id WHERE o.session_id=?", sessionId);
             jdbc.update("DELETE i FROM ticket_order_item i JOIN ticket_order o ON i.order_id=o.id WHERE o.session_id=?", sessionId);
             jdbc.update("DELETE FROM ticket_order WHERE session_id=?", sessionId);

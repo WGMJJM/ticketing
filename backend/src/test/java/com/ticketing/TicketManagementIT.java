@@ -227,6 +227,7 @@ class TicketManagementIT {
             }
             assertThat(jdbc.queryForObject("SELECT version FROM ticket_sku WHERE id = ?", Integer.class, sku.path("id").asLong())).isEqualTo(1);
         } finally {
+            jdbc.update("DELETE e FROM outbox_event e JOIN ticket_sku s ON e.aggregate_id=s.id WHERE e.aggregate_type='TICKET_SKU' AND s.session_id=?",Long.parseLong(sessionId));
             jdbc.update("DELETE FROM ticket_sku WHERE session_id = ?", Long.parseLong(sessionId));
             jdbc.update("DELETE FROM activity_session WHERE id = ?", Long.parseLong(sessionId));
             jdbc.update("DELETE FROM activity WHERE id = ?", Long.parseLong(activityId));

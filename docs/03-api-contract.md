@@ -119,6 +119,35 @@ Spring Scheduling默认开启，启动即扫描MySQL的 `PENDING AND expires_at<
 
 前端数量范围按可售量、单笔上限及限额查询取最小值，金额用BigInt。确认提交期间禁止重复点击，每次新尝试生成UUID幂等键；当前页面遇网络/5xx结果不明时保留键和数量供用户手动重试或查看我的订单，不自动重放POST。刷新或离开页面后先查订单，不能假定未创建。取消成功后重新查询订单，活动页通过刷新票档获取释放后的库存。
 
+## 候补申请与查询
+
+以下路径均以 `/api/v1` 为前缀，使用当前AccountPrincipal，Session与CSRF机制与订单一致。未登录或禁用账号401，无效CSRF403；ADMIN不享有查询他人候补的例外。公开活动及票档查询不额外查询账号。
+
+| 方法与路径 | 请求与行为 |
+| --- | --- |
+| POST /waitlist | JSON `{ "skuId": "10001", "quantity": 2 }`；拒绝userId、状态、截止等未知字段；创建或返回本人同SKU同数量的有效记录 |
+| GET /waitlist | page默认1、size默认10，上限分别10000/50，返回本人分页记录 |
+| GET /waitlist/{id} | 本人候补详情，非本人或不存在404 WAITLIST_NOT_FOUND |
+| POST /waitlist/{id}/cancel | 只取消WAITING；重复CANCELLED原样返回，ALLOCATED需走关联订单取消，其他状态409 |
+
+skuId为正十进制字符串且不超过Java long，quantity为正INT整数，拒绝小数及未知字段（400）。申请时须在有效销售窗口、父级可售、账号有效、满足单笔及场次剩余额度，且可售库存小于请求数量；库存充足提示直接购买。相同有效记录同数量返回原记录，异数量409 WAITLIST_CONFLICT，数据库有效唯一键兜底。不要求客户端传幂等键。等待截止取数据库当前时间加WAITLIST_MAX_WAIT_MINUTES（默认60）与票档停售时间的较早值。等待不占库存或限额，可在其他票档购票；分配时再次检查，额度不足的队首会终结为EXPIRED并继续下一位。
+
+WaitlistView字段：id/skuId/sessionId/activityId/activityTitle/sessionTitle/skuName/priceCents/quantity/status/createdAt/expiresAt/reservedOrderId/orderStatus/orderExpiresAt/canCancel。ID与金额分为字符串，时间带Z，界面北京时间。priceCents是当前票价，实际支付使用分配订单的价格快照。reservedOrderId及订单状态、截止在未分配时为null；已分配关联需匹配用户、场次、SKU、数量，否则409。canCancel仅表示WAITING可提交取消，最终以事务状态检查为准。
+
+状态映射：WAITING等待候补、ALLOCATED已分配待支付、COMPLETED候补完成、CANCELLED已取消候补、EXPIRED候补已过期或失效。ALLOCATED的支付截止以orderExpiresAt为准，原expiresAt仅是等待申请截止。支付成功→COMPLETED；预留订单主动取消或自动过期→EXPIRED，状态联动与库存同事务。已分配不可直接取消候补，重复支付仍返回原流水。
+
+同SKU有效队列按ID升序，队首数量不足不跳过；队首过期、账号禁用、父级下架/取消、停售或额度不足转EXPIRED后继续。入队及分配在同SKU锁内串行，锁顺序固定用户→活动→场次→SKU→订单→候补。候补订单固定WAITLIST_CONFIRM域，服务端唯一键waitlist-{候补ID}，复用服务端金额和库存条件更新。FIFO只承诺同SKU候补内部顺序，不保证优先于所有直接购票请求。
+
+## 候补消息与补偿
+
+订单取消/超时、管理员增加总库存，及候补入队/退出产生调度提示，同事务写outbox_event。事件类型WAITLIST_DISPATCH_REQUESTED、聚合TICKET_SKU，payload为字符串eventId/skuId及reason，无账号凭据。无公开消息、强制调度或修改候补状态接口。
+
+发布任务默认每秒读取至多20条，每条短事务SKIP LOCKED认领，30秒租约，retry_count作为认领令牌。持久消息经correlated confirm且无mandatory退回才标SENT，确认超时5秒；失败按2秒起、最大300秒有界指数退避，总尝试10次后FAILED。应用重启或租约到期可以重新认领，旧令牌不能修改新任务状态。FAILED保留供运维定位，不代表候补必然失败。
+
+RabbitMQ持久交换机ticketing.waitlist，路由inventory.available，持久队列ticketing.waitlist.dispatch；死信交换机ticketing.waitlist.dead，死信队列ticketing.waitlist.dispatch.dead，路由failed。消费者核对已提交Outbox与messageId、SKU，事务完成后确认；重复消息重查数据库，不重复创建订单。消费最多4次、间隔1/2/4秒，失败拒绝重新入队并进入死信，避免快速无限循环。
+
+独立数据库补偿默认每60秒扫描100个仍有WAITING的SKU，每SKU至多处理50次队首；覆盖有库存未分配及无库存但队首已失效的情况。逐SKU隔离失败，游标前进并回绕，重启从数据库恢复。WAITLIST_MESSAGING_ENABLED=false可用于本地故障隔离，补偿仍运行；WAITLIST_JOBS_ENABLED=false仅供受控测试关闭后台任务。消息与补偿均为最终推进，不保证即时分配或吞吐指标。
+
 ## 待开发方向
 
-第五阶段模拟支付与MySQL可靠超时扫描已实现，完成验收后停止。后续FIFO候补、Outbox与消费者幂等、电子票及核销尚未开发；真实支付平台、退款及对账不在本阶段。
+第六阶段FIFO候补、Outbox、RabbitMQ与数据库补偿已实现，验收后停止。真实支付平台、退款、电子票及核销尚未开发。
