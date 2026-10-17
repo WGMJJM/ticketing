@@ -16,7 +16,7 @@ import {
   type Category,
   type SessionInput,
 } from '../api/activities'
-import { useAdminStore } from '../stores/admin'
+import { useAuthStore } from '../stores/auth'
 import { formatTime, fromBeijingInput, toBeijingInput } from '../utils/date'
 import { chineseValidation, clearValidation } from '../utils/validation'
 import TicketManager from '../components/TicketManager.vue'
@@ -26,7 +26,7 @@ function openTickets(session: ActivitySession) {
   ticketSession.value = session
   ticketsDialog.value = true
 }
-const admin = useAdminStore()
+const admin = useAuthStore()
 const router = useRouter()
 const query = reactive<ActivityQuery>({
   keyword: '',
@@ -66,7 +66,7 @@ const sessionForm = reactive({
   saleStartsAt: '',
 })
 watch(
-  () => admin.authenticated,
+  () => admin.isAdmin,
   (value) => {
     if (!value) void router.replace('/admin/login')
   },
@@ -253,9 +253,13 @@ function page(next: number) {
   query.page = next
   void load()
 }
-function logout() {
-  admin.clear()
-  void router.replace('/admin/login')
+async function logout() {
+  try {
+    await admin.logout()
+    await router.replace('/login')
+  } catch (failure) {
+    report(failure)
+  }
 }
 onMounted(() => load())
 </script>
@@ -268,8 +272,8 @@ onMounted(() => load())
         <p>管理活动内容、发布状态和场次安排。时间统一按北京时间输入与展示。</p>
       </div>
       <div class="admin-user">
-        <span>{{ admin.username }}</span
-        ><ElButton @click="logout">退出认证</ElButton>
+        <span>{{ admin.user?.username }}</span
+        ><ElButton @click="logout">退出登录</ElButton>
       </div>
     </div>
     <p

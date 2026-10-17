@@ -8,6 +8,7 @@ import router from './router'
 import './style.css'
 import './event.css'
 import './ticket.css'
+import './auth.css'
 
 createApp(App)
   .use(createPinia())

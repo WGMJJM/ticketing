@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
-import { useAdminStore } from '../stores/admin'
+import { useAuthStore } from '../stores/auth'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -13,7 +13,15 @@ const router = createRouter({
     },
     {
       path: '/admin/login',
-      component: () => import('../views/AdminLoginView.vue'),
+      component: () => import('../views/LoginView.vue'),
+      props: { adminOnly: true },
+    },
+    { path: '/login', component: () => import('../views/LoginView.vue') },
+    { path: '/register', component: () => import('../views/RegisterView.vue') },
+    {
+      path: '/profile',
+      component: () => import('../views/ProfileView.vue'),
+      meta: { requiresAuth: true },
     },
     {
       path: '/admin/activities',
@@ -25,8 +33,19 @@ const router = createRouter({
   scrollBehavior: () => ({ top: 0 }),
 })
 
-router.beforeEach((to) => {
-  if (to.meta.requiresAdmin && !useAdminStore().authenticated)
-    return { path: '/admin/login' }
+router.beforeEach(async (to) => {
+  const auth = useAuthStore()
+  await auth.restore()
+  if ((to.meta.requiresAuth || to.meta.requiresAdmin) && !auth.authenticated)
+    return {
+      path: to.meta.requiresAdmin ? '/admin/login' : '/login',
+      query: { redirect: to.path },
+    }
+  if (
+    (to.meta.requiresAdmin || to.path === '/admin/login') &&
+    auth.authenticated &&
+    !auth.isAdmin
+  )
+    return { path: '/profile', query: { denied: '1' } }
 })
 export default router

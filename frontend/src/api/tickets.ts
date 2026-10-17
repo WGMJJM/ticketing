@@ -1,6 +1,6 @@
 import { client } from './client'
 import type { ApiResponse } from './system'
-import { useAdminStore } from '../stores/admin'
+import { useAuthStore } from '../stores/auth'
 
 export type TicketStatus = 'DRAFT' | 'ON_SALE' | 'OFF_SALE'
 export type SaleStatus =
@@ -57,23 +57,23 @@ export async function listTickets(
 }
 export const adminTickets = {
   list: (sessionId: string) =>
-    useAdminStore().request<TicketSku[]>({
+    useAuthStore().request<TicketSku[]>({
       url: `/admin/sessions/${sessionId}/tickets`,
     }),
   create: (sessionId: string, data: TicketInput) =>
-    useAdminStore().request<TicketSku>({
+    useAuthStore().request<TicketSku>({
       method: 'POST',
       url: `/admin/sessions/${sessionId}/tickets`,
       data,
     }),
   update: (id: string, data: TicketInput) =>
-    useAdminStore().request<TicketSku>({
+    useAuthStore().request<TicketSku>({
       method: 'PUT',
       url: `/admin/tickets/${id}`,
       data,
     }),
   transition: (ticket: TicketSku, operation: 'publish' | 'offline') =>
-    useAdminStore().request<TicketSku>({
+    useAuthStore().request<TicketSku>({
       method: 'POST',
       url: `/admin/tickets/${ticket.id}/${operation}`,
       data: { version: ticket.version },
