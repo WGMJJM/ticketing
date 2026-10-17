@@ -17,11 +17,10 @@
 
 ## 已实现管理接口
 
-以下全部需要 ADMIN 身份。当前由受控开发管理员提供，默认不开启。写请求必须携带认证后的 CSRF 令牌。
+以下全部需要数据库账号的ADMIN身份和Session Cookie。写请求必须携带当前会话CSRF令牌，旧Basic认证不再接受。
 
 | 方法与路径（均在 /api/v1 下） | 请求与行为 |
 | --- | --- |
-| GET /admin/session | 返回 username/csrfHeader/csrfToken；Cache-Control 为 no-store |
 | GET /admin/activities | 同公开筛选，加 status=DRAFT/PUBLISHED/OFFLINE，可查全部状态；按创建时间、ID降序 |
 | GET /admin/activities/{id} | 管理活动详情 |
 | POST /admin/activities | 创建草稿；title/category/city/venue/summary/description，coverUrl可选 |
@@ -35,7 +34,27 @@
 
 活动字段长度上限为标题200、城市64、场馆200、简介500、详情20000、封面2048。封面只接受HTTP(S)，服务端不抓取、不上传。结束时间晚于开始，开售早于开始；输入2030-05-01T19:00:00+08:00将存为UTC并返回2030-05-01T11:00:00Z。每个活动最多200个场次；活动发布不要求已存在场次，用户看到明确空状态。
 
-version从0开始，成功更新递增；遗漏版本为400，陈旧版本或非法状态转换为409。不能通过直接提交status绕过发布/下架接口。开发管理员不使用业务user_account表，也不代表已经实现普通用户登录。
+version从0开始，成功更新递增；遗漏版本为400，陈旧版本或非法状态转换为409。不能通过直接提交status绕过发布/下架接口。普通用户访问管理接口403，未登录401，缺失或无效CSRF写请求403。
+
+## 用户认证与会话
+
+以下路径均在 `/api/v1` 下。所有认证响应（含失败）禁用缓存，返回ApiResponse，不包含密码哈希、Cookie值或Session ID。
+
+| 方法与路径 | 请求和响应 |
+| --- | --- |
+| GET `/auth/csrf` | 公开，创建或读取会话CSRF；data为 `{headerName,token}` |
+| POST `/auth/register` | JSON `{username,password}`，需CSRF；返回 `{id,username,role}`，不自动登录 |
+| POST `/auth/login` | `application/x-www-form-urlencoded`，字段username/password，需CSRF；成功返回当前用户并建立Session |
+| POST `/auth/logout` | 无业务请求体，需CSRF；销毁Session、清除Cookie，返回data=null；可幂等退出匿名会话 |
+| GET `/auth/me` | 当前登录用户 `{id,username,role}`，未登录401；不接受其他用户的身份选择 |
+
+用户名3至32位ASCII字母、数字、下划线，字母开头；大小写不敏感。密码8至72个字符且UTF-8编码不超过72字节，禁止控制字符；密码按原样验证，不自动去空格。注册只允许两个字段，携带role/status/id/userId等其他字段400；重复用户名409，固定创建USER/ACTIVE。成功注册不会自动创建已登录身份。
+
+登录使用Spring Security标准表单过滤器；错误用户名和密码统一401及“用户名或密码不正确”，禁用账号401及中文禁用提示。成功登录更换Session ID并保存SecurityContext；后续只依靠Cookie恢复身份，Basic Authorization无效。role仅为USER或ADMIN，ID为字符串。后续服务通过AccountPrincipal获取用户ID，不能信任前端userId。已有会话在账号被禁用后不会立即撤销，本阶段只保证禁用账号无法新建认证会话。
+
+CSRF保存在HttpSession，保留默认XOR保护。客户端先GET csrf，把响应token放到headerName指定的头，再提交注册、登录、退出或管理员写操作。登录和退出会清除旧CSRF，随后必须重新GET csrf。前端每次写请求前获取当前令牌，403不会自动重放写操作。Cookie为HttpOnly、SameSite=Lax，Session空闲30分钟，禁止URL会话跟踪；Secure默认true，仅本地HTTP显式配置false。前端同源访问Vite代理，服务端未开放跨域凭据访问。
+
+参考实现依据：[Spring Security标准表单登录](https://docs.spring.io/spring-security/reference/6.5/servlet/authentication/passwords/form.html)、[CSRF端点及登录退出刷新](https://docs.spring.io/spring-security/reference/6.5/servlet/exploits/csrf.html)。
 
 ## 已实现票档与库存管理
 
@@ -62,4 +81,4 @@ ON_SALE 仅为管理状态。后端先判断活动发布、场次正常且未结
 
 ## 待开发方向
 
-用户注册登录及归属权限 → 下单锁票 → 模拟支付与超时关单 → FIFO候补 → 电子票核销。金额用人民币分整数、ID用字符串、日期带时区；下单只接收SKU和数量，价格由服务端计算。订单幂等、库存事务、Outbox、消费者幂等与限购方案仍遵循数据库设计，本轮没有提供订单/支付/候补占位成功接口。
+下单锁票 → 模拟支付与超时关单 → FIFO候补 → 电子票核销。金额用人民币分整数、ID用字符串、日期带时区；下单只接收SKU和数量，价格由服务端计算。订单幂等、库存事务、Outbox、消费者幂等与限购方案仍遵循数据库设计，本轮没有提供订单/支付/候补占位成功接口。

@@ -32,11 +32,17 @@ PowerShell 脚本为 UTF-8 BOM，Bash 为 LF UTF-8。脚本读取 `.env` 而不�
 7. 检查 `/about`、活动详情、场次选择及运营管理。演示活动须显式标记，无购票按钮。
 8. `npm run build` 同时完成 TypeScript 检查和生产打包。
 
-数据库测试位于 `DatabaseMigrationIT`，测试 ID 使用 900001 段，推荐独立开发库。`ActivityManagementIT` 和 `TicketManagementIT` 补充活动、场次及票档的真实数据库和 HTTP 层测试。普通用例事务回滚；并发编辑用例使用独立提交的测试数据并在结束后定向清理。当前共19项基础测试和19项集成测试，不证明下单并发、跨用户场次限购或核销正确性。
+数据库测试位于 `DatabaseMigrationIT`，测试ID使用900001段，推荐独立开发库。`ActivityManagementIT`、`TicketManagementIT`覆盖原有业务；`AuthenticationIT`使用随机端口Tomcat、真实HTTP、Cookie、Session和MySQL完成认证链路，`SessionCookieIT`单独检查生产Secure属性。普通业务用例事务回滚；并发编辑与真实HTTP认证用例提交独立夹具并在结束后定向清理。当前19项基础测试加29项集成测试共48项，详细结果见 `docs/09-authentication-verification.md`。不证明购票并发、跨用户场次限购或核销正确性。
 
-## 开发管理员与演示数据
+## 账号初始化与本地认证
 
-默认关闭开发管理员。受控本地联调时在被忽略的 `.env` 中设置 `DEV_ADMIN_ENABLED=true`、`DEV_ADMIN_USERNAME` 和至少16位的 `DEV_ADMIN_PASSWORD`，重启后端。当前本机已生成随机密码；从本地文件读取，不把凭据提交或写入前端。访问 `/admin/activities` 会先进入认证页，刷新后需要重新认证。写操作保留 CSRF 校验，不是公开写接口，也不是完整用户登录模块。Basic 机制仅用于本地回环地址，禁止直接用作生产认证。
+旧开发Basic管理员已删除，普通用户与管理员统一使用数据库账号和Session。先更新被忽略的 `.env`：本地HTTP设 `SESSION_COOKIE_SECURE=false`；生产HTTPS保持true（后端默认true）。不沿用旧DEV_ADMIN变量。
+
+首次创建管理员时设置 `ADMIN_BOOTSTRAP_ENABLED=true`、`ADMIN_BOOTSTRAP_USERNAME`、`ADMIN_BOOTSTRAP_PASSWORD`，用户名遵循注册格式，密码至少16个字符且UTF-8不超过72字节。启动后端后将开关改回false，并从部署环境移除初始化密码；不把密码放在命令行参数、SQL、前端或Git中。该初始化只创建新ADMIN/ACTIVE账号，已有管理员保持原密码，已有普通/禁用账号则拒绝启动，不自动提权。本机联调生成的随机密码只保存在被忽略的本地.env，未公开输出。
+
+普通用户从 `/register` 注册，成功后前往 `/login`；`/profile`展示当前数据库身份。管理员可用同一登录页，或直接访问 `/admin/login`。刷新通过auth/me恢复Session；会话空闲30分钟或后端重启后需重新登录。退出会使旧Cookie对应的会话失效。每次写请求前获取CSRF，登录和退出后重新获取。不要用浏览器存储保存密码或Basic凭据。
+
+## 演示数据
 
 需要中文样例时，在项目根目录人工执行：
 
