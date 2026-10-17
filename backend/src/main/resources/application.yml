@@ -1,4 +1,8 @@
 spring:
+  task:
+    scheduling:
+      pool:
+        size: 3
   application:
     name: ticketing
   datasource:
@@ -18,6 +22,21 @@ spring:
       connect-timeout: 3s
       timeout: 3s
   rabbitmq:
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+    listener:
+      simple:
+        default-requeue-rejected: false
+        prefetch: 1
+        concurrency: 2
+        retry:
+          enabled: true
+          max-attempts: 4
+          initial-interval: 1s
+          multiplier: 2
+          max-interval: 8s
     host: ${RABBITMQ_HOST:127.0.0.1}
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USER:ticketing}
@@ -69,3 +88,22 @@ ticketing:
     enabled: ${ADMIN_BOOTSTRAP_ENABLED:false}
     username: ${ADMIN_BOOTSTRAP_USERNAME:}
     password: ${ADMIN_BOOTSTRAP_PASSWORD:}
+  waitlist:
+    max-wait-minutes: ${WAITLIST_MAX_WAIT_MINUTES:60}
+    dispatch-max-steps: 50
+    messaging:
+      enabled: ${WAITLIST_MESSAGING_ENABLED:true}
+    jobs:
+      enabled: ${WAITLIST_JOBS_ENABLED:true}
+    exchange: ticketing.waitlist
+    queue: ticketing.waitlist.dispatch
+    outbox-poll-ms: ${WAITLIST_OUTBOX_POLL_MS:1000}
+    compensation-poll-ms: ${WAITLIST_COMPENSATION_POLL_MS:60000}
+    compensation-batch-size: 100
+    outbox:
+      batch-size: 20
+      lease-seconds: 30
+      confirm-timeout-ms: 5000
+      max-attempts: 10
+      retry-base-seconds: 2
+      retry-max-seconds: 300
