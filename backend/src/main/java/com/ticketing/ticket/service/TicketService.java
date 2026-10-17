@@ -14,6 +14,7 @@ import com.ticketing.ticket.entity.TicketSku;
 import com.ticketing.ticket.mapper.TicketSkuMapper;
 import com.ticketing.ticket.model.SaleStatus;
 import com.ticketing.ticket.model.TicketStatus;
+import com.ticketing.waitlist.messaging.InventoryEventWriter;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -31,11 +32,13 @@ public class TicketService {
     private final TicketSkuMapper tickets;
     private final ActivitySessionMapper sessions;
     private final ActivityMapper activities;
+    private final InventoryEventWriter events;
 
-    public TicketService(TicketSkuMapper tickets, ActivitySessionMapper sessions, ActivityMapper activities) {
+    public TicketService(TicketSkuMapper tickets, ActivitySessionMapper sessions, ActivityMapper activities, InventoryEventWriter events) {
         this.tickets = tickets;
         this.sessions = sessions;
         this.activities = activities;
+        this.events = events;
     }
 
     @Transactional(readOnly = true)
@@ -115,6 +118,7 @@ public class TicketService {
         try {
             if (tickets.update(null, update) != 1) throw conflict("票档或库存已变化，请刷新后重试");
         } catch (DuplicateKeyException exception) { throw duplicateName(); }
+        if (request.totalStock() > sku.getTotalStock()) events.append(id,"STOCK_INCREASED");
         return view(requireTicket(id), session);
     }
 

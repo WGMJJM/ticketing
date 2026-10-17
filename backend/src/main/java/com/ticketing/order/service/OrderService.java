@@ -21,6 +21,9 @@ import com.ticketing.ticket.entity.TicketSku;
 import com.ticketing.ticket.mapper.TicketSkuMapper;
 import com.ticketing.ticket.model.SaleStatus;
 import com.ticketing.ticket.service.TicketService;
+import com.ticketing.waitlist.entity.WaitlistEntry;
+import com.ticketing.waitlist.mapper.WaitlistMapper;
+import com.ticketing.waitlist.messaging.InventoryEventWriter;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -33,6 +36,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 
 @Service
 public class OrderService {
@@ -43,11 +47,13 @@ public class OrderService {
     private final TicketSkuMapper tickets;
     private final ActivitySessionMapper sessions;
     private final ActivityMapper activities;
+    private final WaitlistMapper waitlists;
+    private final InventoryEventWriter events;
     private final int sessionLimit;
     private final int paymentMinutes;
 
     public OrderService(OrderMapper orders, PaymentMapper payments, UserAccountMapper users, TicketSkuMapper tickets,
-            ActivitySessionMapper sessions, ActivityMapper activities,
+            ActivitySessionMapper sessions, ActivityMapper activities, WaitlistMapper waitlists, InventoryEventWriter events,
             @Value("${ticketing.order.max-per-user-session:4}") int sessionLimit,
             @Value("${ticketing.order.payment-window-minutes:15}") int paymentMinutes) {
         if (sessionLimit < 1 || paymentMinutes < 1) throw new IllegalArgumentException("限购数量和支付窗口必须为正数");
@@ -57,6 +63,8 @@ public class OrderService {
         this.tickets = tickets;
         this.sessions = sessions;
         this.activities = activities;
+        this.waitlists = waitlists;
+        this.events = events;
         this.sessionLimit = sessionLimit;
         this.paymentMinutes = paymentMinutes;
     }
@@ -75,6 +83,38 @@ public class OrderService {
             return view(existing.getId(), userId);
         }
         SaleContext sale = lockSale(skuId);
+        TicketOrder order = insertReservedOrder(userId, request.quantity(), CREATE_OPERATION, key, hash, sale);
+        return view(order.getId(), userId);
+    }
+
+    /** 候补业务先取得统一锁上下文，不在持有票档锁后再获取其他用户锁。 */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public PurchaseContext lockPurchase(long userId, long skuId, boolean requireActive) {
+        UserAccount user = lockUser(userId, requireActive);
+        SaleContext sale = lockSale(skuId);
+        return new PurchaseContext(user, sale.activity(), sale.session(), sale.sku());
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public TicketOrder reserveWaitlist(PurchaseContext context, int quantity, long entryId) {
+        long userId = context.user().getId();
+        long skuId = context.sku().getId();
+        String key = "waitlist-" + entryId;
+        TicketOrder existing = orders.selectOne(new LambdaQueryWrapper<TicketOrder>().eq(TicketOrder::getUserId,userId)
+                .eq(TicketOrder::getIdempotencyOperation,"WAITLIST_CONFIRM").eq(TicketOrder::getIdempotencyKey,key));
+        byte[] hash = requestHash(skuId,quantity);
+        if (existing != null) {
+            if (!MessageDigest.isEqual(existing.getRequestHash(),hash) || !"PENDING".equals(existing.getStatus())) {
+                throw conflict("WAITLIST_ORDER_CONFLICT","候补预留订单不一致");
+            }
+            return requireOwned(existing.getId(),userId);
+        }
+        return insertReservedOrder(userId,quantity,"WAITLIST_CONFIRM",key,hash,
+                new SaleContext(context.activity(),context.session(),context.sku()));
+    }
+
+    private TicketOrder insertReservedOrder(long userId, int quantity, String operation, String key, byte[] hash, SaleContext sale) {
+        long skuId = sale.sku().getId();
         LocalDateTime now = orders.databaseNow();
         SaleStatus status = TicketService.saleStatus(sale.activity(), sale.session(), sale.sku(), now);
         if (status != SaleStatus.SELLING) {
@@ -86,7 +126,6 @@ public class OrderService {
             };
             throw conflict("TICKET_UNAVAILABLE", message);
         }
-        int quantity = request.quantity();
         if (quantity > sale.sku().getMaxQuantityPerOrder()) throw conflict("PURCHASE_LIMIT", "购买数量超过该票档单笔限购");
         long occupied = orders.occupied(userId, sale.session().getId());
         if (occupied + quantity > sessionLimit) throw conflict("PURCHASE_LIMIT", "同一用户每场最多占有" + sessionLimit + "张，请先取消不需要的待支付订单");
@@ -100,7 +139,7 @@ public class OrderService {
         order.setSessionId(sale.session().getId());
         order.setStatus("PENDING");
         order.setTotalAmountCents(total);
-        order.setIdempotencyOperation(CREATE_OPERATION);
+        order.setIdempotencyOperation(operation);
         order.setIdempotencyKey(key);
         order.setRequestHash(hash);
         LocalDateTime created = orders.databaseNow();
@@ -110,7 +149,7 @@ public class OrderService {
         // 不捕获唯一键异常后继续提交；任何落库失败都由事务整体回滚。
         orders.insert(order);
         orders.insertItem(order, sale.sku(), quantity);
-        return view(order.getId(), userId);
+        return order;
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -126,6 +165,8 @@ public class OrderService {
                 .eq(TicketOrder::getUserId, userId).eq(TicketOrder::getStatus, "PENDING")
                 .set(TicketOrder::getStatus, "CANCELLED").set(TicketOrder::getUpdatedAt, LocalDateTime.now(ZoneOffset.UTC)));
         if (changed != 1) throw conflict("ORDER_STATE_CONFLICT", "订单状态已变化，请刷新后重试");
+        finishWaitlist(initial,"EXPIRED");
+        events.append(initial.getSkuId(),"ORDER_CANCELLED");
         return view(orderId, userId);
     }
 
@@ -154,6 +195,7 @@ public class OrderService {
         record.setCreatedAt(paid.getPaidAt());
         record.setUpdatedAt(paid.getPaidAt());
         payments.insert(record);
+        finishWaitlist(initial,"COMPLETED");
         return PaymentView.from(record);
     }
 
@@ -175,6 +217,8 @@ public class OrderService {
         TicketOrder order = lockOrder(orderId, userId);
         if (!"PENDING".equals(order.getStatus()) || orders.markExpired(orderId, userId) != 1) return false;
         if (orders.release(sale.sku().getId(), initial.getQuantity()) != 1) throw conflict("STOCK_CONFLICT", "订单锁定库存不一致，超时关闭未生效");
+        finishWaitlist(initial,"EXPIRED");
+        events.append(initial.getSkuId(),"ORDER_EXPIRED");
         return true;
     }
 
@@ -195,12 +239,28 @@ public class OrderService {
         return new PurchaseLimit(sessionLimit, used, Math.max(0, sessionLimit - used));
     }
 
-    private void lockUser(long id, boolean requireActive) {
+    private UserAccount lockUser(long id, boolean requireActive) {
         UserAccount account = users.selectOne(new LambdaQueryWrapper<UserAccount>()
                 .select(UserAccount::getId, UserAccount::getStatus).eq(UserAccount::getId, id).last("FOR UPDATE"));
         if (account == null || (requireActive && !"ACTIVE".equals(account.getStatus()))) {
             throw new BusinessException(HttpStatus.UNAUTHORIZED, "ACCOUNT_UNAVAILABLE", "账号已停用或不存在，请重新登录");
         }
+        return account;
+    }
+
+    private void finishWaitlist(TicketOrder order, String target) {
+        WaitlistEntry entry = waitlists.selectOne(new LambdaQueryWrapper<WaitlistEntry>()
+                .eq(WaitlistEntry::getReservedOrderId,order.getId()).last("FOR UPDATE"));
+        if (entry == null && !"WAITLIST_CONFIRM".equals(order.getIdempotencyOperation())) return;
+        if (entry == null || !entry.getUserId().equals(order.getUserId()) || !entry.getSkuId().equals(order.getSkuId())
+                || !entry.getQuantity().equals(order.getQuantity()) || !"ALLOCATED".equals(entry.getStatus())
+                || !"WAITLIST_CONFIRM".equals(order.getIdempotencyOperation())
+                || !("waitlist-"+entry.getId()).equals(order.getIdempotencyKey())) {
+            throw conflict("WAITLIST_ORDER_CONFLICT","候补与预留订单的用户、场次、票档或数量不一致");
+        }
+        if (waitlists.update(null,new LambdaUpdateWrapper<WaitlistEntry>().eq(WaitlistEntry::getId,entry.getId())
+                .eq(WaitlistEntry::getStatus,"ALLOCATED").set(WaitlistEntry::getStatus,target)
+                .set(WaitlistEntry::getUpdatedAt,orders.databaseNow())) != 1) throw conflict("WAITLIST_ORDER_CONFLICT","候补状态已变化");
     }
 
     private TicketOrder lockOrder(long id, long userId) {
@@ -239,5 +299,6 @@ public class OrderService {
     private BusinessException notFound() { return new BusinessException(HttpStatus.NOT_FOUND, "ORDER_NOT_FOUND", "订单不存在"); }
     private BusinessException conflict(String code, String message) { return new BusinessException(HttpStatus.CONFLICT, code, message); }
     public record PurchaseLimit(int maxPerSession, long usedQuantity, long remainingQuantity) {}
+    public record PurchaseContext(UserAccount user, Activity activity, ActivitySession session, TicketSku sku) {}
     private record SaleContext(Activity activity, ActivitySession session, TicketSku sku) {}
 }
