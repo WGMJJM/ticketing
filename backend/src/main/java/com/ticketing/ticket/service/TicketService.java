@@ -23,6 +23,7 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 
 @Service
 public class TicketService {
@@ -64,7 +65,7 @@ public class TicketService {
                 .map(sku -> TicketView.from(sku, saleStatus(activity, session, sku, utcNow), now)).toList();
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public TicketView create(long sessionId, TicketWriteRequest request) {
         ActivitySession session = requireSession(sessionId, true);
         validateSession(session);
@@ -91,7 +92,7 @@ public class TicketService {
         return view(sku, session);
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public TicketView update(long id, TicketWriteRequest request) {
         TicketSku existing = requireTicket(id);
         ActivitySession session = requireSession(existing.getSessionId(), true);
@@ -117,7 +118,7 @@ public class TicketService {
         return view(requireTicket(id), session);
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public TicketView publish(long id, VersionRequest request) {
         TicketSku existing = requireTicket(id);
         ActivitySession session = requireSession(existing.getSessionId(), true);
@@ -135,7 +136,7 @@ public class TicketService {
         return view(requireTicket(id), session);
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public TicketView offline(long id, VersionRequest request) {
         TicketSku existing = requireTicket(id);
         ActivitySession session = requireSession(existing.getSessionId(), true);
@@ -148,7 +149,7 @@ public class TicketService {
         return view(requireTicket(id), session);
     }
 
-    static SaleStatus saleStatus(Activity activity, ActivitySession session, TicketSku sku, LocalDateTime now) {
+    public static SaleStatus saleStatus(Activity activity, ActivitySession session, TicketSku sku, LocalDateTime now) {
         if (!"PUBLISHED".equals(activity.getStatus()) || !"SCHEDULED".equals(session.getStatus())
                 || !now.isBefore(session.getEndsAt()) || !TicketStatus.ON_SALE.name().equals(sku.getStatus())) return SaleStatus.UNAVAILABLE;
         if (sku.getSaleStartsAt().isBefore(session.getSaleStartsAt()) || sku.getSaleEndsAt().isAfter(session.getStartsAt())) {
@@ -161,6 +162,11 @@ public class TicketService {
     }
 
     private ActivitySession requireSession(long id, boolean lock) {
+        if (lock) {
+            ActivitySession parent = sessions.selectById(id);
+            if (parent == null) throw notFound("SESSION_NOT_FOUND", "场次不存在");
+            activities.selectOne(new LambdaQueryWrapper<Activity>().eq(Activity::getId, parent.getActivityId()).last("FOR SHARE"));
+        }
         var query = new LambdaQueryWrapper<ActivitySession>().eq(ActivitySession::getId, id);
         if (lock) query.last("FOR UPDATE");
         ActivitySession session = sessions.selectOne(query);

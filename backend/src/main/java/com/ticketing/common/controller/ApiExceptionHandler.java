@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -37,7 +39,8 @@ public class ApiExceptionHandler {
     }
 
     @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class,
-            ConstraintViolationException.class, HandlerMethodValidationException.class})
+            ConstraintViolationException.class, HandlerMethodValidationException.class,
+            MissingRequestHeaderException.class, MissingServletRequestParameterException.class})
     ResponseEntity<ApiResponse<Void>> invalidRequest(Exception exception) {
         return ResponseEntity.badRequest().body(ApiResponse.failure("INVALID_ARGUMENT", "请求参数格式不正确，请检查填写内容和允许的字段"));
     }

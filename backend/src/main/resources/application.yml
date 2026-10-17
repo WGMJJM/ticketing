@@ -58,6 +58,9 @@ mybatis-plus:
   global-config:
     banner: false
 ticketing:
+  order:
+    max-per-user-session: ${ORDER_SESSION_LIMIT:4}
+    payment-window-minutes: ${ORDER_PAYMENT_WINDOW_MINUTES:15}
   admin-bootstrap:
     enabled: ${ADMIN_BOOTSTRAP_ENABLED:false}
     username: ${ADMIN_BOOTSTRAP_USERNAME:}

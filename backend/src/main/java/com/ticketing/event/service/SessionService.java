@@ -16,6 +16,9 @@ import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
+import com.ticketing.event.entity.Activity;
+import com.ticketing.event.mapper.ActivityMapper;
 
 @Service
 public class SessionService {
@@ -23,11 +26,13 @@ public class SessionService {
     private final ActivitySessionMapper mapper;
     private final ActivityService activityService;
     private final TicketSkuMapper tickets;
+    private final ActivityMapper activities;
 
-    public SessionService(ActivitySessionMapper mapper, ActivityService activityService, TicketSkuMapper tickets) {
+    public SessionService(ActivitySessionMapper mapper, ActivityService activityService, TicketSkuMapper tickets, ActivityMapper activities) {
         this.mapper = mapper;
         this.activityService = activityService;
         this.tickets = tickets;
+        this.activities = activities;
     }
 
     public List<SessionView> list(long activityId, boolean publicOnly) {
@@ -39,7 +44,7 @@ public class SessionService {
                 .stream().map(SessionView::from).toList();
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public SessionView create(long activityId, SessionWriteRequest request) {
         activityService.lockActivity(activityId);
         if (mapper.selectCount(new LambdaQueryWrapper<ActivitySession>().eq(ActivitySession::getActivityId, activityId))
@@ -58,7 +63,7 @@ public class SessionService {
         return SessionView.from(session);
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public SessionView update(long id, SessionWriteRequest request) {
         ActivitySession session = lockSession(id);
         if (!SessionStatus.SCHEDULED.name().equals(session.getStatus())) throw conflict("已取消或结束的场次不能修改");
@@ -76,7 +81,7 @@ public class SessionService {
         return SessionView.from(requireSession(id));
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public SessionView cancel(long id, int version) {
         ActivitySession session = lockSession(id);
         if (!SessionStatus.SCHEDULED.name().equals(session.getStatus())) throw conflict("只有正常场次可以取消");
@@ -93,6 +98,8 @@ public class SessionService {
     }
 
     private ActivitySession lockSession(long id) {
+        ActivitySession parent = requireSession(id);
+        activities.selectOne(new LambdaQueryWrapper<Activity>().eq(Activity::getId, parent.getActivityId()).last("FOR SHARE"));
         ActivitySession session = mapper.selectOne(new LambdaQueryWrapper<ActivitySession>()
                 .eq(ActivitySession::getId, id).last("FOR UPDATE"));
         if (session == null) throw new BusinessException(HttpStatus.NOT_FOUND, "SESSION_NOT_FOUND", "场次不存在");

@@ -37,6 +37,7 @@ public class SecurityConfig {
         var paths = PathPatternRequestMatcher.withDefaults();
         var currentUser = paths.matcher(HttpMethod.GET, "/api/v1/auth/me");
         var administration = paths.matcher("/api/v1/admin/**");
+        var orderRequests = paths.matcher("/api/v1/orders/**");
         var contexts = new DelegatingSecurityContextRepository(
                 new RequestAttributeSecurityContextRepository(), new HttpSessionSecurityContextRepository());
         http
@@ -48,12 +49,13 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/csrf").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/logout").permitAll()
                         .requestMatchers(currentUser).authenticated()
+                        .requestMatchers(orderRequests).authenticated()
                         .requestMatchers(administration).hasRole("ADMIN")
                         .requestMatchers("/error").permitAll()
                         .anyRequest().denyAll())
                 .csrf(Customizer.withDefaults())
                 .securityContext(context -> context.securityContextRepository(contexts))
-                .addFilterBefore(new CurrentAccountFilter(accounts, new OrRequestMatcher(currentUser, administration), contexts, objectMapper),
+                .addFilterBefore(new CurrentAccountFilter(accounts, new OrRequestMatcher(currentUser, administration, orderRequests), contexts, objectMapper),
                         AuthorizationFilter.class)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .requestCache(cache -> cache.requestCache(new NullRequestCache()))
@@ -70,7 +72,8 @@ public class SecurityConfig {
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint((request, response, exception) -> {
                             String path = request.getRequestURI();
-                            int status = path.startsWith("/api/v1/admin/") || path.equals("/api/v1/auth/me") ? 401 : 403;
+                            int status = path.startsWith("/api/v1/admin/") || path.equals("/api/v1/auth/me")
+                                    || path.equals("/api/v1/orders") || path.startsWith("/api/v1/orders/") ? 401 : 403;
                             writeError(response, objectMapper, status, "AUTHENTICATION_REQUIRED", "请先登录后再操作");
                         })
                         .accessDeniedHandler((request, response, exception) ->
