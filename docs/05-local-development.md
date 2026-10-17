@@ -32,7 +32,7 @@ PowerShell 脚本为 UTF-8 BOM，Bash 为 LF UTF-8。脚本读取 `.env` 而不�
 7. 检查 `/about`、活动详情、场次选择及运营管理。演示活动须显式标记；登录后真实下单、模拟支付、查看成功流水，再创建一单等待自动过期，核对库存及限额恢复；不产生实际扣款。
 8. `npm run build` 同时完成 TypeScript 检查和生产打包。
 
-数据库测试位于 `DatabaseMigrationIT`，推荐独立开发库。`ActivityManagementIT`、`TicketManagementIT`覆盖原有业务；`AuthenticationIT`使用随机端口Tomcat、真实HTTP、Cookie、Session和MySQL完成认证及旧会话撤权，`SessionCookieIT`检查生产Secure属性。`CurrentAccountFilterTest`验证公开端点跳过账号查询及订单/候补等受保护端点刷新身份。`OrderManagementIT`现有25项检查订单预占、幂等、限购、支付、取消、过期竞争、流水、回滚和最终库存；`OrderExpiryRecoveryIT`关闭再启动两个真实应用上下文，验证Scheduling重启补偿。`WaitlistManagementIT`新增25项，使用真实HTTP会话、独立MySQL事务及RabbitMQ检查FIFO、并发入队/调度、队首阻塞、状态联动、事件原子性、确认丢失、认领租约、消费重试/死信及数据库补偿。当前35项基础测试加84项集成测试共119项，最新结果见 `docs/13-waitlist-verification.md`。这些是功能与并发一致性验证，不是吞吐压测。
+数据库测试位于 `DatabaseMigrationIT`，推荐独立开发库。`ActivityManagementIT`、`TicketManagementIT`覆盖原有业务；`AuthenticationIT`使用随机端口Tomcat、真实HTTP、Cookie、Session和MySQL完成认证及旧会话撤权，`SessionCookieIT`检查生产Secure属性。`CurrentAccountFilterTest`验证公开端点跳过账号查询及订单/候补等受保护端点刷新身份。`OrderManagementIT`现有25项检查订单预占、幂等、限购、支付、取消、过期竞争、流水、回滚和最终库存；`OrderExpiryRecoveryIT`关闭再启动两个真实应用上下文，验证Scheduling重启补偿。`WaitlistManagementIT`新增25项，使用真实HTTP会话、独立MySQL事务及RabbitMQ检查FIFO、并发入队/调度、队首阻塞、状态联动、事件原子性、确认丢失、认领租约、消费重试/死信及数据库补偿。第六阶段验收为35项基础测试加84项集成测试共119项，历史结果见 `docs/13-waitlist-verification.md`。这些是功能与并发一致性验证，不是吞吐压测。
 
 业务回归默认关闭候补任务和消息；候补IT显式启用消息但停止自动后台任务，使用独立的ticketing.waitlist.it交换机及队列，逐例控制消费并只清空测试队列。夹具按所属用户、场次和SKU清理。Outbox发布器读取当前库待投事件，推荐专用测试库，避免与正在运行的业务实例并行执行；先停止本地后端再验收。测试故障通过Spy在真实事务中注入，队列、数据库和实际库存变化不使用内存替代。
 
@@ -65,7 +65,7 @@ docker compose --env-file .env -f deploy/compose.yml exec -T mysql sh -c 'MYSQL_
 
 订单配置在application.yml集中声明：`ORDER_SESSION_LIMIT`默认4，`ORDER_PAYMENT_WINDOW_MINUTES`默认15。启动脚本读取.env；本地已有.env无需覆盖，未指定使用默认值。只允许正数。降低限额不会撤销既有订单，占额超出新限额时阻止继续下单，仍可主动取消。
 
-从活动详情选择正在售票的票档，未登录会跳转登录并返回活动；数量上限取库存、单笔及场次剩余额度的最小值。提交真实订单后查看 `/orders/{id}` 与 `/orders`，页面刷新重新查身份及订单。立即支付前核对活动、场次、票档、数量和金额，确认后显示PAID与真实模拟流水，不产生扣款。确认取消后查看CANCELLED，回活动页刷新库存及额度。创建另一单等待截止，截止即禁用支付按钮，后台转EXPIRED后刷新展示已过期、库存与额度恢复。支付仍占场次限额；截止提示不等于已关闭。尚无电子票、退款或真实支付。
+从活动详情选择正在售票的票档，未登录会跳转登录并返回活动；数量上限取库存、单笔及场次剩余额度的最小值。提交真实订单后查看 `/orders/{id}` 与 `/orders`，页面刷新重新查身份及订单。立即支付前核对活动、场次、票档、数量和金额，确认后显示PAID与真实模拟流水，不产生扣款。确认取消后查看CANCELLED，回活动页刷新库存及额度。创建另一单等待截止，截止即禁用支付按钮，后台转EXPIRED后刷新展示已过期、库存与额度恢复。支付仍占场次限额；截止提示不等于已关闭。尚无退款或真实支付。
 
 ## 模拟支付与超时扫描配置
 
@@ -80,6 +80,34 @@ WAITLIST_MAX_WAIT_MINUTES默认60，实际申请截止不晚于票档停售。WA
 先由用户B在仅剩1张的演示票档创建真实待支付订单，再由用户A申请1张候补；B主动取消后，查询MySQL释放库存及PENDING/SENT事件，RabbitMQ触发A的真实预留订单。A刷新“我的候补”进入关联订单完成模拟支付，刷新候补应显示已完成；核对locked=0、sold=1、唯一支付流水。分配前只可取消候补，分配后须前往订单取消。WAITING不占场次限额，分配重新检查，不保证候补成功或优先于新购票。
 
 消费者队列ticketing.waitlist.dispatch及其.dead均持久化；检查失败日志、FAILED事件和死信数量。修复基础设施后PENDING/超时PROCESSING自动重投，FAILED保留人工排查；不删除业务事件绕过问题。低频扫描会补偿仍有WAITING的SKU，队首不足不越过。端到端为至少一次与数据库幂等。定时任务重启会再次读库，内存游标无需迁移；不要删除Docker数据卷模拟恢复。
+
+## 电子票签名与核销
+
+第七阶段启动前必须配置TICKET_CREDENTIAL_KEYS和TICKET_CREDENTIAL_CURRENT_VERSION；缺失或格式错误会拒绝启动，不提供固定默认密钥。本机已生成随机密钥保存在被忽略的.env，无需再次覆盖。新环境可使用密码学安全随机数生成至少32字节，再Base64编码，构造版本至密钥的JSON映射写入私有环境配置；不要把真实值写入示例、终端输出、Git或浏览器。
+
+PowerShell只在尚未配置的新环境生成密钥，可在本地执行下面代码；它只追加私有.env，不打印密钥。已有配置不要重新运行覆盖：
+
+```powershell
+$ticketKeyBytes = New-Object byte[] 32
+[System.Security.Cryptography.RandomNumberGenerator]::Fill($ticketKeyBytes)
+$ticketKeyText = [Convert]::ToBase64String($ticketKeyBytes)
+$ticketKeyMapping = 'TICKET_CREDENTIAL_KEYS={"1":"' + $ticketKeyText + '"}'
+[IO.File]::AppendAllText((Join-Path (Get-Location) '.env'), "`n" + $ticketKeyMapping + "`nTICKET_CREDENTIAL_CURRENT_VERSION=1`n", [Text.UTF8Encoding]::new($false))
+```
+
+轮换时保留旧有效版本映射，加入新随机版本并更新当前版本，重启后新票使用新版本；旧票仍通过旧密钥重建及校验。密钥丢失不能从数据库摘要还原，恢复原版本密钥，不能删除旧票重发来绕过。测试上下文自动生成独立随机密钥，不与真实本地环境混用。
+
+用户支付后从“查看本单电子票”或“我的电子票”进入，同订单多张分别编号和展示二维码。二维码本地编码，完整凭证不放URL或浏览器存储；刷新/隐藏/切换会清理二维码。已核销显示时间且不展示有效二维码，作废票同样不可用。所有票券、订单和核销查询使用真实Session及本人归属约束。
+
+管理员从运营后台进入“电子票核销”，可用摄像头、选择二维码图片或手动粘贴。摄像头要求安全上下文及用户授权，识别后停扫并人工确认；失败时替代入口仍可用，不能绕过浏览器权限。CHECKIN_OPENS_BEFORE_MINUTES默认60、范围0至1440，后端根据MySQL时间最终校验至场次结束。重复扫码409，不改变首次人员/时间；核销不调整库存或支付状态。二维码生成使用[qrcode](https://github.com/soldair/node-qrcode)，浏览器识别使用[ZXing Browser](https://github.com/zxing-js/browser)，无需外部二维码生成服务。
+
+## 受控历史补票
+
+TICKET_BACKFILL_ENABLED默认false；只有明确需要时在本地私有环境或受控进程设置true。TICKET_BACKFILL_BATCH_SIZE默认100、上限500，TICKET_BACKFILL_SCAN_DELAY_MS默认30000。启动即扫描PAID订单，每单独立事务，只补缺失序号，检查已有票一致性；已用和作废票保留，异常记录订单ID并继续后续，游标到尾回绕重试。完成补票核对后关闭开关并重启，不暴露公开补票接口。
+
+没有额外V5迁移；仍校验现有V1至V4。前端真实联调先在可核销窗口的演示场次购买两张并模拟支付，分别展示两张二维码；管理员识别第一张、确认核销、重复识别确认应显示已核销，再识别第二张独立成功，用户刷新两张均已核销。不要通过修改已付订单或票券状态伪造验收。
+
+当前42项基础测试加108项真实集成测试共150项，包含ElectronicTicketIT的24项新用例及签名/轮换配置测试，详见docs/14-electronic-ticket-verification.md。测试结束清理的是本用例生成的票券夹具，不提供产品删除票券能力。数据库测试会调用真实支付出票，必须停止运行中的本地后端再执行，避免后台任务和随机测试密钥处理真实订单。
 
 ## Git 与本地文件
 

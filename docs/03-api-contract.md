@@ -148,6 +148,35 @@ RabbitMQ持久交换机ticketing.waitlist，路由inventory.available，持久�
 
 独立数据库补偿默认每60秒扫描100个仍有WAITING的SKU，每SKU至多处理50次队首；覆盖有库存未分配及无库存但队首已失效的情况。逐SKU隔离失败，游标前进并回绕，重启从数据库恢复。WAITLIST_MESSAGING_ENABLED=false可用于本地故障隔离，补偿仍运行；WAITLIST_JOBS_ENABLED=false仅供受控测试关闭后台任务。消息与补偿均为最终推进，不保证即时分配或吞吐指标。
 
-## 待开发方向
+## 电子票查询与入场凭证
 
-第六阶段FIFO候补、Outbox、RabbitMQ与数据库补偿已实现，验收后停止。真实支付平台、退款、电子票及核销尚未开发。
+以下均为 `/api/v1` 前缀，使用当前Session身份和最新账号状态复查；匿名/停用401，其他人的电子票或订单404，管理员通过本人查询接口也无归属例外。
+
+| 方法与路径 | 请求与行为 |
+| --- | --- |
+| GET /tickets | 本人分页列表，page默认1、上限10000，size默认10、上限50；可选orderId正整数及status=UNUSED/USED/VOID |
+| GET /tickets/{id} | 本人电子票详情，普通数据不含凭证明文、签名密钥或数据库摘要 |
+| GET /tickets/{id}/credential | 本人UNUSED且所属订单PAID的完整凭证，返回 `{ticketId,credential}`，Cache-Control=no-store、Pragma=no-cache |
+| POST /admin/checkins | ADMIN及CSRF，JSON仅接受 `{ "credential": "完整电子票凭证" }`，成功返回已核销票券资料 |
+
+ElectronicTicketView字段为id/orderId/orderItemId/skuId/ownerId/ownerName/ticketNo/sequenceNo/status/activityId/activityTitle/sessionId/sessionTitle/sessionStartsAt/sessionEndsAt/city/venue/skuName/usedAt/checkedBy/createdAt。ID字符串，序号整数，日期UTC带Z，界面北京时间。票档名取订单明细快照，活动、场次、场馆和持票人名称取当前资料。UNUSED未使用、USED已核销、VOID已作废；usedAt与checkedBy在核销前为null。已用/作废凭证接口409，不再展示可入场二维码。
+
+模拟支付成功时在原事务末端按明细数量生成独立电子票，与订单PAID、库存locked转sold、流水及候补COMPLETED原子提交。重复支付返回原流水，不再次签发；电子票签发与历史补票在订单锁内按唯一明细序号幂等，异常数量/关联/摘要拒绝并回滚。PENDING/CANCELLED/EXPIRED不出票。已付但尚无票的历史订单由受控补票任务处理，无公开补票或任意修改状态接口。
+
+凭证格式 `TKT1.{version}.{ticketNo}.{signature}`，ticketNo为32字节安全随机数的Base64URL无填充编码，签名为HMAC-SHA256覆盖前三段，数据库仅保留完整凭证SHA-256摘要及密钥版本。核销签名和摘要均常量时间核对；拒绝未知格式/版本、篡改、非规范编码和摘要失配。合法持票人查询时重建再核对摘要，密钥无法对应时503 TICKET_KEY_UNAVAILABLE。完整凭证只在专用响应、二维码与POST JSON中传递，禁止放入URL、浏览器存储、日志或前端Store。
+
+核销先解析和验证凭证，锁工作人员用户行复查ADMIN，再按活动SHARE→场次SHARE→SKU UPDATE→订单UPDATE顺序检查当前状态，最终以电子票UNUSED条件更新。SQL同时要求订单PAID、场次SCHEDULED，且数据库实际时间位于 `[场次开始-配置提前分钟,场次结束)`，默认提前60分钟。受影响行为1才成功，记录UTC核销时间及Session操作人；核销不改订单、支付或库存。活动下架不自动作废已付票，场次取消/结束拒绝核销。
+
+核销成功200；重复USED返回409 TICKET_ALREADY_USED及“电子票已核销，请勿重复入场”，不覆盖原时间或人员；VOID返回409 TICKET_VOID；未付订单409 TICKET_ORDER_UNPAID；无效凭证400 INVALID_TICKET_CREDENTIAL；场次状态异常409 CHECKIN_SESSION_UNAVAILABLE；窗口外或状态竞争409 CHECKIN_UNAVAILABLE。无角色403，无效CSRF403，客户端伪造checkedBy等额外字段400。错误不回显完整凭证。
+
+前端我的电子票支持本人分页、状态筛选及从已付订单按orderId查看；每张票详情独立请求凭证并本地生成二维码，隐藏/刷新/切换页面清理图片及敏感状态。管理员页面使用摄像头（需安全上下文及用户授权）、本地二维码图片识别或手动粘贴，识别后停止扫描，确认后提交一次；成功清空凭证输入并展示场次、票档及核销时间。自动识别不自动连续提交，后端仍独立保证最多一次核销。
+
+## 密钥与受控历史补票
+
+TICKET_CREDENTIAL_KEYS为JSON对象，版本号映射至Base64密钥；每个解码32至128字节，版本1至32767，TICKET_CREDENTIAL_CURRENT_VERSION指定当前签发版本（默认1）。拒绝缺失、弱长度、重复版本、非字符串值、非法JSON及当前版本缺失，启动日志不回显密钥。签名配置无固定默认值，轮换先保留旧有效映射再加新版本并更新当前版本，重启应用后新票使用新版本，旧票继续重建/验证。
+
+TICKET_BACKFILL_ENABLED默认false，显式开启后启动扫描PAID订单，默认每批100、最多500，TICKET_BACKFILL_SCAN_DELAY_MS默认30000。每单独立READ_COMMITTED事务，先锁订单所属用户（停用也允许补票），再锁父级、SKU和订单，与支付一致；检查已有票再只补缺失序号，不修改已有票及财务/库存。不删除异常票，失败记录订单ID并继续，游标前进并回绕；无公开补票接口。受控批次完成后关闭开关。CHECKIN_OPENS_BEFORE_MINUTES默认60，可配置0至1440，服务端SQL最终判定窗口。
+
+## 当前边界
+
+第七阶段电子票签发、展示与核销已实现，验收后停止。模拟支付不产生实际扣款，真实支付与退款尚未开发，不自动推进架构重构。
