@@ -94,6 +94,11 @@ const deadlinePassed = computed(
       </dl>
     </section>
     <div class="auth-links">
+      <RouterLink
+        v-if="order.status === 'PAID'"
+        :to="{ path: '/tickets', query: { orderId: order.id } }"
+        >查看本单电子票</RouterLink
+      >
       <RouterLink v-if="!detail" :to="'/orders/' + order.id"
         >查看订单详情</RouterLink
       >

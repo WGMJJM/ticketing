@@ -30,6 +30,9 @@ const auth = useAuthStore()
             ><RouterLink to="/profile">个人中心</RouterLink
             ><RouterLink to="/orders">我的订单</RouterLink
             ><RouterLink to="/waitlist">我的候补</RouterLink
+            ><RouterLink to="/tickets">我的电子票</RouterLink
+            ><RouterLink v-if="auth.isAdmin" to="/admin/checkins"
+              >电子票核销</RouterLink
             ><RouterLink v-if="auth.isAdmin" to="/admin/activities"
               >运营管理</RouterLink
             ></template

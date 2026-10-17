@@ -46,13 +46,16 @@ async function logout() {
         当前账号没有运营管理权限
       </p>
       <p>
-        账号身份由服务端会话确认。可提交购票订单、模拟支付及主动取消；超时订单自动关闭。
+        账号身份由服务端会话确认。支付成功后可查看独立电子票及入场二维码，超时待支付订单自动关闭。
       </p>
       <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
       <div class="auth-links">
         <RouterLink to="/">继续发现活动</RouterLink
         ><RouterLink to="/orders">我的订单</RouterLink
         ><RouterLink to="/waitlist">我的候补</RouterLink
+        ><RouterLink to="/tickets">我的电子票</RouterLink
+        ><RouterLink v-if="auth.isAdmin" to="/admin/checkins"
+          >电子票核销</RouterLink
         ><RouterLink v-if="auth.isAdmin" to="/admin/activities"
           >进入运营管理</RouterLink
         ><ElButton :loading="busy" @click="logout">退出登录</ElButton>

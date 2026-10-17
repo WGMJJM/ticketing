@@ -28,10 +28,13 @@ async function submit() {
       redirect === '/profile' ||
       redirect === '/orders' ||
       redirect === '/waitlist' ||
+      redirect === '/tickets' ||
+      /^\/tickets\/[1-9][0-9]*$/.test(redirect) ||
       /^\/waitlist\/[1-9][0-9]*$/.test(redirect) ||
       /^\/orders\/[1-9][0-9]*$/.test(redirect) ||
       /^\/activities\/[1-9][0-9]*$/.test(redirect) ||
-      (auth.isAdmin && redirect === '/admin/activities')
+      (auth.isAdmin &&
+        (redirect === '/admin/activities' || redirect === '/admin/checkins'))
     await router.replace(
       allowed ? redirect : props.adminOnly ? '/admin/activities' : '/profile',
     )

@@ -50,6 +50,22 @@ const router = createRouter({
       component: () => import('../views/AdminActivitiesView.vue'),
       meta: { requiresAdmin: true },
     },
+    {
+      path: '/tickets',
+      component: () => import('../views/ElectronicTicketsView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/tickets/:id',
+      component: () => import('../views/ElectronicTicketsView.vue'),
+      props: true,
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/admin/checkins',
+      component: () => import('../views/AdminCheckinView.vue'),
+      meta: { requiresAdmin: true },
+    },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
   scrollBehavior: () => ({ top: 0 }),

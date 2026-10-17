@@ -269,6 +269,7 @@ onMounted(() => load())
       <div>
         <span class="section-kicker">运营工作台</span>
         <h1>活动与场次管理</h1>
+        <RouterLink to="/admin/checkins">进入电子票核销</RouterLink>
         <p>管理活动内容、发布状态和场次安排。时间统一按北京时间输入与展示。</p>
       </div>
       <div class="admin-user">
