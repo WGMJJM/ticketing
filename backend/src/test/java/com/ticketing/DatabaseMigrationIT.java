@@ -37,7 +37,7 @@ class DatabaseMigrationIT {
 
     @Test
     void flywayCreatesTenDomainTablesWithChecksAndIndexes() {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("2");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("3");
         flyway.validate();
         var tables = jdbc.queryForList("SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()", String.class);
         assertThat(tables).containsAll(List.of("user_account", "activity", "activity_session", "ticket_sku", "ticket_order", "ticket_order_item", "payment_record", "waitlist_entry", "electronic_ticket", "outbox_event"));
@@ -54,6 +54,7 @@ class DatabaseMigrationIT {
         assertRejected("UPDATE ticket_sku SET sold_stock = -1 WHERE id = 900001", 3819);
         assertRejected("UPDATE ticket_sku SET total_stock = -1 WHERE id = 900001", 3819);
         assertRejected("UPDATE ticket_sku SET price_cents = -1 WHERE id = 900001", 3819);
+        assertRejected("UPDATE ticket_sku SET version = -1 WHERE id = 900001", 3819);
         assertThat(jdbc.update("UPDATE ticket_sku SET locked_stock = 7, sold_stock = 3 WHERE id = 900001")).isEqualTo(1);
     }
 
