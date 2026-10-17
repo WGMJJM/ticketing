@@ -52,6 +52,7 @@ async function logout() {
       <div class="auth-links">
         <RouterLink to="/">继续发现活动</RouterLink
         ><RouterLink to="/orders">我的订单</RouterLink
+        ><RouterLink to="/waitlist">我的候补</RouterLink
         ><RouterLink v-if="auth.isAdmin" to="/admin/activities"
           >进入运营管理</RouterLink
         ><ElButton :loading="busy" @click="logout">退出登录</ElButton>

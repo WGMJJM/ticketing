@@ -4,6 +4,7 @@ import { listTickets, saleStatusText, type TicketSku } from '../api/tickets'
 import { formatCents } from '../utils/money'
 import { formatTime } from '../utils/date'
 import PurchasePanel from './PurchasePanel.vue'
+import WaitlistPanel from './WaitlistPanel.vue'
 const props = defineProps<{ activityId: string; sessionId: string }>()
 const rows = ref<TicketSku[]>([])
 const loading = ref(false)
@@ -87,6 +88,12 @@ onBeforeUnmount(() => controller?.abort())
           v-if="ticket.saleStatus === 'SELLING'"
           :ticket="ticket"
           @changed="load"
+        />
+        <WaitlistPanel
+          v-if="
+            ticket.saleStatus === 'SELLING' || ticket.saleStatus === 'SOLD_OUT'
+          "
+          :ticket="ticket"
         />
       </article>
     </div>

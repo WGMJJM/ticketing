@@ -35,6 +35,17 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/waitlist',
+      component: () => import('../views/WaitlistView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
+      path: '/waitlist/:id',
+      component: () => import('../views/WaitlistView.vue'),
+      props: true,
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/admin/activities',
       component: () => import('../views/AdminActivitiesView.vue'),
       meta: { requiresAdmin: true },

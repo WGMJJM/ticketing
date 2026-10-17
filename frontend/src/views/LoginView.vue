@@ -27,6 +27,8 @@ async function submit() {
     const allowed =
       redirect === '/profile' ||
       redirect === '/orders' ||
+      redirect === '/waitlist' ||
+      /^\/waitlist\/[1-9][0-9]*$/.test(redirect) ||
       /^\/orders\/[1-9][0-9]*$/.test(redirect) ||
       /^\/activities\/[1-9][0-9]*$/.test(redirect) ||
       (auth.isAdmin && redirect === '/admin/activities')

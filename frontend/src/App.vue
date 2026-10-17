@@ -29,6 +29,7 @@ const auth = useAuthStore()
             ><span class="account-name">{{ auth.user.username }}</span
             ><RouterLink to="/profile">个人中心</RouterLink
             ><RouterLink to="/orders">我的订单</RouterLink
+            ><RouterLink to="/waitlist">我的候补</RouterLink
             ><RouterLink v-if="auth.isAdmin" to="/admin/activities"
               >运营管理</RouterLink
             ></template
