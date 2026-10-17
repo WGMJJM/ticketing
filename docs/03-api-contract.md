@@ -1,33 +1,42 @@
-# HTTP API 契约
+# 当前 API 契约
 
-## 已实现
+统一前缀 /api/v1。成功响应为 ApiResponse 的 code=OK、message=操作成功、data=结果；业务错误沿用同一结构，data 为 null。当前使用400参数错误、401管理员未认证、403无权限或CSRF无效、404活动/场次不存在、409状态或版本冲突、500服务内部异常。错误文案为中文，不返回 SQL 或堆栈。
 
-`GET /api/v1/system/status`，匿名可访问，HTTP 200：
+## 已实现公开读取
 
-```json
-{"code":"OK","message":"操作成功","data":{"application":"票务交易平台","status":"RUNNING"}}
-```
+| 方法与路径（均在 /api/v1 下） | 说明 |
+| --- | --- |
+| GET /system/status | 原系统状态接口，表示 HTTP 可访问 |
+| GET /activities | 已发布活动分页，支持 keyword/category/city/page/size |
+| GET /activities/{id} | 已发布活动详情，草稿或下架均返回404 |
+| GET /activities/{id}/sessions | 已发布活动下场次，按开始时间、ID升序；包含取消状态供用户识别 |
 
-该接口只表示后端 HTTP 可访问。`GET /actuator/health` 返回标准 Actuator 聚合健康，健康时 `{"status":"UP"}`，详情不公开；`GET /actuator/info` 已开放，当前无额外信息。其余业务 API 拒绝访问，不存在占位成功接口。当前 Security 拒绝请求为 403，框架错误不承诺 ApiResponse 包装，不返回内部异常信息。
+分页默认 page=1、size=12，页码1至10000，每页1至50条。data 为 items/total/page/size。关键词按名称字面包含匹配，城市精确匹配，类别为 CONCERT/FESTIVAL/STAGE/EXHIBITION/ESPORTS。公开列表固定 PUBLISHED，按最近发布时间、ID降序，传入 status 也不能读取隐藏活动。
 
-## 后续草案，全部待开发
+活动返回 id/title/category/city/venue/summary/description/coverUrl/status/publishedAt/createdAt/updatedAt/version。详情纯文本展示，不解析 HTML。场次返回 id/activityId/title/startsAt/endsAt/saleStartsAt/status/version。ID 为字符串，日期为带 Z 的 ISO 8601；前端按北京时间展示。场次状态 SCHEDULED/CANCELLED/ENDED，前端显示正常/已取消/已结束，取消或已经结束的场次不能选择。
 
-统一前缀 `/api/v1`，成功继续使用 `ApiResponse<T>`；参数错误 400、未登录 401、无权限 403、资源不存在 404、状态或幂等冲突 409。后续实现统一中文错误契约，不能将下述草案当成现有端点。
+## 已实现管理接口
 
-| 领域 | 用户 API 草案 | 请求与主要响应字段 | 权限与语义 |
-| --- | --- | --- | --- |
-| auth | POST `/auth/register`、POST `/auth/login`、POST `/auth/logout`、GET `/auth/me` | username/password；用户 id、username、role | 注册与登录公开；其余认证；不返回哈希 |
-| event | GET `/activities`、GET `/activities/{id}`、GET `/activities/{id}/sessions` | city/category/page/size；标题、场馆、场次时间 | 仅公开已发布活动 |
-| ticket | GET `/sessions/{id}/skus` | SKU id、name、priceCents、saleStartsAt、saleEndsAt、availability | 公开查询，不承诺查询时的库存等于下单结果 |
-| order | POST `/orders`、GET `/orders/{id}`、GET `/orders`、POST `/orders/{id}/cancel` | 创建仅 skuId、quantity 和 Idempotency-Key；响应订单号、状态、totalAmountCents、expiresAt | 必须认证，校验归属；价格由服务端计算 |
-| order | POST `/orders/{id}/simulated-payment` | 幂等键；流水号、订单状态、paidAt | 用户本人，模拟支付，金额由订单事实决定 |
-| waitlist | POST `/waitlist`、GET `/waitlist`、POST `/waitlist/{id}/cancel`、POST `/waitlist/{id}/confirm` | skuId、quantity、幂等键；状态、排队顺序、reservedOrderId、截止时间 | 用户本人；确认不能客户端改价 |
-| checkin | GET `/tickets`、GET `/tickets/{id}` | 票号、场次、状态、认证后获取的签名凭证 | 仅持票本人；凭证响应禁止公共缓存 |
+以下全部需要 ADMIN 身份。当前由受控开发管理员提供，默认不开启。写请求必须携带认证后的 CSRF 令牌。
 
-管理草案：`/admin/activities`、`/admin/activities/{id}/sessions`、`/admin/sessions/{id}/skus` 的创建与更新；`POST /admin/skus/{id}/stock-adjustments` 只能做有审计依据的库存调整，不能改坏库存不变量；`POST /admin/checkins` 接收票券凭证并原子核销，`GET /admin/checkins` 查询核销记录。仅 ADMIN/后续细化的工作人员权限，不因前端隐藏按钮而省略服务端校验。管理审计详情表在实现时新增迁移。
+| 方法与路径（均在 /api/v1 下） | 请求与行为 |
+| --- | --- |
+| GET /admin/session | 返回 username/csrfHeader/csrfToken；Cache-Control 为 no-store |
+| GET /admin/activities | 同公开筛选，加 status=DRAFT/PUBLISHED/OFFLINE，可查全部状态；按创建时间、ID降序 |
+| GET /admin/activities/{id} | 管理活动详情 |
+| POST /admin/activities | 创建草稿；title/category/city/venue/summary/description，coverUrl可选 |
+| PUT /admin/activities/{id} | 同创建字段，必须提供version；只能编辑草稿或下架活动 |
+| POST /admin/activities/{id}/publish | 请求version；DRAFT/OFFLINE → PUBLISHED，更新最近发布时间 |
+| POST /admin/activities/{id}/offline | 请求version；仅PUBLISHED → OFFLINE |
+| GET /admin/activities/{id}/sessions | 管理场次列表 |
+| POST /admin/activities/{id}/sessions | title/startsAt/endsAt/saleStartsAt，时间须有偏移或Z |
+| PUT /admin/sessions/{id} | 同创建字段加version，只能修改正常场次，不允许改所属活动 |
+| POST /admin/sessions/{id}/cancel | 请求version；仅SCHEDULED → CANCELLED，不支持恢复 |
 
-所有资源 ID 为字符串，quantity 为正整数；后端按业务上限验证。金额分以十进制整数字符串返回，业务代码用整数计算。日期带时区，例如 `2030-01-01T10:00:00Z`。分页返回 `items/page/size/total`，总数按长整数策略传输。
+活动字段长度上限为标题200、城市64、场馆200、简介500、详情20000、封面2048。封面只接受HTTP(S)，服务端不抓取、不上传。结束时间晚于开始，开售早于开始；输入2030-05-01T19:00:00+08:00将存为UTC并返回2030-05-01T11:00:00Z。每个活动最多200个场次；活动发布不要求已存在场次，用户看到明确空状态。
 
-下单幂等由服务端认证用户+操作域+请求键定义，同参重试返回原结果，异参同键返回 `IDEMPOTENCY_CONFLICT`（409）。操作参数先规范化再计算摘要，最终由数据库唯一键保障。同一个 MySQL 事务完成订单、库存预占与 Outbox；支付和超时关单通过状态条件更新竞争，业务成功不以 MQ 发出为准。
+version从0开始，成功更新递增；遗漏版本为400，陈旧版本或非法状态转换为409。不能通过直接提交status绕过发布/下架接口。开发管理员不使用业务user_account表，也不代表已经实现普通用户登录。
 
-候补先保证同票档队列内部的 FIFO 策略，默认队首数量不满足时不跳过；相对新订单的严格优先级暂不承诺。RabbitMQ 用于触发候补和业务事件，配合 Outbox、重试、幂等消费及定时扫描恢复；核销最多一次成功必须由数据库条件更新保证。
+## 待开发方向
+
+票档查询 → 用户注册登录及归属权限 → 下单锁票 → 模拟支付与超时关单 → FIFO候补 → 电子票核销。金额用人民币分整数、ID用字符串、日期带时区；下单只接收SKU和数量，价格由服务端计算。订单幂等、库存事务、Outbox、消费者幂等与限购方案仍遵循数据库设计，本轮没有提供订单/支付/候补占位成功接口。

@@ -28,11 +28,28 @@ PowerShell 脚本为 UTF-8 BOM，Bash 为 LF UTF-8。脚本读取 `.env` 而不�
 3. `mvn -f backend/pom.xml clean verify`，检查不依赖中间件的响应与 MVC/Security 测试。
 4. `scripts/start-backend.ps1 -VerifyDatabase` 或 Bash `--verify-database`，运行真实 MySQL 集成测试；首次连接空库执行 V1，后续执行校验。不会用 H2 替代。
 5. 启动后端和前端，检查状态接口、Actuator 与 Vite 代理，确认首页为「服务运行正常」。
-6. 暂停后端，点击「重新检测」，确认「暂时无法连接后端服务」且页面仍可浏览；恢复后端再重试。
-7. 检查 `/about`、手机宽度和键盘操作。页面只展示类别和空状态，无虚构活动或购票按钮。
+6. 暂停后端，检查活动加载错误和状态连接失败；恢复后端再重试。
+7. 检查 `/about`、活动详情、场次选择及运营管理。演示活动须显式标记，无购票按钮。
 8. `npm run build` 同时完成 TypeScript 检查和生产打包。
 
-数据库测试位于 `DatabaseMigrationIT`，每项事务回滚，测试 ID 使用 900001 段，推荐独立开发库。覆盖迁移校验、十张表、联合索引、UTC 会话、库存和金额 CHECK、外键、状态、每单一个票档、幂等作用域及活动候补唯一性。它不证明下单并发、跨用户场次限购或核销正确性。
+数据库测试位于 `DatabaseMigrationIT`，每项事务回滚，测试 ID 使用 900001 段，推荐独立开发库。`ActivityManagementIT` 补充活动与场次的真实数据库及 HTTP 层集成测试。当前共4项基础测试和11项集成测试，不证明下单并发、跨用户场次限购或核销正确性。
+
+## 开发管理员与演示数据
+
+默认关闭开发管理员。受控本地联调时在被忽略的 `.env` 中设置 `DEV_ADMIN_ENABLED=true`、`DEV_ADMIN_USERNAME` 和至少16位的 `DEV_ADMIN_PASSWORD`，重启后端。当前本机已生成随机密码；从本地文件读取，不把凭据提交或写入前端。访问 `/admin/activities` 会先进入认证页，刷新后需要重新认证。写操作保留 CSRF 校验，不是公开写接口，也不是完整用户登录模块。Basic 机制仅用于本地回环地址，禁止直接用作生产认证。
+
+需要中文样例时，在项目根目录人工执行：
+
+```powershell
+docker cp scripts/demo-data.sql ticketing-mysql-1:/tmp/ticketing-demo.sql
+docker compose --env-file .env -f deploy/compose.yml exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --default-character-set=utf8mb4 -u "$MYSQL_USER" "$MYSQL_DATABASE" < /tmp/ticketing-demo.sql'
+```
+
+脚本仅导入名称标有“演示”的虚构活动和场次，不建立票档、订单等数据，也不会由通用 Flyway 迁移自动执行。首次不导入时页面显示真实空状态。封面可留空，或在图片失败时显示稳定分类占位。
+
+## Git 与本地文件
+
+仅在 main 开发；先完成本地代码、测试和联调，再提交并推送到用户指定的 WGMJJM/ticketing。README.md 只保留在本地并被忽略，远程共享说明在 docs。`.env`、`.local`、构建产物均不得提交。
 
 ## 排障与停止
 

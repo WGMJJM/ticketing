@@ -1,6 +1,10 @@
-# 数据库 V1
+# 数据库 V1 与 V2
 
 迁移文件：`backend/src/main/resources/db/migration/V1__ticketing_schema.sql`。使用 MySQL 8.4（最低需正确执行 CHECK 的 MySQL 8.0.16+）、InnoDB、utf8mb4、DATETIME(6)。Flyway 校验已应用迁移，后续修改新增 V2/V3，不能覆盖 V1。无业务种子数据。
+
+当前为 V2，新增 `V2__activity_session_management.sql`，V1 保持不变。V2 复用 description 作为详情，增加 summary、cover_url、published_at、version；活动状态为 DRAFT/PUBLISHED/OFFLINE，兼容将旧 CANCELLED 转为 OFFLINE。增加 `(status,published_at,id)` 支持公开列表排序。场次增加 sale_starts_at、version 及开售早于开始的 CHECK；旧数据按开始前30天补齐开售时间，新建必须输入。更新时间与版本由业务操作显式更新。
+
+开发样例位于 `scripts/demo-data.sql`，不在迁移目录，仅人工导入，所有名称标明演示。SQL 依靠名称和场次判断避免普通重复导入，不保证并行导入幂等，不在生产环境执行。
 
 | 表 | 关系及关键约束 | 主要索引用途 |
 | --- | --- | --- |
