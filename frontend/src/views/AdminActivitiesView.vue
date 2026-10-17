@@ -19,6 +19,13 @@ import {
 import { useAdminStore } from '../stores/admin'
 import { formatTime, fromBeijingInput, toBeijingInput } from '../utils/date'
 import { chineseValidation, clearValidation } from '../utils/validation'
+import TicketManager from '../components/TicketManager.vue'
+const ticketSession = ref<ActivitySession>()
+const ticketsDialog = ref(false)
+function openTickets(session: ActivitySession) {
+  ticketSession.value = session
+  ticketsDialog.value = true
+}
 const admin = useAdminStore()
 const router = useRouter()
 const query = reactive<ActivityQuery>({
@@ -378,7 +385,7 @@ onMounted(() => load())
       >
     </div>
     <p class="admin-footnote">
-      已发布活动须先下架再编辑。场次取消后不可恢复。本阶段不提供票档、购票或支付功能。
+      已发布活动须先下架再编辑。场次取消后不可恢复。可从场次进入票档管理；购票与支付功能尚未开放。
     </p>
 
     <ElDialog
@@ -551,11 +558,22 @@ onMounted(() => load())
                   @click="cancelSession(session)"
                   >取消场次</ElButton
                 >
+                <ElButton
+                  size="small"
+                  :disabled="saving"
+                  @click="openTickets(session)"
+                  >票档管理</ElButton
+                >
               </td>
             </tr>
           </tbody>
         </table>
       </div>
     </ElDialog>
+    <TicketManager
+      v-if="ticketSession"
+      v-model="ticketsDialog"
+      :session="ticketSession"
+    />
   </div>
 </template>

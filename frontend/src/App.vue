@@ -30,7 +30,7 @@ import zhCn from 'element-plus/es/locale/lang/zh-cn'
       <footer class="site-footer">
         <RouterLink class="footer-brand" to="/">票务交易平台</RouterLink>
         <span>让精彩发生，让热爱在场。</span>
-        <span class="footer-stage">活动与场次展示 · 购票功能筹备中</span>
+        <span class="footer-stage">活动与票档展示 · 购票功能筹备中</span>
         <RouterLink to="/admin/activities">运营管理</RouterLink>
       </footer>
     </div>

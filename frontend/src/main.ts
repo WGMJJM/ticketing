@@ -7,6 +7,7 @@ import App from './App.vue'
 import router from './router'
 import './style.css'
 import './event.css'
+import './ticket.css'
 
 createApp(App)
   .use(createPinia())

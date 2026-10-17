@@ -10,6 +10,7 @@ import {
   type ActivitySession,
 } from '../api/activities'
 import ActivityCover from '../components/ActivityCover.vue'
+import TicketList from '../components/TicketList.vue'
 import { formatTime } from '../utils/date'
 const route = useRoute()
 const activity = ref<Activity>()
@@ -92,10 +93,7 @@ onBeforeUnmount(() => controller?.abort())
               :key="session.id"
               class="session-option"
               :class="{ selected: selected === session.id }"
-              :disabled="
-                session.status !== 'SCHEDULED' ||
-                new Date(session.endsAt).getTime() <= Date.now()
-              "
+              :disabled="session.status !== 'SCHEDULED'"
               :aria-pressed="selected === session.id"
               @click="selected = session.id"
             >
@@ -113,10 +111,16 @@ onBeforeUnmount(() => controller?.abort())
           <div class="stage-notice" role="status">
             {{
               selected ? '已选择场次。' : '可选择正常场次查看安排。'
-            }}票档购票功能将在下一阶段开放。
+            }}购票功能即将开放，当前仅供查看。
           </div>
         </section>
       </div>
+      <TicketList
+        v-if="selected"
+        :key="selected"
+        :activity-id="activity.id"
+        :session-id="selected"
+      />
     </template>
   </div>
 </template>
