@@ -2,6 +2,11 @@ package com.ticketing;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ticketing.auth.dto.RegisterRequest;
+import com.ticketing.auth.security.AccountPrincipal;
+import com.ticketing.auth.service.AccountService;
+import com.ticketing.auth.service.AccountUserDetailsService;
+import org.junit.jupiter.api.BeforeEach;
 import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -24,6 +29,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ActivityManagementIT {
     @Autowired private MockMvc mvc;
     @Autowired private ObjectMapper json;
+    @Autowired private AccountService accounts;
+    @Autowired private AccountUserDetailsService identities;
+    private AccountPrincipal administrator;
+
+    @BeforeEach
+    void administrator() {
+        String name = "event_" + UUID.randomUUID().toString().replace("-", "").substring(0, 24);
+        accounts.initializeAdmin(new RegisterRequest(name, UUID.randomUUID().toString()));
+        administrator = identities.loadUserByUsername(name);
+        administrator.eraseCredentials();
+    }
 
     @Test
     void activityLifecycleRejectsHiddenAndIllegalTransitions() throws Exception {
@@ -65,7 +81,7 @@ class ActivityManagementIT {
         mvc.perform(get("/api/v1/activities").param("keyword", keyword).param("city", "上海")
                         .param("category", "CONCERT").param("page", "2").param("size", "1"))
                 .andExpect(jsonPath("$.data.items[0].id").value(first.path("id").asText()));
-        mvc.perform(get("/api/v1/admin/activities").with(user("admin").roles("ADMIN")).param("keyword", keyword))
+        mvc.perform(get("/api/v1/admin/activities").with(user(administrator)).param("keyword", keyword))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.total").value(4));
     }
 
@@ -112,12 +128,16 @@ class ActivityManagementIT {
 
     @Test
     void adminRequiresIdentityRoleAndCsrf() throws Exception {
+        String name = "user_" + UUID.randomUUID().toString().replace("-", "").substring(0, 24);
+        accounts.register(new RegisterRequest(name, UUID.randomUUID().toString()));
+        AccountPrincipal ordinary = identities.loadUserByUsername(name);
+        ordinary.eraseCredentials();
         String body = json.writeValueAsString(activity("权限校验", "上海", "CONCERT", 0));
         mvc.perform(post("/api/v1/admin/activities").with(csrf()).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"));
-        mvc.perform(post("/api/v1/admin/activities").with(user("ordinary").roles("USER")).with(csrf())
+        mvc.perform(post("/api/v1/admin/activities").with(user(ordinary)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
-        mvc.perform(post("/api/v1/admin/activities").with(user("admin").roles("ADMIN"))
+        mvc.perform(post("/api/v1/admin/activities").with(user(administrator))
                         .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
         // 旧Basic入口已移除，真实Session链路由AuthenticationIT通过网络验证。
         mvc.perform(get("/api/v1/admin/activities").with(httpBasic("integration-admin", UUID.randomUUID().toString())))
@@ -137,7 +157,7 @@ class ActivityManagementIT {
     }
 
     private String mutate(MockHttpServletRequestBuilder request, Object body, int expected) throws Exception {
-        return mvc.perform(request.with(user("admin").roles("ADMIN")).with(csrf())
+        return mvc.perform(request.with(user(administrator)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body)))
                 .andExpect(status().is(expected)).andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
     }

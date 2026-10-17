@@ -6,6 +6,8 @@ import com.ticketing.common.api.ApiResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ticketing.auth.dto.UserView;
 import com.ticketing.auth.security.AccountPrincipal;
+import com.ticketing.auth.security.CurrentAccountFilter;
+import com.ticketing.auth.mapper.UserAccountMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -17,6 +19,12 @@ import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.savedrequest.NullRequestCache;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
+import org.springframework.security.web.context.DelegatingSecurityContextRepository;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
 
 @Configuration
 public class SecurityConfig {
@@ -25,7 +33,12 @@ public class SecurityConfig {
     PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper objectMapper) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper objectMapper, UserAccountMapper accounts) throws Exception {
+        var paths = PathPatternRequestMatcher.withDefaults();
+        var currentUser = paths.matcher(HttpMethod.GET, "/api/v1/auth/me");
+        var administration = paths.matcher("/api/v1/admin/**");
+        var contexts = new DelegatingSecurityContextRepository(
+                new RequestAttributeSecurityContextRepository(), new HttpSessionSecurityContextRepository());
         http
                 .authorizeHttpRequests(authorize -> authorize
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
@@ -34,11 +47,14 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/activities/*/sessions/*/tickets").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/csrf").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/logout").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/auth/me").authenticated()
-                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
+                        .requestMatchers(currentUser).authenticated()
+                        .requestMatchers(administration).hasRole("ADMIN")
                         .requestMatchers("/error").permitAll()
                         .anyRequest().denyAll())
                 .csrf(Customizer.withDefaults())
+                .securityContext(context -> context.securityContextRepository(contexts))
+                .addFilterBefore(new CurrentAccountFilter(accounts, new OrRequestMatcher(currentUser, administration), contexts, objectMapper),
+                        AuthorizationFilter.class)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .requestCache(cache -> cache.requestCache(new NullRequestCache()))
                 .sessionManagement(session -> session.sessionFixation(fixation -> fixation.changeSessionId()))

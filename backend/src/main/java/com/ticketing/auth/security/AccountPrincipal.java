@@ -13,10 +13,20 @@ public class AccountPrincipal extends User {
     private final String role;
 
     public AccountPrincipal(UserAccount account) {
-        super(account.getUsername(), account.getPasswordHash(), "ACTIVE".equals(account.getStatus()),
+        this(account, account.getPasswordHash());
+    }
+
+    private AccountPrincipal(UserAccount account, String password) {
+        super(account.getUsername(), password, "ACTIVE".equals(account.getStatus()),
                 true, true, true, AuthorityUtils.createAuthorityList("ROLE_" + account.getRole()));
         this.id = account.getId();
         this.role = account.getRole();
+    }
+
+    public static AccountPrincipal forSession(UserAccount account) {
+        var principal = new AccountPrincipal(account, "");
+        principal.eraseCredentials();
+        return principal;
     }
 
     public Long getId() { return id; }

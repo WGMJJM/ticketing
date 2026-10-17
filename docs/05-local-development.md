@@ -32,7 +32,7 @@ PowerShell 脚本为 UTF-8 BOM，Bash 为 LF UTF-8。脚本读取 `.env` 而不�
 7. 检查 `/about`、活动详情、场次选择及运营管理。演示活动须显式标记，无购票按钮。
 8. `npm run build` 同时完成 TypeScript 检查和生产打包。
 
-数据库测试位于 `DatabaseMigrationIT`，测试ID使用900001段，推荐独立开发库。`ActivityManagementIT`、`TicketManagementIT`覆盖原有业务；`AuthenticationIT`使用随机端口Tomcat、真实HTTP、Cookie、Session和MySQL完成认证链路，`SessionCookieIT`单独检查生产Secure属性。普通业务用例事务回滚；并发编辑与真实HTTP认证用例提交独立夹具并在结束后定向清理。当前19项基础测试加29项集成测试共48项，详细结果见 `docs/09-authentication-verification.md`。不证明购票并发、跨用户场次限购或核销正确性。
+数据库测试位于 `DatabaseMigrationIT`，测试ID使用900001段，推荐独立开发库。`ActivityManagementIT`、`TicketManagementIT`覆盖原有业务；`AuthenticationIT`使用随机端口Tomcat、真实HTTP、Cookie、Session和MySQL完成认证及旧会话撤权，`SessionCookieIT`单独检查生产Secure属性。`CurrentAccountFilterTest`验证公开端点跳过账号查询及安全刷新Context。普通业务用例事务回滚；并发编辑与真实HTTP认证用例提交独立夹具并在结束后定向清理。当前30项基础测试加33项集成测试共63项，最新结果见 `docs/10-session-permission-verification.md`。不证明购票并发、跨用户场次限购或核销正确性。
 
 ## 账号初始化与本地认证
 

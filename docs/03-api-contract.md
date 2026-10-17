@@ -50,7 +50,9 @@ version从0开始，成功更新递增；遗漏版本为400，陈旧版本或非
 
 用户名3至32位ASCII字母、数字、下划线，字母开头；大小写不敏感。密码8至72个字符且UTF-8编码不超过72字节，禁止控制字符；密码按原样验证，不自动去空格。注册只允许两个字段，携带role/status/id/userId等其他字段400；重复用户名409，固定创建USER/ACTIVE。成功注册不会自动创建已登录身份。
 
-登录使用Spring Security标准表单过滤器；错误用户名和密码统一401及“用户名或密码不正确”，禁用账号401及中文禁用提示。成功登录更换Session ID并保存SecurityContext；后续只依靠Cookie恢复身份，Basic Authorization无效。role仅为USER或ADMIN，ID为字符串。后续服务通过AccountPrincipal获取用户ID，不能信任前端userId。已有会话在账号被禁用后不会立即撤销，本阶段只保证禁用账号无法新建认证会话。
+登录使用Spring Security标准表单过滤器；错误用户名和密码统一401及“用户名或密码不正确”，禁用账号401及中文禁用提示。成功登录更换Session ID并保存SecurityContext；后续只依靠Cookie恢复身份，Basic Authorization无效。role仅为USER或ADMIN，ID为字符串。后续服务通过AccountPrincipal获取用户ID，不能信任前端userId。
+
+GET auth/me及全部admin接口在授权前复查数据库当前账号；禁用或删除账号清除认证、销毁Session并清除Cookie，返回401、code=ACCOUNT_UNAVAILABLE及中文提示。恢复账号状态也不能复活旧会话，必须重新登录。角色变化刷新当前认证与会话中的身份，ADMIN变USER后管理接口403，auth/me返回USER；账号合法授权恢复后以数据库最新角色为准。无效CSRF写请求仍优先403。公开活动、场次、票档及认证端点不额外复查账号。变化在提交后的下一次有效受保护请求检查时生效，不追溯取消已通过检查或已执行的操作。
 
 CSRF保存在HttpSession，保留默认XOR保护。客户端先GET csrf，把响应token放到headerName指定的头，再提交注册、登录、退出或管理员写操作。登录和退出会清除旧CSRF，随后必须重新GET csrf。前端每次写请求前获取当前令牌，403不会自动重放写操作。Cookie为HttpOnly、SameSite=Lax，Session空闲30分钟，禁止URL会话跟踪；Secure默认true，仅本地HTTP显式配置false。前端同源访问Vite代理，服务端未开放跨域凭据访问。
 

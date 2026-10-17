@@ -200,6 +200,84 @@ class AuthenticationIT {
     }
 
     @Test
+    void disablingLoggedInUserInvalidatesSessionAndOldCookieCannotRecover() throws Exception {
+        Browser browser = new Browser();
+        String username = name();
+        JsonNode user = register(browser, username);
+        browser.login(username, password, 200);
+        String oldCookie = browser.cookie();
+        jdbc.update("UPDATE user_account SET status='DISABLED' WHERE id=?", user.path("id").asLong());
+        browser.get("/activities", 200);
+        JsonNode error = browser.get("/auth/me", 401);
+        assertThat(error.path("code").asText()).isEqualTo("ACCOUNT_UNAVAILABLE");
+        jdbc.update("UPDATE user_account SET status='ACTIVE' WHERE id=?", user.path("id").asLong());
+        new Browser(oldCookie).get("/auth/me", 401);
+        browser.csrf();
+        browser.login(username, password, 200);
+        assertThat(browser.get("/auth/me", 200).path("data").path("id").asText()).isEqualTo(user.path("id").asText());
+    }
+
+    @Test
+    void disablingAdminBlocksDirectWriteWithoutCallingMeFirst() throws Exception {
+        Browser browser = new Browser();
+        String username = admin();
+        browser.csrf();
+        browser.login(username, password, 200);
+        browser.csrf();
+        String oldCookie = browser.cookie();
+        int count = jdbc.queryForObject("SELECT COUNT(*) FROM activity", Integer.class);
+        jdbc.update("UPDATE user_account SET status='DISABLED' WHERE username=?", username);
+        assertThat(browser.json("POST", "/admin/activities", activity(), 401).path("code").asText()).isEqualTo("ACCOUNT_UNAVAILABLE");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM activity", Integer.class)).isEqualTo(count);
+        jdbc.update("UPDATE user_account SET status='ACTIVE' WHERE username=?", username);
+        new Browser(oldCookie).get("/admin/activities", 401);
+    }
+
+    @Test
+    void revokingAdminRoleBlocksActivityAndTicketWritesAndRefreshesSessionIdentity() throws Exception {
+        Browser browser = new Browser();
+        String username = admin();
+        browser.csrf();
+        browser.login(username, password, 200);
+        browser.csrf();
+        String cookie = browser.cookie();
+        JsonNode activity = browser.json("POST", "/admin/activities", activity(), 200).path("data");
+        activityIds.add(activity.path("id").asLong());
+        JsonNode session = browser.json("POST", "/admin/activities/" + activity.path("id").asText() + "/sessions",
+                Map.of("title", "撤权测试场次", "startsAt", "2035-06-01T10:00:00Z", "endsAt", "2035-06-01T12:00:00Z",
+                        "saleStartsAt", "2025-01-01T00:00:00Z"), 200).path("data");
+        JsonNode ticket = browser.json("POST", "/admin/sessions/" + session.path("id").asText() + "/tickets",
+                Map.of("name", "撤权测试票档", "priceCents", "10000", "totalStock", 10, "saleStartsAt", "2025-02-01T00:00:00Z",
+                        "saleEndsAt", "2035-05-01T00:00:00Z", "maxQuantityPerOrder", 4), 200).path("data");
+        String activityPath = "/admin/activities/" + activity.path("id").asText();
+        String ticketPath = "/admin/tickets/" + ticket.path("id").asText();
+        jdbc.update("UPDATE user_account SET role='USER' WHERE username=?", username);
+        browser.json("POST", activityPath + "/publish", Map.of("version", 0), 403);
+        browser.json("POST", ticketPath + "/publish", Map.of("version", 0), 403);
+        browser.get("/admin/activities", 403);
+        assertThat(browser.get("/auth/me", 200).path("data").path("role").asText()).isEqualTo("USER");
+        assertThat(browser.cookie()).isEqualTo(cookie);
+        assertThat(jdbc.queryForObject("SELECT status FROM activity WHERE id=?", String.class, activity.path("id").asLong())).isEqualTo("DRAFT");
+        assertThat(jdbc.queryForObject("SELECT status FROM ticket_sku WHERE id=?", String.class, ticket.path("id").asLong())).isEqualTo("DRAFT");
+        assertThat(jdbc.queryForObject("SELECT version FROM ticket_sku WHERE id=?", Integer.class, ticket.path("id").asLong())).isZero();
+        jdbc.update("UPDATE user_account SET role='ADMIN' WHERE username=?", username);
+        browser.json("POST", activityPath + "/publish", Map.of("version", 0), 200);
+        browser.json("POST", ticketPath + "/publish", Map.of("version", 0), 200);
+        assertThat(browser.get("/auth/me", 200).path("data").path("role").asText()).isEqualTo("ADMIN");
+    }
+
+    @Test
+    void deletedAccountCannotKeepUsingAuthenticatedSession() throws Exception {
+        Browser browser = new Browser();
+        String username = name();
+        JsonNode user = register(browser, username);
+        browser.login(username, password, 200);
+        jdbc.update("DELETE FROM user_account WHERE id=?", user.path("id").asLong());
+        browser.get("/auth/me", 401);
+        browser.get("/auth/me", 401);
+    }
+
+    @Test
     void concurrentRegistrationsHaveOneDatabaseWinner() throws Exception {
         String username = name();
         Browser first = new Browser();

@@ -2,6 +2,10 @@ package com.ticketing;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ticketing.auth.dto.RegisterRequest;
+import com.ticketing.auth.security.AccountPrincipal;
+import com.ticketing.auth.service.AccountService;
+import com.ticketing.auth.service.AccountUserDetailsService;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -39,11 +43,18 @@ class TicketManagementIT {
     @Autowired private MockMvc mvc;
     @Autowired private ObjectMapper json;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private AccountService accounts;
+    @Autowired private AccountUserDetailsService identities;
+    private AccountPrincipal administrator;
     private String activityId;
     private String sessionId;
 
     @BeforeEach
     void parents() throws Exception {
+        String name = "ticket_" + UUID.randomUUID().toString().replace("-", "").substring(0, 24);
+        accounts.initializeAdmin(new RegisterRequest(name, UUID.randomUUID().toString()));
+        administrator = identities.loadUserByUsername(name);
+        administrator.eraseCredentials();
         var activity = mutate(post("/api/v1/admin/activities"), Map.of("title", "票档测试" + UUID.randomUUID(),
                 "category", "CONCERT", "city", "上海", "venue", "测试场馆", "summary", "测试简介", "description", "测试详情"), 200);
         activityId = activity.path("id").asText();
@@ -68,7 +79,7 @@ class TicketManagementIT {
                 .andExpect(jsonPath("$.data[0].name").value("普通票"))
                 .andExpect(jsonPath("$.data[0].saleStatus").value("SELLING"))
                 .andExpect(jsonPath("$.data[0].serverTime").isString());
-        mvc.perform(get(base()).with(user("admin").roles("ADMIN"))).andExpect(status().isOk())
+        mvc.perform(get(base()).with(user(administrator))).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].lockedStock").value(0)).andExpect(jsonPath("$.data[0].soldStock").value(0));
     }
 
@@ -170,7 +181,7 @@ class TicketManagementIT {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.length()").value(0));
         mutate(post("/api/v1/admin/activities/" + activityId + "/offline"), Map.of("version", 1), 200);
         publicGetStatus(404);
-        mvc.perform(get(base()).with(user("admin").roles("ADMIN"))).andExpect(jsonPath("$.data[0].saleStatus").value("UNAVAILABLE"));
+        mvc.perform(get(base()).with(user(administrator))).andExpect(jsonPath("$.data[0].saleStatus").value("UNAVAILABLE"));
         mutate(post("/api/v1/admin/activities/" + activityId + "/publish"), Map.of("version", 2), 200);
         mutate(post("/api/v1/admin/sessions/" + sessionId + "/cancel"), Map.of("version", 0), 200);
         publicGet().andExpect(jsonPath("$.data[0].saleStatus").value("UNAVAILABLE"));
@@ -179,11 +190,15 @@ class TicketManagementIT {
 
     @Test
     void anonymousOrdinaryRoleAndMissingCsrfCannotMutateTickets() throws Exception {
+        String name = "user_" + UUID.randomUUID().toString().replace("-", "").substring(0, 24);
+        accounts.register(new RegisterRequest(name, UUID.randomUUID().toString()));
+        AccountPrincipal ordinary = identities.loadUserByUsername(name);
+        ordinary.eraseCredentials();
         String body = json.writeValueAsString(payload("权限票", 0));
         mvc.perform(post(base()).with(csrf()).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isUnauthorized());
-        mvc.perform(post(base()).with(user("普通用户").roles("USER")).with(csrf())
+        mvc.perform(post(base()).with(user(ordinary)).with(csrf())
                 .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
-        mvc.perform(post(base()).with(user("admin").roles("ADMIN"))
+        mvc.perform(post(base()).with(user(administrator))
                 .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
         mvc.perform(get(base())).andExpect(status().isUnauthorized());
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ticket_sku WHERE session_id = ?", Integer.class, Long.parseLong(sessionId))).isZero();
@@ -201,7 +216,7 @@ class TicketManagementIT {
                     final String name = "并发修改" + index;
                     futures.add(pool.submit(() -> {
                         start.await();
-                        return mvc.perform(put(ticket(sku)).with(user("admin").roles("ADMIN")).with(csrf())
+                        return mvc.perform(put(ticket(sku)).with(user(administrator)).with(csrf())
                                 .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(payload(name, 0))))
                                 .andReturn().getResponse().getStatus();
                     }));
@@ -215,6 +230,7 @@ class TicketManagementIT {
             jdbc.update("DELETE FROM ticket_sku WHERE session_id = ?", Long.parseLong(sessionId));
             jdbc.update("DELETE FROM activity_session WHERE id = ?", Long.parseLong(sessionId));
             jdbc.update("DELETE FROM activity WHERE id = ?", Long.parseLong(activityId));
+            jdbc.update("DELETE FROM user_account WHERE id = ?", administrator.getId());
         }
     }
 
@@ -235,7 +251,7 @@ class TicketManagementIT {
                 "saleStartsAt", "2025-02-01T00:00:00Z", "saleEndsAt", "2035-05-01T00:00:00Z", "maxQuantityPerOrder", 4, "version", version));
     }
     private JsonNode mutate(MockHttpServletRequestBuilder request, Object body, int expected) throws Exception {
-        String response = mvc.perform(request.with(user("admin").roles("ADMIN")).with(csrf())
+        String response = mvc.perform(request.with(user(administrator)).with(csrf())
                         .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body)))
                 .andExpect(status().is(expected)).andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
         return json.readTree(response).path("data");
