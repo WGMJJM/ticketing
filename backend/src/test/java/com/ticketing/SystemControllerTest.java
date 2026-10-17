@@ -45,7 +45,7 @@ class SystemControllerTest {
         mockMvc.perform(get("/api/v1/payments")).andExpect(status().isForbidden());
         mockMvc.perform(get("/api/v1/payments").with(user("测试用户"))).andExpect(status().isForbidden());
         mockMvc.perform(get("/api/v1/orders")).andExpect(status().isUnauthorized());
-        mockMvc.perform(post("/api/v1/tickets/purchase").with(csrf())).andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/v1/tickets/purchase").with(csrf())).andExpect(status().isUnauthorized());
     }
 
     @Test
