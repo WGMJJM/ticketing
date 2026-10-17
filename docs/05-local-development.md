@@ -29,10 +29,10 @@ PowerShell 脚本为 UTF-8 BOM，Bash 为 LF UTF-8。脚本读取 `.env` 而不�
 4. `scripts/start-backend.ps1 -VerifyDatabase` 或 Bash `--verify-database`，运行真实 MySQL 集成测试；首次连接空库执行 V1，后续执行校验。不会用 H2 替代。
 5. 启动后端和前端，检查状态接口、Actuator 与 Vite 代理，确认首页为「服务运行正常」。
 6. 暂停后端，检查活动加载错误和状态连接失败；恢复后端再重试。
-7. 检查 `/about`、活动详情、场次选择及运营管理。演示活动须显式标记；登录后可提交真实待支付订单、查看本人订单并主动取消，核对库存恢复。支付功能尚未开放。
+7. 检查 `/about`、活动详情、场次选择及运营管理。演示活动须显式标记；登录后真实下单、模拟支付、查看成功流水，再创建一单等待自动过期，核对库存及限额恢复；不产生实际扣款。
 8. `npm run build` 同时完成 TypeScript 检查和生产打包。
 
-数据库测试位于 `DatabaseMigrationIT`，推荐独立开发库。`ActivityManagementIT`、`TicketManagementIT`覆盖原有业务；`AuthenticationIT`使用随机端口Tomcat、真实HTTP、Cookie、Session和MySQL完成认证及旧会话撤权，`SessionCookieIT`检查生产Secure属性。`CurrentAccountFilterTest`验证公开端点跳过账号查询及订单等受保护端点刷新身份。`OrderManagementIT`使用真实HTTP会话和多线程独立事务，检查最后一张库存、同键幂等、跨SKU限购、重复取消、管理员调整竞争及最终库存和订单数量。普通业务用例事务回滚；并发编辑、认证与订单用例提交独立夹具并定向清理。当前33项基础测试加46项MySQL集成测试共79项，第四阶段结果见 `docs/11-order-inventory-verification.md`。这些是功能与并发一致性验证，不是高并发吞吐压测。
+数据库测试位于 `DatabaseMigrationIT`，推荐独立开发库。`ActivityManagementIT`、`TicketManagementIT`覆盖原有业务；`AuthenticationIT`使用随机端口Tomcat、真实HTTP、Cookie、Session和MySQL完成认证及旧会话撤权，`SessionCookieIT`检查生产Secure属性。`CurrentAccountFilterTest`验证公开端点跳过账号查询及订单等受保护端点刷新身份。`OrderManagementIT`现有25项用真实HTTP会话和多线程独立事务检查订单预占、幂等、限购、支付、取消、过期竞争、流水、回滚和最终库存；`OrderExpiryRecoveryIT`关闭再启动两个真实应用上下文，验证重启后的Scheduling自动回收历史过期订单。业务回归在test/resources/application.properties关闭后台线程，重启用例以启动参数显式启用并关闭上下文，避免测试间异步干扰。夹具定向清理，当前33项基础测试加59项MySQL集成测试共92项，最新结果见 `docs/12-payment-expiry-verification.md`。这些是功能与并发一致性验证，不是吞吐压测。
 
 ## 账号初始化与本地认证
 
@@ -63,7 +63,13 @@ docker compose --env-file .env -f deploy/compose.yml exec -T mysql sh -c 'MYSQL_
 
 订单配置在application.yml集中声明：`ORDER_SESSION_LIMIT`默认4，`ORDER_PAYMENT_WINDOW_MINUTES`默认15。启动脚本读取.env；本地已有.env无需覆盖，未指定使用默认值。只允许正数。降低限额不会撤销既有订单，占额超出新限额时阻止继续下单，仍可主动取消。
 
-从活动详情选择正在售票的票档，未登录会跳转登录并返回活动；数量上限取库存、单笔及场次剩余额度的最小值。提交真实订单后查看 `/orders/{id}` 与 `/orders`，页面刷新重新查身份及订单。确认取消后查看CANCELLED，回活动页选择原场次或点击刷新票档核对库存与额度恢复。订单截止状态由服务端查询返回，页面提供手动刷新。当前没有支付、自动关单、候补或电子票入口，不要把截止提醒当成已自动回收。
+从活动详情选择正在售票的票档，未登录会跳转登录并返回活动；数量上限取库存、单笔及场次剩余额度的最小值。提交真实订单后查看 `/orders/{id}` 与 `/orders`，页面刷新重新查身份及订单。立即支付前核对活动、场次、票档、数量和金额，确认后显示PAID与真实模拟流水，不产生扣款。确认取消后查看CANCELLED，回活动页刷新库存及额度。创建另一单等待截止，截止即禁用支付按钮，后台转EXPIRED后刷新展示已过期、库存与额度恢复。支付仍占场次限额；截止提示不等于已关闭。尚无候补、电子票、退款或真实支付。
+
+## 模拟支付与超时扫描配置
+
+ORDER_EXPIRY_ENABLED默认true，ORDER_EXPIRY_SCAN_DELAY_MS默认30000，ORDER_EXPIRY_BATCH_SIZE默认100（1至500）。启动立即扫描，逐笔独立事务处理，批次完成再等待间隔；使用MySQL时间与既有到期索引，账号禁用或父级不可售不影响释放。失败会记录订单ID并继续，游标扫到尾回绕重试；重启重新扫描历史PENDING。不引入RabbitMQ延迟消息或Outbox。
+
+快速浏览器验收可只在启动进程临时设置ORDER_PAYMENT_WINDOW_MINUTES=1及ORDER_EXPIRY_SCAN_DELAY_MS=1000，等待真实截止并刷新状态；不要用修改订单状态SQL代替验收。验证后恢复默认15分钟/30秒，不提交本地.env。积压、锁等待和错误重试会造成关闭延迟，支付SQL仍严格按数据库截止拒绝。测试注入的库存/流水写入故障仅限测试代码，不出现在产品接口。
 
 ## Git 与本地文件
 

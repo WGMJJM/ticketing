@@ -10,6 +10,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
 import com.ticketing.order.mapper.OrderMapper;
+import com.ticketing.order.mapper.PaymentMapper;
+import com.ticketing.order.entity.PaymentRecord;
+import com.ticketing.order.service.OrderService;
+import com.ticketing.order.service.OrderExpiryJob;
 import com.ticketing.order.entity.TicketOrder;
 import com.ticketing.ticket.entity.TicketSku;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
@@ -27,13 +31,16 @@ import static org.mockito.ArgumentMatchers.*;
 /** 所有并发通过真实HTTP进入独立事务和数据库连接，不在测试线程事务内模拟竞争。 */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"server.servlet.session.cookie.secure=false", "ticketing.admin-bootstrap.enabled=false",
-                "ticketing.order.max-per-user-session=4", "ticketing.order.payment-window-minutes=15"})
+                "ticketing.order.max-per-user-session=4", "ticketing.order.payment-window-minutes=15",
+                "ticketing.order.expiry.enabled=false"})
 class OrderManagementIT {
     @LocalServerPort private int port;
     @Autowired private ObjectMapper json;
     @Autowired private JdbcTemplate jdbc;
     @Autowired private AccountService accounts;
     @MockitoSpyBean private OrderMapper orderMapper;
+    @MockitoSpyBean private PaymentMapper paymentMapper;
+    @Autowired private OrderService orderService;
     private final List<Long> users = new ArrayList<>();
     private long activityId;
     private long sessionId;
@@ -58,6 +65,7 @@ class OrderManagementIT {
     @AfterEach
     void cleanup() {
         if (sessionId != 0) {
+            jdbc.update("DELETE p FROM payment_record p JOIN ticket_order o ON p.order_id=o.id WHERE o.session_id=?", sessionId);
             jdbc.update("DELETE i FROM ticket_order_item i JOIN ticket_order o ON i.order_id=o.id WHERE o.session_id=?", sessionId);
             jdbc.update("DELETE FROM ticket_order WHERE session_id=?", sessionId);
             jdbc.update("DELETE FROM ticket_sku WHERE session_id=?", sessionId);
@@ -188,13 +196,15 @@ class OrderManagementIT {
     }
 
     @Test
-    void deadlineDoesNotPretendAutomaticCancellationAndCanStillBeManuallyCancelled() throws Exception {
+    void deadlineBlocksPaymentWhileAwaitingScanAndAllowsManualCancellation() throws Exception {
         String id = buyer.create(skuId, 2, "expired-pending", 200).path("data").path("id").asText();
         jdbc.update("UPDATE ticket_order SET created_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 20 MINUTE),expires_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 MINUTE) WHERE id=?", Long.parseLong(id));
         JsonNode order = buyer.call("GET", "/orders/" + id, null, null, 200).path("data");
         assertThat(order.path("status").asText()).isEqualTo("PENDING");
         assertThat(order.path("paymentDeadlinePassed").asBoolean()).isTrue();
         assertThat(order.path("canCancel").asBoolean()).isTrue();
+        assertThat(order.path("canPay").asBoolean()).isFalse();
+        buyer.call("POST", "/orders/" + id + "/pay", null, null, 409);
         invariant(2, 0);
         assertThat(used(buyer)).isEqualTo(2);
         buyer.call("POST", "/orders/" + id + "/cancel", null, null, 200);
@@ -204,14 +214,12 @@ class OrderManagementIT {
     @Test
     void paidOccupiesQuotaButCancelledAndExpiredDoNot() throws Exception {
         String id = buyer.create(skuId, 3, "paid-fixture", 200).path("data").path("id").asText();
-        // 仅模拟未来支付事实夹具，业务没有支付接口。
-        jdbc.update("UPDATE ticket_order SET status='PAID',paid_at=UTC_TIMESTAMP(6) WHERE id=?", Long.parseLong(id));
-        jdbc.update("UPDATE ticket_sku SET locked_stock=0,sold_stock=3 WHERE id=?", skuId);
+        buyer.call("POST", "/orders/" + id + "/pay", null, null, 200);
         buyer.create(skuId, 2, "paid-limit", 409);
         buyer.call("POST", "/orders/" + id + "/cancel", null, null, 409);
         String pending = buyer.create(skuId, 1, "expires-fixture", 200).path("data").path("id").asText();
-        jdbc.update("UPDATE ticket_order SET status='EXPIRED' WHERE id=?", Long.parseLong(pending));
-        jdbc.update("UPDATE ticket_sku SET locked_stock=0 WHERE id=?", skuId);
+        makeDue(pending);
+        assertThat(orderService.expire(buyer.id, Long.parseLong(pending))).isTrue();
         assertThat(used(buyer)).isEqualTo(3);
         buyer.create(skuId, 1, "after-expired", 200);
         invariant(1, 3);
@@ -290,6 +298,266 @@ class OrderManagementIT {
         other.create(skuId, 1, "after-session-cancel", 409);
         invariant(created + second, 0);
         assertThat(orderCount()).isEqualTo(created + second);
+    }
+
+    @Test
+    void simulatedPaymentUsesSnapshotAndConcurrentRetriesReturnOneRecord() throws Exception {
+        String id = buyer.create(skuId, 2, "payment", 200).path("data").path("id").asText();
+        buyer.call("GET", "/orders/" + id + "/payment", null, null, 404);
+        jdbc.update("UPDATE ticket_sku SET price_cents=99999 WHERE id=?", skuId);
+        var results = parallel(6, index -> buyer.call("POST", "/orders/" + id + "/pay", null, null, 200).path("data"));
+        assertThat(results.stream().map(value -> value.path("paymentNo").asText()).distinct().count()).isEqualTo(1);
+        JsonNode payment = results.getFirst();
+        assertThat(payment.path("amountCents").asText()).isEqualTo("24690");
+        assertThat(payment.path("simulated").asBoolean()).isTrue();
+        assertThat(payment.path("status").asText()).isEqualTo("SUCCEEDED");
+        assertThat(buyer.call("GET", "/orders/" + id + "/payment", null, null, 200).path("data")).isEqualTo(payment);
+        assertThat(paymentCount()).isEqualTo(1);
+        invariant(0, 2);
+        assertThat(used(buyer)).isEqualTo(2);
+        JsonNode order = buyer.call("GET", "/orders/" + id, null, null, 200).path("data");
+        assertThat(order.path("status").asText()).isEqualTo("PAID");
+        assertThat(order.path("canPay").asBoolean()).isFalse();
+        assertThat(order.path("canCancel").asBoolean()).isFalse();
+        assertThat(order.path("payment")).isEqualTo(payment);
+        assertThat(jdbc.queryForObject("SELECT paid_at FROM ticket_order WHERE id=?", java.time.LocalDateTime.class, Long.parseLong(id)))
+                .isEqualTo(jdbc.queryForObject("SELECT paid_at FROM payment_record WHERE order_id=?", java.time.LocalDateTime.class, Long.parseLong(id)));
+        jdbc.update("UPDATE activity SET status='OFFLINE' WHERE id=?", activityId);
+        assertThat(buyer.call("POST", "/orders/" + id + "/pay", null, null, 200).path("data")).isEqualTo(payment);
+        buyer.call("POST", "/orders/" + id + "/cancel", null, null, 409);
+        assertThat(orderService.expire(buyer.id, Long.parseLong(id))).isFalse();
+        invariant(0, 2);
+    }
+
+    @Test
+    void paymentRejectsForeignOwnersAnonymousDisabledCsrfAndClientAmounts() throws Exception {
+        String id = buyer.create(skuId, 1, "payment-private", 200).path("data").path("id").asText();
+        for (Client actor : List.of(other, admin)) {
+            actor.call("POST", "/orders/" + id + "/pay", null, null, 404);
+            actor.call("GET", "/orders/" + id + "/payment", null, null, 404);
+        }
+        Client anonymous = new Client();
+        anonymous.csrf();
+        anonymous.call("POST", "/orders/" + id + "/pay", null, null, 401);
+        anonymous.call("GET", "/orders/" + id + "/payment", null, null, 401);
+        String token = buyer.token;
+        buyer.token = "";
+        buyer.call("POST", "/orders/" + id + "/pay", null, null, 403);
+        buyer.token = "incorrect";
+        buyer.call("POST", "/orders/" + id + "/pay", null, null, 403);
+        buyer.token = token;
+        buyer.call("POST", "/orders/" + id + "/pay", Map.of("amountCents", "1", "userId", other.id), null, 400);
+        jdbc.update("UPDATE user_account SET status='DISABLED' WHERE id=?", buyer.id);
+        buyer.call("POST", "/orders/" + id + "/pay", null, null, 401);
+        invariant(1, 0);
+        assertThat(paymentCount()).isZero();
+    }
+
+    @Test
+    void paymentRejectsCancelledExpiredAndUnavailableParentsButCanPayHeldOfflineSku() throws Exception {
+        String id = buyer.create(skuId, 1, "payment-states", 200).path("data").path("id").asText();
+        jdbc.update("UPDATE activity SET status='OFFLINE' WHERE id=?", activityId);
+        buyer.call("POST", "/orders/" + id + "/pay", null, null, 409);
+        assertThat(buyer.call("GET", "/orders/" + id, null, null, 200).path("data").path("canPay").asBoolean()).isFalse();
+        jdbc.update("UPDATE activity SET status='PUBLISHED' WHERE id=?", activityId);
+        jdbc.update("UPDATE activity_session SET status='CANCELLED' WHERE id=?", sessionId);
+        buyer.call("POST", "/orders/" + id + "/pay", null, null, 409);
+        jdbc.update("UPDATE activity_session SET status='SCHEDULED' WHERE id=?", sessionId);
+        buyer.call("POST", "/orders/" + id + "/cancel", null, null, 200);
+        buyer.call("POST", "/orders/" + id + "/pay", null, null, 409);
+        assertThat(orderService.expire(buyer.id, Long.parseLong(id))).isFalse();
+        String expired = buyer.create(skuId, 1, "payment-expired", 200).path("data").path("id").asText();
+        makeDue(expired);
+        buyer.call("POST", "/orders/" + expired + "/pay", null, null, 409);
+        assertThat(orderService.expire(buyer.id, Long.parseLong(expired))).isTrue();
+        buyer.call("POST", "/orders/" + expired + "/pay", null, null, 409);
+        String held = buyer.create(skuId, 1, "payment-held", 200).path("data").path("id").asText();
+        // 票档停售阻止新下单，但不撤销已预占的未到期待支付订单。
+        jdbc.update("UPDATE ticket_sku SET status='OFF_SALE' WHERE id=?", skuId);
+        buyer.call("POST", "/orders/" + held + "/pay", null, null, 200);
+        invariant(0, 1);
+        assertThat(paymentCount()).isEqualTo(1);
+    }
+
+    @Test
+    void failedPaymentRecordWriteRollsBackStatusInventoryAndRecordAndRetrySucceeds() throws Exception {
+        String id = buyer.create(skuId, 2, "payment-rollback", 200).path("data").path("id").asText();
+        doThrow(new DataIntegrityViolationException("验收注入支付流水写入失败")).when(paymentMapper).insert(any(PaymentRecord.class));
+        try {
+            buyer.call("POST", "/orders/" + id + "/pay", null, null, 409);
+            invariant(2, 0);
+            assertThat(orderStatus(id)).isEqualTo("PENDING");
+            assertThat(jdbc.queryForObject("SELECT paid_at IS NULL FROM ticket_order WHERE id=?", Boolean.class, Long.parseLong(id))).isTrue();
+            assertThat(paymentCount()).isZero();
+            assertThat(used(buyer)).isEqualTo(2);
+        } finally { reset(paymentMapper); }
+        buyer.call("POST", "/orders/" + id + "/pay", null, null, 200);
+        invariant(0, 2);
+        assertThat(paymentCount()).isEqualTo(1);
+    }
+
+    @Test
+    void expiryUsesDatabaseDeadlineAndReleasesInventoryAndQuotaOnce() throws Exception {
+        String id = buyer.create(skuId, 3, "expiry", 200).path("data").path("id").asText();
+        assertThat(orderService.expire(buyer.id, Long.parseLong(id))).isFalse();
+        makeDue(id);
+        assertThat(orderService.expire(buyer.id, Long.parseLong(id))).isTrue();
+        assertThat(orderService.expire(buyer.id, Long.parseLong(id))).isFalse();
+        assertThat(orderStatus(id)).isEqualTo("EXPIRED");
+        invariant(0, 0);
+        assertThat(used(buyer)).isZero();
+        JsonNode closed = buyer.call("GET", "/orders/" + id, null, null, 200).path("data");
+        assertThat(closed.path("canPay").asBoolean()).isFalse();
+        assertThat(closed.path("canCancel").asBoolean()).isFalse();
+        buyer.create(skuId, 4, "quota-recovered", 200);
+        invariant(4, 0);
+    }
+
+    @Test
+    void concurrentExpiryTransactionsReleaseOnlyOnce() throws Exception {
+        String id = buyer.create(skuId, 2, "expiry-parallel", 200).path("data").path("id").asText();
+        makeDue(id);
+        List<Boolean> results = parallel(6, index -> orderService.expire(buyer.id, Long.parseLong(id)));
+        assertThat(results.stream().filter(Boolean::booleanValue).count()).isEqualTo(1);
+        assertThat(orderStatus(id)).isEqualTo("EXPIRED");
+        invariant(0, 0);
+        assertThat(used(buyer)).isZero();
+        assertThat(paymentCount()).isZero();
+        String next = buyer.create(skuId, 2, "parallel-jobs", 200).path("data").path("id").asText();
+        makeDue(next);
+        parallel(4, index -> { new OrderExpiryJob(orderMapper, orderService, 100).closeExpiredOrders(); return true; });
+        assertThat(orderStatus(next)).isEqualTo("EXPIRED");
+        invariant(0, 0);
+        assertThat(used(buyer)).isZero();
+    }
+
+    @Test
+    void paymentAndExpiryRaceBeforeDeadlineOnlyPaymentChangesState() throws Exception {
+        String id = buyer.create(skuId, 2, "pay-expire-before", 200).path("data").path("id").asText();
+        var results = parallel(2, index -> index == 0
+                ? buyer.call("POST", "/orders/" + id + "/pay", null, null, 200).path("data").path("status").asText()
+                : Boolean.toString(orderService.expire(buyer.id, Long.parseLong(id))));
+        assertThat(results).containsExactly("SUCCEEDED", "false");
+        assertThat(orderStatus(id)).isEqualTo("PAID");
+        invariant(0, 2);
+        assertThat(paymentCount()).isEqualTo(1);
+    }
+
+    @Test
+    void lockWaitCrossingDatabaseDeadlineCannotExtendPaymentWindow() throws Exception {
+        String id = buyer.create(skuId, 2, "pay-expire-wait", 200).path("data").path("id").asText();
+        // 持有第三个真实连接的用户锁，让支付和过期事务都等待；数据库截止后才释放。
+        try (var blocker = Objects.requireNonNull(jdbc.getDataSource()).getConnection();
+                var pool = Executors.newFixedThreadPool(2)) {
+            blocker.setAutoCommit(false);
+            try {
+                try (var statement = blocker.prepareStatement("SELECT id FROM user_account WHERE id=? FOR UPDATE")) {
+                    statement.setLong(1, buyer.id);
+                    try (var result = statement.executeQuery()) { assertThat(result.next()).isTrue(); }
+                }
+                try (var statement = blocker.prepareStatement("UPDATE ticket_order SET created_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 MINUTE),expires_at=DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 400000 MICROSECOND) WHERE id=?")) {
+                    statement.setLong(1, Long.parseLong(id)); statement.executeUpdate();
+                }
+                Future<JsonNode> payment = pool.submit(() -> buyer.call("POST", "/orders/" + id + "/pay", null, null, 409));
+                Future<Boolean> expiry = pool.submit(() -> orderService.expire(buyer.id, Long.parseLong(id)));
+                // 等待数据库自己越过截止，不靠Java时钟决定支付资格。
+                try (var statement = blocker.prepareStatement("SELECT SLEEP(0.6)")) { statement.execute(); }
+                blocker.commit();
+                payment.get(20, TimeUnit.SECONDS);
+                assertThat(expiry.get(20, TimeUnit.SECONDS)).isTrue();
+            } finally { blocker.rollback(); }
+        }
+        assertThat(orderStatus(id)).isEqualTo("EXPIRED");
+        invariant(0, 0);
+        assertThat(paymentCount()).isZero();
+    }
+
+    @Test
+    void paymentAndCancellationRaceHaveExactlyOneFinalEffect() throws Exception {
+        String id = buyer.create(skuId, 2, "pay-cancel", 200).path("data").path("id").asText();
+        var results = parallel(2, index -> buyer.call("POST", "/orders/" + id + (index == 0 ? "/pay" : "/cancel"), null, null, -1).path("httpStatus").asInt());
+        assertThat(results).containsExactlyInAnyOrder(200, 409);
+        assertTerminalInventory(id, 2);
+    }
+
+    @Test
+    void paymentCancellationAndExpiryRacePreserveOneTerminalState() throws Exception {
+        String id = buyer.create(skuId, 2, "pay-cancel-expire", 200).path("data").path("id").asText();
+        makeDue(id);
+        parallel(3, index -> {
+            if (index == 2) return Boolean.toString(orderService.expire(buyer.id, Long.parseLong(id)));
+            return buyer.call("POST", "/orders/" + id + (index == 0 ? "/pay" : "/cancel"), null, null, -1).path("httpStatus").asText();
+        });
+        assertThat(orderStatus(id)).isIn("CANCELLED", "EXPIRED");
+        assertTerminalInventory(id, 2);
+        assertThat(paymentCount()).isZero();
+    }
+
+    @Test
+    void expiryCleansDisabledAccountsAndUnavailableParents() throws Exception {
+        String id = buyer.create(skuId, 2, "disabled-expiry", 200).path("data").path("id").asText();
+        makeDue(id);
+        jdbc.update("UPDATE user_account SET status='DISABLED' WHERE id=?", buyer.id);
+        jdbc.update("UPDATE activity SET status='OFFLINE' WHERE id=?", activityId);
+        jdbc.update("UPDATE activity_session SET status='CANCELLED' WHERE id=?", sessionId);
+        new OrderExpiryJob(orderMapper, orderService, 100).closeExpiredOrders();
+        assertThat(orderStatus(id)).isEqualTo("EXPIRED");
+        invariant(0, 0);
+        assertThat(used(buyer)).isZero();
+    }
+
+    @Test
+    void boundedScanUsesExpiryIndexAndFailureDoesNotStopOthersOrPreventRetry() throws Exception {
+        List<String> ids = new ArrayList<>();
+        for (int index = 0; index < 3; index++) ids.add(buyer.create(skuId, index == 1 ? 2 : 1, "scan-" + index, 200).path("data").path("id").asText());
+        for (String id : ids) makeDue(id);
+        assertThat(orderMapper.expiredCandidates(2, null, 0)).hasSize(2);
+        assertThat(jdbc.queryForMap("EXPLAIN SELECT id,user_id FROM ticket_order FORCE INDEX(idx_order_expiry) WHERE status='PENDING' AND expires_at<=UTC_TIMESTAMP(6) ORDER BY expires_at,id LIMIT 2").get("key")).isEqualTo("idx_order_expiry");
+        OrderExpiryJob job = new OrderExpiryJob(orderMapper, orderService, 2);
+        doThrow(new DataIntegrityViolationException("验收注入单笔释放失败")).when(orderMapper).release(skuId, 1);
+        try { job.closeExpiredOrders(); }
+        finally { reset(orderMapper); }
+        assertThat(orderStatus(ids.get(0))).isEqualTo("PENDING");
+        assertThat(orderStatus(ids.get(1))).isEqualTo("EXPIRED");
+        assertThat(orderStatus(ids.get(2))).isEqualTo("PENDING");
+        invariant(2, 0);
+        assertThat(used(buyer)).isEqualTo(2);
+        job.closeExpiredOrders();
+        assertThat(orderStatus(ids.get(0))).isEqualTo("PENDING");
+        assertThat(orderStatus(ids.get(2))).isEqualTo("EXPIRED");
+        job.closeExpiredOrders();
+        for (String id : ids) assertThat(orderStatus(id)).isEqualTo("EXPIRED");
+        invariant(0, 0);
+        assertThat(used(buyer)).isZero();
+        // 批量为1且第一笔持续失败时，也必须让后面的正常订单先被处理。
+        String blocked = buyer.create(skuId, 1, "scan-one-failure", 200).path("data").path("id").asText();
+        String following = buyer.create(skuId, 2, "scan-one-following", 200).path("data").path("id").asText();
+        makeDue(blocked);
+        makeDue(following);
+        OrderExpiryJob single = new OrderExpiryJob(orderMapper, orderService, 1);
+        doThrow(new DataIntegrityViolationException("验收注入持续释放失败")).when(orderMapper).release(skuId, 1);
+        try { single.closeExpiredOrders(); single.closeExpiredOrders(); }
+        finally { reset(orderMapper); }
+        assertThat(orderStatus(blocked)).isEqualTo("PENDING");
+        assertThat(orderStatus(following)).isEqualTo("EXPIRED");
+        invariant(1, 0);
+        single.closeExpiredOrders();
+        assertThat(orderStatus(blocked)).isEqualTo("EXPIRED");
+        invariant(0, 0);
+    }
+
+    private void makeDue(String id) {
+        jdbc.update("UPDATE ticket_order SET created_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 20 MINUTE),expires_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE id=?", Long.parseLong(id));
+    }
+    private String orderStatus(String id) { return jdbc.queryForObject("SELECT status FROM ticket_order WHERE id=?", String.class, Long.parseLong(id)); }
+    private int paymentCount() { return jdbc.queryForObject("SELECT COUNT(*) FROM payment_record p JOIN ticket_order o ON p.order_id=o.id WHERE o.session_id=?", Integer.class, sessionId); }
+    private void assertTerminalInventory(String id, int quantity) {
+        String state = orderStatus(id);
+        assertThat(state).isIn("PAID", "CANCELLED", "EXPIRED");
+        boolean paid = "PAID".equals(state);
+        invariant(0, paid ? quantity : 0);
+        assertThat(paymentCount()).isEqualTo(paid ? 1 : 0);
+        assertThat(used(buyer)).isEqualTo(paid ? quantity : 0);
     }
 
     private Map<String, Object> ticketBody(int total, int version) {

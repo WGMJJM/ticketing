@@ -10,6 +10,8 @@ V2 新增 `V2__activity_session_management.sql`，V1 保持不变。V2 复用 de
 
 第四阶段V4为 `V4__order_user_session_index.sql`，仅新增ticket_order索引 `idx_order_user_session_status(user_id,session_id,status,id)`，支持用户场次有效数量统计；复用V1的订单、明细、幂等唯一键及库存约束，不修改V1至V3。选择用户行锁保护全部占额和释放路径，不增加独立配额表及重复计数字段。
 
+第五阶段直接复用ticket_order、ticket_order_item、payment_record、ticket_sku及 `idx_order_expiry(status,expires_at,id)`。已有字段和约束足够，无V5迁移，V1至V4均未修改。
+
 票档价格为 BIGINT 整数分，API 以十进制字符串传输（0至9223372036854775807），前端通过 BigInt 换算人民币元，禁止浮点截断。库存与限购为 INT 整数，接口拒绝小数。只允许管理员修改 total_stock，locked_stock/sold_stock 为只读，可售量即时计算，不落库。
 
 销售窗口必须满足 `场次开售 <= 票档开售 < 票档停售 <= 场次开始`。票档变更及场次修改共享场次行锁，修改场次前检查全部已有票档窗口；跨表规则由事务代码维护，不能用单表 CHECK 代替。旧数据窗口不一致时统一返回暂不可售。已启用销售仅可调整总库存，其他字段先下架再改；总库存条件更新仍须大于等于锁定与已售之和。
@@ -41,13 +43,19 @@ V2 新增 `V2__activity_session_management.sql`，V1 保持不变。V2 复用 de
 
 统一锁序为user_account UPDATE→activity SHARE→activity_session SHARE→ticket_sku UPDATE→已有ticket_order UPDATE。活动变更只锁活动；管理场次/票档先活动SHARE、再场次UPDATE、再SKU更新，防止下架、取消或改窗口与下单交叉；初次不加锁查询只发现不可变的父级ID，锁定后读取最新状态。管理员库存更新保留version及 `total_stock>=locked_stock+sold_stock` 条件；与预占竞争后可能409，不能覆盖已有锁定量。
 
-主动取消同样先锁用户及父级/SKU再锁订单，仅PENDING允许转CANCELLED，条件释放locked_stock且检查受影响行数。重复取消CANCELLED直接返回原结果，其他状态409；释放与状态更新同事务回滚。活动下架或场次取消不自动处理旧订单，但不阻止用户主动取消。未来支付将PENDING→PAID与locked→sold同事务提交，超时关单与支付竞争仍须遵守上述用户锁及锁序。
+主动取消同样先锁用户及父级/SKU再锁订单，仅PENDING允许转CANCELLED，条件释放locked_stock且检查受影响行数。重复取消CANCELLED直接返回原结果，其他状态409；释放与状态更新同事务回滚。活动下架或场次取消不立即处理旧订单，但不阻止用户主动取消或截止后自动回收。
+
+模拟支付在相同锁序下先核对本人和PENDING状态及活动PUBLISHED/场次SCHEDULED，再执行 `UPDATE ticket_order SET status='PAID',paid_at=UTC_TIMESTAMP(6) ... WHERE status='PENDING' AND expires_at>UTC_TIMESTAMP(6)`。数据库在等锁后作实际截止判断；成功再条件更新SKU locked减quantity、sold加quantity，并插入SUCCEEDED支付流水。支付金额取订单总额快照，支付时间与订单paid_at一致；三个写入任何失败均回滚。支付不重新消耗可售库存，也不受SKU当前停售窗口影响，已经PAID的重试直接返回原流水。支付/取消/过期共同争夺同一用户和订单行，只能从PENDING到一个终态。
+
+payment_record复用一单唯一约束uk_payment_order和流水唯一约束uk_payment_no，不创建重复的支付状态表。当前只落成功模拟支付记录；失败事务不保留半成品流水。订单与流水金额/时间相等由同一事务落实，库存CHECK不能单独证明此关系。
 
 单价、总额、支付金额的相等关系，以及电子票数量不超过明细数量、候补预留订单与 SKU 一致，属于跨行业务不变量。CHECK 不能跨表验证，必须在后续事务代码中落实；外键和库存 CHECK 不能代替完整业务一致性。
 
-场次限额集中配置 `ticketing.order.max-per-user-session`，默认4。所有创建与取消先对该user_account执行FOR UPDATE；锁内以SUM明细quantity统计同用户同场次PENDING/PAID，跨票档共享额度。READ_COMMITTED确保等到前一事务提交后统计最新数量；统计加新数量不超过配置才允许预占。取消转终态后自然不再计入，交易失败不改变额度。单用户不同场次也串行，第一版接受此取舍，不使用无锁SUM或另一份配额计数。
+场次限额集中配置 `ticketing.order.max-per-user-session`，默认4。创建、支付、取消、过期先对该user_account执行FOR UPDATE；锁内以SUM明细quantity统计同用户同场次PENDING/PAID，跨票档共享额度。READ_COMMITTED确保等到前一事务提交后统计最新数量；统计加新数量不超过配置才允许预占。取消/过期转终态后自然不再计入，支付仍占额，交易失败不改变额度。单用户不同场次也串行，第一版接受此取舍，不使用无锁SUM或另一份配额计数。
 
-支付期限集中配置，默认15分钟。超过截止的PENDING仍占额、占库存，服务端返回paymentDeadlinePassed；未实现自动EXPIRED或回收。真正CANCELLED/EXPIRED不计入额度。后续支付、超时、候补分配必须先锁同一用户行再占额/释放，后台释放不得因账号停用跳过清理。当前没有上述未来写入路径。
+支付期限集中配置，默认15分钟，创建时间与截止起点取MySQL UTC时间。截止后到扫描完成前PENDING仍占额、占库存，paymentDeadlinePassed=true且禁止支付；真正转CANCELLED/EXPIRED后才不计入。默认启动立即扫描，此后每批完成间隔30秒、每批100（1至500可配），使用既有到期索引按expires_at/id有界读取，游标到尾回绕；失败也前进，避免一笔持续失败阻塞其他订单，下次循环重试。内存游标仅用于公平扫描，不存业务事实，重启从数据库重新开始。
+
+每笔过期订单独立事务，系统只对用户加锁、不校验ACTIVE，父级不可售也不阻止释放。拿齐锁后按 `status='PENDING' AND expires_at<=UTC_TIMESTAMP(6)` 条件转EXPIRED并释放locked，失败整体回滚为PENDING；其他状态及尚未截止返回无操作。扫描查询本身不加订单锁，多个实例/任务重复扫描仍由事务条件保证只释放一次。后续候补等占额路径仍须共享用户行锁，不允许绕过。
 
 ## 幂等、候补与事件
 

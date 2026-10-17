@@ -92,17 +92,33 @@ ON_SALE仅为管理状态。后端先判断活动发布、场次正常且未结�
 | GET `/orders/limits?sessionId=10001` | 当前用户该场次限额 `{maxPerSession,usedQuantity,remainingQuantity}`；供表单展示，下单时重新校验 |
 | GET `/orders/{orderId}` | 本人订单详情；不存在或属于其他用户统一404 |
 | POST `/orders/{orderId}/cancel` | 无业务请求体；仅PENDING转CANCELLED并释放库存和限额，重复CANCELLED返回原单，其他状态409 |
+| POST `/orders/{orderId}/pay` | 本人订单模拟支付；无业务请求体（允许空对象），不接收金额、用户ID等字段；成功200返回PaymentView |
+| GET `/orders/{orderId}/payment` | 本人订单成功模拟支付流水；没有成功记录404 PAYMENT_NOT_FOUND，非本人订单404 ORDER_NOT_FOUND |
 
 skuId为正十进制字符串且不能超过Java long，quantity为正INT整数，拒绝小数。未知创建字段（userId、价格、金额、状态、库存等）400；身份和价格只能来自服务端。幂等键为1至128位可见ASCII字符（不含空格），区分大小写；缺失或非法400。操作域固定CREATE_ORDER，同一用户同键同参返回原单，同键异SKU/数量409 IDEMPOTENCY_CONFLICT，不同用户可共用键。旧单已取消仍返回CANCELLED，不重复预占；创建失败整个事务回滚，同键可以重新尝试。
 
 下单锁定父级并统一校验活动PUBLISHED、场次SCHEDULED及销售窗口、SKU ON_SALE、可售量；区间为 `[saleStartsAt,saleEndsAt)`。数量还受SKU单笔上限和跨SKU用户场次限额约束，默认每人每场4张，PENDING/PAID占额，CANCELLED/EXPIRED不占额。限额查询只是即时展示，无法替代服务端事务校验。库存或不可售409（TICKET_UNAVAILABLE/STOCK_UNAVAILABLE），超限409 PURCHASE_LIMIT，金额乘法溢出400 ORDER_AMOUNT_INVALID。数据库写入异常整体回滚，不返回半成品成功。
 
-OrderView字段：id/orderNo/activityId/activityTitle/sessionId/sessionTitle/sessionStartsAt/skuId/skuName/quantity/unitPriceCents/totalAmountCents/status/createdAt/expiresAt/paymentDeadlinePassed/canCancel/serverTime。ID和金额分为字符串，数量为整数，时间UTC带Z、页面北京时间。skuName、单价和数量来自下单明细快照，活动/场次名称及开始时间是当前关联资料。总额为服务端单价乘数量，不采用客户端预计金额。
+OrderView字段：id/orderNo/activityId/activityTitle/sessionId/sessionTitle/sessionStartsAt/skuId/skuName/quantity/unitPriceCents/totalAmountCents/status/createdAt/expiresAt/paymentDeadlinePassed/canCancel/canPay/payment/serverTime。ID和金额分为字符串，数量为整数，时间UTC带Z、页面北京时间。skuName、单价和数量来自下单明细快照，活动/场次名称及开始时间是当前关联资料。总额为服务端单价乘数量，不采用客户端预计金额。payment无成功流水时为null，否则为PaymentView，列表通过JOIN读取，不逐订单额外查询。
 
-当前只创建PENDING（待支付）和主动转CANCELLED（已取消），保留模型中的PAID（已支付）/EXPIRED（已过期）供后续业务使用，当前没有支付或自动过期接口。支付窗口配置 `ticketing.order.payment-window-minutes` 默认15分钟；超过截止的PENDING仍占库存与限额，paymentDeadlinePassed=true且canCancel=true。该标志由后端查询时计算，页面显示截止提醒及主动取消，不伪装为已自动取消。支付功能尚未开放；未来支付必须拒绝截止及非PENDING订单。
+状态为PENDING（待支付）、PAID（已支付）、CANCELLED（已取消）、EXPIRED（已过期），只允许从PENDING转一个终态。支付窗口配置 `ticketing.order.payment-window-minutes` 默认15分钟；创建及查询使用MySQL UTC时间。PENDING截止前且活动PUBLISHED、场次SCHEDULED时canPay=true；所有PENDING仍可主动取消，其他状态canCancel=false。超过截止但扫描尚未处理的PENDING仍占库存与限额，paymentDeadlinePassed=true且不能支付；只有收到EXPIRED才展示已过期。前端以serverTime和单调计时推进支付按钮的禁用提示，不能自行修改订单终态。
+
+## 模拟支付与自动超时关闭
+
+pay与payment沿用全部订单路径的Session和当前账号复查，POST需CSRF；未登录401、禁用账号401、无效CSRF403。用户只能访问本人，ADMIN无归属例外。客户端传金额、状态、身份等非空支付业务字段400，实际金额固定来自订单totalAmountCents快照。
+
+PaymentView为 `{orderId,paymentNo,amountCents,status,paidAt,simulated}`，ID/金额分为字符串，status=SUCCEEDED，paidAt为UTC时间，simulated=true明确标记模拟业务，不接真实平台、不实际扣款。订单和支付时间/金额在同事务内一致，支付流水号唯一且同订单仅一条。
+
+支付事务锁定用户→活动→场次→票档→订单。只允许未截止的PENDING，最终SQL要求 `expires_at>UTC_TIMESTAMP(6)`，锁等待不会延长期限；超过截止返回409 ORDER_EXPIRED。活动不再PUBLISHED或场次非SCHEDULED返回409 ORDER_UNPAYABLE；CANCELLED/EXPIRED返回409 ORDER_STATE_CONFLICT。库存必须locked足量，将locked等量转sold，状态、库存和SUCCEEDED流水同事务提交，失败全部回滚。SKU停售只禁止新订单，不撤销已占库存订单的支付资格；父级不可售则阻止继续支付。
+
+重复支付PAID直接返回原PaymentView，既不新增流水也不变库存；即使此后父级下架，仍可查询或重放成功结果。请求结果不明时刷新本人订单或payment查询可恢复事实，不自动重放POST。支付或取消失败时Vue重新查询订单，展示竞争后的真实状态。
+
+Spring Scheduling默认开启，启动即扫描MySQL的 `PENDING AND expires_at<=UTC_TIMESTAMP(6)`，强制使用既有idx_order_expiry，按expires_at/id有界读取；默认每批100、最大500、完成批次后间隔30秒。没有公开的手动过期接口。每笔独立事务，遵守同一锁序，系统只锁用户、不做ACTIVE校验；只有成功PENDING→EXPIRED才释放locked。PAID/CANCELLED/EXPIRED或未截止均无操作。失败记录后继续处理，游标前进、到尾回绕重试；重启从库中重新补偿，不依赖内存游标持久化。多个调度实例重复扫描仍幂等。
+
+环境配置为ORDER_EXPIRY_ENABLED（默认true）、ORDER_EXPIRY_SCAN_DELAY_MS（默认30000）、ORDER_EXPIRY_BATCH_SIZE（默认100）。截止与实际关闭之间存在扫描延迟，大量积压、锁等待或错误重试会进一步延迟，但截止后支付SQL立即拒绝；不要将暂时仍PENDING误报为仍可支付或已释放。
 
 前端数量范围按可售量、单笔上限及限额查询取最小值，金额用BigInt。确认提交期间禁止重复点击，每次新尝试生成UUID幂等键；当前页面遇网络/5xx结果不明时保留键和数量供用户手动重试或查看我的订单，不自动重放POST。刷新或离开页面后先查订单，不能假定未创建。取消成功后重新查询订单，活动页通过刷新票档获取释放后的库存。
 
 ## 待开发方向
 
-第五阶段模拟支付与自动超时关单，之后FIFO候补、电子票及核销。Outbox与消费者幂等尚未接入。本轮完成真实订单、预占和主动取消后停止，没有模拟支付成功、候补分配或电子票接口。
+第五阶段模拟支付与MySQL可靠超时扫描已实现，完成验收后停止。后续FIFO候补、Outbox与消费者幂等、电子票及核销尚未开发；真实支付平台、退款及对账不在本阶段。
