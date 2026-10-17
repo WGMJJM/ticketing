@@ -3,6 +3,7 @@ import { onBeforeUnmount, ref, watch } from 'vue'
 import { listTickets, saleStatusText, type TicketSku } from '../api/tickets'
 import { formatCents } from '../utils/money'
 import { formatTime } from '../utils/date'
+import PurchasePanel from './PurchasePanel.vue'
 const props = defineProps<{ activityId: string; sessionId: string }>()
 const rows = ref<TicketSku[]>([])
 const loading = ref(false)
@@ -82,10 +83,15 @@ onBeforeUnmount(() => controller?.abort())
             <dd>{{ formatTime(ticket.saleEndsAt) }}</dd>
           </div>
         </dl>
+        <PurchasePanel
+          v-if="ticket.saleStatus === 'SELLING'"
+          :ticket="ticket"
+          @changed="load"
+        />
       </article>
     </div>
     <p class="ticket-query-note">
-      时间均为北京时间，销售状态以本次服务端查询为准。购票功能即将开放，当前仅供查看。
+      时间均为北京时间。提交订单会再次校验库存与限购，支付功能尚未开放。
     </p>
   </section>
 </template>

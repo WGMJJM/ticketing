@@ -26,6 +26,9 @@ async function submit() {
       typeof route.query.redirect === 'string' ? route.query.redirect : ''
     const allowed =
       redirect === '/profile' ||
+      redirect === '/orders' ||
+      /^\/orders\/[1-9][0-9]*$/.test(redirect) ||
+      /^\/activities\/[1-9][0-9]*$/.test(redirect) ||
       (auth.isAdmin && redirect === '/admin/activities')
     await router.replace(
       allowed ? redirect : props.adminOnly ? '/admin/activities' : '/profile',

@@ -45,10 +45,13 @@ async function logout() {
       <p v-if="$route.query.denied" class="inline-error" role="alert">
         当前账号没有运营管理权限
       </p>
-      <p>账号身份由服务端会话确认。购票、订单与支付功能尚未开放。</p>
+      <p>
+        账号身份由服务端会话确认。可提交购票订单并主动取消，支付功能尚未开放。
+      </p>
       <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
       <div class="auth-links">
         <RouterLink to="/">继续发现活动</RouterLink
+        ><RouterLink to="/orders">我的订单</RouterLink
         ><RouterLink v-if="auth.isAdmin" to="/admin/activities"
           >进入运营管理</RouterLink
         ><ElButton :loading="busy" @click="logout">退出登录</ElButton>

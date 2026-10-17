@@ -9,6 +9,7 @@ import './style.css'
 import './event.css'
 import './ticket.css'
 import './auth.css'
+import './order.css'
 
 createApp(App)
   .use(createPinia())

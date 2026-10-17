@@ -72,7 +72,9 @@ onBeforeUnmount(() => controller?.abort())
           <div class="venue-note">
             举办地点 <strong>{{ activity.city }} · {{ activity.venue }}</strong>
           </div>
-          <span class="coming-label">活动展示阶段 · 暂未开放购票</span>
+          <span class="coming-label"
+            >支持真实下单与库存预占 · 支付尚未开放</span
+          >
         </div>
       </section>
       <div class="detail-columns">
@@ -111,7 +113,7 @@ onBeforeUnmount(() => controller?.abort())
           <div class="stage-notice" role="status">
             {{
               selected ? '已选择场次。' : '可选择正常场次查看安排。'
-            }}购票功能即将开放，当前仅供查看。
+            }}可选择正在售票的票档提交订单，支付功能尚未开放。
           </div>
         </section>
       </div>

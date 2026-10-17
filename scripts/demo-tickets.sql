@@ -4,7 +4,7 @@ START TRANSACTION;
 INSERT INTO activity (title, category, city, venue, summary, description, status, published_at)
 SELECT '【演示】票档与库存体验场', 'CONCERT', '上海', '虚构场地 · 现场体验空间',
        '演示活动：查看不同票档、人民币价格、剩余数量和服务端销售状态。',
-       '这是一场虚构的票档功能演示，不提供购票、下单或库存预占。所有时间均按北京时间展示。',
+       '这是一场虚构的票档功能演示，可体验真实下单、库存预占与主动取消，不提供支付或实际入场凭证。所有时间均按北京时间展示。',
        'PUBLISHED', UTC_TIMESTAMP(6)
 WHERE NOT EXISTS (SELECT 1 FROM activity WHERE title = '【演示】票档与库存体验场');
 INSERT INTO activity_session (activity_id, title, starts_at, ends_at, sale_starts_at)

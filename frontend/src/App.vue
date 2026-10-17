@@ -28,6 +28,7 @@ const auth = useAuthStore()
           <template v-if="auth.user"
             ><span class="account-name">{{ auth.user.username }}</span
             ><RouterLink to="/profile">个人中心</RouterLink
+            ><RouterLink to="/orders">我的订单</RouterLink
             ><RouterLink v-if="auth.isAdmin" to="/admin/activities"
               >运营管理</RouterLink
             ></template
@@ -48,7 +49,7 @@ const auth = useAuthStore()
       <footer class="site-footer">
         <RouterLink class="footer-brand" to="/">票务交易平台</RouterLink>
         <span>让精彩发生，让热爱在场。</span>
-        <span class="footer-stage">活动与票档展示 · 购票功能筹备中</span>
+        <span class="footer-stage">购票下单与订单管理 · 支付功能筹备中</span>
         <RouterLink v-if="auth.isAdmin" to="/admin/activities"
           >运营管理</RouterLink
         >
