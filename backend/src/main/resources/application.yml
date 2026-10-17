@@ -61,6 +61,10 @@ ticketing:
   order:
     max-per-user-session: ${ORDER_SESSION_LIMIT:4}
     payment-window-minutes: ${ORDER_PAYMENT_WINDOW_MINUTES:15}
+    expiry:
+      enabled: ${ORDER_EXPIRY_ENABLED:true}
+      scan-delay-ms: ${ORDER_EXPIRY_SCAN_DELAY_MS:30000}
+      batch-size: ${ORDER_EXPIRY_BATCH_SIZE:100}
   admin-bootstrap:
     enabled: ${ADMIN_BOOTSTRAP_ENABLED:false}
     username: ${ADMIN_BOOTSTRAP_USERNAME:}
