@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.ticketing.order.entity.TicketOrder;
 import com.ticketing.ticket.entity.TicketSku;
 import java.util.List;
+import java.time.LocalDateTime;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -14,9 +15,12 @@ import org.apache.ibatis.annotations.Update;
 public interface OrderMapper extends BaseMapper<TicketOrder> {
     String VIEW = """
             SELECT o.*,i.sku_id,i.quantity,i.unit_price_cents,i.sku_name_snapshot,
-                   s.title AS session_title,s.starts_at AS session_starts_at,a.id AS activity_id,a.title AS activity_title
+                   s.title AS session_title,s.starts_at AS session_starts_at,s.status AS session_status,
+                   a.id AS activity_id,a.title AS activity_title,a.status AS activity_status,
+                   p.payment_no,p.amount_cents AS payment_amount_cents,p.paid_at AS payment_paid_at
             FROM ticket_order o JOIN ticket_order_item i ON i.order_id=o.id
             JOIN activity_session s ON s.id=o.session_id JOIN activity a ON a.id=s.activity_id
+            LEFT JOIN payment_record p ON p.order_id=o.id AND p.status='SUCCEEDED'
             """;
 
     @Select(VIEW + " WHERE o.id=#{id} AND o.user_id=#{userId}")
@@ -24,6 +28,42 @@ public interface OrderMapper extends BaseMapper<TicketOrder> {
 
     @Select(VIEW + " WHERE o.user_id=#{userId} ORDER BY o.created_at DESC,o.id DESC LIMIT #{size} OFFSET #{offset}")
     List<TicketOrder> listOwned(@Param("userId") long userId, @Param("size") int size, @Param("offset") long offset);
+
+    @Select("SELECT UTC_TIMESTAMP(6)")
+    LocalDateTime databaseNow();
+
+    @Select("""
+            <script>
+            SELECT id,user_id,expires_at FROM ticket_order FORCE INDEX (idx_order_expiry)
+            WHERE status='PENDING' AND expires_at&lt;=UTC_TIMESTAMP(6)
+            <if test="after != null">
+              AND (expires_at>#{after} OR (expires_at=#{after} AND id>#{afterId}))
+            </if>
+            ORDER BY expires_at,id LIMIT #{size}
+            </script>
+            """)
+    List<TicketOrder> expiredCandidates(@Param("size") int size,
+            @Param("after") LocalDateTime after, @Param("afterId") long afterId);
+
+    @Update("""
+            UPDATE ticket_order SET status='PAID',paid_at=UTC_TIMESTAMP(6),updated_at=UTC_TIMESTAMP(6)
+            WHERE id=#{id} AND user_id=#{userId} AND status='PENDING' AND expires_at>UTC_TIMESTAMP(6)
+            """)
+    int markPaid(@Param("id") long id, @Param("userId") long userId);
+
+    @Update("""
+            UPDATE ticket_order SET status='EXPIRED',updated_at=UTC_TIMESTAMP(6)
+            WHERE id=#{id} AND user_id=#{userId} AND status='PENDING' AND expires_at<=UTC_TIMESTAMP(6)
+            """)
+    int markExpired(@Param("id") long id, @Param("userId") long userId);
+
+    @Update("""
+            UPDATE ticket_sku SET locked_stock=locked_stock-#{quantity},sold_stock=sold_stock+#{quantity},
+                   version=version+1,updated_at=UTC_TIMESTAMP(6)
+            WHERE id=#{skuId} AND locked_stock>=#{quantity}
+              AND CAST(locked_stock AS SIGNED)+sold_stock<=total_stock
+            """)
+    int sell(@Param("skuId") long skuId, @Param("quantity") int quantity);
 
     @Select("""
             SELECT COALESCE(SUM(i.quantity),0) FROM ticket_order o JOIN ticket_order_item i ON i.order_id=o.id

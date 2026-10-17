@@ -5,6 +5,10 @@ import com.ticketing.common.api.ApiResponse;
 import com.ticketing.common.api.PageResponse;
 import com.ticketing.order.dto.CreateOrderRequest;
 import com.ticketing.order.dto.OrderView;
+import com.ticketing.order.dto.PaymentView;
+import com.ticketing.common.api.BusinessException;
+import java.util.Map;
+import org.springframework.http.HttpStatus;
 import com.ticketing.order.service.OrderService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -55,5 +59,18 @@ public class OrderController {
     @PostMapping("/{orderId}/cancel")
     public ApiResponse<OrderView> cancel(@AuthenticationPrincipal AccountPrincipal user, @PathVariable @Positive long orderId) {
         return ApiResponse.success(orders.cancel(user.getId(), orderId));
+    }
+
+    @PostMapping("/{orderId}/pay")
+    public ApiResponse<PaymentView> pay(@AuthenticationPrincipal AccountPrincipal user,
+            @PathVariable @Positive long orderId, @RequestBody(required = false) Map<String, Object> body) {
+        if (body != null && !body.isEmpty()) throw new BusinessException(HttpStatus.BAD_REQUEST,
+                "INVALID_ARGUMENT", "模拟支付不接受客户端指定金额或其他业务字段");
+        return ApiResponse.success(orders.pay(user.getId(), orderId));
+    }
+
+    @GetMapping("/{orderId}/payment")
+    public ApiResponse<PaymentView> payment(@AuthenticationPrincipal AccountPrincipal user, @PathVariable @Positive long orderId) {
+        return ApiResponse.success(orders.payment(user.getId(), orderId));
     }
 }

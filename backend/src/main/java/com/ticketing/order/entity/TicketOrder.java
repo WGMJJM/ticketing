@@ -37,6 +37,26 @@ public class TicketOrder {
     private String sessionTitle;
     @TableField(exist = false)
     private LocalDateTime sessionStartsAt;
+    @TableField(exist = false)
+    private String activityStatus;
+    @TableField(exist = false)
+    private String sessionStatus;
+    @TableField(exist = false)
+    private String paymentNo;
+    @TableField(exist = false)
+    private Long paymentAmountCents;
+    @TableField(exist = false)
+    private LocalDateTime paymentPaidAt;
+    public String getActivityStatus() { return activityStatus; }
+    public void setActivityStatus(String value) { activityStatus = value; }
+    public String getSessionStatus() { return sessionStatus; }
+    public void setSessionStatus(String value) { sessionStatus = value; }
+    public String getPaymentNo() { return paymentNo; }
+    public void setPaymentNo(String value) { paymentNo = value; }
+    public Long getPaymentAmountCents() { return paymentAmountCents; }
+    public void setPaymentAmountCents(Long value) { paymentAmountCents = value; }
+    public LocalDateTime getPaymentPaidAt() { return paymentPaidAt; }
+    public void setPaymentPaidAt(LocalDateTime value) { paymentPaidAt = value; }
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getOrderNo() { return orderNo; }
