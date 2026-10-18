@@ -1,0 +1,45 @@
+name: ticketing-perf
+services:
+  mysql:
+    image: mysql:8.4
+    pull_policy: missing
+    environment:
+      MYSQL_DATABASE: ticketing_perf
+      MYSQL_USER: ticketing_perf
+      MYSQL_PASSWORD: ${PERF_DB_PASSWORD:?请先运行 perf.py init}
+      MYSQL_ROOT_PASSWORD: ${PERF_ROOT_PASSWORD:?请先运行 perf.py init}
+      MYSQL_ROOT_HOST: '%'
+      TZ: UTC
+    command: [--character-set-server=utf8mb4, --collation-server=utf8mb4_0900_ai_ci, --default-time-zone=+00:00, --performance-schema=ON, --slow-query-log=ON, --long-query-time=0.05, --log-output=TABLE]
+    ports: ['127.0.0.1:13307:3306']
+    volumes: [perf_mysql:/var/lib/mysql]
+    healthcheck:
+      test: [CMD-SHELL, 'MYSQL_PWD="$$MYSQL_PASSWORD" mysql -u ticketing_perf -e "SELECT 1" ticketing_perf']
+      interval: 3s
+      timeout: 3s
+      retries: 40
+  rabbitmq:
+    image: rabbitmq:4.1-management-alpine
+    pull_policy: missing
+    environment:
+      RABBITMQ_DEFAULT_USER: ticketing_perf
+      RABBITMQ_DEFAULT_PASS: ${PERF_MQ_PASSWORD:?请先运行 perf.py init}
+    ports: ['127.0.0.1:15673:5672', '127.0.0.1:25673:15672']
+    volumes: [perf_rabbit:/var/lib/rabbitmq]
+    healthcheck:
+      test: [CMD, rabbitmq-diagnostics, -q, ping]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  redis:
+    image: redis:7-alpine
+    pull_policy: missing
+    ports: ['127.0.0.1:16379:6379']
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+volumes:
+  perf_mysql:
+  perf_rabbit:

@@ -1,0 +1,52 @@
+# 仅由压测工具显式加载，端口、库名与正常开发环境完全分离。
+spring:
+  datasource:
+    url: jdbc:mysql://127.0.0.1:13307/ticketing_perf?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&characterEncoding=UTF-8
+    username: ticketing_perf
+    password: ${PERF_DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:10}
+      minimum-idle: 10
+  data:
+    redis:
+      port: 16379
+  rabbitmq:
+    port: 15673
+    username: ticketing_perf
+    password: ${PERF_MQ_PASSWORD}
+server:
+  port: 18080
+  servlet:
+    session:
+      cookie:
+        secure: false
+management:
+  endpoints:
+    web:
+      # 沿用现有 ADMIN 授权及账号状态复查，不公开 JVM/连接池指标。
+      base-path: /api/v1/admin/monitoring
+      exposure:
+        include: health,info,metrics
+  info:
+    env:
+      enabled: true
+info:
+  performance:
+    environment: ticketing-perf-only
+ticketing:
+  checkin:
+    credential-keys: ${PERF_TICKET_KEYS}
+    backfill:
+      enabled: false
+  admin-bootstrap:
+    enabled: true
+    username: perf_admin
+    password: ${PERF_ADMIN_PASSWORD}
+  order:
+    payment-window-minutes: ${ORDER_PAYMENT_WINDOW_MINUTES:1}
+    expiry:
+      scan-delay-ms: ${ORDER_EXPIRY_SCAN_DELAY_MS:1000}
+  waitlist:
+    compensation-poll-ms: ${WAITLIST_COMPENSATION_POLL_MS:60000}
+    outbox:
+      batch-size: ${TICKETING_WAITLIST_OUTBOX_BATCH_SIZE:100}
