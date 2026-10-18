@@ -68,7 +68,8 @@ const router = createRouter({
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
-  scrollBehavior: () => ({ top: 0 }),
+  scrollBehavior: (to) =>
+    to.hash ? { el: to.hash, top: 24 } : { top: 0 },
 })
 
 router.beforeEach(async (to) => {
