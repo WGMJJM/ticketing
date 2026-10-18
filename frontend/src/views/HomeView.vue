@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { getSystemStatus } from '../api/system'
 import ActivityList from '../components/ActivityList.vue'
+import StageArtwork from '../components/StageArtwork.vue'
 
 const connection = ref<'loading' | 'online' | 'offline'>('loading')
 const lastChecked = ref<Date | null>(null)
@@ -69,57 +70,58 @@ onBeforeUnmount(() => controller.abort())
 </script>
 
 <template>
+  <div class="home-page">
   <section class="hero" aria-labelledby="hero-title">
     <div class="hero-copy">
-      <span class="eyebrow"><span></span> 精彩现场，正在酝酿</span>
+      <span class="eyebrow"><span></span> 下一站，现场</span>
       <h1 id="hero-title">
-        发现下一场<br />精彩<span class="title-highlight">现场<i></i></span
-        ><span class="title-dot">。</span>
+        为热爱，<br />奔赴<span class="hero-outline">现场</span><span class="hero-asterisk" aria-hidden="true">✳</span>
       </h1>
       <p>
-        演唱会、音乐节、展览与精彩赛事。<br />走出日常，把喜欢变成一次亲临现场。
+        有些心动，只有在现场才能听见。<br />从一场演出、一段音乐，找到下一次出发的理由。
       </p>
       <div class="hero-actions">
-        <a class="primary-link" href="#discover">探索现场灵感 <span aria-hidden="true">↗</span></a>
+        <a class="primary-link" href="#discover">浏览近期活动 <span aria-hidden="true">↗</span></a>
         <RouterLink class="hero-secondary" to="/tickets">我的入场凭证 <span aria-hidden="true">→</span></RouterLink>
       </div>
-      <div class="hero-footnote">
-        <span class="tiny-ticket" aria-hidden="true">✦</span>
-        为下一次心动，留一个位置
+      <div class="hero-journey" aria-label="现场体验流程">
+        <span><small>01</small> 发现心动</span><i aria-hidden="true">—</i>
+        <span><small>02</small> 预订现场</span><i aria-hidden="true">—</i>
+        <span><small>03</small> 凭票入场</span>
       </div>
     </div>
     <div
       class="hero-art"
       role="img"
-      aria-label="抽象舞台与票券插画，展示现场氛围，无可售活动"
+      aria-label="音乐唱片与纸带构成的原创概念海报，不代表实际售票活动"
     >
-      <div class="art-grid"></div>
-      <span class="orbit orbit-one"></span><span class="orbit orbit-two"></span>
-      <span class="art-spark spark-one">✦</span
-      ><span class="art-spark spark-two">✳</span>
-      <div class="stage-light light-one"></div>
-      <div class="stage-light light-two"></div>
-      <div class="scene-ticket">
-        <div class="ticket-top"><span>下一站 · 现场</span><span>✦</span></div>
-        <div class="ticket-main">热爱<br /><span>即将开场</span></div>
-        <div class="sound-bars" aria-hidden="true">
-          <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i
-          ><i></i><i></i><i></i>
-        </div>
-        <div class="ticket-stub">
-          <span>精彩，不止于想象</span><span>↗</span>
-        </div>
+      <StageArtwork />
+      <span class="poster-kicker">献给每一个想要在场的你</span>
+      <strong class="poster-title">热爱<br />自有回响。</strong>
+      <div class="poster-footer">
+        <span>让期待落地<br /><b>让热爱在场</b></span>
+        <span aria-hidden="true">↗</span>
       </div>
-      <div class="floating-label"><span>◉</span> 让每一份热爱抵达现场</div>
-      <span class="art-caption">视觉概念 · 非售票信息</span>
+      <span class="art-caption">原创视觉概念 · 非售票信息</span>
     </div>
   </section>
 
-  <section id="discover" class="discovery" aria-labelledby="discover-title">
+  <section id="discover" class="upcoming" aria-labelledby="upcoming-title">
     <div class="section-heading">
       <div>
-        <span class="section-kicker">跟随你的热爱</span>
-        <h2 id="discover-title">总有一种现场，让你心动</h2>
+        <span class="section-kicker">01 / 为喜欢，留出时间</span>
+        <h2 id="upcoming-title">近期精彩现场<span class="heading-dot" aria-hidden="true">.</span></h2>
+      </div>
+      <a class="section-aside" href="#inspiration">寻找更多灵感 <span aria-hidden="true">↗</span></a>
+    </div>
+    <ActivityList />
+  </section>
+
+  <section id="inspiration" class="discovery" aria-labelledby="discover-title">
+    <div class="section-heading">
+      <div>
+        <span class="section-kicker">02 / 跟随你的热爱</span>
+        <h2 id="discover-title">找到你的同频现场<span class="heading-dot" aria-hidden="true">.</span></h2>
       </div>
       <span class="section-aside"
         >四种精彩，无限可能 <span aria-hidden="true">↘</span></span
@@ -140,20 +142,9 @@ onBeforeUnmount(() => controller.abort())
         </div>
         <h3>{{ category.name }}</h3>
         <p>{{ category.description }}</p>
-        <span class="category-caption">发现现场灵感</span>
+        <span class="category-caption">{{ ['听见共鸣', '奔向自由', '走进故事', '发现新意'][index] }}</span>
       </article>
     </div>
-  </section>
-
-  <section class="upcoming" aria-labelledby="upcoming-title">
-    <div class="section-heading">
-      <div>
-        <span class="section-kicker">好现场，值得等待</span>
-        <h2 id="upcoming-title">近期精彩现场</h2>
-      </div>
-      <span class="coming-label">活动与场次展示</span>
-    </div>
-    <ActivityList />
   </section>
 
   <section
@@ -185,4 +176,5 @@ onBeforeUnmount(() => controller.abort())
       >
     </div>
   </section>
+  </div>
 </template>
