@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import QRCode from 'qrcode'
+import TicketCredential from '../components/TicketCredential.vue'
 import {
   electronicTicketApi,
   electronicTicketStatus,
@@ -15,19 +15,10 @@ const page = ref(1)
 const total = ref(0)
 const status = ref('')
 const loading = ref(false)
-const qrLoading = ref(false)
 const error = ref('')
-const qr = ref('')
 let generation = 0
-let qrGeneration = 0
-function clearQr() {
-  qrGeneration++
-  qr.value = ''
-  qrLoading.value = false
-}
 async function load() {
   const active = ++generation
-  clearQr()
   loading.value = true
   error.value = ''
   try {
@@ -48,29 +39,6 @@ async function load() {
     if (active === generation) loading.value = false
   }
 }
-async function showQr() {
-  if (!props.id) return
-  const active = ++qrGeneration
-  qrLoading.value = true
-  error.value = ''
-  try {
-    // 完整凭证只作为局部变量传入本地编码器，不放入Store、URL或浏览器存储。
-    const response = await electronicTicketApi.credential(props.id)
-    if (active !== qrGeneration) return
-    const image = await QRCode.toDataURL(response.credential, {
-      width: 300,
-      margin: 4,
-      errorCorrectionLevel: 'M',
-    })
-    if (active === qrGeneration) qr.value = image
-  } catch (failure) {
-    if (active === qrGeneration)
-      error.value =
-        failure instanceof Error ? failure.message : '入场二维码加载失败'
-  } finally {
-    if (active === qrGeneration) qrLoading.value = false
-  }
-}
 watch(
   () => [props.id, route.query.orderId],
   () => {
@@ -82,7 +50,6 @@ watch(
 )
 onBeforeUnmount(() => {
   generation++
-  clearQr()
   rows.value = []
 })
 function changePage(value: number) {
@@ -166,25 +133,7 @@ function filterTickets() {
             <dd>{{ formatTime(ticket.usedAt) }}（北京时间）</dd>
           </div>
         </dl>
-        <section v-if="id && ticket.status === 'UNUSED'" class="ticket-qr">
-          <ElButton
-            v-if="!qr"
-            type="primary"
-            :loading="qrLoading"
-            @click="showQr"
-            >展示入场二维码</ElButton
-          >
-          <template v-else
-            ><img
-              :src="qr"
-              width="300"
-              height="300"
-              alt="该张电子票的独立入场二维码"
-            />
-            <p>请在工作人员处出示此二维码，最终入场资格由服务端核验。</p>
-            <ElButton @click="clearQr">隐藏二维码</ElButton></template
-          >
-        </section>
+        <TicketCredential v-if="id && ticket.status === 'UNUSED'" :key="ticket.id + ':' + generation" :ticket-id="ticket.id" />
         <p v-if="ticket.status !== 'UNUSED'" class="order-note">
           {{
             ticket.status === 'USED'
