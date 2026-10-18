@@ -130,7 +130,7 @@ onBeforeUnmount(() => {
 })
 </script>
 <template>
-    <section class="order-card">
+    <section class="order-card checkin-console">
       <h2>扫描电子票二维码</h2>
       <p>
         启动摄像头需要安全上下文和浏览器授权。识别后自动停止扫描，确认后才提交核销。

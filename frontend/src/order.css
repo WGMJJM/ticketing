@@ -17,7 +17,7 @@
   width: 70px;
   padding: 8px;
   border: 1px solid #ced5c3;
-  border-radius: 5px;
+  border-radius: 9px;
   color: #384b2c;
   font: inherit;
 }
@@ -28,6 +28,18 @@
   margin-left: auto;
   color: #536d3b;
   font-weight: 600;
+  display: grid;
+  gap: 5px;
+  text-align: right;
+}
+.purchase-estimate small {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.purchase-estimate strong {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
 }
 .orders-page {
   padding: 46px 0 64px;
@@ -38,13 +50,78 @@
   color: #79836e;
   font-size: 13px;
   line-height: 1.9;
+  margin: 18px 0 28px;
+}
+.orders-page > .order-top h1 {
+  font-size: 34px;
+  margin: 14px 0 0;
+  letter-spacing: -1px;
+}
+.orders-page > .order-top {
+  padding-bottom: 8px;
+}
+.orders-page > h1 {
+  font-size: 34px;
+  margin: 16px 0 24px;
+  letter-spacing: -1px;
+}
+.orders-page > .back-link {
+  margin: 18px 0 4px;
+}
+.personal-empty {
+  border: 1px solid var(--border);
+  background: #ffffffb3;
+  padding: 60px 28px;
+}
+.empty-illustration {
+  display: grid;
+  place-items: center;
+  margin: 0 auto 25px;
+  width: 66px;
+  height: 76px;
+  border: 1px dashed #b8c6ab;
+  border-radius: 14px;
+  background: #eef3e6;
+  color: #6e8758;
+  font-size: 36px;
+  transform: rotate(-6deg);
+}
+.personal-empty h2 {
+  font-size: 21px;
+  line-height: 1.5;
+  letter-spacing: 0;
+}
+.personal-empty p {
+  margin: 14px auto 24px;
+  max-width: 400px;
+  line-height: 1.9;
+}
+.empty-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 24px;
+  padding: 11px 18px;
+  border: 1px solid #d0ddc8;
+  border-radius: 10px;
+  color: var(--green);
+  background: #f6f9f0;
+}
+.empty-action:hover {
+  background: #e8f0de;
+}
+.waitlist-purchase {
+  padding: 20px;
+  background: #f6f7f0;
+  border: 1px dashed #d6dfcb;
+  border-radius: 12px;
 }
 .order-card {
-  padding: 28px;
-  background: #fcfcf8;
-  border: 1px solid #dbe0d1;
-  border-radius: 12px;
+  padding: 30px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 18px;
   margin: 24px 0;
+  box-shadow: var(--shadow);
 }
 .order-top,
 .order-line {
@@ -62,7 +139,7 @@
 .order-card dl {
   font-size: 13px;
   line-height: 1.9;
-  color: #788269;
+  color: var(--muted);
 }
 .order-line {
   padding: 18px 0;
@@ -73,24 +150,25 @@
   color: #536e3c;
 }
 .order-card dl div {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 100px minmax(0, 1fr);
   gap: 20px;
   margin: 8px 0;
 }
 .order-card dd {
   margin: 0;
   text-align: right;
+  overflow-wrap: anywhere;
 }
 .order-note {
-  padding: 14px;
-  background: #eaf0e2;
-  border-radius: 5px;
+  padding: 16px 18px;
+  background: #edf4e8;
+  border-radius: 9px;
 }
 .payment-info {
   margin: 20px 0;
   padding: 18px;
-  background: #eaf0e2;
+  background: #edf4e8;
   border-radius: 6px;
 }
 .payment-info h3 {
@@ -100,11 +178,95 @@
 .payment-info dd {
   overflow-wrap: anywhere;
 }
+.order-card .section-kicker {
+  overflow-wrap: anywhere;
+  letter-spacing: .5px;
+}
+.order-card .order-top {
+  align-items: flex-start;
+}
+.order-card .order-top > div {
+  min-width: 0;
+  flex: 1;
+}
+.order-card h2 {
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.order-card .auth-links {
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+.order-card[data-status='PENDING'] > .order-top > .ticket-sale-label,
+.order-card[data-status='ALLOCATED'] > .order-top > .ticket-sale-label {
+  color: #8c5b1b;
+  background: #fbf0d7;
+}
+.order-card[data-status='PAID'] > .order-top > .ticket-sale-label,
+.order-card[data-status='COMPLETED'] > .order-top > .ticket-sale-label {
+  color: #356747;
+  background: #e8f2e5;
+}
+.order-card[data-status='WAITING'] > .order-top > .ticket-sale-label,
+.order-card[data-status='USED'] > .order-top > .ticket-sale-label {
+  color: #436578;
+  background: #e8f0f4;
+}
+.order-card[data-status='CANCELLED'] > .order-top > .ticket-sale-label,
+.order-card[data-status='EXPIRED'] > .order-top > .ticket-sale-label,
+.order-card[data-status='VOID'] > .order-top > .ticket-sale-label {
+  color: #6c736b;
+  background: #eef0ec;
+}
+.purchase-panel input {
+  min-height: 40px;
+  background: #fafcf6;
+}
+.purchase-panel .el-button--primary {
+  min-height: 40px;
+}
 @media (max-width: 760px) {
+  .orders-page {
+    padding: 32px 0 40px;
+  }
+  .orders-page > .order-top h1 {
+    font-size: 28px;
+  }
+  .orders-page > h1 {
+    font-size: 28px;
+  }
   .order-card {
     padding: 20px;
   }
   .header-account {
     gap: 12px;
   }
+}
+@media (max-width: 480px) {
+  .order-card dl div {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    margin: 15px 0;
+  }
+  .order-card dd {
+    text-align: left;
+  }
+  .order-card .order-line {
+    gap: 12px;
+  }
+  .order-card .auth-links {
+    gap: 16px;
+  }
+  .order-card .ticket-sale-label {
+    padding: 5px 7px;
+    font-size: 11px;
+  }
+  .purchase-estimate {
+    width: 100%;
+    margin-left: 0;
+    grid-template-columns: 1fr auto;
+    text-align: left;
+    align-items: baseline;
+  }
+  .personal-empty { padding: 42px 20px; }
 }

@@ -91,11 +91,14 @@ function filterTickets() {
     </form>
     <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
     <div v-if="loading" class="content-state">正在加载电子票…</div>
-    <div v-else-if="!error && !rows.length" class="content-state">
-      暂无电子票。支付成功后将按购买数量自动出票；历史订单补票需由管理员受控启用。
+    <div v-else-if="!error && !rows.length" class="content-state personal-empty">
+      <span class="empty-illustration" aria-hidden="true">▱</span>
+      <h2>等待属于你的入场时刻</h2>
+      <p>当前条件下暂无电子票。订单支付成功后，票券将自动出现在这里。</p>
+      <RouterLink class="empty-action" to="/orders">查看我的订单 <span aria-hidden="true">↗</span></RouterLink>
     </div>
     <template v-else>
-      <article v-for="ticket in rows" :key="ticket.id" class="order-card">
+      <article v-for="ticket in rows" :key="ticket.id" class="order-card electronic-ticket-card" :data-status="ticket.status">
         <div class="order-top">
           <div>
             <span class="section-kicker"

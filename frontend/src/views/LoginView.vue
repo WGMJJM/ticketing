@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { loginAccount, refreshCsrf } from '../api/auth'
 import { chineseValidation, clearValidation } from '../utils/validation'
+import AuthLayout from '../components/AuthLayout.vue'
 const props = defineProps<{ adminOnly?: boolean }>()
 const username = ref('')
 const password = ref('')
@@ -48,7 +49,7 @@ async function submit() {
 }
 </script>
 <template>
-  <div class="admin-login">
+  <AuthLayout>
     <span class="eyebrow"
       ><span></span>{{ adminOnly ? '运营工作台' : '欢迎回来' }}</span
     >
@@ -59,7 +60,6 @@ async function submit() {
           ? '使用具有管理员权限的平台账号登录。'
           : '登录后可查看个人中心，继续发现你喜爱的现场。'
       }}
-      刷新页面会通过服务端会话恢复登录状态。
     </p>
     <p v-if="route.query.registered" class="success-notice">
       注册成功，请使用新账号登录
@@ -76,6 +76,7 @@ async function submit() {
           required
           maxlength="32"
           autocomplete="username"
+          placeholder="请输入用户名"
       /></label>
       <label
         >密码<input
@@ -84,6 +85,7 @@ async function submit() {
           type="password"
           maxlength="72"
           autocomplete="current-password"
+          placeholder="请输入密码"
       /></label>
       <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
       <ElButton type="primary" native-type="submit" :loading="busy">{{
@@ -97,5 +99,5 @@ async function submit() {
       >
     </div>
     <RouterLink to="/" class="back-link">← 返回发现活动</RouterLink>
-  </div>
+  </AuthLayout>
 </template>

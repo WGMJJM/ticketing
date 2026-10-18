@@ -82,7 +82,7 @@ async function join() {
 <template>
   <form
     v-if="show"
-    class="purchase-panel"
+    class="purchase-panel waitlist-purchase"
     @submit.prevent="join"
     @invalid.capture="chineseValidation"
     @input.capture="clearValidation"

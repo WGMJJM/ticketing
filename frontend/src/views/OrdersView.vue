@@ -129,8 +129,11 @@ function changePage(value: number) {
     <p v-if="notice" class="success-notice" role="status">{{ notice }}</p>
     <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
     <div v-if="loading" class="content-state" role="status">正在加载订单…</div>
-    <div v-else-if="!error && rows.length === 0" class="content-state">
-      暂无订单，去发现喜欢的活动吧。<RouterLink to="/">发现活动</RouterLink>
+    <div v-else-if="!error && rows.length === 0" class="content-state personal-empty">
+      <span class="empty-illustration" aria-hidden="true">▤</span>
+      <h2>下一场期待，从这里开始</h2>
+      <p>还没有购票订单，去发现一个值得在场的瞬间吧。</p>
+      <RouterLink class="empty-action" to="/">发现活动 <span aria-hidden="true">↗</span></RouterLink>
     </div>
     <OrderCard
       v-for="order in rows"

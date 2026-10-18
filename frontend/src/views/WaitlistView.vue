@@ -101,11 +101,14 @@ function changePage(value: number) {
     <p v-if="notice" class="success-notice" role="status">{{ notice }}</p>
     <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
     <div v-if="loading" class="content-state">正在加载候补…</div>
-    <div v-else-if="!error && !rows.length" class="content-state">
-      暂无候补记录。<RouterLink to="/">发现活动</RouterLink>
+    <div v-else-if="!error && !rows.length" class="content-state personal-empty">
+      <span class="empty-illustration" aria-hidden="true">◷</span>
+      <h2>你的等待，会在这里记录</h2>
+      <p>目前没有候补申请。喜欢的票档库存不足时，可以申请候补。</p>
+      <RouterLink class="empty-action" to="/">发现活动 <span aria-hidden="true">↗</span></RouterLink>
     </div>
     <template v-else>
-      <article v-for="entry in rows" :key="entry.id" class="order-card">
+      <article v-for="entry in rows" :key="entry.id" class="order-card" :data-status="entry.status">
         <div class="order-top">
           <div>
             <span class="section-kicker">候补编号 {{ entry.id }}</span>

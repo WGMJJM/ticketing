@@ -72,7 +72,7 @@ onBeforeUnmount(() => controller?.abort())
           <div class="venue-note">
             举办地点 <strong>{{ activity.city }} · {{ activity.venue }}</strong>
           </div>
-          <span class="coming-label">真实订单与库存预占 · 支持模拟支付</span>
+          <span class="coming-label">选择场次 · 查看票档 · 预订现场</span>
         </div>
       </section>
       <div class="detail-columns">

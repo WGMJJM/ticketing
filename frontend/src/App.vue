@@ -11,9 +11,9 @@ const auth = useAuthStore()
       <header class="site-header">
         <RouterLink class="brand" to="/" aria-label="票务交易平台首页">
           <span class="brand-icon" aria-hidden="true">票</span>
-          <span>票务交易平台</span>
+          <span class="brand-copy">票务交易平台<small>让热爱，在现场相遇</small></span>
         </RouterLink>
-        <nav aria-label="主导航">
+        <nav class="primary-nav" aria-label="主导航">
           <RouterLink
             to="/"
             active-class="nav-active"
@@ -25,24 +25,25 @@ const auth = useAuthStore()
           >
         </nav>
         <div class="header-account">
-          <template v-if="auth.user"
-            ><span class="account-name">{{ auth.user.username }}</span
-            ><RouterLink to="/profile">个人中心</RouterLink
-            ><RouterLink to="/orders">我的订单</RouterLink
-            ><RouterLink to="/waitlist">我的候补</RouterLink
-            ><RouterLink to="/tickets">我的电子票</RouterLink
-            ><RouterLink v-if="auth.isAdmin" to="/admin/checkins"
-              >电子票核销</RouterLink
-            ><RouterLink v-if="auth.isAdmin" to="/admin/activities"
-              >运营管理</RouterLink
-            ></template
-          >
+          <RouterLink v-if="auth.user" class="account-pill" to="/profile">
+            <span class="account-avatar" aria-hidden="true">{{ auth.user.username.slice(0, 1).toUpperCase() }}</span>
+            <span class="account-name">{{ auth.user.username }}</span>
+            <span class="account-arrow" aria-hidden="true">↗</span>
+          </RouterLink>
           <template v-else
             ><RouterLink to="/login">登录</RouterLink
-            ><RouterLink to="/register">注册</RouterLink></template
+            ><RouterLink class="register-link" to="/register">加入我们 <span aria-hidden="true">↗</span></RouterLink></template
           >
         </div>
       </header>
+      <nav v-if="auth.user" class="workspace-nav" aria-label="个人与运营导航">
+        <RouterLink to="/profile">个人中心</RouterLink>
+        <RouterLink to="/orders">我的订单</RouterLink>
+        <RouterLink to="/waitlist">我的候补</RouterLink>
+        <RouterLink to="/tickets">我的电子票</RouterLink>
+        <RouterLink v-if="auth.isAdmin" to="/admin/activities">运营管理</RouterLink>
+        <RouterLink v-if="auth.isAdmin" to="/admin/checkins">电子票核销</RouterLink>
+      </nav>
       <main id="main-content">
         <div v-if="auth.sessionError" class="session-error" role="alert">
           {{ auth.sessionError }}
@@ -53,7 +54,7 @@ const auth = useAuthStore()
       <footer class="site-footer">
         <RouterLink class="footer-brand" to="/">票务交易平台</RouterLink>
         <span>让精彩发生，让热爱在场。</span>
-        <span class="footer-stage">购票订单与模拟支付 · 超时自动关闭</span>
+        <span class="footer-stage">发现精彩 · 安排现场 · 凭票入场</span>
         <RouterLink v-if="auth.isAdmin" to="/admin/activities"
           >运营管理</RouterLink
         >

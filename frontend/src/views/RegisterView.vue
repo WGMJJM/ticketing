@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { registerAccount } from '../api/auth'
 import { chineseValidation, clearValidation } from '../utils/validation'
+import AuthLayout from '../components/AuthLayout.vue'
 const username = ref('')
 const password = ref('')
 const confirmation = ref('')
@@ -34,7 +35,7 @@ async function submit() {
 }
 </script>
 <template>
-  <div class="admin-login">
+  <AuthLayout>
     <span class="eyebrow"><span></span>每份热爱，都值得抵达</span>
     <h1>创建平台账号</h1>
     <p>
@@ -53,6 +54,7 @@ async function submit() {
           pattern="[A-Za-z][A-Za-z0-9_]{2,31}"
           maxlength="32"
           autocomplete="username"
+          placeholder="以字母开头，3至32位"
       /></label>
       <label
         >密码<input
@@ -62,6 +64,7 @@ async function submit() {
           minlength="8"
           maxlength="72"
           autocomplete="new-password"
+          placeholder="设置8至72位密码"
       /></label>
       <label
         >确认密码<input
@@ -71,6 +74,7 @@ async function submit() {
           minlength="8"
           maxlength="72"
           autocomplete="new-password"
+          placeholder="请再次输入密码"
       /></label>
       <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
       <ElButton type="primary" native-type="submit" :loading="busy"
@@ -78,5 +82,5 @@ async function submit() {
       >
     </form>
     <RouterLink to="/login">已有账号？前往登录</RouterLink>
-  </div>
+  </AuthLayout>
 </template>

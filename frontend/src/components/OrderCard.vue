@@ -31,7 +31,7 @@ const deadlinePassed = computed(
 )
 </script>
 <template>
-  <article class="order-card">
+  <article class="order-card" :data-status="order.status">
     <div class="order-top">
       <div>
         <span class="section-kicker">订单号 {{ order.orderNo }}</span>

@@ -151,7 +151,7 @@ async function purchase() {
       :disabled="busy || uncertain || maximum < 1"
       :aria-label="ticket.name + '购买数量'"
     />
-    <span class="purchase-estimate">预计 {{ estimate }}</span>
+    <span class="purchase-estimate"><small>预计金额</small><strong>{{ estimate }}</strong></span>
     <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
     <ElButton
       type="primary"

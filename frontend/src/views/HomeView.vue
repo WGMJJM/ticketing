@@ -79,9 +79,10 @@ onBeforeUnmount(() => controller.abort())
       <p>
         演唱会、音乐节、展览与精彩赛事。<br />走出日常，把喜欢变成一次亲临现场。
       </p>
-      <a class="primary-link" href="#discover"
-        >探索现场灵感 <span aria-hidden="true">↗</span></a
-      >
+      <div class="hero-actions">
+        <a class="primary-link" href="#discover">探索现场灵感 <span aria-hidden="true">↗</span></a>
+        <RouterLink class="hero-secondary" to="/tickets">我的入场凭证 <span aria-hidden="true">→</span></RouterLink>
+      </div>
       <div class="hero-footnote">
         <span class="tiny-ticket" aria-hidden="true">✦</span>
         为下一次心动，留一个位置

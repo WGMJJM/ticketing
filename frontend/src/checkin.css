@@ -4,6 +4,11 @@
   align-items: end;
   gap: 18px;
   margin: 24px 0;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: white;
+  font-size: 13px;
 }
 .ticket-filters label {
   display: grid;
@@ -13,7 +18,7 @@
   padding: 9px 14px;
   border: 1px solid #dedfd5;
   border-radius: 8px;
-  background: #f5f4ef;
+  background: #fafcf6;
   color: inherit;
 }
 .ticket-number {
@@ -24,6 +29,10 @@
   justify-items: center;
   gap: 14px;
   padding: 24px 0;
+  margin: 20px 0;
+  border: 1px dashed #c9d7c0;
+  border-radius: 14px;
+  background: #f7faf3;
 }
 .ticket-qr img {
   max-width: 100%;
@@ -54,4 +63,48 @@
   display: block;
   max-width: 100%;
   margin-top: 8px;
+}
+.electronic-ticket-card {
+  border-top: 4px solid #9ab58a;
+}
+.electronic-ticket-card > .order-top {
+  border-bottom: 1px dashed var(--border);
+  padding-bottom: 14px;
+  margin-bottom: 16px;
+}
+.order-card input[type='file']::file-selector-button {
+  padding: 9px 14px;
+  background: #edf3e8;
+  color: var(--green);
+  border: 1px solid #d8e2d0;
+  border-radius: 8px;
+  margin-right: 12px;
+  cursor: pointer;
+}
+.checkin-console form {
+  margin-top: 26px;
+  padding-top: 24px;
+  border-top: 1px dashed var(--border);
+}
+.checkin-console form > label {
+  font-size: 13px;
+  color: #4c6553;
+}
+.checkin-console .auth-links > label {
+  font-size: 12px;
+  color: var(--muted);
+}
+.checkin-console textarea {
+  background: #fbfdf8;
+  border-color: #d4decd;
+  line-height: 1.7;
+  font-size: 13px;
+}
+.checkin-console textarea::placeholder {
+  color: #788772;
+}
+.checkin-console .auth-links {
+  border: 0;
+  padding-top: 0;
+  align-items: flex-start;
 }

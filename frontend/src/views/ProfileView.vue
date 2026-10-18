@@ -31,7 +31,14 @@ async function logout() {
     <span class="eyebrow"><span></span>我的账号</span>
     <h1>个人中心</h1>
     <section v-if="auth.user" class="profile-card">
-      <h2>你好，{{ auth.user.username }}</h2>
+      <div class="profile-identity">
+        <span class="profile-avatar" aria-hidden="true">{{ auth.user.username.slice(0, 1).toUpperCase() }}</span>
+        <div>
+          <span class="section-kicker">欢迎回到你的现场</span>
+          <h2>你好，{{ auth.user.username }}</h2>
+          <p>每一次期待，都可以从这里继续。</p>
+        </div>
+      </div>
       <dl>
         <div>
           <dt>用户编号</dt>
@@ -46,14 +53,31 @@ async function logout() {
         当前账号没有运营管理权限
       </p>
       <p>
-        账号身份由服务端会话确认。支付成功后可查看独立电子票及入场二维码，超时待支付订单自动关闭。
+        查看订单安排、关注候补进度，出发前记得准备好你的电子票。
       </p>
+      <nav class="profile-shortcuts" aria-label="我的现场功能">
+        <RouterLink to="/orders">
+          <span class="shortcut-icon" aria-hidden="true">▤</span>
+          <strong>我的订单</strong>
+          <small>查看预订与支付状态</small>
+          <span class="shortcut-arrow" aria-hidden="true">↗</span>
+        </RouterLink>
+        <RouterLink to="/waitlist">
+          <span class="shortcut-icon" aria-hidden="true">◷</span>
+          <strong>我的候补</strong>
+          <small>关注每一份等待</small>
+          <span class="shortcut-arrow" aria-hidden="true">↗</span>
+        </RouterLink>
+        <RouterLink to="/tickets">
+          <span class="shortcut-icon" aria-hidden="true">▱</span>
+          <strong>我的电子票</strong>
+          <small>查看票券与入场凭证</small>
+          <span class="shortcut-arrow" aria-hidden="true">↗</span>
+        </RouterLink>
+      </nav>
       <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
       <div class="auth-links">
         <RouterLink to="/">继续发现活动</RouterLink
-        ><RouterLink to="/orders">我的订单</RouterLink
-        ><RouterLink to="/waitlist">我的候补</RouterLink
-        ><RouterLink to="/tickets">我的电子票</RouterLink
         ><RouterLink v-if="auth.isAdmin" to="/admin/checkins"
           >电子票核销</RouterLink
         ><RouterLink v-if="auth.isAdmin" to="/admin/activities"
