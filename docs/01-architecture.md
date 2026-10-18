@@ -1,39 +1,106 @@
-# 架构与边界
+# 架构与模块协作
 
-前后端分离的模块化单体，一个 Maven 后端、一个 Vue 前端。Java 21、Spring Boot 3.5.16、MyBatis-Plus 3.5.17，沿用 common/api、common/controller、config 分层；活动与场次在 event 下按 controller/service/mapper/entity/dto/model 实现。
+项目保持Java21、Spring Boot3、MyBatis-Plus、MySQL、RabbitMQ和Spring Security Session的前后端分离模块化单体，后端只有backend/pom.xml一个Maven模块，根包com.ticketing。Vue3、TypeScript、Pinia和Element Plus继续调用原/api/v1接口，不增加微服务或新的业务模块。
 
-Java 根包统一为 `com.ticketing`，源码和测试分别位于 `backend/src/main/java/com/ticketing`、`backend/src/test/java/com/ticketing`。启动类 `com.ticketing.TicketingApplication` 位于根包，Spring Boot 组件扫描和 MyBatis Mapper 自动扫描覆盖现有 common、config、event 等子包；不重复配置扫描路径，不创建尚未实现的空业务包。
+## 第九阶段之前的依赖
 
-浏览器通过 Vite 代理访问 /api/v1；Spring Security 控制公开读取与管理员权限，Controller 校验请求，Service 执行业务与事务，MyBatis-Plus Mapper 读写 MySQL。实体不直接返回前端，响应 DTO 将 BIGINT ID 转为字符串，将数据库 UTC 时间转为 ISO 8601 Instant。
+基准2c7b086中的箭头表示源码依赖。OrderService同时做资源锁定、预占、支付、关闭、候补联动与出票；候补和核销反向调用其内部锁上下文。SessionService直接查询票档Mapper，因此活动与票档也双向依赖。
 
-当前公开功能为活动分页筛选、已发布活动详情、场次列表及票档查询。管理功能包括活动发布下架、场次维护取消、票档启用下架和总库存调整。更新使用数据库版本与状态条件，避免陈旧页面覆盖新修改。每个活动最多200个场次，新增时锁定所属活动行检查上限；场次不检查时间重叠。
+```mermaid
+graph LR
+  O[order OrderService] --> W[waitlist Mapper及消息写入器]
+  W --> O
+  O --> C[checkin TicketIssuer]
+  C --> O
+  T[ticket TicketService] --> W
+  T --> E[event]
+  E --> T
+```
 
-账号模块位于 `com.ticketing.auth`，复用user_account。UserDetailsService查询数据库，Spring Security标准用户名密码过滤器使用BCrypt验证并持久化SecurityContext到HttpSession；登录更换会话ID，退出销毁会话。AccountPrincipal包含可信用户ID和角色，认证后擦除凭据。所有认证及管理写请求保留CSRF，敏感响应禁止缓存。旧DevAdminConfig、Basic及admin/session入口已移除。
+## 当前依赖与协作边界
 
-Vue仍为单工程，Pinia只保存用户展示信息，刷新通过auth/me恢复身份；密码仅在表单提交期间使用，提交后清空，不保存Basic或可复用登录密钥。浏览器携带HttpOnly、SameSite=Lax的会话Cookie；空闲30分钟失效，仅Cookie跟踪。Secure默认true，受控本地HTTP通过环境变量显式设false，生产HTTPS保持true。注册、登录、退出和管理写操作前获取当前CSRF，登录和退出后再次获取；不自动重放写请求。路由守卫辅助导航，最终授权以服务端为准。
+以下为重构后的主要编译依赖；常规common/api、DTO及配置依赖省略。源码守卫检查业务包无环，并禁止候补、核销访问订单service、mapper或entity。
 
-管理员通过默认关闭的admin-bootstrap配置创建，不预置密码；已有管理员不会重置密码，已有普通或禁用账号不会自动提权。会话保存在单实例内存，重启失效。CurrentAccountFilter在/auth/me、订单及管理接口授权前按可信用户ID只读取账号身份、状态和角色；禁用或删除账号使会话失效并返回401，角色变化创建不含凭据的新Context并显式保存，再由现有权限规则授权，ADMIN被撤销后返回403。公开查询及认证端点跳过账号复查；新增受保护路由须加入SecurityConfig共用匹配范围。没有提供账号管理、密码找回或跨实例会话模块。
+```mermaid
+graph LR
+  W[waitlist] --> OA[order api及model]
+  C[checkin] --> OA
+  O[order应用与状态服务] --> OA
+  OA --> A[auth账号及资源查询]
+  OA --> T[ticket销售快照与库存]
+  O --> T
+  O --> M[messaging]
+  W --> M
+  T --> M
+  T --> E[event及SessionWindowGuard]
+```
 
-票档模块位于 `com.ticketing.ticket`，复用现有分层、认证与 CSRF。TicketService 统一维护销售窗口、可售状态、总库存和管理版本；与 SessionService 共享场次行锁维护跨表时间规则，未引入分布式锁。库存查询为 MySQL 事实计算，ON_SALE 管理状态不等同于正在售票。
+OrderLifecycle是唯一的订单终态同步协作接口，定义小型不可变Transition，不是事件总线。WaitlistOrderLifecycle与TicketIssuer实现该接口，订单模块只注入有序参与者，不引用候补或电子票实现。运行时先完成候补联动，再出票；两者与订单、流水和库存共用同一个MySQL事务。任何异常直接传播并回滚，不使用提交后的异步事件替代这些原子变化。
 
-订单模块位于 `com.ticketing.order`，复用ticket_order与唯一明细。一个READ_COMMITTED事务内校验真实销售状态、原子预占库存、保存服务端价格快照和PENDING订单。取消按PENDING条件转CANCELLED并释放锁定库存；限购通过相同用户行锁保护的有效订单统计同步释放，不维护重复配额字段。固定锁序为用户UPDATE→活动SHARE→场次SHARE→票档UPDATE→已有订单UPDATE。管理员操作按活动→场次→票档顺序，场次使用UPDATE锁，与下单共享父级协议；活动下架使用活动UPDATE锁。等待结束后使用当前读重新检查状态与版本，库存预占和释放均递增票档版本，避免旧管理页面覆盖新库存。
+SessionWindowGuard归活动模块定义，TicketService在场次UPDATE锁内校验已有票档窗口。SessionService不再访问TicketSkuMapper；该协作仅校验，不反向锁用户或活动。普通管理场次和票档仍保留其不同的父级锁模式，不把管理流程强行塞进订单服务。
 
-用户锁串行化同一用户的所有创建、支付、取消和超时释放，因此跨票档的场次限购与幂等重放均在同一互斥范围内，READ_COMMITTED统计能看到前一事务已提交的订单。不同用户共享父级读锁并在SKU条件更新处竞争；单用户多场购票也会串行，是第一版的明确吞吐取舍。支付转为PAID仍占限额，取消或过期才释放；后续候补创建也必须继续遵守用户→父级→SKU→订单的顺序。
+## 主要职责
 
-Vue活动详情提供数量、限额、精确预计金额和真实确认下单；我的订单与详情只查询本人，Session与CSRF沿用现有机制。网络结果不明时当前页面保留原幂等键并冻结数量，用户可重试或查询订单；不自动重放写请求。模拟支付前重新查询订单并展示完整确认信息，成功显示真实流水。以服务端时间推进截止按钮提示，服务端SQL仍最终判断支付资格；页面只有查到EXPIRED才显示已过期。
+| 组件 | 当前职责 |
+| --- | --- |
+| OrderService | HTTP业务应用入口与READ_COMMITTED事务边界，订单本人查询和响应组装 |
+| TradeResourceLocker | 用户、活动、场次、SKU及已有订单的固定锁协议，账号有效性及工作人员角色事实 |
+| OrderReservation | 普通下单与候补共用预占、价格快照、用户场次限额、请求哈希和幂等查找；只向候补返回订单ID |
+| OrderStateService | PENDING到PAID/CANCELLED/EXPIRED、数据库截止条件、流水和库存变化、同步参与者与释放事件编排 |
+| TicketInventory | 票档权威库存条件更新，预占、释放和locked转sold；写入口要求已有事务 |
+| TicketSale、TradeContext | 锁内不可变销售及账号事实，不跨请求缓存，不向候补暴露可写订单或库存实体 |
+| WaitlistService | 候补申请、本人查询和取消、单个FIFO队首的独立分配事务 |
+| WaitlistOrderLifecycle | 订单锁之后核对候补用户、SKU、数量、幂等域及键，原子联动COMPLETED/EXPIRED |
+| TicketIssuer | 支付末端和历史补票共用的按明细序号幂等出票；两个事务入口调用同一个私有算法 |
+| ElectronicTicketService | 本人凭证及展示、核销和受控补票编排；只通过订单公开锁API协作 |
+| messaging | Outbox实体、Mapper、库存事件读写、认领、确认、重试及发布调度 |
+| waitlist.messaging | 候补特有RabbitMQ拓扑、消费者和分配触发 |
 
-模拟支付复用payment_record，一单唯一流水和唯一流水号。锁定本人PENDING订单后，在父级有效的前提下执行带 `expires_at>UTC_TIMESTAMP(6)` 的状态更新，再将locked转sold、插入SUCCEEDED流水，三者同事务；异常全部回滚，成功重试返回原流水。SKU后续停售不撤销已预占订单，但活动下架或场次取消/结束禁止待支付订单继续支付。
+库存SQL从OrderMapper归回TicketSkuMapper，由TicketInventory使用。候补不再查询OrderMapper，也不依赖OrderService的内部record；核销不再重复实现订单加锁或为角色额外查询一次用户。销售状态计算集中于TicketSale，TicketService与预占/候补使用同一规则。删除重复的SaleContext/PurchaseContext、候补对预留订单的重复回读和限额校验中的冗余场次存在性查询；保留分配和最终预占各自必须重新检查的销售条件。
 
-OrderExpiryJob使用Spring Scheduling，每次按到期索引最多扫描配置数量，每单调用OrderService代理开启独立事务，不能将整批包在同一事务或自调用绕过事务。扫描不先锁订单，实际关闭遵守原有用户→父级→SKU→订单顺序。过期SQL条件与支付条件互斥，取消也只转换PENDING；只有一个终态生效。系统清理锁用户但不校验ACTIVE，失效账号的历史订单仍回收。扫描失败逐笔记录并继续，游标前进至后续订单，扫到尾回绕重试；内存游标不影响正确性，重启立即从数据库补偿。默认30秒间隔、每批100，单批上限500，无公开手动关单入口。
+## 事务与锁顺序
 
-候补模块位于 `com.ticketing.waitlist`，入队与分配复用OrderService的统一锁上下文及库存预占方法。队首查询先不加锁发现用户，随后锁用户→活动→场次→SKU并重新检查队首；同一SKU入队也锁SKU后才生成ID并提交，因此按有效WAITING记录ID严格FIFO，数量不足时阻塞队首。每次只处理一个用户并释放全部锁，再选择下一位。候补行的更新放在订单之后，不形成SKU→用户反向加锁。WAITING不占库存/限额，分配时重查资格，创建真实WAITLIST_CONFIRM订单并原子转ALLOCATED；支付、取消和过期与候补终态同事务联动。
+```mermaid
+flowchart LR
+  U[用户 UPDATE] --> A[活动 SHARE]
+  A --> S[场次 SHARE]
+  S --> K[票档 UPDATE]
+  K --> O[已有订单 UPDATE]
+  O --> W[候补行]
+  W --> T[电子票]
+```
 
-释放库存或管理员增加库存时，在业务事务中写Outbox。独立发布任务通过SKIP LOCKED短事务认领，PROCESSING租约与retry_count令牌防止旧任务覆盖新认领者；持久消息收到RabbitMQ确认且无mandatory退回才标SENT。确认丢失允许重复投递，消费者以数据库队首及状态条件保证不重复建单，事务提交后才确认消息。消费有界重试后进入持久死信队列；低频数据库补偿独立于MQ恢复未完成的候补。任务重启重查数据库，不依赖内存游标保存业务进度。Scheduling使用3线程，避免消息确认等待独占超时关单调度线程。
+用户主动操作要求ACTIVE；超时释放和历史补票只要求取得用户行锁，禁用账号也必须回收历史锁定库存。核销最前面的用户行属于工作人员，随后沿持票订单的活动、场次、SKU、订单、票券顺序处理，在该工作人员行锁中取得最新ADMIN角色。持有子资源锁后不得再获取其他用户或父级锁。
 
-电子票模块位于com.ticketing.checkin，复用electronic_ticket。OrderService仅在现有支付事务末端调用TicketIssuer，订单、库存转售出、支付流水、候补完成和每张电子票同时提交；不重构交易模块。按order_item_id/sequence_no唯一约束保证每个购买单位一张，已有票数量、序号、关联及摘要必须一致，失败全回滚。历史补票任务默认关闭，显式启用后按PAID订单ID分页，每单复用用户→活动→场次→SKU→订单锁序，只补缺失序号，绝不删除重建。TicketIssuer不依赖OrderService，避免循环依赖。
+OrderService写入口、WaitlistService分配/申请/取消和ElectronicTicketService核销/补票在代理入口开启READ_COMMITTED。TradeResourceLocker、OrderReservation写协作、TicketInventory和OrderLifecycle参与者使用MANDATORY加入现有事务；读限额允许独立只读事务。没有自调用开启独立事务或REQUIRES_NEW分割原子提交。支付、取消和超时共享OrderStateService的锁定流程，只有PENDING可进入三个终态，SQL继续做状态及截止时间条件更新。
 
-入场凭证使用HMAC-SHA256，TKT1格式包含密钥版本、256位安全随机票号及签名；数据库只存完整凭证SHA-256摘要，合法持票人查询时重建并核对。密钥映射与当前版本通过环境变量提供，缺失/非法直接拒绝启动；旧版本密钥保留到对应有效票结束。票券列表/详情只返回展示资料，单独凭证响应no-store；前端本地生成二维码，组件切换清理，不将完整凭证放URL、Pinia或浏览器存储。
+同一用户的所有场次写操作仍被用户行串行化，用户锁内SUM统计PENDING/PAID明细保护默认每场4张限额。WAITING不占额，候补分配时重新检查。CREATE_ORDER及WAITLIST_CONFIRM域保持原值，同参重放原订单、异参409；数据库唯一键最终兜底。金额是服务端整数分精确乘算及不可变明细快照，不接收客户端金额或身份。
 
-管理员核销同样使用Session、最新角色复查和CSRF。核销人员行UPDATE→活动SHARE→场次SHARE→SKU UPDATE→订单UPDATE→电子票条件更新，保持父级先于子级。签名及摘要验证、PAID、票券UNUSED、场次SCHEDULED及MySQL实际时间窗口同时约束；UNUSED成功转USED才记录操作人和时间，其他扫描明确拒绝。核销不修改库存或支付状态。摄像头识别后停止并待人工确认，图片识别及手动输入作为替代；页面退出释放摄像头和凭证状态。
+同SKU入队和分配继续共享SKU锁，锁内生成候补ID；分配先非锁定发现队首用户，再按上述顺序加锁并重新确认队首。队首数量不足就停止，每次释放全部锁后才处理下一用户。FIFO只承诺同SKU候补内部，普通新购票仍可竞争库存。
 
-MySQL是库存、订单、支付、候补及电子票事实权威。RabbitMQ用于库存变化通知，Redis仍仅保留基础设施与健康检查。采用至少一次投递与数据库幂等，不承诺端到端Exactly Once；FIFO仅在同SKU候补内部，普通新购票仍可竞争库存。模拟支付不产生实际扣款，尚无真实支付或退款，不承诺高并发抢票能力。
+## Outbox兼容性
+
+InventoryEvents与库存释放、管理员增加库存同事务写入。InventoryEvent集中旧类型WAITLIST_DISPATCH_REQUESTED、TICKET_SKU聚合与inventory.available路由，载荷仍为eventId/skuId/reason，SKU以字符串传输。交换机ticketing.waitlist、队列ticketing.waitlist.dispatch及其.dead不变。保留ticketing.waitlist.*配置键，避免组件移包导致部署参数失效。
+
+OutboxService继续在短事务中FOR UPDATE SKIP LOCKED认领，租约和递增retry_count令牌防旧任务覆盖。发布器在事务外发送持久消息，Publisher Confirm且无mandatory退回后才标SENT；健康批量默认100、故障后停止本轮、指数退避及最大重试均保留。消费者只通过InventoryEvents核对已提交事件，每单分配提交后才确认。重复消息依靠数据库FIFO、状态条件及唯一订单键幂等，有界重试后进入死信；低频数据库补偿不依赖MQ在线。语义仍为至少一次加数据库幂等。
+
+## 状态、配置与前端
+
+订单、支付、候补、电子票、Outbox状态及订单操作域使用各业务枚举，库存事件类型/路由集中定义。数据库状态值和HTTP字符串契约不变，SQL中的状态条件仍明确表达既有数据库值，不引入枚举ordinal或新状态机框架。
+
+OrderProperties、WaitlistProperties、OutboxProperties、CheckinProperties绑定相关非敏感配置并在启动校验边界。保留原环境变量、属性名、默认限额4/支付15分钟/发布批量100。签名密钥继续由TicketCredentialSigner严格解析私有环境变量，不放进可能打印toString的配置record，没有固定密钥或降级校验。
+
+AdminActivitiesView只保留活动列表与活动维护，场次及票档入口归AdminSessionManager；关闭/切换场次时失效旧加载请求。ElectronicTicketsView负责列表，TicketCredential独立负责凭证请求与本地二维码，并在隐藏、刷新、切换或卸载时清理、丢弃过期异步结果。AdminCheckinView只展示结果，CheckinScanner负责摄像头、图片、手工输入和核销请求，卸载时停止媒体轨道并清空凭证。PurchasePanel与OrdersView已有明确购票/订单页面职责和OrderCard，不为增加层数额外拆分。
+
+Session、CSRF、中文页面、北京时间、人民币分和BIGINT字符串规则保持。认证使用BCrypt与真实HttpSession，登录更换会话ID、退出失效；CurrentAccountFilter只在受保护端点复查最新账号状态和角色，公开查询不增加账号查询。完整票券凭证不进URL、Store、浏览器存储或日志，签名与摘要常量时间校验，最多一次核销不改变库存。
+
+## 参考源码及取舍
+
+本轮实际读取并固定以下源码版本，借鉴边界和事务职责，不复制业务代码或引入其基础设施：
+
+- [Spring Modulith模块依赖建模](https://github.com/spring-projects/spring-modulith/blob/1fe549999aaa2401b675eba4a562ae374f4f96ba/spring-modulith-core/src/main/java/org/springframework/modulith/core/ApplicationModule.java)用于思考公开边界和依赖验证。[ApplicationModuleListener](https://github.com/spring-projects/spring-modulith/blob/1fe549999aaa2401b675eba4a562ae374f4f96ba/spring-modulith-events/spring-modulith-events-api/src/main/java/org/springframework/modulith/events/ApplicationModuleListener.java)实际包含异步、提交后及新事务语义，不能用于本项目必须原子完成的出票/候补联动，因此使用显式同步协作，不增加Modulith运行时。
+- [12306订单状态枚举](https://github.com/nageoffer/12306/blob/daf3a2714c00ff263764d23ab10c2eaed2ae842d/services/order-service/src/main/java/org/opengoofy/index12306/biz/orderservice/common/enums/OrderStatusEnum.java)及[订单服务](https://github.com/nageoffer/12306/blob/daf3a2714c00ff263764d23ab10c2eaed2ae842d/services/order-service/src/main/java/org/opengoofy/index12306/biz/orderservice/service/impl/OrderServiceImpl.java)体现集中表达状态和交易入口；本项目继续使用原字符串状态和MySQL锁，不引入其微服务或Redisson方案。
+- [mall订单服务](https://github.com/macrozheng/mall/blob/dcaa93b3150352e5044708d7211b5bed0af4509f/mall-portal/src/main/java/com/macro/mall/portal/service/impl/OmsPortalOrderServiceImpl.java)可对照确认下单、锁库存、取消释放等职责。本项目保持自己的条件SQL、事务和MySQL可靠关单，不移植延迟发送或其他商城规则。
+- [RuoYi-Vue-Plus用户服务](https://github.com/dromara/RuoYi-Vue-Plus/blob/9227f626a3a37e1546d6c291ed398183e94df92b/ruoyi-modules/ruoyi-system/src/main/java/org/dromara/system/service/impl/SysUserServiceImpl.java)展示服务入口内显式维护关联及事务边界；本项目只采用必要的公开DTO/协作契约，不扩充权限框架、接口实现层或多模块结构。
+
+第八阶段原始报告保留，热点SKU锁竞争及用户跨场次串行仍是当前协议代价。第九阶段的具体回归、迁移、性能对照与浏览器结果见[架构重构验收](16-architecture-verification.md)。本轮不开发真实支付、退款或其他新业务。

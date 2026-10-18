@@ -57,7 +57,7 @@ docker compose --env-file .env -f deploy/compose.yml exec -T mysql sh -c 'MYSQL_
 
 ## 票档模块本地验收
 
-当前数据库为V4，V3票档验收历史见 `docs/08-ticket-inventory-verification.md`。原有销售状态单元测试、票档HTTP集成测试及并发编辑冲突测试继续回归。需要票档样例时，手动将 `scripts/demo-tickets.sql` 复制到容器并按上文相同方式导入，不会由Flyway自动导入。
+当前数据库为V5，V3票档验收历史见 `docs/08-ticket-inventory-verification.md`。原有销售状态单元测试、票档HTTP集成测试及并发编辑冲突测试继续回归。需要票档样例时，手动将 `scripts/demo-tickets.sql` 复制到容器并按上文相同方式导入，不会由Flyway自动导入。
 
 用户在活动详情选择场次后查看票档；管理员在活动管理中打开“场次”，再进入“票档管理”。启用销售前需确认销售窗口；已启用时仅能修改总库存，下架后可改其他基本信息。表单输入人民币元，接口发送整数分字符串。状态以服务端查询结果为准，可点击刷新获取最新结果。
 
@@ -105,7 +105,7 @@ $ticketKeyMapping = 'TICKET_CREDENTIAL_KEYS={"1":"' + $ticketKeyText + '"}'
 
 TICKET_BACKFILL_ENABLED默认false；只有明确需要时在本地私有环境或受控进程设置true。TICKET_BACKFILL_BATCH_SIZE默认100、上限500，TICKET_BACKFILL_SCAN_DELAY_MS默认30000。启动即扫描PAID订单，每单独立事务，只补缺失序号，检查已有票一致性；已用和作废票保留，异常记录订单ID并继续后续，游标到尾回绕重试。完成补票核对后关闭开关并重启，不暴露公开补票接口。
 
-没有额外V5迁移；仍校验现有V1至V4。前端真实联调先在可核销窗口的演示场次购买两张并模拟支付，分别展示两张二维码；管理员识别第一张、确认核销、重复识别确认应显示已核销，再识别第二张独立成功，用户刷新两张均已核销。不要通过修改已付订单或票券状态伪造验收。
+第七阶段没有额外迁移；第九阶段新增V5候补关联约束，电子票结构保持原样。前端真实联调先在可核销窗口的演示场次购买两张并模拟支付，分别展示两张二维码；管理员识别第一张、确认核销、重复识别确认应显示已核销，再识别第二张独立成功，用户刷新两张均已核销。不要通过修改已付订单或票券状态伪造验收。
 
 第七阶段验收时42项基础测试加108项真实集成测试共150项，包含ElectronicTicketIT的24项新用例及签名/轮换配置测试，详见docs/14-electronic-ticket-verification.md。测试结束清理的是本用例生成的票券夹具，不提供产品删除票券能力。数据库测试会调用真实支付出票，必须停止运行中的本地后端再执行，避免后台任务和随机测试密钥处理真实订单。
 
@@ -116,6 +116,20 @@ TICKET_BACKFILL_ENABLED默认false；只有明确需要时在本地私有环境�
 本轮45项基础测试加108项真实MySQL/RabbitMQ集成共153项全部通过，前端npm ci与build通过。52组短时压力、10类恢复检查、4项审计反例及5项隔离边界测试均通过；这些数量不合并冒充后端JUnit数量。原集成验证脚本本轮通过进程变量连接专用测试环境，未改动脚本或根.env。
 
 WAITLIST_OUTBOX_BATCH_SIZE默认100（1至100）；健康时增加每轮发布量，一次故障后结束本轮，继续按既有退避/租约恢复。连接池默认仍为10，无新索引、迁移或Redis库存。不要将本机20秒稳定窗口的数据当作生产容量。
+
+## 第九阶段架构与迁移验收
+
+订单写事务仍由OrderService入口开启，候补及核销走TradeResourceLocker公开锁API，库存使用TicketInventory，同步OrderLifecycle参与者不可改成提交后异步处理。四组非敏感配置集中绑定，旧环境变量及属性名继续使用；消息包迁到messaging不会改变MQ交换机、队列或历史消息。
+
+上线V5之前暂停业务写入，只读执行scripts/audit-waitlist-relations.sql，发现SKU、用户、数量或场次差异只报告并停止，不能删除历史记录或自动repair。已有V1至V4不改，V5在原表添加复合引用索引及外键。独立探针复现命令：
+
+```powershell
+python scripts/performance/verify_migrations.py --legacy-jar .local/performance/optimized.jar --jar backend/target/ticketing-backend-0.1.0-SNAPSHOT.jar --label new-validation
+```
+
+legacy-jar应为基准2c7b086对应的V4产物；本机保留第八阶段产物，其他环境可在私有目录用git archive导出该版本构建，不覆盖当前工作区。探针仅使用已标记ticketing-perf实例内本次生成的临时schema，并在结束后只清理这些schema，不重建原数据库。标签不能覆盖旧结果。
+
+本轮普通Maven为50项，真实集成111项，失败/错误/跳过均0；前端npm ci及构建通过。指定性能复测、浏览器组件与凭证清理验收的实际结果见[第九阶段记录](16-architecture-verification.md)。
 
 ## Git 与本地文件
 

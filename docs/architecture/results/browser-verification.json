@@ -1,0 +1,154 @@
+{
+  "checkedAt": "2026-10-18T08:58:12.391770+00:00",
+  "passed": true,
+  "apiPort": 18080,
+  "previewPort": 15173,
+  "paymentWindowMinutes": 5,
+  "activityId": "908157",
+  "sessionId": "900226",
+  "stock": [
+    {
+      "id": 900236,
+      "total_stock": 4,
+      "locked_stock": 0,
+      "sold_stock": 2
+    },
+    {
+      "id": 900237,
+      "total_stock": 1,
+      "locked_stock": 0,
+      "sold_stock": 1
+    }
+  ],
+  "orders": [
+    {
+      "id": 902815,
+      "status": "CANCELLED",
+      "total_amount_cents": 25600,
+      "idempotency_operation": "CREATE_ORDER"
+    },
+    {
+      "id": 902816,
+      "status": "PAID",
+      "total_amount_cents": 25600,
+      "idempotency_operation": "CREATE_ORDER"
+    },
+    {
+      "id": 902817,
+      "status": "CANCELLED",
+      "total_amount_cents": 12800,
+      "idempotency_operation": "CREATE_ORDER"
+    },
+    {
+      "id": 902818,
+      "status": "PAID",
+      "total_amount_cents": 12800,
+      "idempotency_operation": "WAITLIST_CONFIRM"
+    }
+  ],
+  "tickets": [
+    {
+      "status": "USED",
+      "n": 1
+    },
+    {
+      "status": "UNUSED",
+      "n": 2
+    }
+  ],
+  "waitlist": {
+    "id": 963,
+    "status": "COMPLETED",
+    "reserved_order_id": 902818
+  },
+  "outbox": [
+    {
+      "status": "SENT",
+      "n": 3
+    }
+  ],
+  "duplicateCheckinPreservedFirstOperatorAndTime": true,
+  "checks": [
+    "管理员真实登录",
+    "场次子组件创建真实场次",
+    "票档创建和上架",
+    "关闭及重新打开场次组件",
+    "退出和普通用户登录",
+    "下单取消后库存及限额恢复",
+    "再次下单支付并签发两张票",
+    "独立二维码展示及隐藏清理",
+    "刷新电子票清理二维码",
+    "库存不足真实候补申请",
+    "另一用户取消经Outbox和RabbitMQ分配",
+    "候补订单支付联动完成并出票",
+    "页面刷新恢复真实Session",
+    "普通用户运营路由被拒绝",
+    "管理员手工真实凭证核销",
+    "重复核销拒绝且原人员时间不变",
+    "提交后凭证输入已清空",
+    "用户票券页面显示已核销"
+  ],
+  "audit": {
+    "passed": true,
+    "checks": [
+      {
+        "invariant": "stock_bounds",
+        "violation_count": 0
+      },
+      {
+        "invariant": "stock_order_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "payment_snapshot",
+        "violation_count": 0
+      },
+      {
+        "invariant": "order_snapshot",
+        "violation_count": 0
+      },
+      {
+        "invariant": "session_quota",
+        "violation_count": 0
+      },
+      {
+        "invariant": "waitlist_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "fifo_allocation_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "ticket_quantity",
+        "violation_count": 0
+      },
+      {
+        "invariant": "ticket_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "duplicate_payment_effect",
+        "violation_count": 0
+      },
+      {
+        "invariant": "duplicate_active_waitlist",
+        "violation_count": 0
+      }
+    ],
+    "counts": {
+      "electronic_ticket": 103,
+      "waitlist_entry": 101,
+      "payment_record": 102,
+      "ticket_order_item": 204,
+      "ticket_order": 204,
+      "outbox_event": 203,
+      "ticket_sku": 3,
+      "activity_session": 2,
+      "activity": 1001,
+      "user_account": 202
+    }
+  },
+  "proofImage": "../images/checkin-success.png",
+  "cameraTested": false
+}

@@ -1,0 +1,381 @@
+{
+  "reference": "第八阶段optimized原始数据",
+  "currentLabel": "stage9",
+  "schemaChange": "V5新增必要复合外键及两个引用索引，写入成本包含在复测中",
+  "cases": [
+    {
+      "case": "query-100",
+      "before": {
+        "scenario": "query",
+        "vus": 100,
+        "requests": 23386,
+        "rps": 1169.3,
+        "createTps": 0.0,
+        "paidSuccesses": 0,
+        "p50Ms": 61.78,
+        "p95Ms": 211.28,
+        "p99Ms": 440.91,
+        "unexpectedRate": 0,
+        "expectedConflicts": 0,
+        "lockWaitMs": 0,
+        "lockWaitCount": 0,
+        "auditPassed": true,
+        "k6Passed": true,
+        "outbox": [],
+        "outboxLag": {
+          "n": 0,
+          "avg_ms": null,
+          "max_ms": null
+        }
+      },
+      "after": {
+        "scenario": "query",
+        "vus": 100,
+        "requests": 23634,
+        "rps": 1181.7,
+        "createTps": 0.0,
+        "paidSuccesses": 0,
+        "p50Ms": 65.17,
+        "p95Ms": 205.15,
+        "p99Ms": 358.45,
+        "unexpectedRate": 0,
+        "expectedConflicts": 0,
+        "lockWaitMs": 0,
+        "lockWaitCount": 0,
+        "auditPassed": true,
+        "k6Passed": true,
+        "outbox": [],
+        "outboxLag": {
+          "n": 0,
+          "avg_ms": null,
+          "max_ms": null
+        }
+      },
+      "rpsChangePercent": 1.06,
+      "p95ChangePercent": -2.9,
+      "artifacts": [
+        "e8e4cd745da4eac68ccf2eb6c19b9340420233e4127c20379a58eb8ec0e3c4ca",
+        "f95625c65b06353a6ae1e658de0e63ed98233a8c10d204feda4e21c656be943d"
+      ]
+    },
+    {
+      "case": "hot-ample-100",
+      "before": {
+        "scenario": "hot-ample",
+        "vus": 100,
+        "requests": 1152,
+        "rps": 57.6,
+        "createTps": 26.1,
+        "paidSuccesses": 0,
+        "p50Ms": 1670.11,
+        "p95Ms": 3058.98,
+        "p99Ms": 3680.71,
+        "unexpectedRate": 0,
+        "expectedConflicts": 0,
+        "lockWaitMs": 246865,
+        "lockWaitCount": 1457,
+        "auditPassed": true,
+        "k6Passed": true,
+        "outbox": [
+          {
+            "status": "SENT",
+            "n": 729,
+            "attempts": 1
+          }
+        ],
+        "outboxLag": {
+          "n": 729,
+          "avg_ms": "23544.88305624",
+          "max_ms": "25737.2970"
+        }
+      },
+      "after": {
+        "scenario": "hot-ample",
+        "vus": 100,
+        "requests": 1130,
+        "rps": 56.5,
+        "createTps": 26.1,
+        "paidSuccesses": 0,
+        "p50Ms": 1804.62,
+        "p95Ms": 2947.54,
+        "p99Ms": 3759.38,
+        "unexpectedRate": 0,
+        "expectedConflicts": 0,
+        "lockWaitMs": 250297,
+        "lockWaitCount": 1441,
+        "auditPassed": true,
+        "k6Passed": true,
+        "outbox": [
+          {
+            "status": "SENT",
+            "n": 721,
+            "attempts": 1
+          }
+        ],
+        "outboxLag": {
+          "n": 721,
+          "avg_ms": "24129.55019695",
+          "max_ms": "26098.0920"
+        }
+      },
+      "rpsChangePercent": -1.91,
+      "p95ChangePercent": -3.64,
+      "artifacts": [
+        "e8e4cd745da4eac68ccf2eb6c19b9340420233e4127c20379a58eb8ec0e3c4ca",
+        "f95625c65b06353a6ae1e658de0e63ed98233a8c10d204feda4e21c656be943d"
+      ]
+    },
+    {
+      "case": "mixed-50",
+      "before": {
+        "scenario": "mixed",
+        "vus": 50,
+        "requests": 2353,
+        "rps": 117.65,
+        "createTps": 53.4,
+        "paidSuccesses": 347,
+        "p50Ms": 382.23,
+        "p95Ms": 797.62,
+        "p99Ms": 1061.93,
+        "unexpectedRate": 0,
+        "expectedConflicts": 0,
+        "lockWaitMs": 161075,
+        "lockWaitCount": 1774,
+        "auditPassed": true,
+        "k6Passed": true,
+        "outbox": [
+          {
+            "status": "SENT",
+            "n": 855,
+            "attempts": 1
+          }
+        ],
+        "outboxLag": {
+          "n": 855,
+          "avg_ms": "22420.66996491",
+          "max_ms": "26843.3800"
+        }
+      },
+      "after": {
+        "scenario": "mixed",
+        "vus": 50,
+        "requests": 2398,
+        "rps": 119.9,
+        "createTps": 54.3,
+        "paidSuccesses": 355,
+        "p50Ms": 383.28,
+        "p95Ms": 747.97,
+        "p99Ms": 1009.52,
+        "unexpectedRate": 0,
+        "expectedConflicts": 0,
+        "lockWaitMs": 145820,
+        "lockWaitCount": 1859,
+        "auditPassed": true,
+        "k6Passed": true,
+        "outbox": [
+          {
+            "status": "SENT",
+            "n": 864,
+            "attempts": 1
+          }
+        ],
+        "outboxLag": {
+          "n": 864,
+          "avg_ms": "24478.50651852",
+          "max_ms": "30569.0410"
+        }
+      },
+      "rpsChangePercent": 1.91,
+      "p95ChangePercent": -6.22,
+      "artifacts": [
+        "e8e4cd745da4eac68ccf2eb6c19b9340420233e4127c20379a58eb8ec0e3c4ca",
+        "f95625c65b06353a6ae1e658de0e63ed98233a8c10d204feda4e21c656be943d"
+      ]
+    },
+    {
+      "case": "waitlist-100",
+      "before": {
+        "scenario": "waitlist",
+        "vus": 100,
+        "requests": 13523,
+        "rps": 676.15,
+        "createTps": 0.0,
+        "paidSuccesses": 100,
+        "p50Ms": 18.27,
+        "p95Ms": 224.33,
+        "p99Ms": 393.88,
+        "unexpectedRate": 0,
+        "expectedConflicts": 0,
+        "lockWaitMs": 23673,
+        "lockWaitCount": 429,
+        "auditPassed": true,
+        "k6Passed": true,
+        "outbox": [
+          {
+            "status": "SENT",
+            "n": 200,
+            "attempts": 1
+          }
+        ],
+        "outboxLag": {
+          "n": 200,
+          "avg_ms": "1791.41684000",
+          "max_ms": "3712.6630"
+        }
+      },
+      "after": {
+        "scenario": "waitlist",
+        "vus": 100,
+        "requests": 13352,
+        "rps": 667.6,
+        "createTps": 0.0,
+        "paidSuccesses": 100,
+        "p50Ms": 15.85,
+        "p95Ms": 245.84,
+        "p99Ms": 445.15,
+        "unexpectedRate": 0,
+        "expectedConflicts": 0,
+        "lockWaitMs": 25774,
+        "lockWaitCount": 436,
+        "auditPassed": true,
+        "k6Passed": true,
+        "outbox": [
+          {
+            "status": "SENT",
+            "n": 200,
+            "attempts": 1
+          }
+        ],
+        "outboxLag": {
+          "n": 200,
+          "avg_ms": "2004.36244000",
+          "max_ms": "4164.0910"
+        }
+      },
+      "rpsChangePercent": -1.26,
+      "p95ChangePercent": 9.59,
+      "artifacts": [
+        "e8e4cd745da4eac68ccf2eb6c19b9340420233e4127c20379a58eb8ec0e3c4ca",
+        "f95625c65b06353a6ae1e658de0e63ed98233a8c10d204feda4e21c656be943d"
+      ]
+    },
+    {
+      "case": "checkin-100",
+      "before": {
+        "scenario": "checkin",
+        "vus": 100,
+        "requests": 3237,
+        "rps": 161.85,
+        "createTps": 0.0,
+        "paidSuccesses": 0,
+        "p50Ms": 487.74,
+        "p95Ms": 1249.63,
+        "p99Ms": 1697.88,
+        "unexpectedRate": 0,
+        "expectedConflicts": 3236,
+        "lockWaitMs": 119664,
+        "lockWaitCount": 3336,
+        "auditPassed": true,
+        "k6Passed": true,
+        "outbox": [],
+        "outboxLag": {
+          "n": 0,
+          "avg_ms": null,
+          "max_ms": null
+        }
+      },
+      "after": {
+        "scenario": "checkin",
+        "vus": 100,
+        "requests": 3884,
+        "rps": 194.2,
+        "createTps": 0.0,
+        "paidSuccesses": 0,
+        "p50Ms": 407.06,
+        "p95Ms": 1194.94,
+        "p99Ms": 1888.97,
+        "unexpectedRate": 0,
+        "expectedConflicts": 3883,
+        "lockWaitMs": 99809,
+        "lockWaitCount": 3983,
+        "auditPassed": true,
+        "k6Passed": true,
+        "outbox": [],
+        "outboxLag": {
+          "n": 0,
+          "avg_ms": null,
+          "max_ms": null
+        }
+      },
+      "rpsChangePercent": 19.99,
+      "p95ChangePercent": -4.38,
+      "artifacts": [
+        "e8e4cd745da4eac68ccf2eb6c19b9340420233e4127c20379a58eb8ec0e3c4ca",
+        "f95625c65b06353a6ae1e658de0e63ed98233a8c10d204feda4e21c656be943d"
+      ]
+    }
+  ],
+  "waitlistRepeats": [
+    {
+      "label": "stage9-repeat1",
+      "scenario": "waitlist",
+      "vus": 100,
+      "requests": 13052,
+      "rps": 652.6,
+      "createTps": 0.0,
+      "paidSuccesses": 100,
+      "p50Ms": 17.91,
+      "p95Ms": 248.69,
+      "p99Ms": 433.59,
+      "unexpectedRate": 0,
+      "expectedConflicts": 0,
+      "lockWaitMs": 23399,
+      "lockWaitCount": 434,
+      "auditPassed": true,
+      "k6Passed": true,
+      "outbox": [
+        {
+          "status": "SENT",
+          "n": 200,
+          "attempts": 1
+        }
+      ],
+      "outboxLag": {
+        "n": 200,
+        "avg_ms": "2118.49147500",
+        "max_ms": "4327.0660"
+      }
+    },
+    {
+      "label": "stage9-repeat2",
+      "scenario": "waitlist",
+      "vus": 100,
+      "requests": 13371,
+      "rps": 668.55,
+      "createTps": 0.0,
+      "paidSuccesses": 100,
+      "p50Ms": 19.47,
+      "p95Ms": 216.49,
+      "p99Ms": 404.12,
+      "unexpectedRate": 0,
+      "expectedConflicts": 0,
+      "lockWaitMs": 22838,
+      "lockWaitCount": 435,
+      "auditPassed": true,
+      "k6Passed": true,
+      "outbox": [
+        {
+          "status": "SENT",
+          "n": 200,
+          "attempts": 1
+        }
+      ],
+      "outboxLag": {
+        "n": 200,
+        "avg_ms": "1884.90586500",
+        "max_ms": "3845.6900"
+      }
+    }
+  ],
+  "passed": true
+}

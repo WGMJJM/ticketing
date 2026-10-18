@@ -1,0 +1,80 @@
+{
+  "referenceCommit": "2c7b086",
+  "scope": "源码包引用，包含显式全限定名；不代表SQL表或运行时Bean调用图",
+  "before": {
+    "auth": [
+      "common"
+    ],
+    "checkin": [
+      "auth",
+      "common",
+      "order"
+    ],
+    "common": [],
+    "config": [
+      "auth",
+      "common"
+    ],
+    "event": [
+      "common",
+      "ticket"
+    ],
+    "order": [
+      "auth",
+      "checkin",
+      "common",
+      "event",
+      "ticket",
+      "waitlist"
+    ],
+    "ticket": [
+      "common",
+      "event",
+      "waitlist"
+    ],
+    "waitlist": [
+      "auth",
+      "common",
+      "order",
+      "ticket"
+    ]
+  },
+  "after": {
+    "auth": [
+      "common"
+    ],
+    "checkin": [
+      "auth",
+      "common",
+      "event",
+      "order"
+    ],
+    "common": [],
+    "config": [
+      "auth",
+      "common"
+    ],
+    "event": [
+      "common"
+    ],
+    "messaging": [],
+    "order": [
+      "auth",
+      "common",
+      "event",
+      "messaging",
+      "ticket"
+    ],
+    "ticket": [
+      "common",
+      "event",
+      "messaging"
+    ],
+    "waitlist": [
+      "auth",
+      "common",
+      "messaging",
+      "order"
+    ]
+  }
+}

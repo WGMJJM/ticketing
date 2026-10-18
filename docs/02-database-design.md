@@ -1,6 +1,6 @@
-# 数据库 V1 至 V4
+# 数据库 V1 至 V5
 
-迁移文件位于 `backend/src/main/resources/db/migration/`。使用 MySQL 8.4（最低需正确执行 CHECK 的 MySQL 8.0.16+）、InnoDB、utf8mb4、DATETIME(6)。Flyway校验已应用迁移，V1至V4禁止覆盖；后续结构变化新增V5及更高版本。无业务种子数据。
+迁移文件位于 `backend/src/main/resources/db/migration/`。使用 MySQL 8.4（最低需正确执行 CHECK 的 MySQL 8.0.16+）、InnoDB、utf8mb4、DATETIME(6)。Flyway校验已应用迁移，V1至V5禁止覆盖；后续结构变化新增V6及更高版本。无业务种子数据。
 
 V2 新增 `V2__activity_session_management.sql`，V1 保持不变。V2 复用 description 作为详情，增加 summary、cover_url、published_at、version；活动状态为 DRAFT/PUBLISHED/OFFLINE，兼容将旧 CANCELLED 转为 OFFLINE。增加 `(status,published_at,id)` 支持公开列表排序。场次增加 sale_starts_at、version 及开售早于开始的 CHECK；旧数据按开始前30天补齐开售时间，新建必须输入。更新时间与版本由业务操作显式更新。
 
@@ -29,9 +29,9 @@ V2 新增 `V2__activity_session_management.sql`，V1 保持不变。V2 复用 de
 | activity_session | 活动外键；结束时间晚于开始时间 | 活动+开始时间+ID 场次列表 |
 | ticket_sku | 场次外键；同场次票档名唯一；库存、金额、窗口 CHECK | 场次列表；ID+场次复合引用 |
 | ticket_order | 用户与场次外键；订单号唯一；幂等域唯一 | 用户+创建时间+ID；状态+过期时间+ID；V4用户+场次+状态+ID |
-| ticket_order_item | 订单唯一，第一版每单一个票档；复合外键确保票档与订单同场次 | 订单定位、SKU 关联 |
+| ticket_order_item | 订单唯一，第一版每单一个票档；复合外键确保票档与订单同场次；V5增加订单+SKU唯一引用键 | 订单定位、SKU 关联及候补复合引用 |
 | payment_record | 订单唯一、流水号唯一；一单一个可重试模拟支付流水 | 按订单查支付 |
-| waitlist_entry | 用户、SKU、预留订单外键；同用户同 SKU 仅一条有效候补 | SKU+状态+ID FIFO；用户记录；过期扫描 |
+| waitlist_entry | 用户、SKU、预留订单用户及订单SKU复合外键；同用户同 SKU 仅一条有效候补 | SKU+状态+ID FIFO；用户记录；过期扫描；V5订单+SKU引用 |
 | electronic_ticket | 票号、凭证摘要、明细内序号唯一；复合外键确保用户和明细来源一致 | 用户票列表、来源订单、核销人员 |
 | outbox_event | 事件 ID 唯一；JSON 载荷；状态与重试字段 | 状态+下次重试时间+ID；聚合追踪 |
 
@@ -67,7 +67,7 @@ payment_record复用一单唯一约束uk_payment_order和流水唯一约束uk_pa
 
 候补使用自增ID作为同票档内部顺序，调度器按 `(sku_id,status,id)` 读取WAITING队首。入队先锁同SKU再生成ID，锁持有至提交，避免先拿较小ID却晚提交造成FIFO反转。分配先非锁定查询候选用户，再按用户UPDATE→活动SHARE→场次SHARE→SKU UPDATE顺序获取当前状态并重新查询队首；旧候选失效即释放全部锁再选，不锁着SKU等待下一用户。队首库存不足就停止，不跳过。队首过期、账号停用、父级/窗口失效或限额不足时条件转EXPIRED再处理下一位。FIFO仅限同SKU候补内部，不承诺优先于普通新购票。
 
-`active_marker`在WAITING/ALLOCATED时为1，终态NULL；唯一键限制有效重复候补，同时保留历史。WAITING不占库存或场次限额，入队及分配均校验真实限额。分配调用OrderService共用预占方法，固定WAITLIST_CONFIRM域、waitlist-{候补ID}键及SKU/数量哈希；创建订单、明细、预占及候补转ALLOCATED同事务，先订单后候补。reserved_order_id唯一且外键核对用户；代码另行核对场次、SKU及数量，查询JOIN也校验，不以单表CHECK代替。支付转COMPLETED，取消/超时转EXPIRED，均在订单事务末端检查关联并更新，失配全部回滚。等待截止不晚于票档停售，已分配订单使用独立支付截止。
+`active_marker`在WAITING/ALLOCATED时为1，终态NULL；唯一键限制有效重复候补，同时保留历史。WAITING不占库存或场次限额，入队及分配均校验真实限额。分配调用OrderReservation共用预占方法，固定WAITLIST_CONFIRM域、waitlist-{候补ID}键及SKU/数量哈希；创建订单、明细、预占及候补转ALLOCATED同事务，先订单后候补。reserved_order_id唯一且原外键核对用户，V5复合外键核对订单SKU；代码继续核对场次、数量、幂等域与键，查询JOIN也校验，不以单表CHECK代替。支付转COMPLETED，取消/超时转EXPIRED，均在订单事务末端检查关联并更新，失配全部回滚。等待截止不晚于票档停售，已分配订单使用独立支付截止。
 
 Outbox与库存释放/管理员增库存同事务；候补入队/退出也写调度提示，不在业务事务内发MQ。事件载荷只含eventId、skuId及reason。发布器短事务FOR UPDATE SKIP LOCKED取到期PENDING或租约超时PROCESSING并递增retry_count，next_retry_at记录租约；事务提交后发持久消息，代理确认且无mandatory退回才条件标SENT。SENT/重试更新须匹配PROCESSING和本次retry_count，旧发布器不能覆盖新认领者。确认丢失或崩溃允许重复消息，超过配置总次数转FAILED保留错误摘要。
 
@@ -90,6 +90,18 @@ Outbox与库存释放/管理员增库存同事务；候补入队/退出也写调
 压测运行于独立ticketing-perf MySQL实例，ticketing_perf业务库仍由原Flyway迁移生成；performance_control.environment_guard仅为工具的隔离标记，位于其他schema，不进入产品模型或迁移。工具在清理前验证随机标记，不读取开发库凭据。压测结束使用一致性快照，核对SKU库存与本夹具全部PENDING/PAID明细汇总，以及支付快照、限额、候补关系、FIFO、电子票数量和核销元数据。该汇总等式只用于零历史差额的专用夹具。
 
 MySQL的innodb_flush_log_at_trx_commit和sync_binlog均保留1，未关闭持久化换取吞吐。生产连接池保持原默认10；Outbox仅调整健康批量和故障时结束当轮，库存及订单事务锁序、条件更新均不变。复现与边界见 [性能测试说明](performance/01-reproduce.md)。
+
+## 第九阶段候补关联修复
+
+V5__waitlist_order_sku_reference.sql仅新增两项必需索引和一个外键，不重建表，不修改V1至V4。ticket_order_item原有uk_item_order(order_id)与uk_item_ticket_reference(id,order_id,sku_id)不能提供MySQL8.4所需的精确(order_id,sku_id)唯一引用键，因此增加uk_item_order_sku(order_id,sku_id)。waitlist_entry增加idx_waitlist_order_sku(reserved_order_id,sku_id)及fk_waitlist_order_sku，引用该复合唯一键。
+
+reserved_order_id为NULL的WAITING记录继续允许存在；分配后对应订单必须真正包含该SKU，不能把另一票档的订单挂在候补下。原fk_waitlist_order_user、预留订单唯一键、FIFO索引、库存CHECK及电子票外键全部保留。数量相等和WAITLIST_CONFIRM幂等域/键继续由同步事务协作检查，不借本次修复扩大数据模型。
+
+迁移前在目标库只读执行scripts/audit-waitlist-relations.sql，核对SKU、用户、场次和数量。结果非空就停止升级并保留异常事实，不自动删除、覆盖或repair；迁移时暂停业务写入，防止预检与DDL之间产生新记录。MySQL DDL并非整文件原子回滚，若异常中断，需核对Flyway和已执行DDL再受控处理，脚本不自动重建库。
+
+独立探针使用scripts/performance/verify_migrations.py，在随机隔离标记对应的专用MySQL内新建临时测试schema，分别用基准V4产物和当前产物启动真实Flyway：空库V1至V5、保留历史预留记录的V4至V5升级，以及错误SKU关联只审计并停止，最后仅清理本探针创建的schema。正常ticketing_perf及开发库不删除或重建。DatabaseMigrationIT另验证新外键拒绝错误关联及反向修改明细、原用户外键和完整引用索引。
+
+本轮没有新增性能索引；V5索引仅为业务关联约束所需。性能复测保留其真实写入成本，不通过关闭外键、唯一约束或持久化获得指标。实际结果见[第九阶段验收](16-architecture-verification.md)。
 
 ## 金额、时间与 ID
 

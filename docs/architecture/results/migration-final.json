@@ -1,0 +1,43 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "case": "全新独立库V1至V5",
+      "passed": true,
+      "domainTables": 10
+    },
+    {
+      "case": "V4历史预留记录升级V5",
+      "passed": true,
+      "businessFactsUnchanged": true
+    },
+    {
+      "case": "不一致历史记录只审计并停止",
+      "passed": true,
+      "violations": [
+        {
+          "waitlist_id": 100,
+          "user_id": 100,
+          "sku_id": 101,
+          "quantity": 2,
+          "reserved_order_id": 100,
+          "order_user_id": 100,
+          "session_id": 100,
+          "order_sku_id": 100,
+          "order_quantity": 2,
+          "sku_session_id": 100
+        }
+      ],
+      "migrationAttempted": false,
+      "businessFactsUnchanged": true
+    }
+  ],
+  "artifacts": {
+    "legacy": {
+      "sha256": "e8e4cd745da4eac68ccf2eb6c19b9340420233e4127c20379a58eb8ec0e3c4ca"
+    },
+    "current": {
+      "sha256": "f95625c65b06353a6ae1e658de0e63ed98233a8c10d204feda4e21c656be943d"
+    }
+  }
+}

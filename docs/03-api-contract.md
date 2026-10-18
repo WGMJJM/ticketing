@@ -186,3 +186,9 @@ TICKET_BACKFILL_ENABLED默认false，显式开启后启动扫描PAID订单，默
 仅显式加载scripts/performance/application-performance.yml的专用18080进程，将已有Actuator迁至 `/api/v1/admin/monitoring`，开放health、info、metrics。全部位于原ADMIN匹配器内，继续复查数据库最新账号状态及角色；匿名401、USER403、ADMIN可读。普通开发/生产配置仍只暴露原health/info，不公开JVM或连接池指标。脚本通过真实登录Session读取指标，未增加免认证监测、故障注入或测试数据管理HTTP接口。
 
 业务请求路径及响应结构不变，压测日志只按固定路由名聚合，不使用用户、订单或票号标签。MySQL和RabbitMQ管理观测仅通过独立环境的本地工具获取，凭据和完整电子票不进入报告。接口SQL次数、故障恢复及库存审计结果见 [性能复现](performance/01-reproduce.md) 和同目录实际结果。
+
+## 第九阶段内部协作调整
+
+HTTP路径、请求字段、Session与CSRF、HTTP状态码及响应字符串状态保持原契约。OrderService应用入口内由OrderReservation、TradeResourceLocker、OrderStateService及同步OrderLifecycle协作；不对客户端暴露内部事务上下文或新增调度/库存写接口。普通和候补预留订单仍共享服务端金额、幂等和限购。
+
+状态由枚举集中表达，序列化仍为原PENDING/PAID等值，不使用ordinal。库存事件只移动Java包与职责，既有类型WAITLIST_DISPATCH_REQUESTED、eventId/skuId/reason和RabbitMQ路由兼容。V5拒绝候补关联错误SKU；数量等业务关系异常仍回滚整个支付或关闭事务。前端拆分不改变路由、真实API、二维码清理或核销确认方式。架构说明见[模块边界](01-architecture.md)。
