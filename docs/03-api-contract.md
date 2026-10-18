@@ -179,4 +179,10 @@ TICKET_BACKFILL_ENABLED默认false，显式开启后启动扫描PAID订单，默
 
 ## 当前边界
 
-第七阶段电子票签发、展示与核销已实现，验收后停止。模拟支付不产生实际扣款，真实支付与退款尚未开发，不自动推进架构重构。
+电子票签发、展示与核销已实现。第八阶段继续使用所有既有业务接口、Session、CSRF和统一中文错误，没有增加生产业务接口。模拟支付不产生实际扣款，真实支付与退款尚未开发，不自动推进架构重构。
+
+## 第八阶段独立压测监测
+
+仅显式加载scripts/performance/application-performance.yml的专用18080进程，将已有Actuator迁至 `/api/v1/admin/monitoring`，开放health、info、metrics。全部位于原ADMIN匹配器内，继续复查数据库最新账号状态及角色；匿名401、USER403、ADMIN可读。普通开发/生产配置仍只暴露原health/info，不公开JVM或连接池指标。脚本通过真实登录Session读取指标，未增加免认证监测、故障注入或测试数据管理HTTP接口。
+
+业务请求路径及响应结构不变，压测日志只按固定路由名聚合，不使用用户、订单或票号标签。MySQL和RabbitMQ管理观测仅通过独立环境的本地工具获取，凭据和完整电子票不进入报告。接口SQL次数、故障恢复及库存审计结果见 [性能复现](performance/01-reproduce.md) 和同目录实际结果。

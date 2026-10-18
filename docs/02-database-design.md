@@ -83,6 +83,14 @@ Outbox与库存释放/管理员增库存同事务；候补入队/退出也写调
 
 核销先锁真实工作人员用户行并复查ADMIN，随后沿统一父级锁序锁SKU及订单，最后条件更新电子票。SQL要求UNUSED、关联订单PAID、场次SCHEDULED和MySQL UTC时间处于 `[starts_at-配置分钟,ends_at)`，默认提前60分钟。成功转USED，同语句记录used_at和checked_by，受影响行为1才算首次成功；重复扫描409且不改原记录。VOID拒绝入场，本阶段无公开作废或删除接口。核销不改库存、订单或支付。活动下架本身不自动作废已付票，场次取消/结束则拒绝核销。数据库CHECK继续强制USED必须同时有时间和人员。
 
+## 第八阶段性能审计
+
+本阶段未增加业务表、字段或索引，V1至V4及全部外键、唯一约束、库存CHECK保持不变。热点等待实际发生在SKU主键行锁上，限购、FIFO、Outbox和列表已有索引的执行计划及归一化SQL耗时保存在 `docs/performance/results/`，不以新增索引代替锁竞争分析。
+
+压测运行于独立ticketing-perf MySQL实例，ticketing_perf业务库仍由原Flyway迁移生成；performance_control.environment_guard仅为工具的隔离标记，位于其他schema，不进入产品模型或迁移。工具在清理前验证随机标记，不读取开发库凭据。压测结束使用一致性快照，核对SKU库存与本夹具全部PENDING/PAID明细汇总，以及支付快照、限额、候补关系、FIFO、电子票数量和核销元数据。该汇总等式只用于零历史差额的专用夹具。
+
+MySQL的innodb_flush_log_at_trx_commit和sync_binlog均保留1，未关闭持久化换取吞吐。生产连接池保持原默认10；Outbox仅调整健康批量和故障时结束当轮，库存及订单事务锁序、条件更新均不变。复现与边界见 [性能测试说明](performance/01-reproduce.md)。
+
 ## 金额、时间与 ID
 
 人民币金额一律 BIGINT 分，不使用浮点运算。票档 API 以十进制整数字符串传递金额分，前端用 BigInt 精确转换展示为 `¥299.00`。数据库 BIGINT ID 也以字符串传输，禁止用 JS number 表达任意长 ID。

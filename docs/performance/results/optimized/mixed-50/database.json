@@ -1,0 +1,304 @@
+{
+  "statementDigests": [
+    {
+      "sql_pattern": "SELECT `id` , `session_id` , NAME , `price_cents` , `total_stock` , `locked_stock` , `sold_stock` , `sale_starts_at` , `sale_ends_at` , `max_quantity_per_order` , STATUS , `version` , `created_at` , `updated_at` FROM `ticket_sku` WHERE ( `id` = ? ) FOR UPDATE",
+      "calls": 2610,
+      "total_ms": "161371.143",
+      "avg_ms": "61.828",
+      "rows_examined": 2609,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "COMMIT",
+      "calls": 3744,
+      "total_ms": "45841.212",
+      "avg_ms": "12.244",
+      "rows_examined": 0,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "UPDATE `outbox_event` SET STATUS = ? , `sent_at` = UTC_TIMESTAMP (?) , `last_error` = ? , `updated_at` = UTC_TIMESTAMP (?) WHERE `id` = ? AND STATUS = ? AND `retry_count` = ?",
+      "calls": 855,
+      "total_ms": "6862.095",
+      "avg_ms": "8.026",
+      "rows_examined": 855,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SELECT `o` . * , `i` . `sku_id` , `i` . `quantity` , `i` . `unit_price_cents` , `i` . `sku_name_snapshot` , `s` . `title` AS `session_title` , `s` . `starts_at` AS `session_starts_at` , `s` . `status` AS `session_status` , `a` . `id` AS `activity_id` , `a` . `title` AS `activity_title` , `a` . `status` AS `activity_status` , `p` . `payment_no` , `p` . `amount_cents` AS `payment_amount_cents` , `p` . `paid_at` AS `payment_paid_at` FROM `ticket_order` `o` JOIN `ticket_order_item` `i` ON `i` . `order_id` = `o` . `id` JOIN `activity_session` `s` ON `s` . `id` = `o` . `session_id` JOIN `activity` `a` ON `a` . `id` = `s` . `activity_id` LEFT JOIN `payment_record` `p` ON `p` . `order_id` = `o` . `id` AND `p` . `status` = ? WHERE `o` . `id` = ? AND `o` . `user_id` = ?",
+      "calls": 3746,
+      "total_ms": "678.976",
+      "avg_ms": "0.181",
+      "rows_examined": 3747,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SELECT * FROM `outbox_event` WHERE `event_type` = ? AND STATUS IN (...) AND `next_retry_at` <= UTC_TIMESTAMP (?) ORDER BY `next_retry_at` , `id` LIMIT ? FOR UPDATE SKIP LOCKED",
+      "calls": 859,
+      "total_ms": "572.826",
+      "avg_ms": "0.667",
+      "rows_examined": 520940,
+      "sort_rows": 855
+    },
+    {
+      "sql_pattern": "SELECT @@SESSION . `transaction_read_only`",
+      "calls": 9980,
+      "total_ms": "565.670",
+      "avg_ms": "0.057",
+      "rows_examined": 9988,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "INSERT INTO `ticket_order` ( `order_no` , `user_id` , `session_id` , STATUS , `total_amount_cents` , `idempotency_operation` , `idempotency_key` , `request_hash` , `expires_at` , `created_at` , `updated_at` ) VALUES (...)",
+      "calls": 1305,
+      "total_ms": "455.050",
+      "avg_ms": "0.349",
+      "rows_examined": 0,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SET `autocommit` = ?",
+      "calls": 7497,
+      "total_ms": "352.336",
+      "avg_ms": "0.047",
+      "rows_examined": 0,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "UPDATE `ticket_sku` SET `locked_stock` = `locked_stock` + ? , `version` = `version` + ? , `updated_at` = UTC_TIMESTAMP (?) WHERE `id` = ? AND STATUS = ? AND `sale_starts_at` <= UTC_TIMESTAMP (?) AND `sale_ends_at` > UTC_TIMESTAMP (?) AND `total_stock` - `locked_stock` - `sold_stock` >= ?",
+      "calls": 1303,
+      "total_ms": "291.797",
+      "avg_ms": "0.224",
+      "rows_examined": 1304,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SELECT `id` , `username` , STATUS , ROLE FROM `user_account` WHERE ( `id` = ? )",
+      "calls": 2978,
+      "total_ms": "284.257",
+      "avg_ms": "0.095",
+      "rows_examined": 2981,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SELECT `id` , STATUS FROM `user_account` WHERE ( `id` = ? ) FOR UPDATE",
+      "calls": 2891,
+      "total_ms": "278.294",
+      "avg_ms": "0.096",
+      "rows_examined": 2892,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SELECT `id` , `title` , `category` , `city` , `venue` , `summary` , DESCRIPTION , `cover_url` , STATUS , `published_at` , `version` , `created_at` , `updated_at` FROM `activity` WHERE ( `id` = ? ) FOR SHARE",
+      "calls": 2609,
+      "total_ms": "271.160",
+      "avg_ms": "0.104",
+      "rows_examined": 2610,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SELECT UTC_TIMESTAMP (?)",
+      "calls": 5050,
+      "total_ms": "267.400",
+      "avg_ms": "0.053",
+      "rows_examined": 5048,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SELECT `id` , `session_id` , NAME , `price_cents` , `total_stock` , `locked_stock` , `sold_stock` , `sale_starts_at` , `sale_ends_at` , `max_quantity_per_order` , STATUS , `version` , `created_at` , `updated_at` FROM `ticket_sku` WHERE `id` = ?",
+      "calls": 2609,
+      "total_ms": "262.140",
+      "avg_ms": "0.100",
+      "rows_examined": 2610,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SELECT COALESCE ( SUM ( `i` . `quantity` ) , ? ) FROM `ticket_order` `o` JOIN `ticket_order_item` `i` ON `i` . `order_id` = `o` . `id` WHERE `o` . `user_id` = ? AND `o` . `session_id` = ? AND `o` . `status` IN (...)",
+      "calls": 1304,
+      "total_ms": "245.701",
+      "avg_ms": "0.188",
+      "rows_examined": 79,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SELECT `id` , `activity_id` , `title` , `starts_at` , `ends_at` , `sale_starts_at` , STATUS , `version` , `created_at` , `updated_at` FROM `activity_session` WHERE ( `id` = ? ) FOR SHARE",
+      "calls": 2609,
+      "total_ms": "245.000",
+      "avg_ms": "0.094",
+      "rows_examined": 2610,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SELECT `id` , `activity_id` , `title` , `starts_at` , `ends_at` , `sale_starts_at` , STATUS , `version` , `created_at` , `updated_at` FROM `activity_session` WHERE `id` = ?",
+      "calls": 2609,
+      "total_ms": "234.761",
+      "avg_ms": "0.090",
+      "rows_examined": 2609,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SELECT @@SESSION . `transaction_isolation`",
+      "calls": 3747,
+      "total_ms": "229.412",
+      "avg_ms": "0.061",
+      "rows_examined": 3749,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "INSERT INTO `ticket_order_item` ( `order_id` , `sku_id` , `session_id` , `quantity` , `unit_price_cents` , `sku_name_snapshot` ) VALUES (...)",
+      "calls": 1304,
+      "total_ms": "221.069",
+      "avg_ms": "0.170",
+      "rows_examined": 0,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "UPDATE `ticket_order` SET STATUS = ? , `updated_at` = ? WHERE ( `id` = ? AND `user_id` = ? AND STATUS = ? )",
+      "calls": 854,
+      "total_ms": "207.972",
+      "avg_ms": "0.244",
+      "rows_examined": 855,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "UPDATE `ticket_sku` SET `locked_stock` = `locked_stock` - ? , `version` = `version` + ? , `updated_at` = UTC_TIMESTAMP (?) WHERE `id` = ? AND `locked_stock` >= ?",
+      "calls": 855,
+      "total_ms": "180.850",
+      "avg_ms": "0.212",
+      "rows_examined": 855,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED",
+      "calls": 3747,
+      "total_ms": "179.102",
+      "avg_ms": "0.048",
+      "rows_examined": 0,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SELECT `id` , `order_no` , `user_id` , `session_id` , STATUS , `total_amount_cents` , `idempotency_operation` , `idempotency_key` , `request_hash` , `expires_at` , `paid_at` , `created_at` , `updated_at` FROM `ticket_order` WHERE ( `user_id` = ? AND `idempotency_operation` = ? AND `idempotency_key` = ? )",
+      "calls": 1585,
+      "total_ms": "177.546",
+      "avg_ms": "0.112",
+      "rows_examined": 282,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "INSERT INTO `outbox_event` ( `event_id` , `aggregate_type` , `aggregate_id` , `event_type` , `payload` , STATUS , `retry_count` ) VALUES (...)",
+      "calls": 855,
+      "total_ms": "168.923",
+      "avg_ms": "0.198",
+      "rows_examined": 0,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ",
+      "calls": 3748,
+      "total_ms": "167.728",
+      "avg_ms": "0.045",
+      "rows_examined": 0,
+      "sort_rows": 0
+    }
+  ],
+  "explain": {
+    "quota": [
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "o",
+        "partitions": null,
+        "type": "ref",
+        "possible_keys": "PRIMARY,uk_order_idempotency,uk_order_id_session,uk_order_id_user,idx_order_user_created,idx_order_expiry,idx_order_session,idx_order_user_session_status",
+        "key": "uk_order_idempotency",
+        "key_len": "8",
+        "ref": "const",
+        "rows": 1,
+        "filtered": 5.0,
+        "Extra": "Using where"
+      },
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "i",
+        "partitions": null,
+        "type": "eq_ref",
+        "possible_keys": "uk_item_order,idx_item_order_session",
+        "key": "uk_item_order",
+        "key_len": "8",
+        "ref": "ticketing_perf.o.id",
+        "rows": 1,
+        "filtered": 100.0,
+        "Extra": null
+      }
+    ],
+    "fifo": [
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "waitlist_entry",
+        "partitions": null,
+        "type": "ref",
+        "possible_keys": "idx_waitlist_queue,idx_waitlist_expiry",
+        "key": "idx_waitlist_queue",
+        "key_len": "74",
+        "ref": "const,const",
+        "rows": 1,
+        "filtered": 100.0,
+        "Extra": null
+      }
+    ],
+    "outbox": [
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "outbox_event",
+        "partitions": null,
+        "type": "range",
+        "possible_keys": "idx_outbox_dispatch",
+        "key": "idx_outbox_dispatch",
+        "key_len": "74",
+        "ref": null,
+        "rows": 2,
+        "filtered": 10.0,
+        "Extra": "Using index condition; Using where; Using filesort"
+      }
+    ],
+    "orders_page": [
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "ticket_order",
+        "partitions": null,
+        "type": "ref",
+        "possible_keys": "uk_order_idempotency,idx_order_user_created,idx_order_user_session_status",
+        "key": "idx_order_user_created",
+        "key_len": "8",
+        "ref": "const",
+        "rows": 1,
+        "filtered": 100.0,
+        "Extra": "Backward index scan"
+      }
+    ],
+    "tickets": [
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "electronic_ticket",
+        "partitions": null,
+        "type": "ref",
+        "possible_keys": "idx_ticket_owner",
+        "key": "idx_ticket_owner",
+        "key_len": "8",
+        "ref": "const",
+        "rows": 1,
+        "filtered": 100.0,
+        "Extra": "Backward index scan"
+      }
+    ]
+  },
+  "slowQueries": {
+    "n": 1004,
+    "total_ms": "0"
+  }
+}
