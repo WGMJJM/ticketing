@@ -3,16 +3,18 @@ package com.ticketing.checkin.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.ticketing.checkin.dto.ElectronicTicketView;
 import com.ticketing.checkin.entity.ElectronicTicket;
-import com.ticketing.order.entity.TicketOrder;
-import java.util.List;
+
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
+import java.util.List;
+
 @Mapper
 public interface ElectronicTicketMapper extends BaseMapper<ElectronicTicket> {
-    String VIEW = """
+    String VIEW =
+            """
             SELECT CAST(t.id AS CHAR) AS id,CAST(t.order_id AS CHAR) AS order_id,
               CAST(t.order_item_id AS CHAR) AS order_item_id,CAST(t.sku_id AS CHAR) AS sku_id,
               CAST(t.owner_id AS CHAR) AS owner_id,u.username AS owner_name,t.ticket_no,t.sequence_no,t.status,
@@ -24,18 +26,31 @@ public interface ElectronicTicketMapper extends BaseMapper<ElectronicTicket> {
             JOIN activity_session s ON s.id=o.session_id JOIN activity a ON a.id=s.activity_id
             JOIN user_account u ON u.id=t.owner_id
             """;
-    String OWNED_FILTER = """
+    String OWNED_FILTER =
+            """
             WHERE t.owner_id=#{ownerId}
             <if test="orderId != null">AND t.order_id=#{orderId}</if>
             <if test="status != null">AND t.status=#{status}</if>
             """;
 
-    @Select("<script>" + VIEW + OWNED_FILTER + " ORDER BY t.created_at DESC,t.id DESC LIMIT #{size} OFFSET #{offset}</script>")
-    List<ElectronicTicketView> listOwned(@Param("ownerId") long ownerId, @Param("orderId") Long orderId,
-            @Param("status") String status, @Param("size") int size, @Param("offset") long offset);
+    @Select(
+            "<script>"
+                    + VIEW
+                    + OWNED_FILTER
+                    + " ORDER BY t.created_at DESC,t.id DESC LIMIT #{size} OFFSET"
+                    + " #{offset}</script>")
+    List<ElectronicTicketView> listOwned(
+            @Param("ownerId") long ownerId,
+            @Param("orderId") Long orderId,
+            @Param("status") String status,
+            @Param("size") int size,
+            @Param("offset") long offset);
 
     @Select("<script>SELECT COUNT(*) FROM electronic_ticket t " + OWNED_FILTER + "</script>")
-    long countOwned(@Param("ownerId") long ownerId, @Param("orderId") Long orderId, @Param("status") String status);
+    long countOwned(
+            @Param("ownerId") long ownerId,
+            @Param("orderId") Long orderId,
+            @Param("status") String status);
 
     @Select(VIEW + " WHERE t.id=#{id} AND t.owner_id=#{ownerId}")
     ElectronicTicketView owned(@Param("id") long id, @Param("ownerId") long ownerId);
@@ -43,22 +58,27 @@ public interface ElectronicTicketMapper extends BaseMapper<ElectronicTicket> {
     @Select(VIEW + " WHERE t.id=#{id}")
     ElectronicTicketView view(@Param("id") long id);
 
-    @Select("""
+    @Select(
+            """
             SELECT o.id AS order_id,o.user_id AS owner_id,i.id AS order_item_id,i.sku_id,i.quantity,o.status
             FROM ticket_order o JOIN ticket_order_item i ON i.order_id=o.id WHERE o.id=#{orderId}
             """)
     IssuanceSource source(@Param("orderId") long orderId);
 
-    @Select("SELECT * FROM electronic_ticket WHERE order_id=#{orderId} ORDER BY sequence_no FOR UPDATE")
+    @Select(
+            "SELECT * FROM electronic_ticket WHERE order_id=#{orderId} ORDER BY sequence_no FOR"
+                    + " UPDATE")
     List<ElectronicTicket> lockIssued(@Param("orderId") long orderId);
 
-    @Select("""
-            SELECT o.id,o.user_id,i.sku_id FROM ticket_order o JOIN ticket_order_item i ON i.order_id=o.id
+    @Select(
+            """
+            SELECT o.id FROM ticket_order o JOIN ticket_order_item i ON i.order_id=o.id
             WHERE o.status='PAID' AND o.id>#{after} ORDER BY o.id LIMIT #{size}
             """)
-    List<TicketOrder> paidCandidates(@Param("after") long after, @Param("size") int size);
+    List<Long> paidCandidates(@Param("after") long after, @Param("size") int size);
 
-    @Update("""
+    @Update(
+            """
             UPDATE electronic_ticket t SET t.status='USED',t.used_at=UTC_TIMESTAMP(6),t.checked_by=#{adminId},t.updated_at=UTC_TIMESTAMP(6)
             WHERE t.id=#{id} AND t.status='UNUSED'
               AND EXISTS(SELECT 1 FROM ticket_order o JOIN activity_session s ON s.id=o.session_id
@@ -66,7 +86,16 @@ public interface ElectronicTicketMapper extends BaseMapper<ElectronicTicket> {
                   AND UTC_TIMESTAMP(6)>=TIMESTAMPADD(MINUTE,-#{opensMinutes},s.starts_at)
                   AND UTC_TIMESTAMP(6)<s.ends_at)
             """)
-    int checkIn(@Param("id") long id, @Param("adminId") long adminId, @Param("opensMinutes") int opensMinutes);
+    int checkIn(
+            @Param("id") long id,
+            @Param("adminId") long adminId,
+            @Param("opensMinutes") int opensMinutes);
 
-    record IssuanceSource(long orderId, long ownerId, long orderItemId, long skuId, int quantity, String status) {}
+    record IssuanceSource(
+            long orderId,
+            long ownerId,
+            long orderItemId,
+            long skuId,
+            int quantity,
+            String status) {}
 }

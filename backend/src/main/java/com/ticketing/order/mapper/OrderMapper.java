@@ -2,18 +2,21 @@ package com.ticketing.order.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.ticketing.order.entity.TicketOrder;
-import com.ticketing.ticket.entity.TicketSku;
-import java.util.List;
-import java.time.LocalDateTime;
+import com.ticketing.ticket.api.TicketSale;
+
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
-import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Update;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 @Mapper
 public interface OrderMapper extends BaseMapper<TicketOrder> {
-    String VIEW = """
+    String VIEW =
+            """
             SELECT o.*,i.sku_id,i.quantity,i.unit_price_cents,i.sku_name_snapshot,
                    s.title AS session_title,s.starts_at AS session_starts_at,s.status AS session_status,
                    a.id AS activity_id,a.title AS activity_title,a.status AS activity_status,
@@ -26,13 +29,18 @@ public interface OrderMapper extends BaseMapper<TicketOrder> {
     @Select(VIEW + " WHERE o.id=#{id} AND o.user_id=#{userId}")
     TicketOrder owned(@Param("id") long id, @Param("userId") long userId);
 
-    @Select(VIEW + " WHERE o.user_id=#{userId} ORDER BY o.created_at DESC,o.id DESC LIMIT #{size} OFFSET #{offset}")
-    List<TicketOrder> listOwned(@Param("userId") long userId, @Param("size") int size, @Param("offset") long offset);
+    @Select(
+            VIEW
+                    + " WHERE o.user_id=#{userId} ORDER BY o.created_at DESC,o.id DESC LIMIT"
+                    + " #{size} OFFSET #{offset}")
+    List<TicketOrder> listOwned(
+            @Param("userId") long userId, @Param("size") int size, @Param("offset") long offset);
 
     @Select("SELECT UTC_TIMESTAMP(6)")
     LocalDateTime databaseNow();
 
-    @Select("""
+    @Select(
+            """
             <script>
             SELECT id,user_id,expires_at FROM ticket_order FORCE INDEX (idx_order_expiry)
             WHERE status='PENDING' AND expires_at&lt;=UTC_TIMESTAMP(6)
@@ -42,51 +50,46 @@ public interface OrderMapper extends BaseMapper<TicketOrder> {
             ORDER BY expires_at,id LIMIT #{size}
             </script>
             """)
-    List<TicketOrder> expiredCandidates(@Param("size") int size,
-            @Param("after") LocalDateTime after, @Param("afterId") long afterId);
+    List<TicketOrder> expiredCandidates(
+            @Param("size") int size,
+            @Param("after") LocalDateTime after,
+            @Param("afterId") long afterId);
 
-    @Update("""
+    @Update(
+            """
+            UPDATE ticket_order SET status='CANCELLED',updated_at=UTC_TIMESTAMP(6)
+            WHERE id=#{id} AND user_id=#{userId} AND status='PENDING'
+            """)
+    int markCancelled(@Param("id") long id, @Param("userId") long userId);
+
+    @Update(
+            """
             UPDATE ticket_order SET status='PAID',paid_at=UTC_TIMESTAMP(6),updated_at=UTC_TIMESTAMP(6)
             WHERE id=#{id} AND user_id=#{userId} AND status='PENDING' AND expires_at>UTC_TIMESTAMP(6)
             """)
     int markPaid(@Param("id") long id, @Param("userId") long userId);
 
-    @Update("""
+    @Update(
+            """
             UPDATE ticket_order SET status='EXPIRED',updated_at=UTC_TIMESTAMP(6)
             WHERE id=#{id} AND user_id=#{userId} AND status='PENDING' AND expires_at<=UTC_TIMESTAMP(6)
             """)
     int markExpired(@Param("id") long id, @Param("userId") long userId);
 
-    @Update("""
-            UPDATE ticket_sku SET locked_stock=locked_stock-#{quantity},sold_stock=sold_stock+#{quantity},
-                   version=version+1,updated_at=UTC_TIMESTAMP(6)
-            WHERE id=#{skuId} AND locked_stock>=#{quantity}
-              AND CAST(locked_stock AS SIGNED)+sold_stock<=total_stock
-            """)
-    int sell(@Param("skuId") long skuId, @Param("quantity") int quantity);
-
-    @Select("""
+    @Select(
+            """
             SELECT COALESCE(SUM(i.quantity),0) FROM ticket_order o JOIN ticket_order_item i ON i.order_id=o.id
             WHERE o.user_id=#{userId} AND o.session_id=#{sessionId} AND o.status IN ('PENDING','PAID')
             """)
     long occupied(@Param("userId") long userId, @Param("sessionId") long sessionId);
 
-    @Update("""
-            UPDATE ticket_sku SET locked_stock=locked_stock+#{quantity},version=version+1,updated_at=UTC_TIMESTAMP(6)
-            WHERE id=#{skuId} AND status='ON_SALE' AND sale_starts_at<=UTC_TIMESTAMP(6) AND sale_ends_at>UTC_TIMESTAMP(6)
-              AND total_stock-locked_stock-sold_stock>=#{quantity}
-            """)
-    int reserve(@Param("skuId") long skuId, @Param("quantity") int quantity);
-
-    @Update("""
-            UPDATE ticket_sku SET locked_stock=locked_stock-#{quantity},version=version+1,updated_at=UTC_TIMESTAMP(6)
-            WHERE id=#{skuId} AND locked_stock>=#{quantity}
-            """)
-    int release(@Param("skuId") long skuId, @Param("quantity") int quantity);
-
-    @Insert("""
+    @Insert(
+            """
             INSERT INTO ticket_order_item(order_id,sku_id,session_id,quantity,unit_price_cents,sku_name_snapshot)
-            VALUES(#{order.id},#{sku.id},#{sku.sessionId},#{quantity},#{sku.priceCents},#{sku.name})
+            VALUES(#{order.id},#{sku.skuId},#{sku.sessionId},#{quantity},#{sku.priceCents},#{sku.name})
             """)
-    int insertItem(@Param("order") TicketOrder order, @Param("sku") TicketSku sku, @Param("quantity") int quantity);
+    int insertItem(
+            @Param("order") TicketOrder order,
+            @Param("sku") TicketSale sku,
+            @Param("quantity") int quantity);
 }

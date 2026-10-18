@@ -1,6 +1,6 @@
-package com.ticketing.waitlist.messaging;
+package com.ticketing.messaging;
 
-import com.ticketing.waitlist.entity.OutboxEvent;
+import com.ticketing.messaging.entity.OutboxEvent;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.core.Message;
@@ -66,7 +66,7 @@ class OutboxPublisherTest {
         }
     }
 
-    private OutboxPublisher publisher() { return new OutboxPublisher(service, rabbit, "test.exchange", 100, 100); }
+    private OutboxPublisher publisher() { return new OutboxPublisher(service, rabbit, "test.exchange", new OutboxProperties(100, 100, 30, 10, 2, 300)); }
     private OutboxEvent event(long id) {
         OutboxEvent event = new OutboxEvent();
         event.setId(id);

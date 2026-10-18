@@ -16,6 +16,9 @@ import com.ticketing.order.service.OrderService;
 import com.ticketing.order.service.OrderExpiryJob;
 import com.ticketing.order.entity.TicketOrder;
 import com.ticketing.ticket.entity.TicketSku;
+import com.ticketing.ticket.api.TicketSale;
+import com.ticketing.order.config.OrderProperties;
+import com.ticketing.ticket.mapper.TicketSkuMapper;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.junit.jupiter.api.*;
@@ -39,6 +42,7 @@ class OrderManagementIT {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private AccountService accounts;
     @MockitoSpyBean private OrderMapper orderMapper;
+    @MockitoSpyBean private TicketSkuMapper inventory;
     @MockitoSpyBean private PaymentMapper paymentMapper;
     @Autowired private OrderService orderService;
     private final List<Long> users = new ArrayList<>();
@@ -170,13 +174,13 @@ class OrderManagementIT {
     void failedItemWriteRollsBackStockOrderAndQuotaAndSameKeyCanRetry() throws Exception {
         // 只注入最后一步写入故障；前面的库存和订单SQL、HTTP及事务均为真实执行。
         doThrow(new DataIntegrityViolationException("验收注入明细写入失败")).when(orderMapper)
-                .insertItem(any(TicketOrder.class), any(TicketSku.class), eq(2));
+                .insertItem(any(TicketOrder.class), any(TicketSale.class), eq(2));
         try {
             buyer.create(skuId, 2, "retry-after-failure", 409);
             invariant(0, 0);
             assertThat(orderCount()).isZero();
             assertThat(used(buyer)).isZero();
-        } finally { reset(orderMapper); }
+        } finally { reset(orderMapper, inventory); }
         buyer.create(skuId, 2, "retry-after-failure", 200);
         invariant(2, 0);
         assertThat(orderCount()).isEqualTo(1);
@@ -427,7 +431,7 @@ class OrderManagementIT {
         assertThat(paymentCount()).isZero();
         String next = buyer.create(skuId, 2, "parallel-jobs", 200).path("data").path("id").asText();
         makeDue(next);
-        parallel(4, index -> { new OrderExpiryJob(orderMapper, orderService, 100).closeExpiredOrders(); return true; });
+        parallel(4, index -> { new OrderExpiryJob(orderMapper, orderService, new OrderProperties(4, 15, new OrderProperties.Expiry(100))).closeExpiredOrders(); return true; });
         assertThat(orderStatus(next)).isEqualTo("EXPIRED");
         invariant(0, 0);
         assertThat(used(buyer)).isZero();
@@ -502,7 +506,7 @@ class OrderManagementIT {
         jdbc.update("UPDATE user_account SET status='DISABLED' WHERE id=?", buyer.id);
         jdbc.update("UPDATE activity SET status='OFFLINE' WHERE id=?", activityId);
         jdbc.update("UPDATE activity_session SET status='CANCELLED' WHERE id=?", sessionId);
-        new OrderExpiryJob(orderMapper, orderService, 100).closeExpiredOrders();
+        new OrderExpiryJob(orderMapper, orderService, new OrderProperties(4, 15, new OrderProperties.Expiry(100))).closeExpiredOrders();
         assertThat(orderStatus(id)).isEqualTo("EXPIRED");
         invariant(0, 0);
         assertThat(used(buyer)).isZero();
@@ -515,10 +519,10 @@ class OrderManagementIT {
         for (String id : ids) makeDue(id);
         assertThat(orderMapper.expiredCandidates(2, null, 0)).hasSize(2);
         assertThat(jdbc.queryForMap("EXPLAIN SELECT id,user_id FROM ticket_order FORCE INDEX(idx_order_expiry) WHERE status='PENDING' AND expires_at<=UTC_TIMESTAMP(6) ORDER BY expires_at,id LIMIT 2").get("key")).isEqualTo("idx_order_expiry");
-        OrderExpiryJob job = new OrderExpiryJob(orderMapper, orderService, 2);
-        doThrow(new DataIntegrityViolationException("验收注入单笔释放失败")).when(orderMapper).release(skuId, 1);
+        OrderExpiryJob job = new OrderExpiryJob(orderMapper, orderService, new OrderProperties(4, 15, new OrderProperties.Expiry(2)));
+        doThrow(new DataIntegrityViolationException("验收注入单笔释放失败")).when(inventory).release(skuId, 1);
         try { job.closeExpiredOrders(); }
-        finally { reset(orderMapper); }
+        finally { reset(orderMapper, inventory); }
         assertThat(orderStatus(ids.get(0))).isEqualTo("PENDING");
         assertThat(orderStatus(ids.get(1))).isEqualTo("EXPIRED");
         assertThat(orderStatus(ids.get(2))).isEqualTo("PENDING");
@@ -536,10 +540,10 @@ class OrderManagementIT {
         String following = buyer.create(skuId, 2, "scan-one-following", 200).path("data").path("id").asText();
         makeDue(blocked);
         makeDue(following);
-        OrderExpiryJob single = new OrderExpiryJob(orderMapper, orderService, 1);
-        doThrow(new DataIntegrityViolationException("验收注入持续释放失败")).when(orderMapper).release(skuId, 1);
+        OrderExpiryJob single = new OrderExpiryJob(orderMapper, orderService, new OrderProperties(4, 15, new OrderProperties.Expiry(1)));
+        doThrow(new DataIntegrityViolationException("验收注入持续释放失败")).when(inventory).release(skuId, 1);
         try { single.closeExpiredOrders(); single.closeExpiredOrders(); }
-        finally { reset(orderMapper); }
+        finally { reset(orderMapper, inventory); }
         assertThat(orderStatus(blocked)).isEqualTo("PENDING");
         assertThat(orderStatus(following)).isEqualTo("EXPIRED");
         invariant(1, 0);

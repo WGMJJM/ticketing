@@ -11,6 +11,14 @@ import com.ticketing.checkin.service.ElectronicTicketService;
 import com.ticketing.checkin.service.TicketBackfillJob;
 import com.ticketing.order.mapper.OrderMapper;
 import com.ticketing.order.service.OrderService;
+import com.ticketing.checkin.config.CheckinProperties;
+import com.ticketing.order.api.TradeResourceLocker;
+import com.ticketing.order.api.OrderLifecycle;
+import com.ticketing.order.api.OrderReservation;
+import com.ticketing.ticket.api.TicketInventory;
+import org.springframework.aop.framework.AopProxyUtils;
+import org.springframework.transaction.IllegalTransactionStateException;
+import com.ticketing.ticket.mapper.TicketSkuMapper;
 import com.ticketing.waitlist.service.WaitlistDispatcher;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
@@ -69,6 +77,11 @@ class ElectronicTicketIT {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private AccountService accounts;
     @Autowired private OrderService orders;
+    @Autowired private TradeResourceLocker resources;
+    @Autowired private OrderReservation reservation;
+    @Autowired private TicketInventory inventoryApi;
+    @Autowired private List<OrderLifecycle> lifecycle;
+    @Autowired private TicketSkuMapper inventory;
     @Autowired private OrderMapper orderMapper;
     @Autowired private ElectronicTicketService service;
     @Autowired private TicketCredentialSigner signer;
@@ -219,7 +232,7 @@ class ElectronicTicketIT {
     void boundedHistoricalScannerContinuesPastAnInconsistentOrder() throws Exception {
         long broken = historical(1); legacyTicket(broken, 2, 1);
         long normal = historical(1);
-        var job = new TicketBackfillJob(tickets, service, 1);
+        var job = new TicketBackfillJob(tickets, service, new CheckinProperties(60, new CheckinProperties.Backfill(1)));
         // 只选择本用例范围，避免在共用开发库中处理其他用户的真实历史订单。
         ReflectionTestUtils.setField(job, "cursor", broken - 1);
         job.scan(); assertThat(issued(normal)).isEmpty();
@@ -383,6 +396,19 @@ class ElectronicTicketIT {
         assertThat(service.backfill(order)).isZero(); stock(0, 3);
     }
 
+    @Test
+    void sharedWriteCollaboratorsRequireAnExistingTransactionAndKeepParticipantOrder() {
+        assertThatThrownBy(() -> resources.lockPurchase(buyer.id, skuId, true))
+                .isInstanceOf(IllegalTransactionStateException.class);
+        assertThatThrownBy(() -> reservation.create(buyer.id, skuId, 1, "outside-transaction"))
+                .isInstanceOf(IllegalTransactionStateException.class);
+        assertThatThrownBy(() -> inventoryApi.reserve(skuId, 1))
+                .isInstanceOf(IllegalTransactionStateException.class);
+        assertThat(lifecycle.stream().map(bean -> AopProxyUtils.ultimateTargetClass(bean).getSimpleName()).toList())
+                .containsExactly("WaitlistOrderLifecycle", "TicketIssuer");
+        stock(0, 0);
+    }
+
     private long create(int quantity) throws Exception { return buyer.create(skuId, quantity).path("id").asLong(); }
     private long paid(int quantity) throws Exception { long order = create(quantity); buyer.call("POST", "/orders/" + order + "/pay", null, 200); return order; }
     private long allocated(int quantity) throws Exception {
@@ -396,10 +422,10 @@ class ElectronicTicketIT {
     private long historical(int quantity) throws Exception {
         long order = create(quantity);
         new TransactionTemplate(transactions).executeWithoutResult(status -> {
-            orders.lockPurchase(buyer.id, skuId, true);
+            resources.lockPurchase(buyer.id, skuId, true);
             jdbc.queryForMap("SELECT id FROM ticket_order WHERE id=? FOR UPDATE", order);
             assertThat(orderMapper.markPaid(order, buyer.id)).isEqualTo(1);
-            assertThat(orderMapper.sell(skuId, quantity)).isEqualTo(1);
+            assertThat(inventory.sell(skuId, quantity)).isEqualTo(1);
             jdbc.update("INSERT INTO payment_record(order_id,payment_no,amount_cents,status,paid_at) SELECT id,?,total_amount_cents,'SUCCEEDED',paid_at FROM ticket_order WHERE id=?", UUID.randomUUID().toString(), order);
         });
         return order;

@@ -37,7 +37,7 @@ class DatabaseMigrationIT {
 
     @Test
     void flywayCreatesTenDomainTablesWithChecksAndIndexes() {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("4");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("5");
         assertThat(jdbc.queryForList("SELECT column_name FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='ticket_order' AND index_name='idx_order_user_session_status' ORDER BY seq_in_index", String.class))
                 .containsExactly("user_id", "session_id", "status", "id");
         flyway.validate();
@@ -88,6 +88,31 @@ class DatabaseMigrationIT {
         jdbc.update("UPDATE waitlist_entry SET status = 'CANCELLED' WHERE user_id = 900001");
         jdbc.update(insert);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM waitlist_entry WHERE user_id = 900001", Integer.class)).isEqualTo(2);
+    }
+
+    @Test
+    void reservedWaitlistMustReferenceTheExactOrderSku() {
+        insertOrder(900001, "REFERENCE-ORDER", "WAITLIST_CONFIRM");
+        jdbc.update("INSERT INTO ticket_order_item(order_id,sku_id,session_id,quantity,unit_price_cents,sku_name_snapshot) VALUES(900001,900001,900001,1,29900,'原票档')");
+        jdbc.update("INSERT INTO ticket_sku(id,session_id,name,price_cents,total_stock,sale_starts_at,sale_ends_at) VALUES(900002,900001,'其他票档',29900,10,'2029-01-01','2029-12-31')");
+        assertRejected("INSERT INTO waitlist_entry(user_id,sku_id,quantity,status,reserved_order_id,expires_at) VALUES(900001,900002,1,'ALLOCATED',900001,'2030-01-01')", 1452);
+        jdbc.update("INSERT INTO waitlist_entry(user_id,sku_id,quantity,status,reserved_order_id,expires_at) VALUES(900001,900001,1,'ALLOCATED',900001,'2030-01-01')");
+        assertRejected("UPDATE waitlist_entry SET sku_id=900002 WHERE reserved_order_id=900001", 1452);
+        assertRejected("UPDATE ticket_order_item SET sku_id=900002 WHERE order_id=900001", 1451);
+        assertThat(jdbc.queryForObject("SELECT sku_id FROM waitlist_entry WHERE reserved_order_id=900001", Long.class)).isEqualTo(900001L);
+    }
+
+    @Test
+    void compositeReferenceIndexesAndExistingOwnerConstraintRemainEffective() {
+        assertThat(jdbc.queryForList("SELECT column_name FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='ticket_order_item' AND index_name='uk_item_order_sku' ORDER BY seq_in_index", String.class))
+                .containsExactly("order_id", "sku_id");
+        assertThat(jdbc.queryForObject("SELECT MIN(non_unique) FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='ticket_order_item' AND index_name='uk_item_order_sku'", Integer.class)).isZero();
+        assertThat(jdbc.queryForList("SELECT column_name FROM information_schema.key_column_usage WHERE constraint_schema=DATABASE() AND constraint_name='fk_waitlist_order_sku' ORDER BY ordinal_position", String.class))
+                .containsExactly("reserved_order_id", "sku_id");
+        insertOrder(900001, "OWNER-ORDER", "WAITLIST_CONFIRM");
+        jdbc.update("INSERT INTO ticket_order_item(order_id,sku_id,session_id,quantity,unit_price_cents,sku_name_snapshot) VALUES(900001,900001,900001,1,29900,'原票档')");
+        jdbc.update("INSERT INTO user_account(id,username,password_hash) VALUES(900002,'另一集成用户','不可登录占位值')");
+        assertRejected("INSERT INTO waitlist_entry(user_id,sku_id,quantity,status,reserved_order_id,expires_at) VALUES(900002,900001,1,'ALLOCATED',900001,'2030-01-01')", 1452);
     }
 
     private void insertOrder(long id, String orderNo, String operation) {

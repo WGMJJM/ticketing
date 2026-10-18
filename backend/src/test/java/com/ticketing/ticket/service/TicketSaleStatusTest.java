@@ -41,11 +41,12 @@ class TicketSaleStatusTest {
         Activity activity = new Activity();
         activity.setStatus(activityState);
         ActivitySession session = new ActivitySession();
+        session.setId(1L);
         session.setStatus(sessionState);
         session.setSaleStartsAt(OPEN.minusDays(1));
         session.setStartsAt(OPEN.plusMinutes(60));
         session.setEndsAt(OPEN.plusMinutes(120));
-        TicketSku sku = new TicketSku();
+        TicketSku sku = fixtureSku();
         sku.setStatus(ticketState);
         sku.setSaleStartsAt(OPEN);
         sku.setSaleEndsAt(OPEN.plusMinutes(60));
@@ -60,11 +61,12 @@ class TicketSaleStatusTest {
         Activity activity = new Activity();
         activity.setStatus("PUBLISHED");
         ActivitySession session = new ActivitySession();
+        session.setId(1L);
         session.setStatus("SCHEDULED");
         session.setSaleStartsAt(OPEN.plusMinutes(10));
         session.setStartsAt(OPEN.plusHours(1));
         session.setEndsAt(OPEN.plusHours(2));
-        TicketSku sku = new TicketSku();
+        TicketSku sku = fixtureSku();
         sku.setStatus("ON_SALE");
         sku.setSaleStartsAt(OPEN);
         sku.setSaleEndsAt(OPEN.plusHours(1));
@@ -72,5 +74,15 @@ class TicketSaleStatusTest {
         session.setSaleStartsAt(OPEN);
         sku.setSaleEndsAt(OPEN.plusHours(2));
         assertThat(TicketService.saleStatus(activity, session, sku, OPEN)).isEqualTo(SaleStatus.UNAVAILABLE);
+    }
+    private TicketSku fixtureSku() {
+        TicketSku sku = new TicketSku();
+        sku.setId(1L);
+        sku.setPriceCents(12800L);
+        sku.setMaxQuantityPerOrder(4);
+        sku.setTotalStock(10);
+        sku.setLockedStock(0);
+        sku.setSoldStock(0);
+        return sku;
     }
 }

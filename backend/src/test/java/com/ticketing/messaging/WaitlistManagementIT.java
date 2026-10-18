@@ -1,12 +1,18 @@
-package com.ticketing.waitlist.messaging;
+package com.ticketing.messaging;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ticketing.auth.dto.RegisterRequest;
 import com.ticketing.auth.service.AccountService;
 import com.ticketing.order.service.OrderService;
-import com.ticketing.waitlist.entity.OutboxEvent;
-import com.ticketing.waitlist.mapper.OutboxMapper;
+import com.ticketing.messaging.OutboxPublisher;
+import com.ticketing.messaging.OutboxService;
+import com.ticketing.messaging.InventoryEvents;
+import com.ticketing.messaging.InventoryEvent;
+import com.ticketing.messaging.model.InventoryChangeReason;
+import com.ticketing.messaging.OutboxProperties;
+import com.ticketing.messaging.entity.OutboxEvent;
+import com.ticketing.messaging.mapper.OutboxMapper;
 import com.ticketing.waitlist.mapper.WaitlistMapper;
 import com.ticketing.waitlist.service.WaitlistCompensation;
 import com.ticketing.waitlist.service.WaitlistDispatcher;
@@ -56,6 +62,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doReturn;
@@ -79,7 +86,7 @@ class WaitlistManagementIT {
     @Autowired private OrderService orders;
     @Autowired private WaitlistService waitlists;
     @Autowired private OutboxService outbox;
-    @Autowired private InventoryEventWriter writer;
+    @Autowired private InventoryEvents writer;
     @Autowired private WaitlistCompensation compensation;
     @Autowired private RabbitTemplate rabbit;
     @Autowired private AmqpAdmin rabbitAdmin;
@@ -315,7 +322,7 @@ class WaitlistManagementIT {
         CachingConnectionFactory unavailable=new CachingConnectionFactory("127.0.0.1",1);
         try {
             unavailable.setConnectionTimeout(200);
-            new OutboxPublisher(outbox,new RabbitTemplate(unavailable),"ticketing.waitlist.it",1,100).publishBatch();
+            new OutboxPublisher(outbox,new RabbitTemplate(unavailable),"ticketing.waitlist.it",new OutboxProperties(1,100,30,3,2,300)).publishBatch();
         } finally { unavailable.destroy(); }
         assertThat(eventStatus()).isEqualTo("PENDING"); assertThat(event().getRetryCount()).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT next_retry_at>UTC_TIMESTAMP(6) FROM outbox_event WHERE id=?",Boolean.class,event().getId())).isTrue();
@@ -341,7 +348,7 @@ class WaitlistManagementIT {
         dueEvent(); OutboxEvent newer=outbox.claimNext(); assertThat(newer.getRetryCount()).isEqualTo(2);
         assertThat(outbox.sent(old)).isFalse(); outbox.failed(old);
         assertThat(eventStatus()).isEqualTo("PROCESSING");
-        dueEvent(); new OutboxPublisher(outbox,rabbit,"ticketing.waitlist.it",1,5000).publishBatch();
+        dueEvent(); new OutboxPublisher(outbox,rabbit,"ticketing.waitlist.it",new OutboxProperties(1,5000,30,3,2,300)).publishBatch();
         assertThat(eventStatus()).isEqualTo("SENT"); assertThat(event().getRetryCount()).isEqualTo(3);
         registry.start(); await(()->"ALLOCATED".equals(state(entry))); invariant(1,0); assertThat(orderCount()).isEqualTo(1);
     }
@@ -358,7 +365,7 @@ class WaitlistManagementIT {
         CachingConnectionFactory unavailable=new CachingConnectionFactory("127.0.0.1",1);
         try {
             unavailable.setConnectionTimeout(200);
-            OutboxPublisher failed=new OutboxPublisher(outbox,new RabbitTemplate(unavailable),"ticketing.waitlist.it",1,100);
+            OutboxPublisher failed=new OutboxPublisher(outbox,new RabbitTemplate(unavailable),"ticketing.waitlist.it",new OutboxProperties(1,100,30,3,2,300));
             for (int count=0;count<3;count++) { dueEvent(); failed.publishBatch(); }
         } finally { unavailable.destroy(); }
         assertThat(eventStatus()).isEqualTo("FAILED"); assertThat(event().getRetryCount()).isEqualTo(3);
@@ -396,9 +403,12 @@ class WaitlistManagementIT {
         b.call("POST","/orders/"+held.path("id").asText()+"/cancel",null,200); invariant(0,0); assertThat(eventCount()).isEqualTo(1);
     }
     @Test
-    void inconsistentReservedSkuLinkRejectsPaymentAndRollsBackEveryWrite() throws Exception {
+    void wrongSkuIsRejectedByForeignKeyAndQuantityMismatchRollsBackPayment() throws Exception {
         JsonNode entry=a.join(skuId,1,200); stock(1); dispatcher.dispatch(skuId); long order=reserved(entry); long different=sku();
-        jdbc.update("UPDATE waitlist_entry SET sku_id=? WHERE id=?",different,entry.path("id").asLong());
+        assertThatThrownBy(() -> jdbc.update("UPDATE waitlist_entry SET sku_id=? WHERE id=?", different, entry.path("id").asLong()))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        // 数量一致仍由同步候补协作校验，验证状态、库存、流水在异常时全部回滚。
+        jdbc.update("UPDATE waitlist_entry SET quantity=2 WHERE id=?", entry.path("id").asLong());
         a.call("POST","/orders/"+order+"/pay",null,409);
         a.call("GET","/waitlist/"+entry.path("id").asText(),null,409);
         assertThat(jdbc.queryForObject("SELECT status FROM ticket_order WHERE id=?",String.class,order)).isEqualTo("PENDING");
@@ -429,7 +439,7 @@ class WaitlistManagementIT {
     }
 
     private void clearEvents() { jdbc.update("DELETE FROM outbox_event WHERE aggregate_type='TICKET_SKU' AND aggregate_id=?",skuId); }
-    private void appendEvent() { new TransactionTemplate(transactions).executeWithoutResult(status->writer.append(skuId,"TEST_RECOVERY")); }
+    private void appendEvent() { new TransactionTemplate(transactions).executeWithoutResult(status->writer.append(skuId,InventoryChangeReason.STOCK_INCREASED)); }
     private OutboxEvent event() { return outboxMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<OutboxEvent>().eq(OutboxEvent::getAggregateId,skuId).eq(OutboxEvent::getAggregateType,"TICKET_SKU")); }
     private String eventStatus() { return event().getStatus(); }
     private void dueEvent() { jdbc.update("UPDATE outbox_event SET next_retry_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE aggregate_type='TICKET_SKU' AND aggregate_id=?",skuId); }
