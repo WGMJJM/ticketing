@@ -109,7 +109,7 @@ ticketing:
     compensation-poll-ms: ${WAITLIST_COMPENSATION_POLL_MS:60000}
     compensation-batch-size: 100
     outbox:
-      batch-size: 20
+      batch-size: ${WAITLIST_OUTBOX_BATCH_SIZE:100}
       lease-seconds: 30
       confirm-timeout-ms: 5000
       max-attempts: 10

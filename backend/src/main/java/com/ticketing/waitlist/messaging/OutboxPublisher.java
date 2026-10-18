@@ -23,7 +23,7 @@ public class OutboxPublisher {
     private final int confirmTimeout;
     public OutboxPublisher(OutboxService service,RabbitTemplate rabbit,
             @Value("${ticketing.waitlist.exchange:ticketing.waitlist}") String exchange,
-            @Value("${ticketing.waitlist.outbox.batch-size:20}") int batchSize,
+            @Value("${ticketing.waitlist.outbox.batch-size:100}") int batchSize,
             @Value("${ticketing.waitlist.outbox.confirm-timeout-ms:5000}") int confirmTimeout) {
         if (batchSize<1 || batchSize>100 || confirmTimeout<1) throw new IllegalArgumentException("Outbox批量及确认超时配置不正确");
         this.service=service; this.rabbit=rabbit; this.exchange=exchange; this.batchSize=batchSize; this.confirmTimeout=confirmTimeout;
@@ -48,7 +48,9 @@ public class OutboxPublisher {
                 LOG.warn("库存事件投递未确认，事件 {}，错误类型 {}",event.getEventId(),exception.getClass().getSimpleName());
                 try { service.failed(event); }
                 catch (RuntimeException databaseFailure) { LOG.warn("事件重试状态暂未写入，等待租约恢复，事件 {}",event.getEventId()); }
-                if (exception instanceof InterruptedException) { Thread.currentThread().interrupt(); break; }
+                if (exception instanceof InterruptedException) Thread.currentThread().interrupt();
+                // 大批量只用于健康链路；故障后结束本轮，后续认领留给下一次有界重试。
+                break;
             }
         }
     }
