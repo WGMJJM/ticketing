@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import type { Order } from '../api/orders'
-import { orderStatusText } from '../api/orders'
+import { orderStatusText, refundReasonText } from '../api/orders'
 import { formatCents } from '../utils/money'
 import { formatTime } from '../utils/date'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
-const props = defineProps<{ order: Order; detail?: boolean; busy?: boolean }>()
+const props = defineProps<{ order: Order; detail?: boolean; busy?: boolean; admin?: boolean }>()
 defineEmits<{ cancel: [order: Order]; pay: [order: Order] }>()
 const elapsed = ref(0)
 let receivedAt = performance.now()
@@ -44,7 +44,7 @@ const deadlinePassed = computed(
       {{ formatTime(order.sessionStartsAt) }}（北京时间）
     </p>
     <div class="order-line">
-      <strong>{{ order.skuName }} × {{ order.quantity }} 张</strong
+      <strong>{{ order.skuName ?? '订单明细缺失，待人工核对' }}<template v-if="order.quantity != null"> × {{ order.quantity }} 张</template></strong
       ><strong class="order-total">{{
         formatCents(order.totalAmountCents)
       }}</strong>
@@ -52,7 +52,7 @@ const deadlinePassed = computed(
     <dl>
       <div>
         <dt>下单单价</dt>
-        <dd>{{ formatCents(order.unitPriceCents) }} / 张</dd>
+        <dd>{{ order.unitPriceCents == null ? '待核对' : formatCents(order.unitPriceCents) + ' / 张' }}</dd>
       </div>
       <div>
         <dt>创建时间</dt>
@@ -93,9 +93,19 @@ const deadlinePassed = computed(
         </div>
       </dl>
     </section>
-    <div class="auth-links">
+    <section v-if="order.refund" class="payment-info refund-info" aria-label="模拟退款结果">
+      <h3>整单模拟退款已完成</h3>
+      <p>未发生实际资金退回。原模拟支付记录保留，本单电子票已作废。</p>
+      <dl>
+        <div><dt>退款流水号</dt><dd>{{ order.refund.refundNo }}</dd></div>
+        <div><dt>模拟退款金额</dt><dd>{{ formatCents(order.refund.amountCents) }}</dd></div>
+        <div><dt>处理原因</dt><dd>{{ refundReasonText[order.refund.reason] }}</dd></div>
+        <div><dt>处理时间</dt><dd>{{ formatTime(order.refund.refundedAt) }}（北京时间）</dd></div>
+      </dl>
+    </section>
+    <div v-if="!admin" class="auth-links">
       <RouterLink
-        v-if="order.status === 'PAID'"
+        v-if="order.status === 'PAID' || order.status === 'REFUNDED'"
         :to="{ path: '/tickets', query: { orderId: order.id } }"
         >查看本单电子票</RouterLink
       >

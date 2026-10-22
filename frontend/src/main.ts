@@ -11,6 +11,7 @@ import './ticket.css'
 import './auth.css'
 import './order.css'
 import './checkin.css'
+import './admin-orders.css'
 
 createApp(App)
   .use(createPinia())

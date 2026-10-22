@@ -50,6 +50,8 @@ const router = createRouter({
       component: () => import('../views/AdminActivitiesView.vue'),
       meta: { requiresAdmin: true },
     },
+    { path: '/admin/orders', component: () => import('../views/AdminOrdersView.vue'), meta: { requiresAdmin: true } },
+    { path: '/admin/orders/:id', component: () => import('../views/AdminOrdersView.vue'), props: true, meta: { requiresAdmin: true } },
     {
       path: '/tickets',
       component: () => import('../views/ElectronicTicketsView.vue'),

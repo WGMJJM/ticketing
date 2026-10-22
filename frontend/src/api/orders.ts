@@ -13,19 +13,37 @@ export interface Order {
   sessionId: string
   sessionTitle: string
   sessionStartsAt: string
-  skuId: string
-  skuName: string
-  quantity: number
-  unitPriceCents: string
+  skuId: string | null
+  skuName: string | null
+  quantity: number | null
+  unitPriceCents: string | null
   totalAmountCents: string
-  status: 'PENDING' | 'PAID' | 'CANCELLED' | 'EXPIRED'
+  status: 'PENDING' | 'PAID' | 'CANCELLED' | 'EXPIRED' | 'REFUNDED'
   createdAt: string
   expiresAt: string
   paymentDeadlinePassed: boolean
   canCancel: boolean
   canPay: boolean
   payment: Payment | null
+  refund: Refund | null
   serverTime: string
+}
+export interface Refund {
+  orderId: string
+  refundNo: string
+  paymentNo: string
+  amountCents: string
+  operatorId: string | null
+  reason: RefundReason
+  status: 'SUCCEEDED'
+  refundedAt: string
+  simulated: boolean
+}
+export type RefundReason = 'CUSTOMER_REQUEST' | 'SERVICE_ADJUSTMENT' | 'SESSION_CANCELLED'
+export const refundReasonText = {
+  CUSTOMER_REQUEST: '用户诉求售后',
+  SERVICE_ADJUSTMENT: '运营服务调整',
+  SESSION_CANCELLED: '场次取消善后',
 }
 export interface Payment {
   orderId: string
@@ -40,6 +58,7 @@ export const orderStatusText = {
   PAID: '已支付',
   CANCELLED: '已取消',
   EXPIRED: '已过期',
+  REFUNDED: '已模拟退款',
 }
 export const orderApi = {
   limits: (sessionId: string) =>

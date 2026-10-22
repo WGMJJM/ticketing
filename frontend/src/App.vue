@@ -42,6 +42,7 @@ const auth = useAuthStore()
         <RouterLink to="/waitlist">我的候补</RouterLink>
         <RouterLink to="/tickets">我的电子票</RouterLink>
         <RouterLink v-if="auth.isAdmin" to="/admin/activities">运营管理</RouterLink>
+        <RouterLink v-if="auth.isAdmin" to="/admin/orders">订单运营</RouterLink>
         <RouterLink v-if="auth.isAdmin" to="/admin/checkins">电子票核销</RouterLink>
       </nav>
       <main id="main-content">
