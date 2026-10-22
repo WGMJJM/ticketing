@@ -2,8 +2,8 @@ package com.ticketing;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ticketing.auth.dto.RegisterRequest;
-import com.ticketing.auth.service.AccountService;
+import com.ticketing.dto.RegisterRequest;
+import com.ticketing.service.AccountService;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
 import java.net.URI;

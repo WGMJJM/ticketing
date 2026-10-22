@@ -1,5 +1,7 @@
 # 当前 API 契约
 
+后端目录已统一为扁平技术分层，控制器位于`com.ticketing.controller`，服务位于`com.ticketing.service`，Mapper位于`com.ticketing.mapper`。本次仅调整Java包和源码位置，下面所有HTTP路径、请求响应、权限与CSRF约定保持不变；历史验收文档中的旧源码路径以当时提交为准，当前结构见[架构说明](01-architecture.md)。
+
 ## 第十阶段订单运营与模拟退款
 
 以下新增端点均在`/api/v1`下，沿用最新账号状态/ADMIN角色检查、Session和写请求CSRF，响应no-store。匿名401、普通用户403、非法参数400、状态冲突409，不返回票券凭证、摘要或认证信息。

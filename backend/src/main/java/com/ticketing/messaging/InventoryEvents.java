@@ -3,10 +3,10 @@ package com.ticketing.messaging;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ticketing.messaging.entity.OutboxEvent;
-import com.ticketing.messaging.mapper.OutboxMapper;
-import com.ticketing.messaging.model.InventoryChangeReason;
-import com.ticketing.messaging.model.OutboxStatus;
+import com.ticketing.entity.OutboxEvent;
+import com.ticketing.mapper.OutboxMapper;
+import com.ticketing.model.InventoryChangeReason;
+import com.ticketing.model.OutboxStatus;
 
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;

@@ -2,10 +2,10 @@ package com.ticketing;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ticketing.auth.dto.RegisterRequest;
-import com.ticketing.auth.security.AccountPrincipal;
-import com.ticketing.auth.service.AccountService;
-import com.ticketing.auth.service.AccountUserDetailsService;
+import com.ticketing.dto.RegisterRequest;
+import com.ticketing.security.AccountPrincipal;
+import com.ticketing.service.AccountService;
+import com.ticketing.service.AccountUserDetailsService;
 import org.junit.jupiter.api.BeforeEach;
 import java.util.Map;
 import java.util.UUID;

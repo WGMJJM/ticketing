@@ -1,7 +1,10 @@
 package com.ticketing.messaging;
 
-import com.ticketing.messaging.entity.OutboxEvent;
-import com.ticketing.messaging.model.OutboxStatus;
+import com.ticketing.config.OutboxProperties;
+import com.ticketing.service.OutboxService;
+
+import com.ticketing.entity.OutboxEvent;
+import com.ticketing.model.OutboxStatus;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

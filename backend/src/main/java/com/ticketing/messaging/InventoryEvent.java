@@ -1,6 +1,6 @@
 package com.ticketing.messaging;
 
-import com.ticketing.messaging.model.InventoryChangeReason;
+import com.ticketing.model.InventoryChangeReason;
 
 /** 保持第六阶段的消息类型、字段、路由和值，兼容已持久化的历史消息。 */
 public record InventoryEvent(String eventId, String skuId, InventoryChangeReason reason) {

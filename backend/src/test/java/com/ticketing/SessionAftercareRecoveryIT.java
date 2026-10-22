@@ -1,9 +1,9 @@
 package com.ticketing;
 
-import com.ticketing.auth.dto.RegisterRequest;
-import com.ticketing.auth.service.AccountService;
-import com.ticketing.order.dto.CreateOrderRequest;
-import com.ticketing.order.service.OrderService;
+import com.ticketing.dto.RegisterRequest;
+import com.ticketing.service.AccountService;
+import com.ticketing.dto.CreateOrderRequest;
+import com.ticketing.service.OrderService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;

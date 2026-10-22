@@ -1,5 +1,7 @@
 # 本地开发与验收
 
+Java源码按技术层扁平放置在`backend/src/main/java/com/ticketing`：控制器直接放入`controller`、服务直接放入`service`、数据访问直接放入`mapper`，不再创建业务子目录。新生产类须同步登记`backend/src/test/resources/architecture-modules.properties`中的逻辑业务归属；测试会检查目录、归属完整性、公开协作边界及循环依赖。详细结构见[架构说明](01-architecture.md)。
+
 环境：Java 21、Maven 3.9+、满足 Vite 的 Node（20.19+ 或 22.12+）、Docker Desktop 或 Docker Engine + Compose；Windows 推荐 PowerShell。`mvn -version` 显示的 Java 版本才是 Maven 实际使用版本。
 
 首次复制 `.env.example` 为 `.env` 并填写密码；当前本机已生成随机凭据，无需覆盖。Windows 在项目根目录执行：

@@ -2,12 +2,12 @@ package com.ticketing.config;
 
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
-import com.ticketing.common.api.ApiResponse;
+import com.ticketing.common.ApiResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ticketing.auth.dto.UserView;
-import com.ticketing.auth.security.AccountPrincipal;
-import com.ticketing.auth.security.CurrentAccountFilter;
-import com.ticketing.auth.mapper.UserAccountMapper;
+import com.ticketing.dto.UserView;
+import com.ticketing.security.AccountPrincipal;
+import com.ticketing.security.CurrentAccountFilter;
+import com.ticketing.mapper.UserAccountMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;

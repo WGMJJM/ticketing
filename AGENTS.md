@@ -3,7 +3,7 @@
 - 项目中文名称为「票务交易平台」，英文技术名为 `ticketing`，Java 根包统一为 `com.ticketing`。源码位于 `backend/src/main/java/com/ticketing`，测试位于 `backend/src/test/java/com/ticketing`，后续新增代码保持一致。
 - Java 21，遵循《阿里巴巴Java开发手册》；使用明确命名与必要的中文注释，DTO 优先使用 record。
 - 保持前后端分离、模块化单体架构，后端只有 `backend/pom.xml` 一个 Maven 模块。不得擅自引入微服务或额外基础设施。
-- 保留 `common/api`、`common/controller`、`config` 的分层；后续按 `auth/event/ticket/order/waitlist/checkin` 业务包逐步添加真实实现。
+- 按用户确认的技术分层组织目录：`controller`、`service`、`mapper` 各只有一个目录，类文件直接放入，不建立业务子目录。DTO、实体、状态、配置、安全、任务分别放在扁平的 `dto`、`entity`、`model`、`config`、`security`、`job`；共用响应归 `common`，协作契约归 `api`，消息收发归 `messaging`。保留现有业务类及职责，不把不同业务强行合并成单个类。
 - 不创建空接口、空 Store、多余工具类、无意义抽象、魔法值、硬编码凭据或虚假业务。不泛滥使用无依据的防御分支。
 - Flyway 已应用的迁移不可修改；当前V1至V6保持不变，后续必要变更新增V7及更高版本。不得迁移旧 `rrs` 项目代码和数据。
 - 第十阶段已授权整单模拟退款和场次取消善后，旧阶段“不开发退款”的边界不阻止本阶段实现；不接入真实支付或真实退款。V6增加REFUNDED、refund_record及order_aftercare，部署前只读执行scripts/audit-refund-readiness.sql和候补关联审计，异常只报告并停止，DDL失败保留现场，不自动repair或清库。
@@ -30,7 +30,7 @@
 - 压测稳定统计按请求完成时间截取预热后固定窗口，409须匹配预期业务错误码，5xx/超时/未知冲突单独失败。每轮一致性快照审计库存、订单、支付、限购、候补及电子票；报告同时记录Outbox积压和已投递延迟，不能用部分SENT样本掩盖积压。k6摘要必须删除setup_data，禁止导出Cookie、密码、有效凭证或签名密钥；业务标识不作为高基数标签。
 - Outbox健康批量默认100，可通过WAITLIST_OUTBOX_BATCH_SIZE配置1至100；消息投递故障后结束本轮，按既有退避/租约恢复，不连续认领大批故障事件。发布确认、递增认领令牌、至少一次与数据库幂等语义不变。后续工程调整必须保留第八阶段测量口径与原始结果，不自动开发真实支付或退款。
 - 第九阶段订单应用入口负责READ_COMMITTED事务，TradeResourceLocker维护交易锁序，OrderReservation共用预占/限购/幂等，OrderStateService编排终态。候补与电子票实现OrderLifecycle，在当前事务中先候补后出票；不得改成提交后异步联动，异常必须回滚。
-- 候补与核销只使用订单api/model/dto，不依赖订单内部service/mapper/entity；订单不依赖候补和核销实现。库存条件SQL归ticket，通用Outbox归messaging，候补消费者及补偿留在waitlist。ArchitectureRulesTest守住源码依赖无环及边界，不能用关闭规则掩盖循环依赖。
+- 技术目录合并后仍保留逻辑业务边界：候补与核销只使用订单协作契约、DTO、模型及公开的OrderReservation/TradeResourceLocker，不访问订单内部服务、Mapper或实体；订单不依赖候补和核销实现。库存条件SQL由TicketSkuMapper/TicketInventory负责，Outbox与候补消息职责不变。所有生产类须在测试资源architecture-modules.properties登记业务归属，ArchitectureRulesTest同时检查目录扁平、归属完整、依赖无环及协作边界，不得关闭规则或用错误归属掩盖依赖。
 - V5增加候补预留订单与SKU的复合外键及必需索引，保留原用户外键。部署前只读执行scripts/audit-waitlist-relations.sql，异常只报告并停止，不自动删除、覆盖或repair。数量及幂等关系继续由事务协作核对。第九阶段完成整体回归、迁移、性能复测及联调后停止。
 - 数据库 DATETIME(6) 统一为 UTC；外部日期带明确时区，用户界面使用 `zh-CN` 和 `Asia/Shanghai`。金额为人民币分整数，展示为 `¥` 与两位小数；BIGINT ID 通过字符串传输。
 - 用户可见文案统一简体中文；技术状态映射为中文，不泄漏内部异常或凭据。

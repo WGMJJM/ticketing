@@ -1,5 +1,7 @@
 # 数据库 V1 至 V6
 
+后端目录整理仅将实体和Mapper分别归入`com.ticketing.entity`、`com.ticketing.mapper`，未变更SQL、表结构或已执行迁移。V1～V6与整理前提交逐文件一致；本轮没有新增迁移，实际回归结果见[目录整理验收](20-flat-package-refactor-verification.md)。
+
 ## V6 整单模拟退款与场次善后
 
 `V6__order_refund_aftercare.sql`保留V1至V5原文，单条ALTER同时调整订单状态及支付时间CHECK：PAID和REFUNDED必须保留paid_at，其余状态仍要求为空。原payment_record不回写、不删成功事实。

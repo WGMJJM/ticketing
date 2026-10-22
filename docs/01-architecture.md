@@ -2,6 +2,29 @@
 
 项目保持Java21、Spring Boot3、MyBatis-Plus、MySQL、RabbitMQ和Spring Security Session的前后端分离模块化单体，后端只有backend/pom.xml一个Maven模块，根包com.ticketing。Vue3、TypeScript、Pinia和Element Plus继续调用原/api/v1接口，不增加微服务或新的业务模块。
 
+## 当前源码目录
+
+按用户确认统一使用技术分层目录。`controller`、`service`、`mapper`各只有一个目录，所有类直接放入，不按活动、订单或候补再嵌套子目录；类名与业务职责保持不变。业务边界是依赖规则，不再对应独立Java业务包。
+
+```text
+backend/src/main/java/com/ticketing/
+├── TicketingApplication.java
+├── controller/  所有HTTP控制器与异常处理
+├── service/     应用服务及已有事务协作
+├── mapper/      MyBatis数据访问
+├── dto/         请求与响应
+├── entity/      数据库实体
+├── model/       状态、操作域及不可变业务上下文
+├── api/         OrderLifecycle、SessionWindowGuard协作契约
+├── common/      ApiResponse、PageResponse、BusinessException
+├── config/      Spring配置、启动初始化及配置属性
+├── security/    身份、会话过滤及票券签名
+├── job/         有界后台任务
+└── messaging/   事件、发布器及消费者
+```
+
+Spring Boot、配置属性和Mapper仍从`com.ticketing`扫描。技术目录合并没有合并业务类，也没有改变接口、SQL、锁序、事务传播或数据库迁移。`architecture-modules.properties`仅用于测试，逐类登记原逻辑业务归属；守卫覆盖新类登记、同包省略import的依赖、订单公开协作边界及业务依赖无环。完整迁移与回归结果见[目录整理验收](20-flat-package-refactor-verification.md)。
+
 ## 第九阶段之前的依赖
 
 基准2c7b086中的箭头表示源码依赖。OrderService同时做资源锁定、预占、支付、关闭、候补联动与出票；候补和核销反向调用其内部锁上下文。SessionService直接查询票档Mapper，因此活动与票档也双向依赖。
@@ -19,7 +42,7 @@ graph LR
 
 ## 当前依赖与协作边界
 
-以下为重构后的主要编译依赖；常规common/api、DTO及配置依赖省略。源码守卫检查业务包无环，并禁止候补、核销访问订单service、mapper或entity。
+以下为当前逻辑业务依赖，节点表示业务归属而非Java目录；共用响应、DTO及配置依赖省略。源码守卫检查逻辑模块无环，候补、核销只能调用订单公开契约、模型、DTO及原有资源锁定/预占协作，不能直接访问订单内部服务、Mapper或实体。
 
 ```mermaid
 graph LR
@@ -53,8 +76,8 @@ SessionWindowGuard归活动模块定义，TicketService在场次UPDATE锁内校�
 | WaitlistOrderLifecycle | 订单锁之后核对候补用户、SKU、数量、幂等域及键，原子联动COMPLETED/EXPIRED |
 | TicketIssuer | 支付末端和历史补票共用的按明细序号幂等出票；两个事务入口调用同一个私有算法 |
 | ElectronicTicketService | 本人凭证及展示、核销和受控补票编排；只通过订单公开锁API协作 |
-| messaging | Outbox实体、Mapper、库存事件读写、认领、确认、重试及发布调度 |
-| waitlist.messaging | 候补特有RabbitMQ拓扑、消费者和分配触发 |
+| OutboxService、OutboxPublisher、OutboxMapper、OutboxPublishJob | Outbox库存事件读写、认领、确认、重试及发布调度，按技术职责分别位于service、messaging、mapper、job |
+| WaitlistRabbitConfig、InventoryConsumer | 候补特有RabbitMQ拓扑、消费者和分配触发，分别位于config、messaging |
 
 库存SQL从OrderMapper归回TicketSkuMapper，由TicketInventory使用。候补不再查询OrderMapper，也不依赖OrderService的内部record；核销不再重复实现订单加锁或为角色额外查询一次用户。销售状态计算集中于TicketSale，TicketService与预占/候补使用同一规则。删除重复的SaleContext/PurchaseContext、候补对预留订单的重复回读和限额校验中的冗余场次存在性查询；保留分配和最终预占各自必须重新检查的销售条件。
 
