@@ -1,0 +1,333 @@
+{
+  "readiness": {
+    "audit-refund-readiness.sql": {
+      "issues": [],
+      "count": 0
+    },
+    "audit-waitlist-relations.sql": {
+      "issues": [],
+      "count": 0
+    }
+  },
+  "browser": {
+    "auditResultSets": [
+      [],
+      [],
+      [],
+      [],
+      [],
+      []
+    ],
+    "orders": [
+      {
+        "status": "CANCELLED",
+        "count": 1
+      },
+      {
+        "status": "REFUNDED",
+        "count": 2
+      }
+    ],
+    "inventory": [
+      {
+        "id": 1,
+        "total_stock": 20,
+        "locked_stock": 0,
+        "sold_stock": 0
+      },
+      {
+        "id": 2,
+        "total_stock": 20,
+        "locked_stock": 0,
+        "sold_stock": 0
+      }
+    ],
+    "stockReconciliation": [
+      {
+        "id": 1,
+        "pending": "0",
+        "paid": "0",
+        "locked_stock": 0,
+        "sold_stock": 0
+      },
+      {
+        "id": 2,
+        "pending": "0",
+        "paid": "0",
+        "locked_stock": 0,
+        "sold_stock": 0
+      }
+    ],
+    "facts": [
+      {
+        "id": 1,
+        "status": "REFUNDED",
+        "paid_at": "2026-10-22 14:41:58.213896",
+        "payment_status": "SUCCEEDED",
+        "payment_amount": 12900,
+        "refund_amount": 12900,
+        "reason": "SESSION_CANCELLED"
+      },
+      {
+        "id": 2,
+        "status": "CANCELLED",
+        "paid_at": null,
+        "payment_status": null,
+        "payment_amount": null,
+        "refund_amount": null,
+        "reason": null
+      },
+      {
+        "id": 3,
+        "status": "REFUNDED",
+        "paid_at": "2026-10-22 14:44:02.731672",
+        "payment_status": "SUCCEEDED",
+        "payment_amount": 12900,
+        "refund_amount": 12900,
+        "reason": "CUSTOMER_REQUEST"
+      }
+    ],
+    "tickets": [
+      {
+        "status": "VOID",
+        "count": 2
+      }
+    ],
+    "outbox": [
+      {
+        "status": "SENT",
+        "count": 3
+      }
+    ],
+    "migrations": [
+      {
+        "version": "1",
+        "success": 1
+      },
+      {
+        "version": "2",
+        "success": 1
+      },
+      {
+        "version": "3",
+        "success": 1
+      },
+      {
+        "version": "4",
+        "success": 1
+      },
+      {
+        "version": "5",
+        "success": 1
+      },
+      {
+        "version": "6",
+        "success": 1
+      }
+    ]
+  },
+  "plans": {
+    "before204Orders": {
+      "admin_list": [
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "s",
+          "partitions": null,
+          "type": "index",
+          "possible_keys": "PRIMARY",
+          "key": "idx_session_activity_start",
+          "key_len": "24",
+          "ref": null,
+          "rows": 1,
+          "filtered": 100.0,
+          "Extra": "Using index; Using temporary; Using filesort"
+        },
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "i",
+          "partitions": null,
+          "type": "index",
+          "possible_keys": "uk_item_order,uk_item_order_sku,idx_item_order_session",
+          "key": "uk_item_order",
+          "key_len": "8",
+          "ref": null,
+          "rows": 200,
+          "filtered": 100.0,
+          "Extra": "Using index; Using join buffer (hash join)"
+        },
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "o",
+          "partitions": null,
+          "type": "eq_ref",
+          "possible_keys": "PRIMARY,uk_order_idempotency,uk_order_id_session,uk_order_id_user,idx_order_user_created,idx_order_session,idx_order_user_session_status",
+          "key": "PRIMARY",
+          "key_len": "8",
+          "ref": "ticketing_perf.i.order_id",
+          "rows": 1,
+          "filtered": 100.0,
+          "Extra": "Using where"
+        },
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "u",
+          "partitions": null,
+          "type": "eq_ref",
+          "possible_keys": "PRIMARY",
+          "key": "PRIMARY",
+          "key_len": "8",
+          "ref": "ticketing_perf.o.user_id",
+          "rows": 1,
+          "filtered": 100.0,
+          "Extra": "Using index"
+        }
+      ],
+      "aftercare_scan": [
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "o",
+          "partitions": null,
+          "type": "range",
+          "possible_keys": "PRIMARY,uk_order_id_session,uk_order_id_user,idx_order_expiry,idx_order_session",
+          "key": "PRIMARY",
+          "key_len": "8",
+          "ref": null,
+          "rows": 204,
+          "filtered": 51.5,
+          "Extra": "Using where; Using temporary; Using filesort"
+        },
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "s",
+          "partitions": null,
+          "type": "ALL",
+          "possible_keys": "PRIMARY",
+          "key": null,
+          "key_len": null,
+          "ref": null,
+          "rows": 1,
+          "filtered": 100.0,
+          "Extra": "Using where; Using join buffer (hash join)"
+        }
+      ]
+    },
+    "afterBrowserFixture": {
+      "admin_list": [
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "s",
+          "partitions": null,
+          "type": "index",
+          "possible_keys": "PRIMARY",
+          "key": "idx_session_activity_start",
+          "key_len": "24",
+          "ref": null,
+          "rows": 2,
+          "filtered": 100.0,
+          "Extra": "Using index; Using temporary; Using filesort"
+        },
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "o",
+          "partitions": null,
+          "type": "ALL",
+          "possible_keys": "uk_order_idempotency,idx_order_user_created,idx_order_session,idx_order_user_session_status",
+          "key": null,
+          "key_len": null,
+          "ref": null,
+          "rows": 3,
+          "filtered": 50.0,
+          "Extra": "Using where; Using join buffer (hash join)"
+        },
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "u",
+          "partitions": null,
+          "type": "eq_ref",
+          "possible_keys": "PRIMARY",
+          "key": "PRIMARY",
+          "key_len": "8",
+          "ref": "ticketing_stage10_browser.o.user_id",
+          "rows": 1,
+          "filtered": 100.0,
+          "Extra": "Using index"
+        },
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "i",
+          "partitions": null,
+          "type": "eq_ref",
+          "possible_keys": "uk_item_order,uk_item_order_sku,idx_item_order_session",
+          "key": "uk_item_order",
+          "key_len": "8",
+          "ref": "ticketing_stage10_browser.o.id",
+          "rows": 1,
+          "filtered": 100.0,
+          "Extra": "Using index"
+        }
+      ],
+      "aftercare_scan": [
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "s",
+          "partitions": null,
+          "type": "ref",
+          "possible_keys": "PRIMARY,idx_session_status",
+          "key": "idx_session_status",
+          "key_len": "66",
+          "ref": "const",
+          "rows": 1,
+          "filtered": 100.0,
+          "Extra": "Using index; Using temporary; Using filesort"
+        },
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "o",
+          "partitions": null,
+          "type": "ref",
+          "possible_keys": "PRIMARY,uk_order_id_session,uk_order_id_user,idx_order_expiry,idx_order_session",
+          "key": "idx_order_session",
+          "key_len": "8",
+          "ref": "ticketing_stage10_browser.s.id",
+          "rows": 1,
+          "filtered": 66.67,
+          "Extra": "Using index condition; Using where"
+        },
+        {
+          "id": 1,
+          "select_type": "SIMPLE",
+          "table": "c",
+          "partitions": null,
+          "type": "eq_ref",
+          "possible_keys": "PRIMARY",
+          "key": "PRIMARY",
+          "key_len": "8",
+          "ref": "ticketing_stage10_browser.o.id",
+          "rows": 1,
+          "filtered": 100.0,
+          "Extra": "Using where"
+        }
+      ]
+    }
+  },
+  "orderDdl": "CREATE TABLE `ticket_order` (\n  `id` bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '订单主键',\n  `order_no` varchar(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '唯一订单号',\n  `user_id` bigint unsigned NOT NULL COMMENT '下单用户',\n  `session_id` bigint unsigned NOT NULL COMMENT '订单所属唯一场次',\n  `status` varchar(16) NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING 待支付，PAID 已支付，CANCELLED 取消，EXPIRED 超时',\n  `total_amount_cents` bigint NOT NULL COMMENT '下单时应付金额快照，人民币分',\n  `idempotency_operation` varchar(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '业务操作域，如 CREATE_ORDER',\n  `idempotency_key` varchar(128) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '用户提交的幂等键',\n  `request_hash` binary(32) NOT NULL COMMENT '规范化请求参数 SHA-256，检测同键异参',\n  `expires_at` datetime(6) NOT NULL COMMENT '支付截止时间 UTC',\n  `paid_at` datetime(6) DEFAULT NULL COMMENT '支付完成时间 UTC',\n  `created_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) COMMENT '创建时间 UTC',\n  `updated_at` datetime(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6) COMMENT '更新时间 UTC',\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `uk_order_no` (`order_no`),\n  UNIQUE KEY `uk_order_idempotency` (`user_id`,`idempotency_operation`,`idempotency_key`),\n  UNIQUE KEY `uk_order_id_session` (`id`,`session_id`),\n  UNIQUE KEY `uk_order_id_user` (`id`,`user_id`),\n  KEY `idx_order_user_created` (`user_id`,`created_at`,`id`),\n  KEY `idx_order_expiry` (`status`,`expires_at`,`id`),\n  KEY `idx_order_session` (`session_id`),\n  KEY `idx_order_user_session_status` (`user_id`,`session_id`,`status`,`id`),\n  KEY `idx_order_admin_created` (`created_at`,`id`),\n  CONSTRAINT `fk_order_session` FOREIGN KEY (`session_id`) REFERENCES `activity_session` (`id`),\n  CONSTRAINT `fk_order_user` FOREIGN KEY (`user_id`) REFERENCES `user_account` (`id`),\n  CONSTRAINT `ck_order_amount` CHECK ((`total_amount_cents` >= 0)),\n  CONSTRAINT `ck_order_expiry` CHECK ((`expires_at` > `created_at`)),\n  CONSTRAINT `ck_order_paid_time` CHECK ((((`status` in (_utf8mb4'PAID',_utf8mb4'REFUNDED')) and (`paid_at` is not null)) or ((`status` not in (_utf8mb4'PAID',_utf8mb4'REFUNDED')) and (`paid_at` is null)))),\n  CONSTRAINT `ck_order_status` CHECK ((`status` in (_utf8mb4'PENDING',_utf8mb4'PAID',_utf8mb4'CANCELLED',_utf8mb4'EXPIRED',_utf8mb4'REFUNDED')))\n) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='票务订单及幂等记录'",
+  "unchangedMigrations": {
+    "V1__ticketing_schema.sql": true,
+    "V2__activity_session_management.sql": true,
+    "V3__ticket_sku_version.sql": true,
+    "V4__order_user_session_index.sql": true,
+    "V5__waitlist_order_sku_reference.sql": true
+  }
+}

@@ -1,0 +1,190 @@
+{
+  "date": "2026-10-22",
+  "baseline": "d959cfff05c695cc3d0bfb9cbd0c1efa627ce517",
+  "unit": {
+    "totals": {
+      "tests": 50,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "suites": [
+      {
+        "name": "com.ticketing.ApiResponseTest",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.ticketing.ArchitectureRulesTest",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.ticketing.auth.security.CurrentAccountFilterTest",
+        "tests": "18",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.ticketing.checkin.TicketCredentialSignerTest",
+        "tests": "5",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.ticketing.ConfigurationBindingTest",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.ticketing.messaging.InventoryEventTest",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.ticketing.messaging.OutboxPublisherTest",
+        "tests": "3",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.ticketing.order.OrderStatusTest",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.ticketing.SystemControllerTest",
+        "tests": "3",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.ticketing.ticket.service.TicketSaleStatusTest",
+        "tests": "15",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      }
+    ]
+  },
+  "integration": {
+    "totals": {
+      "tests": 132,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "suites": [
+      {
+        "name": "com.ticketing.ActivityManagementIT",
+        "tests": "6",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.ticketing.AuthenticationIT",
+        "tests": "13",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.ticketing.checkin.ElectronicTicketIT",
+        "tests": "25",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.ticketing.DatabaseMigrationIT",
+        "tests": "7",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.ticketing.messaging.WaitlistManagementIT",
+        "tests": "25",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.ticketing.OrderAftercareIT",
+        "tests": "18",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.ticketing.OrderExpiryRecoveryIT",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.ticketing.OrderManagementIT",
+        "tests": "25",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.ticketing.RefundMigrationIT",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.ticketing.SessionAftercareRecoveryIT",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.ticketing.SessionCookieIT",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "com.ticketing.TicketManagementIT",
+        "tests": "8",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      }
+    ]
+  },
+  "command": "python scripts/verify-aftercare.py → powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-backend.ps1 -VerifyDatabase",
+  "database": "独立ticketing_perf_aftercare_it，新建V1至V6；历史/失败探针另用随机schema",
+  "backendVerify": "mvn -f backend/pom.xml clean verify 成功",
+  "frontend": {
+    "npmCi": "成功，143包、0漏洞",
+    "build": "严格TypeScript与Vite生产构建成功"
+  },
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python": "3.12.10",
+  "currentJarSha256": "77112d1f7a10a2e61900de597a697a313e41fab32b12eec3adb7c0165209a476",
+  "java": "java version \"21.0.10\" 2026-01-20 LTS",
+  "sensitiveOutputsSaved": false
+}

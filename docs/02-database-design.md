@@ -1,6 +1,20 @@
-# 数据库 V1 至 V5
+# 数据库 V1 至 V6
 
-迁移文件位于 `backend/src/main/resources/db/migration/`。使用 MySQL 8.4（最低需正确执行 CHECK 的 MySQL 8.0.16+）、InnoDB、utf8mb4、DATETIME(6)。Flyway校验已应用迁移，V1至V5禁止覆盖；后续结构变化新增V6及更高版本。无业务种子数据。
+## V6 整单模拟退款与场次善后
+
+`V6__order_refund_aftercare.sql`保留V1至V5原文，单条ALTER同时调整订单状态及支付时间CHECK：PAID和REFUNDED必须保留paid_at，其余状态仍要求为空。原payment_record不回写、不删成功事实。
+
+refund_record按order_id唯一，refund_no唯一，保存原payment_id外键、服务端整单金额、操作人（系统任务为NULL）、受控原因、SUCCEEDED状态及UTC处理时间。退款不是第三方资金回执；一单不允许多条退款或部分金额。原支付与订单、金额与数量快照的跨表关系由同一事务核验，唯一键负责并发最终兜底。
+
+order_aftercare按订单主键保存RETRY/MANUAL_REQUIRED/COMPLETED、受控中文原因、尝试次数、最近尝试与下次重试。RETRY必须有next_retry_at，其余必须为空；按(status,next_retry_at,order_id)索引保留重试查询入口。人工待办保留已核销/异常票与原支付、库存事实，不自动删改或假装已经退款。
+
+退款仅在全部正确票券UNUSED时PAID→REFUNDED，库存执行带`sold_stock>=quantity`条件的sold减量，locked不变，总库存不变。逐张锁定并核对数量、序号、明细、用户、SKU和摘要，再按UNUSED条件批量VOID且检查行数；库存、票券、流水、Outbox及售后结果全部原子提交。用户锁内的PENDING/PAID数量统计自然排除REFUNDED；候补COMPLETED关系保留。取消场次即使释放数量也不恢复销售或候补分配。
+
+新增全局运营排序索引`idx_order_admin_created(created_at,id)`及取消场次候选入口`idx_session_status(status,id)`。变更前专用V5库204笔订单的EXPLAIN显示全局创建时间排序与取消场次入口缺失；本阶段保留实际前后计划，不据此虚构吞吐收益。原用户、到期、会话、V5候补复合外键和全部库存CHECK保持。
+
+部署前对目标V5库只读执行`scripts/audit-refund-readiness.sql`与`scripts/audit-waitlist-relations.sql`，检查原支付/票券数量/明细/库存和候补关联；异常停止升级并人工核对。V6后执行`scripts/audit-order-aftercare.sql`检查退款与支付、VOID、候补及库存，最后的人工/重试列表是运营待办，不代表可自动覆盖。MySQL各DDL可能已提交，文件中途失败后保留业务表、冲突表和Flyway失败记录，不自动repair、drop或重建。验收使用独立空库、含已付历史的V5随机schema与故意DDL冲突schema。
+
+迁移文件位于 `backend/src/main/resources/db/migration/`。使用 MySQL 8.4（最低需正确执行 CHECK 的 MySQL 8.0.16+）、InnoDB、utf8mb4、DATETIME(6)。Flyway校验已应用迁移，V1至V6禁止覆盖；后续结构变化新增V7及更高版本。无业务种子数据。
 
 V2 新增 `V2__activity_session_management.sql`，V1 保持不变。V2 复用 description 作为详情，增加 summary、cover_url、published_at、version；活动状态为 DRAFT/PUBLISHED/OFFLINE，兼容将旧 CANCELLED 转为 OFFLINE。增加 `(status,published_at,id)` 支持公开列表排序。场次增加 sale_starts_at、version 及开售早于开始的 CHECK；旧数据按开始前30天补齐开售时间，新建必须输入。更新时间与版本由业务操作显式更新。
 
@@ -45,7 +59,7 @@ V2 新增 `V2__activity_session_management.sql`，V1 保持不变。V2 复用 de
 
 统一锁序为user_account UPDATE→activity SHARE→activity_session SHARE→ticket_sku UPDATE→已有ticket_order UPDATE。活动变更只锁活动；管理场次/票档先活动SHARE、再场次UPDATE、再SKU更新，防止下架、取消或改窗口与下单交叉；初次不加锁查询只发现不可变的父级ID，锁定后读取最新状态。管理员库存更新保留version及 `total_stock>=locked_stock+sold_stock` 条件；与预占竞争后可能409，不能覆盖已有锁定量。
 
-主动取消同样先锁用户及父级/SKU再锁订单，仅PENDING允许转CANCELLED，条件释放locked_stock且检查受影响行数。重复取消CANCELLED直接返回原结果，其他状态409；释放与状态更新同事务回滚。活动下架或场次取消不立即处理旧订单，但不阻止用户主动取消或截止后自动回收。
+主动取消同样先锁用户及父级/SKU再锁订单，仅PENDING允许转CANCELLED，条件释放locked_stock且检查受影响行数。重复取消CANCELLED直接返回原结果，其他状态409；释放与状态更新同事务回滚。活动下架不自动处理旧订单；场次取消后由第十阶段善后任务逐单关闭或模拟退款，不在管理员取消事务内遍历。
 
 模拟支付在相同锁序下先核对本人和PENDING状态及活动PUBLISHED/场次SCHEDULED，再执行 `UPDATE ticket_order SET status='PAID',paid_at=UTC_TIMESTAMP(6) ... WHERE status='PENDING' AND expires_at>UTC_TIMESTAMP(6)`。数据库在等锁后作实际截止判断；成功再条件更新SKU locked减quantity、sold加quantity，并插入SUCCEEDED支付流水。支付金额取订单总额快照，支付时间与订单paid_at一致；三个写入任何失败均回滚。支付不重新消耗可售库存，也不受SKU当前停售窗口影响，已经PAID的重试直接返回原流水。支付/取消/过期共同争夺同一用户和订单行，只能从PENDING到一个终态。
 

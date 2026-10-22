@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-22",
+  "environment": "独立ticketing_stage10_browser数据库与本机8080/15173",
+  "method": "浏览器真实页面操作、真实Session与CSRF，最终通过只读SQL审计",
+  "checks": [
+    {"name":"买家登录并选择活动、场次及票档","passed":true},
+    {"name":"确认创建真实订单3并完成模拟支付","passed":true},
+    {"name":"退出后使用管理员登录并按完整订单号筛选","passed":true},
+    {"name":"订单详情核对支付快照与1张未用电子票","passed":true},
+    {"name":"管理员确认整单模拟退款，显示原支付及退款流水、作废数量1","passed":true},
+    {"name":"管理员取消场次2并查询订单运营，订单1已退款、订单2已取消","passed":true},
+    {"name":"切回买家，订单3显示已模拟退款，原成功支付事实仍可查询","passed":true},
+    {"name":"本单电子票显示已作废且不显示二维码，页面刷新会话恢复正常","passed":true},
+    {"name":"普通用户访问/admin/orders跳转/profile?denied=1","passed":true}
+  ],
+  "finalDatabase": {
+    "orders": {"REFUNDED":2,"CANCELLED":1},
+    "voidTickets":2,
+    "successfulPaymentsPreserved":2,
+    "successfulRefunds":2,
+    "outboxSent":3,
+    "bothSkusLockedAndSold":0,
+    "auditIssues":0
+  },
+  "credentialsOrQrStored":false
+}

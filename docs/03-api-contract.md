@@ -1,5 +1,23 @@
 # 当前 API 契约
 
+## 第十阶段订单运营与模拟退款
+
+以下新增端点均在`/api/v1`下，沿用最新账号状态/ADMIN角色检查、Session和写请求CSRF，响应no-store。匿名401、普通用户403、非法参数400、状态冲突409，不返回票券凭证、摘要或认证信息。
+
+| 方法与路径 | 请求与响应 |
+| --- | --- |
+| GET /admin/orders | page默认1、1至10000；size默认10、1至50。可选orderNo/username精确匹配（最多64位）、正整数userId/activityId/sessionId、订单status、带时区createdFrom/createdTo。创建时间左闭右开，结束必须晚于开始；按created_at和id降序稳定分页 |
+| GET /admin/orders/{id} | summary、waitlist、tickets、refund、aftercare；summary包含order、字符串userId、username、paidAt。tickets仅total/unused/used/voided数量，waitlist仅ID、状态和预留关联；不含入场凭证 |
+| POST /admin/orders/{id}/refund | JSON仅`{"reason":"CUSTOMER_REQUEST"}`，可选原因CUSTOMER_REQUEST、SERVICE_ADJUSTMENT、SESSION_CANCELLED；最后一种只允许场次已取消。拒绝金额、用户ID、操作人、状态及任何其他字段 |
+
+退款返回`{status,refund,aftercare}`。status为SUCCEEDED表示整单模拟退款已完成；重复成功返回原refundNo和退款记录，不再改变库存。MANUAL_REQUIRED表示未退款，aftercare提供原因，订单仍PAID、票券和支付不变。PENDING/CANCELLED/EXPIRED不能退款，409 REFUND_STATE_CONFLICT。
+
+refund包含字符串orderId/refundNo/paymentNo/amountCents/operatorId（系统NULL）、reason、status=SUCCEEDED、refundedAt及simulated=true；不会伪造第三方资金回执。aftercare包含status=RETRY/MANUAL_REQUIRED/COMPLETED、reasonCode、中文message、attemptCount、lastAttemptAt、nextRetryAt。管理员主动退款也会留下可查人工待办，自动任务不无限重试人工状态；运营核对并修复原因后可重新明确提交模拟退款，不提供绕过已核销检查的强制接口。
+
+用户订单新增refund（未退款为NULL）。REFUNDED显示“已模拟退款”，保留原payment；本单电子票为VOID，凭证接口409，不再提供二维码。历史异常明细缺失时skuId/skuName/quantity/unitPriceCents为NULL，显示待核对，canPay和canCancel为false，不伪造金额或数量；管理员可查询对应人工待办。
+
+取消场次接口仍只快速持久化CANCELLED并返回场次；后台有界逐单处理PENDING→CANCELLED或PAID→REFUNDED。已核销、缺票及异常订单保留MANUAL_REQUIRED；已禁用买家不阻止善后。可刷新运营订单详情读取结果，不能把场次取消响应当作全场退款已完成。活动OFFLINE不触发自动售后。
+
 统一前缀 /api/v1。成功响应为ApiResponse的code=OK、message=操作成功、data=结果；业务错误沿用同一结构，data为null。使用400参数错误、401未认证或账号失效、403无权限或CSRF无效、404资源不存在或订单不属于本人、409库存/限购/幂等/状态/版本冲突、500服务内部异常。错误文案为中文，不返回SQL或堆栈。
 
 ## 已实现公开读取
@@ -101,7 +119,7 @@ skuId为正十进制字符串且不能超过Java long，quantity为正INT整数�
 
 OrderView字段：id/orderNo/activityId/activityTitle/sessionId/sessionTitle/sessionStartsAt/skuId/skuName/quantity/unitPriceCents/totalAmountCents/status/createdAt/expiresAt/paymentDeadlinePassed/canCancel/canPay/payment/serverTime。ID和金额分为字符串，数量为整数，时间UTC带Z、页面北京时间。skuName、单价和数量来自下单明细快照，活动/场次名称及开始时间是当前关联资料。总额为服务端单价乘数量，不采用客户端预计金额。payment无成功流水时为null，否则为PaymentView，列表通过JOIN读取，不逐订单额外查询。
 
-状态为PENDING（待支付）、PAID（已支付）、CANCELLED（已取消）、EXPIRED（已过期），只允许从PENDING转一个终态。支付窗口配置 `ticketing.order.payment-window-minutes` 默认15分钟；创建及查询使用MySQL UTC时间。PENDING截止前且活动PUBLISHED、场次SCHEDULED时canPay=true；所有PENDING仍可主动取消，其他状态canCancel=false。超过截止但扫描尚未处理的PENDING仍占库存与限额，paymentDeadlinePassed=true且不能支付；只有收到EXPIRED才展示已过期。前端以serverTime和单调计时推进支付按钮的禁用提示，不能自行修改订单终态。
+状态为PENDING（待支付）、PAID（已支付）、CANCELLED（已取消）、EXPIRED（已过期）、REFUNDED（已模拟退款）。PENDING仅可支付、取消或过期，PAID仅能经管理员/场次善后整单模拟退款；REFUNDED不可支付或取消。支付窗口配置 `ticketing.order.payment-window-minutes` 默认15分钟；创建及查询使用MySQL UTC时间。PENDING截止前且活动PUBLISHED、场次SCHEDULED时canPay=true；明细完整的PENDING仍可主动取消，其他状态canCancel=false。超过截止但扫描尚未处理的PENDING仍占库存与限额，paymentDeadlinePassed=true且不能支付；只有收到EXPIRED才展示已过期。前端以serverTime和单调计时推进支付按钮的禁用提示，不能自行修改订单终态。
 
 ## 模拟支付与自动超时关闭
 
@@ -179,7 +197,7 @@ TICKET_BACKFILL_ENABLED默认false，显式开启后启动扫描PAID订单，默
 
 ## 当前边界
 
-电子票签发、展示与核销已实现。第八阶段继续使用所有既有业务接口、Session、CSRF和统一中文错误，没有增加生产业务接口。模拟支付不产生实际扣款，真实支付与退款尚未开发，不自动推进架构重构。
+电子票签发、展示与核销已实现。模拟支付不产生实际扣款，第十阶段整单模拟退款也不发生真实资金退回；真实支付平台和资金退款尚未接入。
 
 ## 第八阶段独立压测监测
 

@@ -103,4 +103,16 @@ Session、CSRF、中文页面、北京时间、人民币分和BIGINT字符串规
 - [mall订单服务](https://github.com/macrozheng/mall/blob/dcaa93b3150352e5044708d7211b5bed0af4509f/mall-portal/src/main/java/com/macro/mall/portal/service/impl/OmsPortalOrderServiceImpl.java)可对照确认下单、锁库存、取消释放等职责。本项目保持自己的条件SQL、事务和MySQL可靠关单，不移植延迟发送或其他商城规则。
 - [RuoYi-Vue-Plus用户服务](https://github.com/dromara/RuoYi-Vue-Plus/blob/9227f626a3a37e1546d6c291ed398183e94df92b/ruoyi-modules/ruoyi-system/src/main/java/org/dromara/system/service/impl/SysUserServiceImpl.java)展示服务入口内显式维护关联及事务边界；本项目只采用必要的公开DTO/协作契约，不扩充权限框架、接口实现层或多模块结构。
 
-第八阶段原始报告保留，热点SKU锁竞争及用户跨场次串行仍是当前协议代价。第九阶段的具体回归、迁移、性能对照与浏览器结果见[架构重构验收](16-architecture-verification.md)。本轮不开发真实支付、退款或其他新业务。
+第八阶段原始报告保留，热点SKU锁竞争及用户跨场次串行仍是当前协议代价。第九阶段的具体回归、迁移、性能对照与浏览器结果见[架构重构验收](16-architecture-verification.md)。第十阶段增加下述售后能力，仍不接入真实支付或真实资金退款。
+
+## 第十阶段订单运营与售后
+
+AdminOrderService提供校验分页、精确筛选和只读明细投影，包含支付、候补、票券状态数量与售后结果，不导出凭证。所有端点在原/admin/**匹配器内复查最新账号，写操作沿用Session和CSRF。
+
+OrderRefundService是整单模拟退款及场次善后的READ_COMMITTED应用入口，不把职责塞回OrderService。依赖方向保持order→ticket/messaging，waitlist/checkin→order公开协作接口；订单不引用候补或票券实现。OrderLifecycle增加锁内退款检查，先候补关联后票券，检查成功后同事务PAID→REFUNDED、sold减量、票券UNUSED→VOID、唯一refund_record、Outbox及售后结果。原SUCCEEDED支付和paid_at保持不变；REFUNDED不再占场次限额。候补完成事实仍为COMPLETED，不重新排队。
+
+用户行阶段同时涉及管理员和买家时按ID递增获取，并复查操作人ACTIVE/ADMIN，随后严格活动SHARE→场次SHARE→SKU UPDATE→订单UPDATE→候补→电子票。系统善后仅锁买家，不检查其ACTIVE。退款与核销共用父级、SKU和订单锁，最多产生一次退款或核销效果。缺失明细时没有可锁SKU，仍按用户→父级→订单锁定，只记录人工待办，不猜测数量释放库存。
+
+SessionService.cancel仍仅提交不可恢复的CANCELLED，不遍历订单。SessionAftercareJob每轮至多100单（1至500可配），调用代理服务逐单提交：PENDING转CANCELLED并释放locked，PAID走统一退款。已用票、缺票及关联异常持久化MANUAL_REQUIRED；临时失败在已回滚之后另开正常应用事务记录RETRY，默认30秒指数退避、最多5次、上限1小时，超限转人工，不阻塞后单。候选状态、截止和重试均在数据库，内存游标仅用于公平扫描；启动即扫描、失败前进并回绕，重启可补偿。活动OFFLINE不会进入此任务。
+
+AdminOrdersView负责筛选与稳定分页，AdminOrderDetail负责明细、受控原因和确认退款。复用OrderCard与中文视觉风格，用户订单展示原支付及模拟退款流水，VOID电子票不再生成入场凭证。未实现人工售后审批/补偿操作、部分退款或第三方资金结算。

@@ -5,7 +5,10 @@
 - 保持前后端分离、模块化单体架构，后端只有 `backend/pom.xml` 一个 Maven 模块。不得擅自引入微服务或额外基础设施。
 - 保留 `common/api`、`common/controller`、`config` 的分层；后续按 `auth/event/ticket/order/waitlist/checkin` 业务包逐步添加真实实现。
 - 不创建空接口、空 Store、多余工具类、无意义抽象、魔法值、硬编码凭据或虚假业务。不泛滥使用无依据的防御分支。
-- Flyway 已应用的迁移不可修改；当前V1至V5保持不变，后续必要变更新增V6及更高版本。不得迁移旧 `rrs` 项目代码和数据。
+- Flyway 已应用的迁移不可修改；当前V1至V6保持不变，后续必要变更新增V7及更高版本。不得迁移旧 `rrs` 项目代码和数据。
+- 第十阶段已授权整单模拟退款和场次取消善后，旧阶段“不开发退款”的边界不阻止本阶段实现；不接入真实支付或真实退款。V6增加REFUNDED、refund_record及order_aftercare，部署前只读执行scripts/audit-refund-readiness.sql和候补关联审计，异常只报告并停止，DDL失败保留现场，不自动repair或清库。
+- 整单退款只允许PAID且电子票完整并全部UNUSED，保留paid_at及成功支付事实。退款在用户→活动→场次→SKU→订单→候补→电子票锁序内条件减sold、作废未用票、写唯一订单退款流水及Outbox；多用户行按ID递增锁定，复查操作人ACTIVE/ADMIN。REFUNDED不再占库存/限额，候补COMPLETED历史保持不变。已核销、缺票或关联异常记录MANUAL_REQUIRED，不改写核销历史。
+- 场次取消只快速提交CANCELLED；善后按数据库事实有界逐单事务，PENDING关闭释放locked，PAID复用整单模拟退款。禁用买家也处理；失败退避至最多配置次数后人工处理，游标失败前进、回绕及重启补偿。活动OFFLINE不自动退款。善后与事务协作不可改为提交后异步原子更新。
 - 账号统一使用数据库user_account与Spring Security Session，密码只存BCrypt。禁止恢复Basic、引入JWT双轨或在前端持久化凭据；写请求统一CSRF，登录和退出后重新获取令牌。后续业务从AccountPrincipal获取可信用户ID，不接受前端身份声明。管理员仅通过显式初始化创建，不允许公开注册提权。
 - 需要身份的端点须在授权前按用户ID检查数据库最新状态和角色，禁用账号使会话失效，角色变化刷新会话身份。新增受保护端点必须加入SecurityConfig共用的RequestMatcher；公开查询不得额外查询账号。
 - MySQL 是交易与库存权威；库存预占、支付转售出、取消与超时释放必须在事务中使用状态及库存条件更新。
