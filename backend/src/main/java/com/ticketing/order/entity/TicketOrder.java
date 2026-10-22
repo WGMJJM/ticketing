@@ -47,6 +47,22 @@ public class TicketOrder {
     private Long paymentAmountCents;
     @TableField(exist = false)
     private LocalDateTime paymentPaidAt;
+    @TableField(exist = false)
+    private String username;
+    @TableField(exist = false)
+    private String refundNo;
+    @TableField(exist = false)
+    private String refundReason;
+    @TableField(exist = false)
+    private LocalDateTime refundedAt;
+    public String getUsername() { return username; }
+    public void setUsername(String value) { username = value; }
+    public String getRefundNo() { return refundNo; }
+    public void setRefundNo(String value) { refundNo = value; }
+    public String getRefundReason() { return refundReason; }
+    public void setRefundReason(String value) { refundReason = value; }
+    public LocalDateTime getRefundedAt() { return refundedAt; }
+    public void setRefundedAt(LocalDateTime value) { refundedAt = value; }
     public String getActivityStatus() { return activityStatus; }
     public void setActivityStatus(String value) { activityStatus = value; }
     public String getSessionStatus() { return sessionStatus; }

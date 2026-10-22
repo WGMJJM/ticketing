@@ -9,6 +9,11 @@ public interface OrderLifecycle {
 
     void onTransition(Transition transition);
 
+    /** 已持订单锁，依阶段先候补后票券检查并加锁；null表示可退款，拒绝原因用于持久化人工售后。 */
+    RefundBlock refundBlocker(Transition transition);
+
+    record RefundBlock(String code, String message) {}
+
     record Transition(
             long orderId,
             long userId,

@@ -4,9 +4,11 @@ public enum OrderStatus {
     PENDING,
     PAID,
     CANCELLED,
-    EXPIRED;
+    EXPIRED,
+    REFUNDED;
 
     public boolean canTransitionTo(OrderStatus target) {
-        return this == PENDING && (target == PAID || target == CANCELLED || target == EXPIRED);
+        return (this == PENDING && (target == PAID || target == CANCELLED || target == EXPIRED))
+                || (this == PAID && target == REFUNDED);
     }
 }

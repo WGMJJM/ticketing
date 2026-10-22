@@ -70,6 +70,12 @@ public interface ElectronicTicketMapper extends BaseMapper<ElectronicTicket> {
                     + " UPDATE")
     List<ElectronicTicket> lockIssued(@Param("orderId") long orderId);
 
+    @Update("""
+            UPDATE electronic_ticket SET status='VOID',updated_at=UTC_TIMESTAMP(6)
+            WHERE order_id=#{orderId} AND status='UNUSED'
+            """)
+    int voidUnused(long orderId);
+
     @Select(
             """
             SELECT o.id FROM ticket_order o JOIN ticket_order_item i ON i.order_id=o.id

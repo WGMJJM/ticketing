@@ -86,6 +86,12 @@ ticketing:
       batch-size: ${TICKET_BACKFILL_BATCH_SIZE:100}
       scan-delay-ms: ${TICKET_BACKFILL_SCAN_DELAY_MS:30000}
   order:
+    aftercare:
+      enabled: ${ORDER_AFTERCARE_ENABLED:true}
+      scan-delay-ms: ${ORDER_AFTERCARE_SCAN_DELAY_MS:10000}
+      batch-size: ${ORDER_AFTERCARE_BATCH_SIZE:100}
+      max-attempts: ${ORDER_AFTERCARE_MAX_ATTEMPTS:5}
+      retry-delay-seconds: ${ORDER_AFTERCARE_RETRY_DELAY_SECONDS:30}
     max-per-user-session: ${ORDER_SESSION_LIMIT:4}
     payment-window-minutes: ${ORDER_PAYMENT_WINDOW_MINUTES:15}
     expiry:

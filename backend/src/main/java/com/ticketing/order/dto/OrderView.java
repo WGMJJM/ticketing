@@ -17,7 +17,7 @@ public record OrderView(
         Instant sessionStartsAt,
         String skuId,
         String skuName,
-        int quantity,
+        Integer quantity,
         String unitPriceCents,
         String totalAmountCents,
         String status,
@@ -27,6 +27,7 @@ public record OrderView(
         boolean canCancel,
         boolean canPay,
         PaymentView payment,
+        RefundView refund,
         Instant serverTime) {
     public static OrderView from(TicketOrder order, Instant now) {
         Instant deadline = order.getExpiresAt().toInstant(ZoneOffset.UTC);
@@ -49,21 +50,25 @@ public record OrderView(
                 order.getSessionId().toString(),
                 order.getSessionTitle(),
                 order.getSessionStartsAt().toInstant(ZoneOffset.UTC),
-                order.getSkuId().toString(),
+                order.getSkuId() == null ? null : order.getSkuId().toString(),
                 order.getSkuNameSnapshot(),
                 order.getQuantity(),
-                order.getUnitPriceCents().toString(),
+                order.getUnitPriceCents() == null ? null : order.getUnitPriceCents().toString(),
                 order.getTotalAmountCents().toString(),
                 order.getStatus(),
                 order.getCreatedAt().toInstant(ZoneOffset.UTC),
                 deadline,
                 pending && !now.isBefore(deadline),
-                pending,
+                pending && order.getSkuId() != null,
                 pending
+                        && order.getSkuId() != null
                         && now.isBefore(deadline)
                         && "PUBLISHED".equals(order.getActivityStatus())
                         && "SCHEDULED".equals(order.getSessionStatus()),
                 payment,
+                order.getRefundNo() == null ? null : new RefundView(order.getId().toString(),
+                        order.getRefundNo(), order.getPaymentNo(), order.getTotalAmountCents().toString(),
+                        null, order.getRefundReason(), "SUCCEEDED", order.getRefundedAt().toInstant(ZoneOffset.UTC), true),
                 now);
     }
 }

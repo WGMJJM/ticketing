@@ -33,9 +33,13 @@ public class TicketInventory {
         requireChanged(tickets.sell(skuId, quantity));
     }
 
+    public void refund(long skuId, int quantity) {
+        requireChanged(tickets.refund(skuId, quantity));
+    }
+
     private void requireChanged(int changed) {
         if (changed != 1) {
-            throw new BusinessException(HttpStatus.CONFLICT, "STOCK_CONFLICT", "订单锁定库存不一致，操作未生效");
+            throw new BusinessException(HttpStatus.CONFLICT, "STOCK_CONFLICT", "订单库存数据不一致，操作未生效");
         }
     }
 }

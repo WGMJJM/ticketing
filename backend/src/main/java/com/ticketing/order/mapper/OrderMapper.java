@@ -20,14 +20,26 @@ public interface OrderMapper extends BaseMapper<TicketOrder> {
             SELECT o.*,i.sku_id,i.quantity,i.unit_price_cents,i.sku_name_snapshot,
                    s.title AS session_title,s.starts_at AS session_starts_at,s.status AS session_status,
                    a.id AS activity_id,a.title AS activity_title,a.status AS activity_status,
-                   p.payment_no,p.amount_cents AS payment_amount_cents,p.paid_at AS payment_paid_at
-            FROM ticket_order o JOIN ticket_order_item i ON i.order_id=o.id
+                   p.payment_no,p.amount_cents AS payment_amount_cents,p.paid_at AS payment_paid_at,
+                   u.username,r.refund_no,r.reason AS refund_reason,r.refunded_at
+            FROM ticket_order o LEFT JOIN ticket_order_item i ON i.order_id=o.id
             JOIN activity_session s ON s.id=o.session_id JOIN activity a ON a.id=s.activity_id
             LEFT JOIN payment_record p ON p.order_id=o.id AND p.status='SUCCEEDED'
+            JOIN user_account u ON u.id=o.user_id
+            LEFT JOIN refund_record r ON r.order_id=o.id
             """;
 
     @Select(VIEW + " WHERE o.id=#{id} AND o.user_id=#{userId}")
     TicketOrder owned(@Param("id") long id, @Param("userId") long userId);
+
+    @Select(VIEW + " WHERE o.id=#{id}")
+    TicketOrder detail(long id);
+
+    @Update("""
+            UPDATE ticket_order SET status='REFUNDED',updated_at=UTC_TIMESTAMP(6)
+            WHERE id=#{id} AND status='PAID' AND paid_at IS NOT NULL
+            """)
+    int markRefunded(long id);
 
     @Select(
             VIEW

@@ -27,6 +27,10 @@ public class WaitlistOrderLifecycle implements OrderLifecycle {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public void onTransition(Transition transition) {
+        if (transition.target() == OrderStatus.REFUNDED) {
+            // 候补已经完成的历史事实保留，不退回队列或误转EXPIRED。
+            return;
+        }
         WaitlistEntry entry =
                 waitlists.selectOne(
                         new LambdaQueryWrapper<WaitlistEntry>()
@@ -52,6 +56,24 @@ public class WaitlistOrderLifecycle implements OrderLifecycle {
         if (waitlists.finishAllocated(entry.getId(), target.name()) != 1) {
             throw conflict("候补状态已变化");
         }
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public RefundBlock refundBlocker(Transition transition) {
+        WaitlistEntry entry = waitlists.selectOne(new LambdaQueryWrapper<WaitlistEntry>()
+                .eq(WaitlistEntry::getReservedOrderId, transition.orderId()).last("FOR UPDATE"));
+        boolean reserved = OrderOperation.WAITLIST_CONFIRM.name().equals(transition.operation());
+        if (entry == null && !reserved) {
+            return null;
+        }
+        if (entry == null || !reserved || entry.getUserId() != transition.userId()
+                || entry.getSkuId() != transition.skuId() || entry.getQuantity() != transition.quantity()
+                || !WaitlistStatus.COMPLETED.name().equals(entry.getStatus())
+                || !("waitlist-" + entry.getId()).equals(transition.idempotencyKey())) {
+            return new RefundBlock("WAITLIST_RELATION_INVALID", "候补与已支付订单关联异常，需要人工处理");
+        }
+        return null;
     }
 
     private BusinessException conflict(String message) {

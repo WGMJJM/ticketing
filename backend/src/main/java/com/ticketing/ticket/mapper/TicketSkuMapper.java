@@ -9,6 +9,11 @@ import org.apache.ibatis.annotations.Update;
 
 @Mapper
 public interface TicketSkuMapper extends BaseMapper<TicketSku> {
+    @Update("""
+            UPDATE ticket_sku SET sold_stock=sold_stock-#{quantity},version=version+1,updated_at=UTC_TIMESTAMP(6)
+            WHERE id=#{skuId} AND sold_stock>=#{quantity}
+            """)
+    int refund(@Param("skuId") long skuId, @Param("quantity") int quantity);
     @Update(
             """
             UPDATE ticket_sku SET locked_stock=locked_stock-#{quantity},sold_stock=sold_stock+#{quantity},

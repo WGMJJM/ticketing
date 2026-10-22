@@ -11,6 +11,7 @@ import com.ticketing.event.mapper.ActivitySessionMapper;
 import com.ticketing.order.entity.TicketOrder;
 import com.ticketing.order.mapper.OrderMapper;
 import com.ticketing.order.model.OrderStatus;
+import com.ticketing.event.model.SessionStatus;
 import com.ticketing.ticket.api.TicketSale;
 import com.ticketing.ticket.entity.TicketSku;
 import com.ticketing.ticket.mapper.TicketSkuMapper;
@@ -47,6 +48,22 @@ public class TradeResourceLocker {
         account(userId, requireActive);
     }
 
+    /** 退款同时涉及管理员和买家；所有用户行按ID递增获取，随后才锁父资源。 */
+    public void lockRefundUsers(long ownerId, Long operatorId) {
+        UserAccount operator = null;
+        if (operatorId != null && operatorId < ownerId) {
+            operator = account(operatorId, true);
+        }
+        UserAccount owner = account(ownerId, false);
+        if (operatorId != null) {
+            operator = operatorId == ownerId ? owner
+                    : operator == null ? account(operatorId, true) : operator;
+            if (!"ACTIVE".equals(operator.getStatus()) || !"ADMIN".equals(operator.getRole())) {
+                throw new BusinessException(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "当前账号没有订单售后权限");
+            }
+        }
+    }
+
     public TradeContext lockPurchase(long userId, long skuId, boolean requireActive) {
         UserAccount account = account(userId, requireActive);
         return new TradeContext(
@@ -54,6 +71,19 @@ public class TradeResourceLocker {
                 "ACTIVE".equals(account.getStatus()),
                 "ADMIN".equals(account.getRole()),
                 lockSale(skuId));
+    }
+
+    /** 仅供缺失订单明细的异常善后：不存在可锁SKU，仍先锁活动/场次再锁订单并记录人工处理。 */
+    public SessionStatus lockSession(long sessionId) {
+        ActivitySession initial = sessions.selectById(sessionId);
+        if (initial == null) {
+            throw new BusinessException(HttpStatus.NOT_FOUND, "SESSION_NOT_FOUND", "场次不存在");
+        }
+        activities.selectOne(new LambdaQueryWrapper<Activity>()
+                .eq(Activity::getId, initial.getActivityId()).last("FOR SHARE"));
+        ActivitySession session = sessions.selectOne(new LambdaQueryWrapper<ActivitySession>()
+                .eq(ActivitySession::getId, sessionId).last("FOR SHARE"));
+        return SessionStatus.valueOf(session.getStatus());
     }
 
     /** 已持用户锁后调用；最初两次非锁定读取只发现父ID，之后严格由父到子加锁。 */

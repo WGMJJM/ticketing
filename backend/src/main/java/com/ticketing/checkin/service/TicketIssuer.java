@@ -33,7 +33,45 @@ public class TicketIssuer implements OrderLifecycle {
     public void onTransition(Transition transition) {
         if (transition.target() == OrderStatus.PAID) {
             issue(transition.orderId());
+        } else if (transition.target() == OrderStatus.REFUNDED
+                && tickets.voidUnused(transition.orderId()) != transition.quantity()) {
+            throw conflict("电子票作废数量异常，退款事务已回滚");
         }
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public RefundBlock refundBlocker(Transition transition) {
+        var source = tickets.source(transition.orderId());
+        var existing = tickets.lockIssued(transition.orderId());
+        if (source == null || source.ownerId() != transition.userId()
+                || source.skuId() != transition.skuId() || source.quantity() != transition.quantity()
+                || existing.size() != transition.quantity()) {
+            return new RefundBlock("TICKET_RELATION_INVALID", "电子票数量或订单关联异常，需要人工处理");
+        }
+        var sequences = new HashSet<Integer>();
+        for (ElectronicTicket ticket : existing) {
+            if (ElectronicTicketStatus.USED.name().equals(ticket.getStatus())) {
+                return new RefundBlock("TICKET_ALREADY_USED", "订单包含已核销电子票，需要人工处理，核销记录保持不变");
+            }
+            if (!ElectronicTicketStatus.UNUSED.name().equals(ticket.getStatus())
+                    || ticket.getOwnerId() != transition.userId()
+                    || ticket.getOrderItemId() != source.orderItemId()
+                    || ticket.getSkuId() != transition.skuId()
+                    || ticket.getSequenceNo() < 1 || ticket.getSequenceNo() > transition.quantity()
+                    || !sequences.add(ticket.getSequenceNo())) {
+                return new RefundBlock("TICKET_RELATION_INVALID", "电子票状态或明细关联异常，需要人工处理");
+            }
+            try {
+                String credential = signer.credential(ticket.getTicketNo(), ticket.getCredentialKeyVersion());
+                if (!MessageDigest.isEqual(signer.digest(credential), ticket.getCredentialDigest())) {
+                    return new RefundBlock("TICKET_DIGEST_INVALID", "电子票凭证摘要异常，需要人工处理");
+                }
+            } catch (BusinessException exception) {
+                return new RefundBlock("TICKET_KEY_UNAVAILABLE", "电子票签名版本暂不可用，需要人工处理");
+            }
+        }
+        return null;
     }
 
     /** 调用方已按用户→父级→SKU→订单加锁；票券作为订单的末端子资源处理。 */

@@ -71,7 +71,7 @@ public class OrderStateService {
         if (locked.status() == OrderStatus.PAID) {
             return payment(userId, orderId);
         }
-        requireTransition(locked.status(), OrderStatus.PAID, "订单已取消或已过期，不能支付");
+        requireTransition(locked.status(), OrderStatus.PAID, "订单当前状态不允许支付，请刷新查看最新状态");
         if (locked.sale().activityStatus() != ActivityStatus.PUBLISHED
                 || locked.sale().sessionStatus() != SessionStatus.SCHEDULED) {
             throw conflict("ORDER_UNPAYABLE", "活动已下架或场次已取消、结束，不能继续支付");
@@ -92,6 +92,17 @@ public class OrderStateService {
         payments.insert(payment);
         complete(locked.order(), OrderStatus.PAID);
         return PaymentView.from(payment);
+    }
+
+    /** 系统善后入口已持全部交易资源锁；不因买家停用而遗留预占。 */
+    public void cancelForSession(TicketOrder order, TicketSale sale) {
+        if (sale.sessionStatus() != SessionStatus.CANCELLED
+                || orders.markCancelled(order.getId(), order.getUserId()) != 1) {
+            throw conflict("ORDER_STATE_CONFLICT", "场次或订单状态已变化");
+        }
+        inventory.release(sale.skuId(), order.getQuantity());
+        complete(order, OrderStatus.CANCELLED);
+        events.append(sale.skuId(), InventoryChangeReason.ORDER_CANCELLED);
     }
 
     public boolean expire(long userId, long orderId) {
@@ -130,6 +141,9 @@ public class OrderStateService {
         TicketOrder order = orders.owned(orderId, userId);
         if (order == null) {
             throw new BusinessException(HttpStatus.NOT_FOUND, "ORDER_NOT_FOUND", "订单不存在");
+        }
+        if (order.getSkuId() == null || order.getQuantity() == null) {
+            throw conflict("ORDER_ITEM_INVALID", "订单明细异常，请联系运营人员核对");
         }
         return order;
     }
