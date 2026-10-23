@@ -7,10 +7,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ticketing.dto.UserView;
 import com.ticketing.security.AccountPrincipal;
 import com.ticketing.security.CurrentAccountFilter;
+import com.ticketing.security.ClientAddressResolver;
 import com.ticketing.security.RedisRateLimiter;
 import com.ticketing.security.RequestRateLimitFilter;
 import com.ticketing.mapper.UserAccountMapper;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -31,15 +33,24 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
 
 @Configuration
-@EnableConfigurationProperties(RateLimitProperties.class)
+@EnableConfigurationProperties({RateLimitProperties.class, ClientAddressProperties.class})
 public class SecurityConfig {
 
     @Bean
     PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
 
     @Bean
+    ClientAddressResolver clientAddressResolver(ClientAddressProperties properties,
+            @Value("${server.forward-headers-strategy:none}") String forwarding) {
+        if (!"none".equalsIgnoreCase(forwarding)) {
+            throw new IllegalStateException("客户端来源由显式代理边界解析，server.forward-headers-strategy必须为none");
+        }
+        return new ClientAddressResolver(properties);
+    }
+
+    @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper objectMapper, UserAccountMapper accounts,
-            RateLimitProperties rateLimit, ObjectProvider<RedisRateLimiter> limiters) throws Exception {
+            RateLimitProperties rateLimit, ObjectProvider<RedisRateLimiter> limiters, ClientAddressResolver addresses) throws Exception {
         var paths = PathPatternRequestMatcher.withDefaults();
         var currentUser = paths.matcher(HttpMethod.GET, "/api/v1/auth/me");
         var administration = paths.matcher("/api/v1/admin/**");
@@ -92,8 +103,9 @@ public class SecurityConfig {
                                 writeError(response, objectMapper, 403, "ACCESS_DENIED", "无权执行此操作或安全校验已过期，请刷新后重试")));
         if (rateLimit.enabled()) {
             RedisRateLimiter limiter = limiters.getObject();
-            http.addFilterAfter(new RequestRateLimitFilter(limiter, objectMapper, RequestRateLimitFilter.Scope.AUTHENTICATION), CsrfFilter.class);
-            http.addFilterAfter(new RequestRateLimitFilter(limiter, objectMapper, RequestRateLimitFilter.Scope.AUTHORIZED_BUSINESS), AuthorizationFilter.class);
+            http.addFilterBefore(new RequestRateLimitFilter(limiter, objectMapper, RequestRateLimitFilter.Scope.SESSION_CREATION, addresses), CsrfFilter.class);
+            http.addFilterAfter(new RequestRateLimitFilter(limiter, objectMapper, RequestRateLimitFilter.Scope.AUTHENTICATION, addresses), CsrfFilter.class);
+            http.addFilterAfter(new RequestRateLimitFilter(limiter, objectMapper, RequestRateLimitFilter.Scope.AUTHORIZED_BUSINESS, addresses), AuthorizationFilter.class);
         } else {
             org.slf4j.LoggerFactory.getLogger(SecurityConfig.class).warn("请求限流已显式关闭，仅应在受控隔离测试环境使用");
         }

@@ -55,6 +55,10 @@ public class RedisRateLimiter {
         return evaluate("register", List.of(key("register-ip", address)), List.of(properties.registerIp()));
     }
 
+    public Decision csrfSession(String address) {
+        return evaluate("csrf-session", List.of(key("csrf-session-ip", address)), List.of(properties.csrfSessionIp()));
+    }
+
     public Decision order(long userId) {
         return evaluate("order", List.of(key("order-user", Long.toString(userId))), List.of(properties.orderUser()));
     }

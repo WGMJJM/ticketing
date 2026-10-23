@@ -79,11 +79,19 @@ mybatis-plus:
     banner: false
 ticketing:
   security:
+    client-address:
+      mode: ${CLIENT_ADDRESS_MODE:DIRECT}
+      trusted-proxies: ${CLIENT_ADDRESS_TRUSTED_PROXIES:}
+      max-forwarded-hops: ${CLIENT_ADDRESS_MAX_FORWARDED_HOPS:8}
+      max-forwarded-header-length: ${CLIENT_ADDRESS_MAX_FORWARDED_HEADER_LENGTH:1024}
     rate-limit:
       enabled: ${RATE_LIMIT_ENABLED:true}
       key-secret: ${RATE_LIMIT_KEY_SECRET:}
       namespace: ${RATE_LIMIT_NAMESPACE:default}
       unavailable-retry-seconds: ${RATE_LIMIT_UNAVAILABLE_RETRY_SECONDS:1}
+      csrf-session-ip:
+        limit: ${RATE_LIMIT_CSRF_SESSION_IP_LIMIT:120}
+        window-seconds: ${RATE_LIMIT_CSRF_SESSION_IP_WINDOW_SECONDS:60}
       login-ip:
         limit: ${RATE_LIMIT_LOGIN_IP_LIMIT:60}
         window-seconds: ${RATE_LIMIT_LOGIN_IP_WINDOW_SECONDS:60}

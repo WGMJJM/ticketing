@@ -1,0 +1,19 @@
+{
+  "environment": "ticketing-perf-only",
+  "frontend": "production-build",
+  "checks": {
+    "newSessionLimitMessage": true,
+    "newSessionOutageMessage": true,
+    "registrationAfterRecovery": true,
+    "loginAfterRecovery": true,
+    "sessionRestoredAfterReload": true,
+    "logoutAfterRecovery": true,
+    "loginAfterLogout": true
+  },
+  "anonymousSessionFlood": {
+    "requests": 160,
+    "allowed200": 120,
+    "limited429": 40,
+    "rejectedSetCookie": 0
+  }
+}

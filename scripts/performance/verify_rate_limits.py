@@ -35,10 +35,13 @@ def verify(label):
                 or not 1 <= int(response.headers.get('Retry-After', 0)) <= 600
                 or 'no-store' not in response.headers.get('Cache-Control', '')):
             raise RuntimeError('安全拒绝响应协议不匹配')
+    registration_browser = perf.Client()
     def register(_):
         # 无效JSON保留真实Controller校验且不创建账号；并发穿过CSRF及Redis Lua。
-        browser = perf.Client()
-        response = submit('/auth/register', session=browser.session, token=browser.token)
+        # 单独验证注册预算，使用同一已有匿名会话，避免被新Session预算提前拦截。
+        browser = requests.Session()
+        browser.cookies.update(registration_browser.session.cookies)
+        response = submit('/auth/register', session=browser, token=registration_browser.token)
         if response.status_code == 429:
             rejected(response, 429)
         return response.status_code
@@ -54,6 +57,25 @@ def verify(label):
                 raise RuntimeError('业务限流预算或Controller校验不匹配')
         rejected(submit(path), 429)
     results['businessBudgets'] = {'orders': 30, 'waitlist': 10, 'rejectedBeforeWrites': True}
+    # 生产窗口已被启动健康检查及上述测试少量消耗；精确全额并发由CsrfSessionIT独立验证。
+    def csrf_without_cookie(_):
+        response = requests.get(perf.BASE + '/api/v1/auth/csrf', timeout=5)
+        if response.status_code == 429:
+            rejected(response, 429)
+            if response.headers.get('Set-Cookie'):
+                raise RuntimeError('新会话限流拒绝仍返回了Cookie')
+        elif response.status_code != 200 or not response.headers.get('Set-Cookie'):
+            raise RuntimeError('新会话预算响应不匹配')
+        return response.status_code
+    with ThreadPoolExecutor(max_workers=32) as pool:
+        csrf_statuses = list(pool.map(csrf_without_cookie, range(160)))
+    if not 0 < csrf_statuses.count(200) <= 120 or csrf_statuses.count(429) < 40:
+        raise RuntimeError('生产新会话预算未生效')
+    if client.session.get(perf.BASE + '/api/v1/auth/csrf', timeout=5).status_code != 200:
+        raise RuntimeError('预算耗尽影响已有Session令牌复用')
+    results['csrfSessionBudget'] = {'requests': 160, 'allowed200': csrf_statuses.count(200),
+                                    'limited429': csrf_statuses.count(429), 'rejectedSetCookie': 0,
+                                    'existingSessionCsrf': 200}
     if perf.audit() != before:
         raise RuntimeError('限流/无效提交改变了数据库业务事实')
     # 故障仅针对固定专用Compose的redis服务；finally保证恢复，不停止开发Redis。
@@ -69,11 +91,19 @@ def verify(label):
                                        data=fixture['users'][0], headers=client.token, timeout=5)
         rejected(response, 503)
         times.append(round((time.monotonic() - started) * 1000, 2))
+        anonymous_csrf = requests.get(perf.BASE + '/api/v1/auth/csrf', timeout=5)
+        rejected(anonymous_csrf, 503)
+        if anonymous_csrf.headers.get('Set-Cookie'):
+            raise RuntimeError('Redis故障拒绝仍创建会话')
+        existing_csrf = client.session.get(perf.BASE + '/api/v1/auth/csrf', timeout=5).status_code
+        if existing_csrf != 200:
+            raise RuntimeError('Redis故障影响已有Session令牌复用')
         public_status = client.session.get(perf.BASE + '/api/v1/activities', timeout=5).status_code
         orders_status = client.session.get(perf.BASE + '/api/v1/orders', timeout=5).status_code
         if public_status != 200 or orders_status != 200 or perf.audit() != before:
             raise RuntimeError('Redis故障影响了公开读取、既有会话查询或业务事实')
         results['realRedisOutage'] = {'protected503': 4, 'latencyMs': times,
+                                     'anonymousCsrf503': 1, 'anonymousSetCookie': 0, 'existingSessionCsrf': existing_csrf,
                                      'publicRead': public_status, 'sessionOrderRead': orders_status,
                                      'databaseUnchanged': True}
     finally:

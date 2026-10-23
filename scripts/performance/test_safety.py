@@ -20,7 +20,8 @@ class SafetyTests(unittest.TestCase):
             process.poll.return_value = None
             with patch.object(perf, 'PRIVATE', directory), patch.object(perf, 'config', return_value=cfg), \
                     patch.dict(perf.os.environ, {'RATE_LIMIT_ENABLED': 'false', 'RATE_LIMIT_KEY_SECRET': 'inherited',
-                                                 'PERF_RATE_LIMIT_ENABLED': 'false', 'PERF_RATE_LIMIT_ORDER_USER': '1'}), \
+                                                 'PERF_RATE_LIMIT_ENABLED': 'false', 'PERF_RATE_LIMIT_ORDER_USER': '1',
+                                                 'CLIENT_ADDRESS_MODE': 'TRUSTED_PROXY', 'CLIENT_ADDRESS_TRUSTED_PROXIES': '10.0.0.0/8'}), \
                     patch.object(perf.subprocess, 'Popen', return_value=process) as start, \
                     patch.object(perf.requests, 'get') as get, patch.object(perf, 'admin') as admin:
                 get.return_value.status_code = 200
@@ -31,6 +32,8 @@ class SafetyTests(unittest.TestCase):
                 self.assertNotIn('RATE_LIMIT_ENABLED', child)
                 self.assertNotIn('RATE_LIMIT_KEY_SECRET', child)
                 self.assertNotIn('PERF_RATE_LIMIT_ORDER_USER', child)
+                self.assertNotIn('CLIENT_ADDRESS_MODE', child)
+                self.assertNotIn('CLIENT_ADDRESS_TRUSTED_PROXIES', child)
                 report = (directory / 'app.json').read_text(encoding='utf-8')
                 self.assertNotIn(child['PERF_RATE_LIMIT_KEY_SECRET'], report)
                 self.assertEqual(json.loads(report)['rateLimitMode'], 'production')
@@ -42,6 +45,8 @@ class SafetyTests(unittest.TestCase):
         self.assertEqual(baseline['PERF_RATE_LIMIT_ENABLED'], 'false')
         self.assertEqual(regression['PERF_RATE_LIMIT_ENABLED'], 'true')
         self.assertEqual(regression['PERF_RATE_LIMIT_REGISTER_IP'], '10000')
+        self.assertEqual(regression['PERF_RATE_LIMIT_CSRF_SESSION_IP'], '10000')
+        self.assertNotIn('PERF_RATE_LIMIT_CSRF_SESSION_IP', production)
         self.assertNotIn('PERF_RATE_LIMIT_REGISTER_IP', production)
         self.assertNotEqual(regression['PERF_RATE_LIMIT_KEY_SECRET'], production['PERF_RATE_LIMIT_KEY_SECRET'])
         with self.assertRaisesRegex(RuntimeError, '未知专用限流模式'):

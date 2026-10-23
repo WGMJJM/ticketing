@@ -250,4 +250,10 @@ HTTP路径、请求字段、Session与CSRF、HTTP状态码及响应字符串状�
 
 默认窗口及策略见[限流验收说明](22-redis-security-rate-limits-verification.md)。登录按连接IP和规范化账号+IP共同计数，正确/错误密码的放行尝试都计数，成功不清零；拒绝不延长窗口。所有购票提交（包括相同幂等键）共享本人30次/10秒预算，允许常规网络重试，耗尽后等待Retry-After再由用户重试，原幂等事实仍保留。候补本人10次/60秒。429/该503在业务调用前返回；前端展示中文等待秒数，不自动重放写请求或支付。无响应/其他5xx仍保留原订单同键确认策略。
 
-CSRF不合法先403；匿名购票/候补先401，停用账号先401并使Session失效。公开活动查询和已登录订单查询不依赖Redis限流服务。STAFF/ADMIN原权限矩阵保持不变。
+已有有效Session时，CSRF不合法先403；匿名购票/候补通过CSRF后先401，停用账号先401并使Session失效。公开活动查询和已登录订单查询不依赖Redis限流服务。STAFF/ADMIN原权限矩阵保持不变。
+
+## 第十三阶段会话创建与代理边界
+
+无有效Session的`GET /api/v1/auth/csrf`及所有需要CSRF校验的写请求，在CsrfFilter前使用客户端IP的新会话预算，默认120次/60秒。无效、过期或伪造JSESSIONID不能绕过；429/503响应沿用上表，拒绝时不创建Session、不返回Set-Cookie、不调用Controller。这些匿名请求可能先得到429/503，再进入原CSRF或身份校验。HEAD csrf仍为403且不生成令牌。已有有效Session获取令牌不消耗新会话预算，Redis故障时仍可复用；登录和退出后仍须重新获取令牌。前端沿用统一中文错误和Retry-After提示，不自动重放写请求。
+
+默认DIRECT模式只使用连接IP。TRUSTED_PROXY须显式配置受信代理IP/CIDR，并从连接端向外剥离受信节点，遇到最近的不可信节点即停止；只读取X-Forwarded-For。非受信连接忽略所有转发头，受信连接缺失、重复、过长、跳数过多或格式错误的头返回400 `INVALID_CLIENT_ADDRESS`，不创建新Session。X-Real-IP、Forwarded不作为身份来源。Spring自动转发头处理须保持none。部署前提和复现见[阶段十三验收](23-session-proxy-migration-verification.md)。

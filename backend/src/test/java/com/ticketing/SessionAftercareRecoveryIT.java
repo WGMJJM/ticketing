@@ -49,7 +49,9 @@ class SessionAftercareRecoveryIT {
             try (var second = start(true,keys)) {
                 JdbcTemplate db = second.getBean(JdbcTemplate.class);
                 long deadline = System.nanoTime()+Duration.ofSeconds(15).toNanos();
-                while (!"REFUNDED".equals(db.queryForObject("SELECT status FROM ticket_order WHERE id=?",String.class,Long.parseLong(paid))) && System.nanoTime()<deadline) Thread.sleep(100);
+                // 每单独立提交，第一笔退款完成不代表同轮的第二笔取消已经提交。
+                while (db.queryForObject("SELECT COUNT(*) FROM ticket_order WHERE (id=? AND status='REFUNDED') OR (id=? AND status='CANCELLED')",
+                        Integer.class,Long.parseLong(paid),Long.parseLong(pending)) != 2 && System.nanoTime()<deadline) Thread.sleep(100);
                 assertThat(db.queryForObject("SELECT status FROM ticket_order WHERE id=?",String.class,Long.parseLong(paid))).isEqualTo("REFUNDED");
                 assertThat(db.queryForObject("SELECT status FROM ticket_order WHERE id=?",String.class,Long.parseLong(pending))).isEqualTo("CANCELLED");
                 assertThat(db.queryForObject("SELECT locked_stock+sold_stock FROM ticket_sku WHERE id=?",Integer.class,skuId)).isZero();

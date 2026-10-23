@@ -12,25 +12,29 @@ import java.io.IOException;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-/** 两个实例分别在CSRF后和授权后运行；不是Servlet自动注册的Filter Bean。 */
+/** 三个实例分别保护会话创建、认证和授权后的业务提交，仅由Security链注册。 */
 public class RequestRateLimitFilter extends OncePerRequestFilter {
     private static final PathPatternRequestMatcher.Builder PATHS = PathPatternRequestMatcher.withDefaults();
     private static final RequestMatcher LOGIN = PATHS.matcher(HttpMethod.POST, "/api/v1/auth/login");
     private static final RequestMatcher REGISTER = PATHS.matcher(HttpMethod.POST, "/api/v1/auth/register");
     private static final RequestMatcher ORDER = PATHS.matcher(HttpMethod.POST, "/api/v1/orders");
     private static final RequestMatcher WAITLIST = PATHS.matcher(HttpMethod.POST, "/api/v1/waitlist");
+    private static final RequestMatcher CSRF = PATHS.matcher("/api/v1/auth/csrf");
     private final RedisRateLimiter limiter;
     private final ObjectMapper json;
     private final Scope scope;
+    private final ClientAddressResolver addresses;
 
-    public RequestRateLimitFilter(RedisRateLimiter limiter, ObjectMapper json, Scope scope) {
+    public RequestRateLimitFilter(RedisRateLimiter limiter, ObjectMapper json, Scope scope, ClientAddressResolver addresses) {
         this.limiter = limiter;
         this.json = json;
         this.scope = scope;
+        this.addresses = addresses;
     }
 
     @Override
@@ -40,6 +44,11 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
+        if (scope == Scope.SESSION_CREATION) {
+            // 不能只检查Cookie是否存在；无效/过期Cookie仍可能触发新Session。
+            boolean csrfRead = CSRF.matches(request) && HttpMethod.GET.matches(request.getMethod());
+            return request.getSession(false) != null || !(csrfRead || CsrfFilter.DEFAULT_CSRF_MATCHER.matches(request));
+        }
         return scope == Scope.AUTHENTICATION
                 ? !LOGIN.matches(request) && !REGISTER.matches(request)
                 : !ORDER.matches(request) && !WAITLIST.matches(request);
@@ -49,10 +58,23 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         Decision decision;
-        if (scope == Scope.AUTHENTICATION) {
+        String address = null;
+        if (scope != Scope.AUTHORIZED_BUSINESS) {
+            try { address = addresses.resolve(request); }
+            catch (IllegalArgumentException exception) {
+                response.setStatus(HttpStatus.BAD_REQUEST.value());
+                response.setContentType("application/json;charset=UTF-8");
+                response.setHeader("Cache-Control", "no-store");
+                json.writeValue(response.getOutputStream(), ApiResponse.failure("INVALID_CLIENT_ADDRESS", "安全来源信息无效，请稍后重试"));
+                return;
+            }
+        }
+        if (scope == Scope.SESSION_CREATION) {
+            decision = limiter.csrfSession(address);
+        } else if (scope == Scope.AUTHENTICATION) {
             // 只读formLogin本身要使用的表单参数；注册分支不读取JSON请求体。
-            decision = LOGIN.matches(request) ? limiter.login(request.getRemoteAddr(), request.getParameter("username"))
-                    : limiter.registration(request.getRemoteAddr());
+            decision = LOGIN.matches(request) ? limiter.login(address, request.getParameter("username"))
+                    : limiter.registration(address);
         } else {
             AccountPrincipal principal = (AccountPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
             decision = ORDER.matches(request) ? limiter.order(principal.getId()) : limiter.waitlist(principal.getId());
@@ -72,5 +94,5 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
                 limited ? "操作过于频繁，请在" + decision.retryAfterSeconds() + "秒后重试" : "安全校验服务暂不可用，请稍后重试"));
     }
 
-    public enum Scope { AUTHENTICATION, AUTHORIZED_BUSINESS }
+    public enum Scope { SESSION_CREATION, AUTHENTICATION, AUTHORIZED_BUSINESS }
 }

@@ -188,11 +188,14 @@ try {
 | `RATE_LIMIT_REGISTER_IP_` | 10 | 600 |
 | `RATE_LIMIT_ORDER_USER_` | 30 | 10 |
 | `RATE_LIMIT_WAITLIST_USER_` | 10 | 60 |
+| `RATE_LIMIT_CSRF_SESSION_IP_` | 120 | 60 |
 
 另有`RATE_LIMIT_UNAVAILABLE_RETRY_SECONDS=1`。生产Redis宕机时以上四个提交入口返回503；公开查询、本人已有订单查询以及数据库补偿任务保持原逻辑。不要以关闭保护作为常规故障处理。恢复Redis后连接自动重试；Redis自身重启可能丢失短期计数，MySQL事实不变。部署Compose继续复用`redis:7-alpine`及现有AOF卷，无新设施或Flyway迁移。
 
-`server.forward-headers-strategy=none`，只使用Servlet连接地址，忽略`X-Forwarded-For`、`X-Real-IP`和`Forwarded`。当前未支持受信代理CIDR；上线代理后会按代理地址共享IP预算，部署方应评估阈值，不能直接打开任意转发头信任。
+`server.forward-headers-strategy=none`必须保持，应用启动会检查。默认`CLIENT_ADDRESS_MODE=DIRECT`只使用Servlet连接地址，忽略全部转发头。第十三阶段支持显式`CLIENT_ADDRESS_MODE=TRUSTED_PROXY`，`CLIENT_ADDRESS_TRUSTED_PROXIES`为逗号分隔的数值IP/CIDR列表；仅信任实际socket代理地址，禁止`/0`和域名。默认最多8跳、1024字符，可通过`CLIENT_ADDRESS_MAX_FORWARDED_HOPS`（1～32）和`CLIENT_ADDRESS_MAX_FORWARDED_HEADER_LENGTH`（64～4096）调整。DIRECT模式不允许同时配置代理列表，TRUSTED_PROXY模式必须配置列表。
 
-普通后端回归在测试资源中显式关闭限流，不连接Redis；`mysql-it`中的`RateLimitIT`显式开启，默认使用本机16379，`RATE_LIMIT_TEST_REDIS_PORT`可指定隔离Redis，只清理随机`it_`命名空间，不执行FLUSHDB/FLUSHALL。真实MySQL测试须使用独立验收库，原开发库的V7失败现场继续保留，先只读执行三个部署审计脚本，STOP时不得启动部署/repair。
+边缘代理必须覆盖外部X-Forwarded-For、清除X-Real-IP/Forwarded，并通过网络隔离使后端只接受该代理；示例见`deploy/nginx.conf.example`。多层代理须逐层清洗并准确配置受信节点，应用从最近代理向外解析，不能简单取最左地址。受信源的格式异常会400，非受信源的伪造头会被忽略。代理模式不能替代防火墙或TLS。新会话预算在CsrfFilter前执行，已有Session复用不依赖该预算；无Session写请求也消耗该预算，因此Redis故障时首次登录/注册的令牌获取会503。
+
+普通后端回归在测试资源中显式关闭限流，不连接Redis；`mysql-it`中的`RateLimitIT`、`CsrfSessionIT`和`TrustedProxyIT`显式开启，默认使用本机16379，`RATE_LIMIT_TEST_REDIS_PORT`可指定隔离Redis，只清理各自随机命名空间，不执行FLUSHDB/FLUSHALL。真实MySQL测试须使用独立验收库。原开发库已在第十三阶段按单次明确授权完成受控V7恢复；历史证据保留，部署仍须先只读执行三个审计脚本，STOP时禁止自动repair或继续部署。恢复工具和权限探针的使用条件见[阶段十三验收](23-session-proxy-migration-verification.md)。
 
 性能工具新增`--rate-limit-mode baseline|regression|production`，仅固定ticketing-perf环境有效。baseline显式关闭用于旧口径对照；regression开启Lua、阈值统一放宽为10000以保持既有场景；production使用默认阈值，并运行`verify_rate_limits.py`验证保护与真实Redis故障。测试密钥由工具随机生成，仅传入子进程，不进入共享报告。完整复现见[阶段十二验收](22-redis-security-rate-limits-verification.md)。

@@ -22,7 +22,8 @@ public record RateLimitProperties(
         @Valid Policy loginAccountIp,
         @Valid Policy registerIp,
         @Valid Policy orderUser,
-        @Valid Policy waitlistUser) {
+        @Valid Policy waitlistUser,
+        @Valid Policy csrfSessionIp) {
 
     public RateLimitProperties {
         loginIp = defaults(loginIp, 60, 60);
@@ -30,6 +31,7 @@ public record RateLimitProperties(
         registerIp = defaults(registerIp, 10, 600);
         orderUser = defaults(orderUser, 30, 10);
         waitlistUser = defaults(waitlistUser, 10, 60);
+        csrfSessionIp = defaults(csrfSessionIp, 120, 60);
     }
 
     private static Policy defaults(Policy configured, int limit, int windowSeconds) {

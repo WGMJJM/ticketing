@@ -24,6 +24,7 @@ class RateLimitConfigurationTest {
             assertThat(settings.registerIp().windowSeconds()).isEqualTo(600);
             assertThat(settings.orderUser().limit()).isEqualTo(30);
             assertThat(settings.waitlistUser().limit()).isEqualTo(10);
+            assertThat(settings.csrfSessionIp().limit()).isEqualTo(120);
             assertThat(settings.toString()).doesNotContain(settings.keySecret());
         });
     }
@@ -32,7 +33,7 @@ class RateLimitConfigurationTest {
     void invalidThresholdWindowNamespaceAndSecretFailStartup() {
         for (String invalid : new String[] {"login-ip.limit=0", "login-account-ip.limit=10001",
                 "register-ip.window-seconds=0", "order-user.window-seconds=3601", "waitlist-user.limit=-1",
-                "namespace=unsafe:*", "unavailable-retry-seconds=61", "key-secret=short"}) {
+                "namespace=unsafe:*", "unavailable-retry-seconds=61", "key-secret=short", "csrf-session-ip.limit=0"}) {
             runner.withPropertyValues("ticketing.security.rate-limit.key-secret=" + secret(),
                     "ticketing.security.rate-limit." + invalid).run(context -> assertThat(context).hasFailed());
         }

@@ -1,0 +1,468 @@
+{
+  "statementDigests": [
+    {
+      "sql_pattern": "SELECT `id` , `title` , `category` , `city` , `venue` , `summary` , DESCRIPTION , `cover_url` , STATUS , `published_at` , `version` , `created_at` , `updated_at` FROM `activity` WHERE ( STATUS = ? ) ORDER BY `published_at` DESC , `id` DESC LIMIT ? OFFSET ?",
+      "calls": 5550,
+      "total_ms": "4645.408",
+      "avg_ms": "0.837",
+      "rows_examined": 5657940,
+      "sort_rows": 110940
+    },
+    {
+      "sql_pattern": "SELECT `id` , `title` , `category` , `city` , `venue` , `summary` , DESCRIPTION , `cover_url` , STATUS , `published_at` , `version` , `created_at` , `updated_at` FROM `activity` WHERE `id` = ?",
+      "calls": 16566,
+      "total_ms": "2087.299",
+      "avg_ms": "0.126",
+      "rows_examined": 16546,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SELECT COUNT ( * ) AS `total` FROM `activity` WHERE ( STATUS = ? )",
+      "calls": 5544,
+      "total_ms": "1658.121",
+      "avg_ms": "0.299",
+      "rows_examined": 5551000,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SELECT `id` , `session_id` , NAME , `price_cents` , `total_stock` , `locked_stock` , `sold_stock` , `sale_starts_at` , `sale_ends_at` , `max_quantity_per_order` , STATUS , `version` , `created_at` , `updated_at` FROM `ticket_sku` WHERE ( `session_id` = ? AND STATUS = ? ) ORDER BY `price_cents` ASC , `id` ASC LIMIT ?",
+      "calls": 5545,
+      "total_ms": "900.804",
+      "avg_ms": "0.162",
+      "rows_examined": 11102,
+      "sort_rows": 5551
+    },
+    {
+      "sql_pattern": "SELECT `id` , `activity_id` , `title` , `starts_at` , `ends_at` , `sale_starts_at` , STATUS , `version` , `created_at` , `updated_at` FROM `activity_session` WHERE ( `activity_id` = ? ) ORDER BY `starts_at` ASC , `id` ASC LIMIT ?",
+      "calls": 5541,
+      "total_ms": "791.489",
+      "avg_ms": "0.143",
+      "rows_examined": 5541,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SELECT `id` , `activity_id` , `title` , `starts_at` , `ends_at` , `sale_starts_at` , STATUS , `version` , `created_at` , `updated_at` FROM `activity_session` WHERE ( `id` = ? )",
+      "calls": 5544,
+      "total_ms": "659.750",
+      "avg_ms": "0.119",
+      "rows_examined": 5534,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SET `autocommit` = ?",
+      "calls": 11092,
+      "total_ms": "649.517",
+      "avg_ms": "0.059",
+      "rows_examined": 0,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SET SESSION TRANSACTION READ ONLY",
+      "calls": 5532,
+      "total_ms": "336.824",
+      "avg_ms": "0.061",
+      "rows_examined": 0,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "COMMIT",
+      "calls": 5566,
+      "total_ms": "324.321",
+      "avg_ms": "0.058",
+      "rows_examined": 0,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SET SESSION TRANSACTION READ WRITE",
+      "calls": 5528,
+      "total_ms": "314.707",
+      "avg_ms": "0.057",
+      "rows_examined": 0,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "TRUNCATE `performance_schema` . `events_statements_summary_by_digest`",
+      "calls": 1,
+      "total_ms": "119.774",
+      "avg_ms": "119.774",
+      "rows_examined": 0,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SELECT `id` , `username` , STATUS , ROLE FROM `user_account` WHERE ( `id` = ? )",
+      "calls": 133,
+      "total_ms": "18.313",
+      "avg_ms": "0.138",
+      "rows_examined": 133,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "TRUNCATE `mysql` . `slow_log`",
+      "calls": 1,
+      "total_ms": "13.955",
+      "avg_ms": "13.955",
+      "rows_examined": 0,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SELECT `id` , `username` , `password_hash` , STATUS , ROLE , `created_at` , `updated_at` FROM `user_account` WHERE ( `username` = ? )",
+      "calls": 51,
+      "total_ms": "9.730",
+      "avg_ms": "0.191",
+      "rows_examined": 48,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SHOW GLOBAL STATUS WHERE `Variable_name` IN (...)",
+      "calls": 14,
+      "total_ms": "9.366",
+      "avg_ms": "0.669",
+      "rows_examined": 112,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SELECT COUNT ( * ) `n` FROM `performance_schema` . `data_lock_waits`",
+      "calls": 14,
+      "total_ms": "8.024",
+      "avg_ms": "0.573",
+      "rows_examined": 0,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SELECT `id` , `user_id` , `expires_at` FROM `ticket_order` FORCE INDEX ( `idx_order_expiry` ) WHERE STATUS = ? AND `expires_at` <= UTC_TIMESTAMP (?) ORDER BY `expires_at` , `id` LIMIT ?",
+      "calls": 30,
+      "total_ms": "7.111",
+      "avg_ms": "0.237",
+      "rows_examined": 0,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SELECT * FROM `outbox_event` WHERE `event_type` = ? AND STATUS IN (...) AND `next_retry_at` <= UTC_TIMESTAMP (?) ORDER BY `next_retry_at` , `id` LIMIT ? FOR UPDATE SKIP LOCKED",
+      "calls": 30,
+      "total_ms": "6.615",
+      "avg_ms": "0.221",
+      "rows_examined": 0,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SELECT STATUS , COUNT ( * ) `n` , MAX ( `retry_count` ) `attempts` FROM `outbox_event` GROUP BY STATUS",
+      "calls": 14,
+      "total_ms": "2.620",
+      "avg_ms": "0.187",
+      "rows_examined": 0,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SELECT @@SESSION . `transaction_isolation`",
+      "calls": 30,
+      "total_ms": "2.410",
+      "avg_ms": "0.080",
+      "rows_examined": 30,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SELECT COUNT ( * ) `n` , AVG ( TIMESTAMPDIFF ( MICROSECOND , `created_at` , `sent_at` ) ) / ? `avg_ms` , MAX ( TIMESTAMPDIFF ( MICROSECOND , `created_at` , `sent_at` ) ) / ? `max_ms` FROM `outbox_event` WHERE STATUS = ?",
+      "calls": 14,
+      "total_ms": "2.099",
+      "avg_ms": "0.150",
+      "rows_examined": 0,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SELECT `token` FROM `performance_control` . `environment_guard`",
+      "calls": 17,
+      "total_ms": "2.043",
+      "avg_ms": "0.120",
+      "rows_examined": 17,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED",
+      "calls": 30,
+      "total_ms": "1.904",
+      "avg_ms": "0.063",
+      "rows_examined": 0,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ",
+      "calls": 30,
+      "total_ms": "1.816",
+      "avg_ms": "0.061",
+      "rows_examined": 0,
+      "sort_rows": 0
+    },
+    {
+      "sql_pattern": "SELECT `o` . `id` , `o` . `user_id` FROM `ticket_order` `o` JOIN `activity_session` `s` ON `s` . `id` = `o` . `session_id` LEFT JOIN `order_aftercare` `c` ON `c` . `order_id` = `o` . `id` WHERE `s` . `status` = ? AND `o` . `status` IN (...) AND `o` . `id` > ? AND ( `c` . `order_id` IS NULL OR ( `c` . `status` = ? AND `c` . `next_retry_at` <= UTC_TIMESTAMP (?) ) ) ORDER BY `o` . `id` LIMIT ?",
+      "calls": 6,
+      "total_ms": "1.758",
+      "avg_ms": "0.293",
+      "rows_examined": 0,
+      "sort_rows": 0
+    }
+  ],
+  "explain": {
+    "quota": [
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "o",
+        "partitions": null,
+        "type": "ref",
+        "possible_keys": "PRIMARY,uk_order_idempotency,uk_order_id_session,uk_order_id_user,idx_order_user_created,idx_order_expiry,idx_order_session,idx_order_user_session_status",
+        "key": "uk_order_idempotency",
+        "key_len": "8",
+        "ref": "const",
+        "rows": 1,
+        "filtered": 100.0,
+        "Extra": "Using where"
+      },
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "i",
+        "partitions": null,
+        "type": "eq_ref",
+        "possible_keys": "uk_item_order,uk_item_order_sku,idx_item_order_session",
+        "key": "uk_item_order",
+        "key_len": "8",
+        "ref": "ticketing_perf.o.id",
+        "rows": 1,
+        "filtered": 100.0,
+        "Extra": null
+      }
+    ],
+    "fifo": [
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "waitlist_entry",
+        "partitions": null,
+        "type": "ref",
+        "possible_keys": "idx_waitlist_queue,idx_waitlist_expiry",
+        "key": "idx_waitlist_queue",
+        "key_len": "74",
+        "ref": "const,const",
+        "rows": 1,
+        "filtered": 100.0,
+        "Extra": null
+      }
+    ],
+    "outbox": [
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "outbox_event",
+        "partitions": null,
+        "type": "range",
+        "possible_keys": "idx_outbox_dispatch",
+        "key": "idx_outbox_dispatch",
+        "key_len": "74",
+        "ref": null,
+        "rows": 2,
+        "filtered": 100.0,
+        "Extra": "Using index condition; Using where; Using filesort"
+      }
+    ],
+    "orders_page": [
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "o",
+        "partitions": null,
+        "type": "ref",
+        "possible_keys": "PRIMARY,uk_order_idempotency,uk_order_id_session,uk_order_id_user,idx_order_user_created,idx_order_session,idx_order_user_session_status",
+        "key": "idx_order_user_created",
+        "key_len": "8",
+        "ref": "const",
+        "rows": 1,
+        "filtered": 100.0,
+        "Extra": "Backward index scan"
+      },
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "i",
+        "partitions": null,
+        "type": "eq_ref",
+        "possible_keys": "uk_item_order,uk_item_order_sku,idx_item_order_session",
+        "key": "uk_item_order",
+        "key_len": "8",
+        "ref": "ticketing_perf.o.id",
+        "rows": 1,
+        "filtered": 100.0,
+        "Extra": null
+      },
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "s",
+        "partitions": null,
+        "type": "eq_ref",
+        "possible_keys": "PRIMARY,idx_session_activity_start",
+        "key": "PRIMARY",
+        "key_len": "8",
+        "ref": "ticketing_perf.o.session_id",
+        "rows": 1,
+        "filtered": 100.0,
+        "Extra": null
+      },
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "p",
+        "partitions": null,
+        "type": "eq_ref",
+        "possible_keys": "uk_payment_order",
+        "key": "uk_payment_order",
+        "key_len": "8",
+        "ref": "ticketing_perf.o.id",
+        "rows": 1,
+        "filtered": 100.0,
+        "Extra": "Using where"
+      },
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "a",
+        "partitions": null,
+        "type": "eq_ref",
+        "possible_keys": "PRIMARY",
+        "key": "PRIMARY",
+        "key_len": "8",
+        "ref": "ticketing_perf.s.activity_id",
+        "rows": 1,
+        "filtered": 100.0,
+        "Extra": null
+      }
+    ],
+    "waitlist_page": [
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "w",
+        "partitions": null,
+        "type": "ref",
+        "possible_keys": "uk_waitlist_active,idx_waitlist_queue,idx_waitlist_user",
+        "key": "idx_waitlist_user",
+        "key_len": "8",
+        "ref": "const",
+        "rows": 1,
+        "filtered": 100.0,
+        "Extra": "Backward index scan"
+      },
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "t",
+        "partitions": null,
+        "type": "eq_ref",
+        "possible_keys": "PRIMARY,uk_sku_session_name,uk_sku_id_session",
+        "key": "PRIMARY",
+        "key_len": "8",
+        "ref": "ticketing_perf.w.sku_id",
+        "rows": 1,
+        "filtered": 100.0,
+        "Extra": null
+      },
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "s",
+        "partitions": null,
+        "type": "eq_ref",
+        "possible_keys": "PRIMARY,idx_session_activity_start",
+        "key": "PRIMARY",
+        "key_len": "8",
+        "ref": "ticketing_perf.t.session_id",
+        "rows": 1,
+        "filtered": 100.0,
+        "Extra": null
+      },
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "o",
+        "partitions": null,
+        "type": "eq_ref",
+        "possible_keys": "PRIMARY,uk_order_idempotency,uk_order_id_session,uk_order_id_user,idx_order_user_created,idx_order_session,idx_order_user_session_status",
+        "key": "PRIMARY",
+        "key_len": "8",
+        "ref": "ticketing_perf.w.reserved_order_id",
+        "rows": 1,
+        "filtered": 100.0,
+        "Extra": "Using where"
+      },
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "i",
+        "partitions": null,
+        "type": "eq_ref",
+        "possible_keys": "uk_item_order,uk_item_order_sku,idx_item_order_session,idx_item_sku_session",
+        "key": "uk_item_order",
+        "key_len": "8",
+        "ref": "ticketing_perf.o.id",
+        "rows": 1,
+        "filtered": 100.0,
+        "Extra": "Using where"
+      },
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "a",
+        "partitions": null,
+        "type": "eq_ref",
+        "possible_keys": "PRIMARY",
+        "key": "PRIMARY",
+        "key_len": "8",
+        "ref": "ticketing_perf.s.activity_id",
+        "rows": 1,
+        "filtered": 100.0,
+        "Extra": null
+      }
+    ],
+    "tickets": [
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "electronic_ticket",
+        "partitions": null,
+        "type": "ref",
+        "possible_keys": "idx_ticket_owner",
+        "key": "idx_ticket_owner",
+        "key_len": "8",
+        "ref": "const",
+        "rows": 1,
+        "filtered": 100.0,
+        "Extra": "Backward index scan"
+      }
+    ],
+    "activities": [
+      {
+        "id": 1,
+        "select_type": "SIMPLE",
+        "table": "activity",
+        "partitions": null,
+        "type": "ALL",
+        "possible_keys": "idx_activity_discovery,idx_activity_publication",
+        "key": null,
+        "key_len": null,
+        "ref": null,
+        "rows": 1000,
+        "filtered": 100.0,
+        "Extra": "Using where; Using filesort"
+      }
+    ]
+  },
+  "planParameters": {
+    "user_id": 1220,
+    "session_id": 140,
+    "sku_id": 140
+  },
+  "planScope": "测试结束后的实际夹具参数，不外推生产行数或压力中间状态",
+  "slowQueries": {
+    "n": 0,
+    "total_ms": "0"
+  }
+}

@@ -1,5 +1,7 @@
 # 第十二阶段Redis请求频率保护验收
 
+本文保留第十二阶段的历史验收口径。第十三阶段已增加新会话预算和显式受信代理，并完成原开发库受控V7恢复；当前部署与验证说明见[阶段十三验收](23-session-proxy-migration-verification.md)。
+
 ## 范围与接入
 
 重新检查backend、frontend、deploy、scripts/performance、docs及测试布局后，在既有单模块及扁平分层上实现限流。生产新增`RateLimitProperties`、`RedisRateLimiter`、`RequestRateLimitFilter`及一个Lua资源，全部登记auth逻辑归属。不新增依赖、数据库表或迁移；V1～V7原文件保持不变。

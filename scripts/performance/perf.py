@@ -131,7 +131,7 @@ def rate_limit_environment(mode):
               'PERF_RATE_LIMIT_KEY_SECRET': base64.b64encode(secrets.token_bytes(32)).decode()}
     if mode == 'regression':
         values.update({f'PERF_RATE_LIMIT_{category}': '10000' for category in
-                       ('LOGIN_IP', 'LOGIN_ACCOUNT_IP', 'REGISTER_IP', 'ORDER_USER', 'WAITLIST_USER')})
+                       ('LOGIN_IP', 'LOGIN_ACCOUNT_IP', 'REGISTER_IP', 'ORDER_USER', 'WAITLIST_USER', 'CSRF_SESSION_IP')})
     return values
 
 
@@ -146,7 +146,7 @@ def app_start(jar, rate_limit_mode='regression', **overrides):
         raise RuntimeError('先运行 stop，避免两个压测进程共用端口')
     # 不继承可能重定向数据源/端口或注入JVM参数的开发环境；只在子进程中隔离。
     prefixes = ('SPRING_','MANAGEMENT_','TICKETING_','MYSQL_','RABBITMQ_','REDIS_','SERVER_',
-                'ORDER_','WAITLIST_','ADMIN_','SESSION_','TICKET_','CHECKIN_','LOGGING_','RATE_LIMIT_','PERF_')
+                'ORDER_','WAITLIST_','ADMIN_','SESSION_','TICKET_','CHECKIN_','LOGGING_','RATE_LIMIT_','PERF_','CLIENT_ADDRESS_')
     env = {key:value for key,value in os.environ.items()
            if not key.upper().replace('.','_').replace('-','_').startswith(prefixes)
            and key.upper() not in ('JAVA_TOOL_OPTIONS','JDK_JAVA_OPTIONS','_JAVA_OPTIONS')}

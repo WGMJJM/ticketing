@@ -190,7 +190,7 @@ class RateLimitIT {
     @Test
     void twoLimiterInstancesAllowExactly50Of160ConcurrentRequests() throws Exception {
         var policy = new Policy(50, 10);
-        var settings = new RateLimitProperties(true, SECRET, NAMESPACE, 1, policy, policy, policy, policy, policy);
+        var settings = new RateLimitProperties(true, SECRET, NAMESPACE, 1, policy, policy, policy, policy, policy, policy);
         var first = new RedisRateLimiter(redis, settings, new SimpleMeterRegistry());
         var second = new RedisRateLimiter(new StringRedisTemplate(redis.getConnectionFactory()), settings, new SimpleMeterRegistry());
         var start = new CountDownLatch(1);
@@ -310,7 +310,11 @@ class RateLimitIT {
     private List<String> ownKeys() {
         var keys = new ArrayList<String>();
         try (var cursor = redis.scan(ScanOptions.scanOptions().match(PREFIX + "*").count(100).build())) {
-            while (cursor.hasNext()) keys.add(cursor.next());
+            // 本类只核对第十二阶段五类预算，新会话预算由CsrfSessionIT独立验证。
+            while (cursor.hasNext()) {
+                String key = cursor.next();
+                if (!key.contains(":csrf-session-ip:")) keys.add(key);
+            }
         }
         return keys;
     }

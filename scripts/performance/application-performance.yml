@@ -35,11 +35,16 @@ info:
     environment: ticketing-perf-only
 ticketing:
   security:
+    client-address:
+      mode: DIRECT
+      trusted-proxies: []
     rate-limit:
       # 专用工具显式选择关闭对照、放宽阈值回归或生产阈值验证；不继承开发限流参数。
       enabled: ${PERF_RATE_LIMIT_ENABLED:true}
       key-secret: ${PERF_RATE_LIMIT_KEY_SECRET:}
       namespace: perf_stage12
+      csrf-session-ip:
+        limit: ${PERF_RATE_LIMIT_CSRF_SESSION_IP:120}
       login-ip:
         limit: ${PERF_RATE_LIMIT_LOGIN_IP:60}
       login-account-ip:

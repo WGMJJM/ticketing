@@ -1,0 +1,10 @@
+# 单一边缘代理示例，合并到已有TLS站点；后端设置SERVER_ADDRESS=127.0.0.1且不直接暴露公网。
+# 应用显式CLIENT_ADDRESS_MODE=TRUSTED_PROXY，受信范围只包含这个代理的实际socket地址。
+location /api/ {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_set_header Host $host;
+    # 边缘必须覆盖外部传入的值，不能在此使用$proxy_add_x_forwarded_for。
+    proxy_set_header X-Forwarded-For $remote_addr;
+    proxy_set_header X-Real-IP "";
+    proxy_set_header Forwarded "";
+}

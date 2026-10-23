@@ -1,0 +1,102 @@
+{
+  "environment": "ticketing-perf-only",
+  "rateLimitMode": "production",
+  "concurrentRegistration": {
+    "requests": 160,
+    "controllerValidation400": 10,
+    "limited429": 150
+  },
+  "businessBudgets": {
+    "orders": 30,
+    "waitlist": 10,
+    "rejectedBeforeWrites": true
+  },
+  "csrfSessionBudget": {
+    "requests": 160,
+    "allowed200": 115,
+    "limited429": 45,
+    "rejectedSetCookie": 0,
+    "existingSessionCsrf": 200
+  },
+  "realRedisOutage": {
+    "protected503": 4,
+    "latencyMs": [
+      515.0,
+      547.0,
+      516.0,
+      515.0
+    ],
+    "anonymousCsrf503": 1,
+    "anonymousSetCookie": 0,
+    "existingSessionCsrf": 200,
+    "publicRead": 200,
+    "sessionOrderRead": 200,
+    "databaseUnchanged": true
+  },
+  "recovery": {
+    "registrationControllerValidation": 400,
+    "audit": {
+      "passed": true,
+      "checks": [
+        {
+          "invariant": "stock_bounds",
+          "violation_count": 0
+        },
+        {
+          "invariant": "stock_order_totals",
+          "violation_count": 0
+        },
+        {
+          "invariant": "payment_snapshot",
+          "violation_count": 0
+        },
+        {
+          "invariant": "order_snapshot",
+          "violation_count": 0
+        },
+        {
+          "invariant": "session_quota",
+          "violation_count": 0
+        },
+        {
+          "invariant": "waitlist_relation",
+          "violation_count": 0
+        },
+        {
+          "invariant": "fifo_allocation_order",
+          "violation_count": 0
+        },
+        {
+          "invariant": "ticket_quantity",
+          "violation_count": 0
+        },
+        {
+          "invariant": "ticket_relation",
+          "violation_count": 0
+        },
+        {
+          "invariant": "duplicate_payment_effect",
+          "violation_count": 0
+        },
+        {
+          "invariant": "duplicate_active_waitlist",
+          "violation_count": 0
+        }
+      ],
+      "counts": {
+        "order_aftercare": 0,
+        "refund_record": 0,
+        "electronic_ticket": 0,
+        "waitlist_entry": 0,
+        "payment_record": 0,
+        "ticket_order_item": 0,
+        "ticket_order": 0,
+        "outbox_event": 0,
+        "ticket_sku": 1,
+        "activity_session": 1,
+        "activity": 1000,
+        "user_account": 12
+      }
+    }
+  }
+}
