@@ -97,7 +97,8 @@ class AuthenticationIT {
         browser.get("/auth/me", 401);
         jdbc.update("UPDATE user_account SET status='DISABLED' WHERE id=?", user.path("id").asLong());
         JsonNode error = browser.login(name, password, 401);
-        assertThat(error.path("message").asText()).contains("禁用");
+        assertThat(error.path("code").asText()).isEqualTo("INVALID_CREDENTIALS");
+        assertThat(error.path("message").asText()).isEqualTo("用户名或密码不正确");
         browser.get("/auth/me", 401);
     }
 

@@ -1,6 +1,6 @@
 # 当前 API 契约
 
-后端目录已统一为扁平技术分层，控制器位于`com.ticketing.controller`，服务位于`com.ticketing.service`，Mapper位于`com.ticketing.mapper`。本次仅调整Java包和源码位置，下面所有HTTP路径、请求响应、权限与CSRF约定保持不变；历史验收文档中的旧源码路径以当时提交为准，当前结构见[架构说明](01-architecture.md)。
+后端目录已统一为扁平技术分层，控制器位于`com.ticketing.controller`，服务位于`com.ticketing.service`，Mapper位于`com.ticketing.mapper`。前序目录整理保留了HTTP路径、权限与CSRF协议；第十二阶段新增的429/503响应见本文末尾。历史验收文档中的旧源码路径以当时提交为准，当前结构见[架构说明](01-architecture.md)。
 
 ## 第十阶段订单运营与模拟退款
 
@@ -236,3 +236,18 @@ HTTP路径、请求字段、Session与CSRF、HTTP状态码及响应字符串状�
 审计查询参数为`operatorId`、`action`、`resourceType`、`resourceId`、`from`、`to`、`page`、`size`。时间必须是带偏移的ISO 8601并转换为UTC筛选；`from < to`；页码默认1且最大10000，每页默认10且最大50。响应审计条目含字符串ID、操作人ID/名称、动作、资源类型/ID、UTC时间、受控摘要、变更前后脱敏快照和requestId。允许的动作来自固定AuditAction枚举，资源类型限ACTIVITY/SESSION/TICKET_SKU/STAFF/ORDER。审计查询不会返回密码、会话Cookie、CSRF令牌、有效票凭证或签名密钥。
 
 权限矩阵：USER不可访问管理及核销接口；CHECKIN_STAFF可看本人被授权场次并核销这些场次，不能查看审计或调用其他管理业务接口；ADMIN可使用既有运营接口、管理工作人员和查询全站审计，并保留原管理员核销能力。CurrentAccountFilter每次对这些受保护路由复查账号最新状态/角色；角色降级刷新Session身份，账号禁用使Session失效。工作人员授权另在核销事务中读取数据库事实，授权撤销、停用或降级不会依赖浏览器刷新来生效。登录/退出后仍须重新获取CSRF。
+
+## 第十二阶段请求频率保护
+
+`POST /api/v1/auth/login`、`/auth/register`、`/orders`、`/waitlist`在原有成功/失败协议外增加：
+
+| HTTP | code | message | 响应头 |
+| --- | --- | --- | --- |
+| 429 | `TOO_MANY_REQUESTS` | `操作过于频繁，请在N秒后重试` | `Retry-After: N`、`Cache-Control: no-store` |
+| 503 | `RATE_LIMIT_UNAVAILABLE` | `安全校验服务暂不可用，请稍后重试` | `Retry-After: N`、`Cache-Control: no-store` |
+
+仍使用`ApiResponse` JSON，不返回Redis键、账号存在性、凭据或内部异常。登录错误（包括不存在、停用和密码错误）统一401 `INVALID_CREDENTIALS`及“用户名或密码不正确”。注册用户名重复仍按原409协议处理。
+
+默认窗口及策略见[限流验收说明](22-redis-security-rate-limits-verification.md)。登录按连接IP和规范化账号+IP共同计数，正确/错误密码的放行尝试都计数，成功不清零；拒绝不延长窗口。所有购票提交（包括相同幂等键）共享本人30次/10秒预算，允许常规网络重试，耗尽后等待Retry-After再由用户重试，原幂等事实仍保留。候补本人10次/60秒。429/该503在业务调用前返回；前端展示中文等待秒数，不自动重放写请求或支付。无响应/其他5xx仍保留原订单同键确认策略。
+
+CSRF不合法先403；匿名购票/候补先401，停用账号先401并使Session失效。公开活动查询和已登录订单查询不依赖Redis限流服务。STAFF/ADMIN原权限矩阵保持不变。

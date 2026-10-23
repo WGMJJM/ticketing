@@ -1,11 +1,52 @@
 """隔离边界测试，无需 Docker；真实一致性反例见 audit_probes.py。"""
 import argparse
+import json
+from pathlib import Path
+import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 import perf
 
 
 class SafetyTests(unittest.TestCase):
+    def test_inherited_rate_limit_settings_cannot_disable_protected_perf_mode_or_leak_secret(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            jar = directory / 'test.jar'
+            jar.write_bytes(b'isolated-test-artifact')
+            cfg = {'dbPassword': 'unused', 'mqPassword': 'unused', 'adminPassword': 'unused',
+                   'ticketKeys': 'unused', 'rootPassword': 'unused'}
+            process = MagicMock(pid=123)
+            process.poll.return_value = None
+            with patch.object(perf, 'PRIVATE', directory), patch.object(perf, 'config', return_value=cfg), \
+                    patch.dict(perf.os.environ, {'RATE_LIMIT_ENABLED': 'false', 'RATE_LIMIT_KEY_SECRET': 'inherited',
+                                                 'PERF_RATE_LIMIT_ENABLED': 'false', 'PERF_RATE_LIMIT_ORDER_USER': '1'}), \
+                    patch.object(perf.subprocess, 'Popen', return_value=process) as start, \
+                    patch.object(perf.requests, 'get') as get, patch.object(perf, 'admin') as admin:
+                get.return_value.status_code = 200
+                admin.return_value.request.return_value = {'performance': {'environment': 'ticketing-perf-only'}}
+                perf.app_start(jar, rate_limit_mode='production')
+                child = start.call_args.kwargs['env']
+                self.assertEqual(child['PERF_RATE_LIMIT_ENABLED'], 'true')
+                self.assertNotIn('RATE_LIMIT_ENABLED', child)
+                self.assertNotIn('RATE_LIMIT_KEY_SECRET', child)
+                self.assertNotIn('PERF_RATE_LIMIT_ORDER_USER', child)
+                report = (directory / 'app.json').read_text(encoding='utf-8')
+                self.assertNotIn(child['PERF_RATE_LIMIT_KEY_SECRET'], report)
+                self.assertEqual(json.loads(report)['rateLimitMode'], 'production')
+
+    def test_rate_limit_modes_are_explicit_isolated_and_have_private_random_secrets(self):
+        baseline = perf.rate_limit_environment('baseline')
+        regression = perf.rate_limit_environment('regression')
+        production = perf.rate_limit_environment('production')
+        self.assertEqual(baseline['PERF_RATE_LIMIT_ENABLED'], 'false')
+        self.assertEqual(regression['PERF_RATE_LIMIT_ENABLED'], 'true')
+        self.assertEqual(regression['PERF_RATE_LIMIT_REGISTER_IP'], '10000')
+        self.assertNotIn('PERF_RATE_LIMIT_REGISTER_IP', production)
+        self.assertNotEqual(regression['PERF_RATE_LIMIT_KEY_SECRET'], production['PERF_RATE_LIMIT_KEY_SECRET'])
+        with self.assertRaisesRegex(RuntimeError, '未知专用限流模式'):
+            perf.rate_limit_environment('invalid')
+
     def test_sensitive_overrides_cannot_be_copied_into_reports(self):
         with self.assertRaisesRegex(RuntimeError, '无敏感压测参数'):
             perf.app_start('unused.jar', PERF_ADMIN_PASSWORD='not-a-real-password')

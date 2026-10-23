@@ -34,6 +34,22 @@ info:
   performance:
     environment: ticketing-perf-only
 ticketing:
+  security:
+    rate-limit:
+      # 专用工具显式选择关闭对照、放宽阈值回归或生产阈值验证；不继承开发限流参数。
+      enabled: ${PERF_RATE_LIMIT_ENABLED:true}
+      key-secret: ${PERF_RATE_LIMIT_KEY_SECRET:}
+      namespace: perf_stage12
+      login-ip:
+        limit: ${PERF_RATE_LIMIT_LOGIN_IP:60}
+      login-account-ip:
+        limit: ${PERF_RATE_LIMIT_LOGIN_ACCOUNT_IP:10}
+      register-ip:
+        limit: ${PERF_RATE_LIMIT_REGISTER_IP:10}
+      order-user:
+        limit: ${PERF_RATE_LIMIT_ORDER_USER:30}
+      waitlist-user:
+        limit: ${PERF_RATE_LIMIT_WAITLIST_USER:10}
   checkin:
     credential-keys: ${PERF_TICKET_KEYS}
     backfill:

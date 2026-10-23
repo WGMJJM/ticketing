@@ -124,7 +124,18 @@ def admin():
     return Client({'username': 'perf_admin', 'password': config()['adminPassword']})
 
 
-def app_start(jar, **overrides):
+def rate_limit_environment(mode):
+    if mode not in ('baseline', 'regression', 'production'):
+        raise RuntimeError('未知专用限流模式')
+    values = {'PERF_RATE_LIMIT_ENABLED': 'false' if mode == 'baseline' else 'true',
+              'PERF_RATE_LIMIT_KEY_SECRET': base64.b64encode(secrets.token_bytes(32)).decode()}
+    if mode == 'regression':
+        values.update({f'PERF_RATE_LIMIT_{category}': '10000' for category in
+                       ('LOGIN_IP', 'LOGIN_ACCOUNT_IP', 'REGISTER_IP', 'ORDER_USER', 'WAITLIST_USER')})
+    return values
+
+
+def app_start(jar, rate_limit_mode='regression', **overrides):
     if not set(overrides).issubset(OVERRIDES):
         raise RuntimeError('只允许覆盖已列出的无敏感压测参数')
     if any(not re.fullmatch(r'(?:true|false|[0-9]{1,8})', str(value)) for value in overrides.values()):
@@ -135,7 +146,7 @@ def app_start(jar, **overrides):
         raise RuntimeError('先运行 stop，避免两个压测进程共用端口')
     # 不继承可能重定向数据源/端口或注入JVM参数的开发环境；只在子进程中隔离。
     prefixes = ('SPRING_','MANAGEMENT_','TICKETING_','MYSQL_','RABBITMQ_','REDIS_','SERVER_',
-                'ORDER_','WAITLIST_','ADMIN_','SESSION_','TICKET_','CHECKIN_','LOGGING_')
+                'ORDER_','WAITLIST_','ADMIN_','SESSION_','TICKET_','CHECKIN_','LOGGING_','RATE_LIMIT_','PERF_')
     env = {key:value for key,value in os.environ.items()
            if not key.upper().replace('.','_').replace('-','_').startswith(prefixes)
            and key.upper() not in ('JAVA_TOOL_OPTIONS','JDK_JAVA_OPTIONS','_JAVA_OPTIONS')}
@@ -143,6 +154,7 @@ def app_start(jar, **overrides):
                PERF_ADMIN_PASSWORD=cfg['adminPassword'], PERF_TICKET_KEYS=cfg['ticketKeys'],
                MYSQL_PASSWORD=cfg['dbPassword'], RABBITMQ_PASSWORD=cfg['mqPassword'],
                SPRING_FLYWAY_USER='root', SPRING_FLYWAY_PASSWORD=cfg['rootPassword'])
+    env.update(rate_limit_environment(rate_limit_mode))
     # 仅专用实例的迁移连接使用已有管理账号创建审计触发器；运行连接池仍用ticketing_perf。
     env.update({key: str(value) for key, value in overrides.items()})
     args = ['java', '-Xms512m', '-Xmx1024m', '-XX:+UseG1GC', '-jar', str(Path(jar).resolve()),
@@ -154,7 +166,8 @@ def app_start(jar, **overrides):
     out.close(); err.close()
     pidfile.write_text(str(process.pid), encoding='ascii')
     save(PRIVATE / 'app.json', {'jar': str(Path(jar).resolve()), 'sha256': hashlib.sha256(Path(jar).read_bytes()).hexdigest(),
-                              'overrides': overrides, 'startedAt': datetime.now(timezone.utc).isoformat()})
+                              'overrides': overrides, 'rateLimitMode': rate_limit_mode,
+                              'startedAt': datetime.now(timezone.utc).isoformat()})
     for _ in range(120):
         if process.poll() is not None:
             raise RuntimeError('压测应用启动失败，请查看 .local/performance/app.err.log')
@@ -267,7 +280,7 @@ def prepare(mode, count, staff_checkin=False):
                 cur.execute('DELETE FROM user_account WHERE id NOT IN (SELECT operator_id FROM admin_audit_log)')
             else:
                 cur.execute('DELETE FROM ' + table)
-    app_start(app['jar'], **app.get('overrides', {}))
+    app_start(app['jar'], rate_limit_mode=app.get('rateLimitMode', 'regression'), **app.get('overrides', {}))
     adm = admin()
     # 批量注册仍调用真实 BCrypt 注册接口，准备成本不计入稳定压测。
     users = [{'username': f'perf_u{i:04d}', 'password': secrets.token_urlsafe(20)} for i in range(count + 1)]
@@ -543,6 +556,8 @@ def main():
     start = commands.add_parser('start'); start.add_argument('--jar', required=True)
     start.add_argument('--pool-size', type=int)
     start.add_argument('--outbox-batch-size', type=int)
+    start.add_argument('--rate-limit-mode', choices=['baseline','regression','production'], default='regression',
+                       help='仅专用环境 baseline关闭对照 regression开启放宽阈值 production默认阈值')
     commands.add_parser('stop')
     commands.add_parser('environment')
     prepare_cmd = commands.add_parser('prepare')
@@ -563,7 +578,7 @@ def main():
         overrides = {}
         if args.pool_size is not None: overrides['SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE'] = str(args.pool_size)
         if args.outbox_batch_size is not None: overrides['TICKETING_WAITLIST_OUTBOX_BATCH_SIZE'] = str(args.outbox_batch_size)
-        app_start(args.jar, **overrides)
+        app_start(args.jar, rate_limit_mode=args.rate_limit_mode, **overrides)
     elif args.command == 'stop': app_stop()
     elif args.command == 'environment': environment_snapshot();print('环境快照已保存')
     elif args.command == 'prepare': prepare(args.scenario, args.users, args.staff_checkin)

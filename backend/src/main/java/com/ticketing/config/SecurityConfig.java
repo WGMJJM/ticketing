@@ -7,7 +7,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ticketing.dto.UserView;
 import com.ticketing.security.AccountPrincipal;
 import com.ticketing.security.CurrentAccountFilter;
+import com.ticketing.security.RedisRateLimiter;
+import com.ticketing.security.RequestRateLimitFilter;
 import com.ticketing.mapper.UserAccountMapper;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -15,7 +19,7 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.savedrequest.NullRequestCache;
@@ -27,13 +31,15 @@ import org.springframework.security.web.servlet.util.matcher.PathPatternRequestM
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
 
 @Configuration
+@EnableConfigurationProperties(RateLimitProperties.class)
 public class SecurityConfig {
 
     @Bean
     PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper objectMapper, UserAccountMapper accounts) throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper objectMapper, UserAccountMapper accounts,
+            RateLimitProperties rateLimit, ObjectProvider<RedisRateLimiter> limiters) throws Exception {
         var paths = PathPatternRequestMatcher.withDefaults();
         var currentUser = paths.matcher(HttpMethod.GET, "/api/v1/auth/me");
         var administration = paths.matcher("/api/v1/admin/**");
@@ -72,7 +78,7 @@ public class SecurityConfig {
                         .successHandler((request, response, authentication) -> writeResponse(response, objectMapper, 200,
                                 ApiResponse.success(UserView.from((AccountPrincipal) authentication.getPrincipal()))))
                         .failureHandler((request, response, exception) -> writeError(response, objectMapper, 401,
-                                "INVALID_CREDENTIALS", exception instanceof DisabledException ? "账号已被禁用，请联系管理员" : "用户名或密码不正确")))
+                                "INVALID_CREDENTIALS", "用户名或密码不正确")))
                 .logout(logout -> logout.logoutUrl("/api/v1/auth/logout").invalidateHttpSession(true)
                         .clearAuthentication(true).deleteCookies("JSESSIONID")
                         .logoutSuccessHandler((request, response, authentication) ->
@@ -84,6 +90,13 @@ public class SecurityConfig {
                         })
                         .accessDeniedHandler((request, response, exception) ->
                                 writeError(response, objectMapper, 403, "ACCESS_DENIED", "无权执行此操作或安全校验已过期，请刷新后重试")));
+        if (rateLimit.enabled()) {
+            RedisRateLimiter limiter = limiters.getObject();
+            http.addFilterAfter(new RequestRateLimitFilter(limiter, objectMapper, RequestRateLimitFilter.Scope.AUTHENTICATION), CsrfFilter.class);
+            http.addFilterAfter(new RequestRateLimitFilter(limiter, objectMapper, RequestRateLimitFilter.Scope.AUTHORIZED_BUSINESS), AuthorizationFilter.class);
+        } else {
+            org.slf4j.LoggerFactory.getLogger(SecurityConfig.class).warn("请求限流已显式关闭，仅应在受控隔离测试环境使用");
+        }
         return http.build();
     }
 

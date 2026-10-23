@@ -106,9 +106,14 @@ async function purchase() {
     emit('changed')
     await router.push('/orders/' + order.id)
   } catch (failure) {
+    const rejectedBeforeWrite = axios.isAxiosError(failure) &&
+      (failure.response?.status === 429 || failure.response?.data?.code === 'RATE_LIMIT_UNAVAILABLE')
+    // 先前超时的提交仍可能已成功；本次安全拒绝不能抹掉原请求的不确定性及幂等键。
+    const previouslyUncertain = uncertain.value
     uncertain.value =
-      axios.isAxiosError(failure) &&
-      (!failure.response || failure.response.status >= 500)
+      (previouslyUncertain && rejectedBeforeWrite) ||
+      (axios.isAxiosError(failure) &&
+        (!failure.response || (failure.response.status >= 500 && !rejectedBeforeWrite)))
     if (!uncertain.value) {
       attempt = undefined
       void loadLimit()

@@ -163,3 +163,36 @@ python scripts/performance/perf.py audit
 Compose 日志用 `logs --tail 80 <服务>`；后端启动失败优先检查 MySQL、密码与 Flyway 报错，不通过关闭迁移绕过。Redis 与 MQ 故障会影响聚合健康但系统状态仍可能可访问。日志与 JSON 不应输出明文凭据和内部堆栈给前端。
 
 前后端开发终端用 Ctrl+C；容器用 Compose `stop`，保留数据。不要为修复密码或迁移问题直接删除数据卷。未应用的迁移可以在初次验证前修正；一旦 V1 已应用，所有后续数据库变更使用新版本。
+
+## 第十二阶段Redis限流配置
+
+运行前为`RATE_LIMIT_KEY_SECRET`注入独立随机Base64密钥（解码32至128字节），不复用电子票密钥、不写入版本库。PowerShell可在当前进程生成：
+
+```powershell
+$rateLimitKeyBytes = New-Object byte[] 32
+$rateLimitGenerator = [Security.Cryptography.RandomNumberGenerator]::Create()
+try {
+    $rateLimitGenerator.GetBytes($rateLimitKeyBytes)
+    $env:RATE_LIMIT_KEY_SECRET = [Convert]::ToBase64String($rateLimitKeyBytes)
+} finally {
+    $rateLimitGenerator.Dispose()
+}
+```
+
+生产默认`RATE_LIMIT_ENABLED=true`，多应用实例共享同一命名空间和密钥；环境之间使用不同的`RATE_LIMIT_NAMESPACE`。变更密钥/命名空间会重置短期预算，须作为受控部署操作。配置位于`.env.example`、`application.yml`的`ticketing.security.rate-limit`，启动严格校验阈值1～10000、窗口1～3600秒、命名空间1～32个字母/数字/下划线/连字符、故障Retry-After为1～60秒。Redis连接和命令超时默认各500ms。
+
+| 环境变量前缀 | LIMIT默认 | WINDOW_SECONDS默认 |
+| --- | ---: | ---: |
+| `RATE_LIMIT_LOGIN_IP_` | 60 | 60 |
+| `RATE_LIMIT_LOGIN_ACCOUNT_IP_` | 10 | 60 |
+| `RATE_LIMIT_REGISTER_IP_` | 10 | 600 |
+| `RATE_LIMIT_ORDER_USER_` | 30 | 10 |
+| `RATE_LIMIT_WAITLIST_USER_` | 10 | 60 |
+
+另有`RATE_LIMIT_UNAVAILABLE_RETRY_SECONDS=1`。生产Redis宕机时以上四个提交入口返回503；公开查询、本人已有订单查询以及数据库补偿任务保持原逻辑。不要以关闭保护作为常规故障处理。恢复Redis后连接自动重试；Redis自身重启可能丢失短期计数，MySQL事实不变。部署Compose继续复用`redis:7-alpine`及现有AOF卷，无新设施或Flyway迁移。
+
+`server.forward-headers-strategy=none`，只使用Servlet连接地址，忽略`X-Forwarded-For`、`X-Real-IP`和`Forwarded`。当前未支持受信代理CIDR；上线代理后会按代理地址共享IP预算，部署方应评估阈值，不能直接打开任意转发头信任。
+
+普通后端回归在测试资源中显式关闭限流，不连接Redis；`mysql-it`中的`RateLimitIT`显式开启，默认使用本机16379，`RATE_LIMIT_TEST_REDIS_PORT`可指定隔离Redis，只清理随机`it_`命名空间，不执行FLUSHDB/FLUSHALL。真实MySQL测试须使用独立验收库，原开发库的V7失败现场继续保留，先只读执行三个部署审计脚本，STOP时不得启动部署/repair。
+
+性能工具新增`--rate-limit-mode baseline|regression|production`，仅固定ticketing-perf环境有效。baseline显式关闭用于旧口径对照；regression开启Lua、阈值统一放宽为10000以保持既有场景；production使用默认阈值，并运行`verify_rate_limits.py`验证保护与真实Redis故障。测试密钥由工具随机生成，仅传入子进程，不进入共享报告。完整复现见[阶段十二验收](22-redis-security-rate-limits-verification.md)。

@@ -19,8 +19,8 @@ spring:
     redis:
       host: ${REDIS_HOST:127.0.0.1}
       port: ${REDIS_PORT:6379}
-      connect-timeout: 3s
-      timeout: 3s
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:500ms}
+      timeout: ${REDIS_COMMAND_TIMEOUT:500ms}
   rabbitmq:
     publisher-confirm-type: correlated
     publisher-returns: true
@@ -49,6 +49,7 @@ spring:
     serialization:
       write-dates-as-timestamps: false
 server:
+  forward-headers-strategy: none
   address: 127.0.0.1
   port: ${SERVER_PORT:8080}
   servlet:
@@ -77,6 +78,27 @@ mybatis-plus:
   global-config:
     banner: false
 ticketing:
+  security:
+    rate-limit:
+      enabled: ${RATE_LIMIT_ENABLED:true}
+      key-secret: ${RATE_LIMIT_KEY_SECRET:}
+      namespace: ${RATE_LIMIT_NAMESPACE:default}
+      unavailable-retry-seconds: ${RATE_LIMIT_UNAVAILABLE_RETRY_SECONDS:1}
+      login-ip:
+        limit: ${RATE_LIMIT_LOGIN_IP_LIMIT:60}
+        window-seconds: ${RATE_LIMIT_LOGIN_IP_WINDOW_SECONDS:60}
+      login-account-ip:
+        limit: ${RATE_LIMIT_LOGIN_ACCOUNT_IP_LIMIT:10}
+        window-seconds: ${RATE_LIMIT_LOGIN_ACCOUNT_IP_WINDOW_SECONDS:60}
+      register-ip:
+        limit: ${RATE_LIMIT_REGISTER_IP_LIMIT:10}
+        window-seconds: ${RATE_LIMIT_REGISTER_IP_WINDOW_SECONDS:600}
+      order-user:
+        limit: ${RATE_LIMIT_ORDER_USER_LIMIT:30}
+        window-seconds: ${RATE_LIMIT_ORDER_USER_WINDOW_SECONDS:10}
+      waitlist-user:
+        limit: ${RATE_LIMIT_WAITLIST_USER_LIMIT:10}
+        window-seconds: ${RATE_LIMIT_WAITLIST_USER_WINDOW_SECONDS:60}
   checkin:
     credential-keys: ${TICKET_CREDENTIAL_KEYS:}
     current-key-version: ${TICKET_CREDENTIAL_CURRENT_VERSION:1}

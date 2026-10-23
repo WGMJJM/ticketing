@@ -18,7 +18,7 @@ backend/src/main/java/com/ticketing/
 ├── api/         OrderLifecycle、SessionWindowGuard协作契约
 ├── common/      ApiResponse、PageResponse、BusinessException
 ├── config/      Spring配置、启动初始化及配置属性
-├── security/    身份、会话过滤及票券签名
+├── security/    身份、会话过滤、请求限流及票券签名
 ├── job/         有界后台任务
 └── messaging/   事件、发布器及消费者
 ```
@@ -151,3 +151,11 @@ AdminOrdersView负责筛选与稳定分页，AdminOrderDetail负责明细、受�
 `AuditWriter`只接受服务显式提供的审计动作、资源类型和脱敏前后快照，不读取原始请求体。活动、场次、票档/总库存、工作人员角色/场次授权和管理员整单模拟退款的业务成功记录在同一事务中追加到`admin_audit_log`；回滚时审计也回滚。高频核销继续以`electronic_ticket.checked_by/used_at`作为事实来源，不额外复制为通用操作日志。V7触发器拒绝应用及普通SQL会话对审计行UPDATE/DELETE；表不提供修改或删除API。审计快照不得含密码、Cookie、Session/CSRF、原始凭证、签名密钥或原始请求体。
 
 工作人员页面只展示当前账号有效授权的场次并复用原`ElectronicTicketService`验证和核销；运营后台新增工作人员管理及审计查询。业务归属和依赖继续由`architecture-modules.properties`与`ArchitectureRulesTest`约束，audit与staff登记为逻辑业务归属，没有新增业务子包、Maven模块或独立权限服务。
+
+## 第十二阶段Redis请求限流
+
+`RateLimitProperties`集中绑定并校验五类策略。`RedisRateLimiter`归auth业务，在Redis Lua内原子检查所有维度、递增和设置TTL，通过独立密钥摘要隐藏标识，只返回放行、429或503决定，不读取订单、候补或库存数据。
+
+`RequestRateLimitFilter`的认证实例在CSRF后、formLogin前保护登录/注册，业务实例在最新数据库身份复核及AuthorizationFilter后保护下单/候补。两个实例使用不同的重复执行标记，且不作为Servlet Filter Bean自动注册。过滤器不启动MySQL事务，不改动交易锁序或同步生命周期协作。数据库库存、场次限购、订单幂等、候补唯一约束及ADMIN/STAFF权限仍由原有服务执行。
+
+故障默认拒绝四类提交并返回有界503，公开活动读取及其他交易和补偿链路维持原有依赖。生产默认开启；普通测试显式关闭，真实Redis验收显式开启，专用性能环境分别记录关闭对照、开启放宽阈值及默认阈值三种配置。实现、窗口边界、部署与验收记录见[阶段十二说明](22-redis-security-rate-limits-verification.md)。

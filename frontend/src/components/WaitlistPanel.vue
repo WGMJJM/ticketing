@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import axios from 'axios'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import 'element-plus/es/components/message-box/style/css'
@@ -71,9 +72,11 @@ async function join() {
     const entry = await waitlistApi.join(props.ticket.id, quantity.value)
     await router.push('/waitlist/' + entry.id)
   } catch (failure) {
+    const rejected = axios.isAxiosError(failure) &&
+      (failure.response?.status === 429 || failure.response?.data?.code === 'RATE_LIMIT_UNAVAILABLE')
     error.value =
       (failure instanceof Error ? failure.message : '候补申请失败') +
-      '。结果不明时可先查看我的候补，重复同数量申请会返回原有效记录。'
+      (rejected ? '' : '。结果不明时可先查看我的候补，重复同数量申请会返回原有效记录。')
   } finally {
     busy.value = false
   }
