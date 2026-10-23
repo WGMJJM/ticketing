@@ -44,6 +44,9 @@ const auth = useAuthStore()
         <RouterLink v-if="auth.isAdmin" to="/admin/activities">运营管理</RouterLink>
         <RouterLink v-if="auth.isAdmin" to="/admin/orders">订单运营</RouterLink>
         <RouterLink v-if="auth.isAdmin" to="/admin/checkins">电子票核销</RouterLink>
+        <RouterLink v-if="auth.isStaff" to="/staff/checkin">场次核销</RouterLink>
+        <RouterLink v-if="auth.isAdmin" to="/admin/staff">工作人员管理</RouterLink>
+        <RouterLink v-if="auth.isAdmin" to="/admin/audit-logs">操作审计</RouterLink>
       </nav>
       <main id="main-content">
         <div v-if="auth.sessionError" class="session-error" role="alert">

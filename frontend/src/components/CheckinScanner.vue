@@ -6,6 +6,7 @@ import {
   type ElectronicTicket,
 } from '../api/electronicTickets'
 const emit = defineEmits<{ checked: [ticket: ElectronicTicket]; reset: [] }>()
+const props = defineProps<{ staff?: boolean }>()
 const credential = ref('')
 const busy = ref(false)
 const scanning = ref(false)
@@ -109,7 +110,7 @@ async function checkIn() {
   busy.value = true
   const active = ++operationGeneration
   try {
-    const checked = await electronicTicketApi.checkIn(value)
+    const checked = await electronicTicketApi.checkIn(value, props.staff)
     if (active === operationGeneration) {
       emit('checked', checked)
 

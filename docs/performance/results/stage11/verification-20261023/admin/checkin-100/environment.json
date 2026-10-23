@@ -1,0 +1,137 @@
+{
+  "environment": "ticketing-perf-only",
+  "baseCommit": "96ec69f868e837e6692405b3b56e3095b94920b8",
+  "scenario": "checkin",
+  "vus": 100,
+  "warmupSeconds": 10,
+  "steadySeconds": 20,
+  "data": {
+    "activities": 1000,
+    "sessions": 1,
+    "users": 100
+  },
+  "app": {
+    "jar": "D:\\ticketing\\.local\\stage11\\browser.jar",
+    "sha256": "58e4622628fa870c962f4e70d51f2eed88e9582fe3e894af994eff0a09c2a447",
+    "overrides": {
+      "SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE": "10",
+      "TICKETING_WAITLIST_OUTBOX_BATCH_SIZE": "100"
+    },
+    "startedAt": "2026-10-23T03:28:00.150126+00:00"
+  },
+  "k6ExitCode": 0,
+  "initial": {
+    "mysql": {
+      "Com_commit": 989,
+      "Com_rollback": 3141,
+      "Innodb_row_lock_time": 100336,
+      "Innodb_row_lock_waits": 3137,
+      "Questions": 62855,
+      "Slow_queries": 315,
+      "Threads_connected": 11,
+      "Threads_running": 2,
+      "current_lock_waits": 0
+    },
+    "outbox": [],
+    "outboxLag": {
+      "n": 0,
+      "avg_ms": null,
+      "max_ms": null
+    }
+  },
+  "final": {
+    "mysql": {
+      "Com_commit": 1016,
+      "Com_rollback": 7130,
+      "Innodb_row_lock_time": 200052,
+      "Innodb_row_lock_waits": 7126,
+      "Questions": 127264,
+      "Slow_queries": 632,
+      "Threads_connected": 11,
+      "Threads_running": 2,
+      "current_lock_waits": 0
+    },
+    "outbox": [],
+    "outboxLag": {
+      "n": 0,
+      "avg_ms": null,
+      "max_ms": null
+    }
+  },
+  "mysqlDelta": {
+    "Com_commit": 27,
+    "Com_rollback": 3989,
+    "Innodb_row_lock_time": 99716,
+    "Innodb_row_lock_waits": 3989,
+    "Questions": 64409,
+    "Slow_queries": 317,
+    "Threads_connected": 0,
+    "Threads_running": 0,
+    "current_lock_waits": 0
+  },
+  "monitorFailures": [],
+  "release": {},
+  "audit": {
+    "passed": true,
+    "checks": [
+      {
+        "invariant": "stock_bounds",
+        "violation_count": 0
+      },
+      {
+        "invariant": "stock_order_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "payment_snapshot",
+        "violation_count": 0
+      },
+      {
+        "invariant": "order_snapshot",
+        "violation_count": 0
+      },
+      {
+        "invariant": "session_quota",
+        "violation_count": 0
+      },
+      {
+        "invariant": "waitlist_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "fifo_allocation_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "ticket_quantity",
+        "violation_count": 0
+      },
+      {
+        "invariant": "ticket_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "duplicate_payment_effect",
+        "violation_count": 0
+      },
+      {
+        "invariant": "duplicate_active_waitlist",
+        "violation_count": 0
+      }
+    ],
+    "counts": {
+      "order_aftercare": 0,
+      "refund_record": 0,
+      "electronic_ticket": 1,
+      "waitlist_entry": 0,
+      "payment_record": 1,
+      "ticket_order_item": 1,
+      "ticket_order": 1,
+      "outbox_event": 0,
+      "ticket_sku": 1,
+      "activity_session": 1,
+      "activity": 1000,
+      "user_account": 202
+    }
+  }
+}

@@ -11,6 +11,8 @@ import com.ticketing.entity.ActivitySession;
 import com.ticketing.mapper.ActivityMapper;
 import com.ticketing.mapper.ActivitySessionMapper;
 import com.ticketing.model.SessionStatus;
+import com.ticketing.model.AuditAction;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -28,16 +30,18 @@ public class SessionService {
     private final ActivityService activityService;
     private final List<SessionWindowGuard> windowGuards;
     private final ActivityMapper activities;
+    private final AuditWriter audit;
 
     public SessionService(
             ActivitySessionMapper mapper,
             ActivityService activityService,
             List<SessionWindowGuard> windowGuards,
-            ActivityMapper activities) {
+            ActivityMapper activities, AuditWriter audit) {
         this.mapper = mapper;
         this.activityService = activityService;
         this.windowGuards = List.copyOf(windowGuards);
         this.activities = activities;
+        this.audit = audit;
     }
 
     public List<SessionView> list(long activityId, boolean publicOnly) {
@@ -56,6 +60,7 @@ public class SessionService {
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public SessionView create(long activityId, SessionWriteRequest request) {
+        long operatorId = audit.begin();
         activityService.lockActivity(activityId);
         if (mapper.selectCount(
                         new LambdaQueryWrapper<ActivitySession>()
@@ -74,11 +79,13 @@ public class SessionService {
         session.setCreatedAt(LocalDateTime.now(ZoneOffset.UTC));
         session.setUpdatedAt(session.getCreatedAt());
         mapper.insert(session);
+        audit.record(operatorId, AuditAction.SESSION_CREATE, "SESSION", session.getId(), Map.of(), snapshot(session));
         return SessionView.from(session);
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public SessionView update(long id, SessionWriteRequest request) {
+        long operatorId = audit.begin();
         ActivitySession session = lockSession(id);
         if (!SessionStatus.SCHEDULED.name().equals(session.getStatus())) {
             throw conflict("已取消或结束的场次不能修改");
@@ -98,11 +105,13 @@ public class SessionService {
         if (mapper.update(null, wrapper) != 1) {
             throw conflict("场次已被修改，请刷新后重试");
         }
+        audit.record(operatorId, AuditAction.SESSION_UPDATE, "SESSION", id, snapshot(session), snapshot(requireSession(id)));
         return SessionView.from(requireSession(id));
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public SessionView cancel(long id, int version) {
+        long operatorId = audit.begin();
         ActivitySession session = lockSession(id);
         if (!SessionStatus.SCHEDULED.name().equals(session.getStatus())) {
             throw conflict("只有正常场次可以取消");
@@ -114,7 +123,14 @@ public class SessionService {
                 != 1) {
             throw conflict("场次状态已变化，请刷新后重试");
         }
+        audit.record(operatorId, AuditAction.SESSION_CANCEL, "SESSION", id, snapshot(session), snapshot(requireSession(id)));
         return SessionView.from(requireSession(id));
+    }
+
+    private Map<String, Object> snapshot(ActivitySession session) {
+        return Map.of("status", session.getStatus(), "title", session.getTitle(), "version", session.getVersion(),
+                "startsAt", session.getStartsAt().atOffset(ZoneOffset.UTC), "endsAt", session.getEndsAt().atOffset(ZoneOffset.UTC),
+                "saleStartsAt", session.getSaleStartsAt().atOffset(ZoneOffset.UTC));
     }
 
     private ActivitySession requireSession(long id) {

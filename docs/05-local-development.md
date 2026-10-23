@@ -133,6 +133,27 @@ legacy-jar应为基准2c7b086对应的V4产物；本机保留第八阶段产物�
 
 本轮普通Maven为50项，真实集成111项，失败/错误/跳过均0；前端npm ci及构建通过。指定性能复测、浏览器组件与凭证清理验收的实际结果见[第九阶段记录](16-architecture-verification.md)。
 
+## 第十一阶段工作人员及管理审计
+
+先启动本项目Compose，在已有Flyway库中只读执行`scripts/audit-staff-audit-readiness.sql`；STOP结果必须停止升级并人工核对。真实集成测试使用独立、名称以`_it`结尾的验收库，通过进程环境变量注入连接后执行`powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-backend.ps1 -VerifyDatabase`，不改写根.env。迁移探针需要在独立验收实例中创建随机schema的权限，运行应用的普通账号不需要全局建库权限。本地MySQL启用binlog时，Compose设置`log_bin_trust_function_creators=1`，让具备当前schema TRIGGER权限的迁移账号创建仅追加审计触发器；部署环境须由数据库管理员按本地权限策略配置等效权限。V7只允许新增迁移，不修改V1～V6；迁移失败保留数据库现场，不自动repair或清库。
+
+运营管理员登录`/admin/staff`，从已注册的普通ACTIVE账号中选择工作人员并提升为CHECKIN_STAFF；选择正常场次授予核销权限。工作人员登录`/staff/checkin`后只会看到自己的有效场次。用普通用户在真实演出窗口内购买并模拟支付，再以工作人员账号扫码；有效授权的票核销成功，未授权场次返回无权提示，重复核销显示已核销且不会覆盖原工作人员和时间。管理员继续从运营后台核销入口处理任意场次，现有`/api/v1/admin/checkins`行为不变。
+
+在工作人员仍保持登录时，管理员从`/admin/staff`撤销其场次权限，再用原Cookie重试同一测试场次：服务端须返回403，工作人员页面场次列表同时不再包含该场次。降级到USER或停用账号会撤销全部有效授权；下一次受保护请求按数据库最新角色刷新身份或使会话失效。工作人员访问订单、退款、活动/票档管理和`/admin/audit-logs`应为403；USER不能管理或核销，管理员才能管理授权和查看审计。
+
+审计检查从`/admin/audit-logs`按操作人、动作、资源或时间筛选，确认活动/场次/票档/库存、工作人员角色/授权、管理员退款均记录了相应旧值和新值。核销人员与时间从电子票事实查看。审计不包含凭证、密码、Cookie或CSRF。失败业务事务不能留下一条成功审计记录；并发修改须核对每条记录的前后快照与实际提交顺序，这些行为由`StaffAuditIT`和真实MySQL集成验收覆盖，不要用手改数据库代替。
+
+原核销基线保留于`docs/performance/results/stage11/before/checkin-100`；本轮重新构建96ec69f基准并与当前ADMIN/STAFF路径对照，原始结果在`stage11/verification-20261023`。复现只启动`ticketing-perf`专用Compose并验证环境标记，使用工作人员路径准备并运行同等100 VU、10秒预热、20秒稳定窗口：
+
+```powershell
+python scripts/performance/perf.py start --jar backend/target/ticketing-backend-0.1.0-SNAPSHOT.jar --pool-size 10 --outbox-batch-size 100
+python scripts/performance/perf.py prepare --scenario checkin --users 100 --staff-checkin
+python scripts/performance/perf.py run --scenario checkin --vus 100 --warmup 10 --duration 20 --label stage11-staff-after
+python scripts/performance/perf.py audit
+```
+
+该轮写入`docs/performance/results/stage11-staff-after/checkin-100/`，不会覆盖既有基线；先检查结果脱敏和一致性审计，再比较同场景窗口。不要连接开发库、删除历史结果或把凭证复制到报告。完整运行约束见[压测复现](performance/01-reproduce.md)，阶段实际结果见[第十一阶段验收记录](21-staff-audit-checkin-verification.md)。
+
 ## Git 与本地文件
 
 仅在 main 开发；先完成本地代码、测试和联调，再提交并推送到用户指定的 WGMJJM/ticketing。README.md 只保留在本地并被忽略，远程共享说明在 docs。`.env`、`.local`、构建产物均不得提交。

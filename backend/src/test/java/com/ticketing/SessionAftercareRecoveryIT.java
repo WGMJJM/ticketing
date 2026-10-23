@@ -65,7 +65,7 @@ class SessionAftercareRecoveryIT {
                 cleanup.update("DELETE FROM ticket_sku WHERE id=?",skuId);
                 cleanup.update("DELETE FROM activity_session WHERE id=?",sessionId);
                 cleanup.update("DELETE FROM activity WHERE id=?",activityId);
-                cleanup.update("DELETE FROM user_account WHERE id=?",userId);
+                cleanup.update("DELETE FROM user_account WHERE id=? AND id NOT IN (SELECT operator_id FROM admin_audit_log)",userId);
             }
         }
     }

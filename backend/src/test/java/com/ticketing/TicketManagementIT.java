@@ -231,7 +231,7 @@ class TicketManagementIT {
             jdbc.update("DELETE FROM ticket_sku WHERE session_id = ?", Long.parseLong(sessionId));
             jdbc.update("DELETE FROM activity_session WHERE id = ?", Long.parseLong(sessionId));
             jdbc.update("DELETE FROM activity WHERE id = ?", Long.parseLong(activityId));
-            jdbc.update("DELETE FROM user_account WHERE id = ?", administrator.getId());
+            jdbc.update("DELETE FROM user_account WHERE id = ? AND id NOT IN (SELECT operator_id FROM admin_audit_log)", administrator.getId());
         }
     }
 

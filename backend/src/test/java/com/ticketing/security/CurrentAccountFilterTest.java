@@ -41,6 +41,7 @@ class CurrentAccountFilterTest {
                     PathPatternRequestMatcher.withDefaults().matcher("/api/v1/orders/**"),
                     PathPatternRequestMatcher.withDefaults().matcher("/api/v1/waitlist/**"),
                     PathPatternRequestMatcher.withDefaults().matcher("/api/v1/tickets/**"),
+                    PathPatternRequestMatcher.withDefaults().matcher("/api/v1/checkins/**"),
                     PathPatternRequestMatcher.withDefaults().matcher(org.springframework.http.HttpMethod.GET, "/api/v1/auth/me")),
             contexts, new ObjectMapper());
 
@@ -62,7 +63,7 @@ class CurrentAccountFilterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/api/v1/auth/me", "/api/v1/orders", "/api/v1/orders/1", "/api/v1/orders/limits", "/api/v1/waitlist", "/api/v1/waitlist/1", "/api/v1/tickets", "/api/v1/tickets/1/credential"})
+    @ValueSource(strings = {"/api/v1/auth/me", "/api/v1/orders", "/api/v1/orders/1", "/api/v1/orders/limits", "/api/v1/waitlist", "/api/v1/waitlist/1", "/api/v1/tickets", "/api/v1/tickets/1/credential", "/api/v1/checkins", "/api/v1/checkins/sessions", "/api/v1/admin/staff", "/api/v1/admin/audit-logs"})
     void anonymousProtectedRequestDoesNotQueryAccount(String path) throws Exception {
         SecurityContextHolder.getContext().setAuthentication(new AnonymousAuthenticationToken("test", "anonymous",
                 AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS")));

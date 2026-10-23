@@ -30,12 +30,13 @@ async function submit() {
       redirect === '/orders' ||
       redirect === '/waitlist' ||
       redirect === '/tickets' ||
+      (auth.canCheckin && redirect === '/staff/checkin') ||
       /^\/tickets\/[1-9][0-9]*$/.test(redirect) ||
       /^\/waitlist\/[1-9][0-9]*$/.test(redirect) ||
       /^\/orders\/[1-9][0-9]*$/.test(redirect) ||
       /^\/activities\/[1-9][0-9]*$/.test(redirect) ||
       (auth.isAdmin &&
-        (redirect === '/admin/activities' || redirect === '/admin/checkins'))
+        (['/admin/activities', '/admin/checkins', '/admin/orders', '/admin/staff', '/admin/audit-logs'].includes(redirect)))
     await router.replace(
       allowed ? redirect : props.adminOnly ? '/admin/activities' : '/profile',
     )

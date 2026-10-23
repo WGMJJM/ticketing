@@ -41,10 +41,10 @@ export const electronicTicketApi = {
     useAuthStore().request<{ ticketId: string; credential: string }>({
       url: '/tickets/' + id + '/credential',
     }),
-  checkIn: (credential: string) =>
+  checkIn: (credential: string, staff = false) =>
     useAuthStore().request<ElectronicTicket>({
       method: 'POST',
-      url: '/admin/checkins',
+      url: staff ? '/checkins' : '/admin/checkins',
       data: { credential },
     }),
 }

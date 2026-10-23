@@ -48,7 +48,7 @@ class AuthenticationIT {
             jdbc.update("DELETE FROM activity_session WHERE activity_id=?", id);
             jdbc.update("DELETE FROM activity WHERE id=?", id);
         }
-        for (Long id : userIds) jdbc.update("DELETE FROM user_account WHERE id=?", id);
+        for (Long id : userIds) jdbc.update("DELETE FROM user_account WHERE id=? AND id NOT IN (SELECT operator_id FROM admin_audit_log)", id);
     }
 
     @Test

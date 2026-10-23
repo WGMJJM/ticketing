@@ -93,7 +93,7 @@ flowchart LR
   W --> T[电子票]
 ```
 
-用户主动操作要求ACTIVE；超时释放和历史补票只要求取得用户行锁，禁用账号也必须回收历史锁定库存。核销最前面的用户行属于工作人员，随后沿持票订单的活动、场次、SKU、订单、票券顺序处理，在该工作人员行锁中取得最新ADMIN角色。持有子资源锁后不得再获取其他用户或父级锁。
+用户主动操作要求ACTIVE；超时释放和历史补票只要求取得用户行锁，禁用账号也必须回收历史锁定库存。核销最前面的用户行属于工作人员，随后沿持票订单的活动、场次、SKU、订单、票券顺序处理，在该工作人员行锁中取得最新ADMIN或CHECKIN_STAFF角色。CHECKIN_STAFF还要在同一事务内复查目标场次授权；管理授权变更先锁该工作人员用户行，因此撤权与核销按同一用户行串行。持有子资源锁后不得再获取其他用户或父级锁。
 
 OrderService写入口、WaitlistService分配/申请/取消和ElectronicTicketService核销/补票在代理入口开启READ_COMMITTED。TradeResourceLocker、OrderReservation写协作、TicketInventory和OrderLifecycle参与者使用MANDATORY加入现有事务；读限额允许独立只读事务。没有自调用开启独立事务或REQUIRES_NEW分割原子提交。支付、取消和超时共享OrderStateService的锁定流程，只有PENDING可进入三个终态，SQL继续做状态及截止时间条件更新。
 
@@ -139,3 +139,15 @@ OrderRefundService是整单模拟退款及场次善后的READ_COMMITTED应用入
 SessionService.cancel仍仅提交不可恢复的CANCELLED，不遍历订单。SessionAftercareJob每轮至多100单（1至500可配），调用代理服务逐单提交：PENDING转CANCELLED并释放locked，PAID走统一退款。已用票、缺票及关联异常持久化MANUAL_REQUIRED；临时失败在已回滚之后另开正常应用事务记录RETRY，默认30秒指数退避、最多5次、上限1小时，超限转人工，不阻塞后单。候选状态、截止和重试均在数据库，内存游标仅用于公平扫描；启动即扫描、失败前进并回绕，重启可补偿。活动OFFLINE不会进入此任务。
 
 AdminOrdersView负责筛选与稳定分页，AdminOrderDetail负责明细、受控原因和确认退款。复用OrderCard与中文视觉风格，用户订单展示原支付及模拟退款流水，VOID电子票不再生成入场凭证。未实现人工售后审批/补偿操作、部分退款或第三方资金结算。
+
+## 第十一阶段工作人员核销与管理审计
+
+`CHECKIN_STAFF`是最小平台角色，不是组织或通用RBAC。账号由现有用户显式升级；注册仍固定创建USER，工作人员管理接口不能创建管理员、修改管理员或改变自己的更高权限。`staff_session_permission`以工作人员与场次唯一约束保存授权，撤销只写`revoked_at`，保留授权人和历史。禁用工作人员、降回USER时一并撤销其有效场次授权。
+
+所有管理端点在`CurrentAccountFilter`中按受保护路径重新读取数据库最新账号状态和角色；停用账号的会话失效，角色变更刷新会话身份。`/api/v1/admin/**`始终要求ADMIN，工作人员不能查看管理订单、退款、活动或库存。`/api/v1/checkins/**`允许ADMIN与CHECKIN_STAFF，STAFF只能核销其有效授权的场次；ADMIN延续原有全场次核销能力。当前凭证和场次来自签名及数据库票券关系，不接受客户端声明的场次或核销人。
+
+撤权、角色变化与核销都以工作人员`user_account`行UPDATE锁协调。管理授权入口先按用户ID递增锁定管理员和目标工作人员，再按活动SHARE、场次SHARE读取并变更授权；核销先锁工作人员行，再按活动SHARE→场次SHARE→SKU UPDATE→订单UPDATE→票券条件更新，并在该事务中查询场次授权。若核销先取得账号锁，它提交后撤权才继续；若撤权先提交，旧Session发起的核销在事务内看到撤销记录并被拒绝。角色降级与账号禁用另由CurrentAccountFilter刷新身份或使会话失效。两人同时核销同一票仍由UNUSED条件更新保证最多一次成功，`checked_by`始终来自Session principal。
+
+`AuditWriter`只接受服务显式提供的审计动作、资源类型和脱敏前后快照，不读取原始请求体。活动、场次、票档/总库存、工作人员角色/场次授权和管理员整单模拟退款的业务成功记录在同一事务中追加到`admin_audit_log`；回滚时审计也回滚。高频核销继续以`electronic_ticket.checked_by/used_at`作为事实来源，不额外复制为通用操作日志。V7触发器拒绝应用及普通SQL会话对审计行UPDATE/DELETE；表不提供修改或删除API。审计快照不得含密码、Cookie、Session/CSRF、原始凭证、签名密钥或原始请求体。
+
+工作人员页面只展示当前账号有效授权的场次并复用原`ElectronicTicketService`验证和核销；运营后台新增工作人员管理及审计查询。业务归属和依赖继续由`architecture-modules.properties`与`ArchitectureRulesTest`约束，audit与staff登记为逻辑业务归属，没有新增业务子包、Maven模块或独立权限服务。

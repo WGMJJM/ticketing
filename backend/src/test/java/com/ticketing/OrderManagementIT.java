@@ -78,7 +78,7 @@ class OrderManagementIT {
             jdbc.update("DELETE FROM activity_session WHERE id=?", sessionId);
         }
         if (activityId != 0) jdbc.update("DELETE FROM activity WHERE id=?", activityId);
-        for (Long userId : users) jdbc.update("DELETE FROM user_account WHERE id=?", userId);
+        for (Long userId : users) jdbc.update("DELETE FROM user_account WHERE id=? AND id NOT IN (SELECT operator_id FROM admin_audit_log)", userId);
     }
 
     @Test

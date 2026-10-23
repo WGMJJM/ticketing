@@ -10,7 +10,7 @@ services:
       MYSQL_ROOT_PASSWORD: ${PERF_ROOT_PASSWORD:?请先运行 perf.py init}
       MYSQL_ROOT_HOST: '%'
       TZ: UTC
-    command: [--character-set-server=utf8mb4, --collation-server=utf8mb4_0900_ai_ci, --default-time-zone=+00:00, --performance-schema=ON, --slow-query-log=ON, --long-query-time=0.05, --log-output=TABLE]
+    command: [--character-set-server=utf8mb4, --collation-server=utf8mb4_0900_ai_ci, --default-time-zone=+00:00, --log-bin-trust-function-creators=1, --performance-schema=ON, --slow-query-log=ON, --long-query-time=0.05, --log-output=TABLE]
     ports: ['127.0.0.1:13307:3306']
     volumes: [perf_mysql:/var/lib/mysql]
     healthcheck:
@@ -34,6 +34,7 @@ services:
   redis:
     image: redis:7-alpine
     pull_policy: missing
+    tmpfs: ['/data']
     ports: ['127.0.0.1:16379:6379']
     healthcheck:
       test: [CMD, redis-cli, ping]

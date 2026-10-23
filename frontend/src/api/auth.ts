@@ -5,7 +5,7 @@ import type { ApiResponse } from './system'
 export interface CurrentUser {
   id: string
   username: string
-  role: 'USER' | 'ADMIN'
+  role: 'USER' | 'ADMIN' | 'CHECKIN_STAFF'
 }
 interface CsrfView {
   headerName: string

@@ -15,6 +15,8 @@ import com.ticketing.mapper.PaymentMapper;
 import com.ticketing.mapper.RefundMapper;
 import com.ticketing.model.OrderStatus;
 import com.ticketing.model.RefundReason;
+import com.ticketing.model.AuditAction;
+import java.util.Map;
 import com.ticketing.model.TicketSale;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -35,10 +37,11 @@ public class OrderRefundService {
     private final InventoryEvents events;
     private final OrderStateService states;
     private final List<OrderLifecycle> participants;
+    private final AuditWriter audit;
 
     public OrderRefundService(OrderMapper orders, PaymentMapper payments, RefundMapper refunds,
             AftercareMapper aftercare, TradeResourceLocker resources, TicketInventory inventory,
-            InventoryEvents events, OrderStateService states, List<OrderLifecycle> participants) {
+            InventoryEvents events, OrderStateService states, List<OrderLifecycle> participants, AuditWriter audit) {
         this.orders = orders;
         this.payments = payments;
         this.refunds = refunds;
@@ -48,6 +51,7 @@ public class OrderRefundService {
         this.events = events;
         this.states = states;
         this.participants = List.copyOf(participants);
+        this.audit = audit;
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -57,7 +61,12 @@ public class OrderRefundService {
                 && locked.sessionStatus() != SessionStatus.CANCELLED) {
             throw conflict("场次未取消，请选择正确的售后原因");
         }
-        return refundLocked(locked, operatorId, reason);
+        RefundResult result = refundLocked(locked, operatorId, reason);
+        audit.record(operatorId, AuditAction.ORDER_REFUND, "ORDER", orderId,
+                Map.of("orderStatus", locked.status().name()),
+                Map.of("orderStatus", result.refund() == null ? locked.status().name() : OrderStatus.REFUNDED.name(),
+                        "result", result.status(), "reason", reason.name()));
+        return result;
     }
 
     /** 每单一个独立事务，禁用买家也必须释放历史库存。 */

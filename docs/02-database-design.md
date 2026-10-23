@@ -1,6 +1,6 @@
-# 数据库 V1 至 V6
+# 数据库 V1 至 V7
 
-后端目录整理仅将实体和Mapper分别归入`com.ticketing.entity`、`com.ticketing.mapper`，未变更SQL、表结构或已执行迁移。V1～V6与整理前提交逐文件一致；本轮没有新增迁移，实际回归结果见[目录整理验收](20-flat-package-refactor-verification.md)。
+V1～V6保持原文且不修改；第十一阶段仅新增`V7__staff_permissions_and_admin_audit.sql`，在现有角色、场次、用户、退款和核销事实之上增加场次工作人员权限及追加式管理审计。技术目录整理仍仅变更Java包位置，不修改SQL或已应用迁移。阶段测试记录见[工作人员核销与审计验收](21-staff-audit-checkin-verification.md)。
 
 ## V6 整单模拟退款与场次善后
 
@@ -16,7 +16,19 @@ order_aftercare按订单主键保存RETRY/MANUAL_REQUIRED/COMPLETED、受控中�
 
 部署前对目标V5库只读执行`scripts/audit-refund-readiness.sql`与`scripts/audit-waitlist-relations.sql`，检查原支付/票券数量/明细/库存和候补关联；异常停止升级并人工核对。V6后执行`scripts/audit-order-aftercare.sql`检查退款与支付、VOID、候补及库存，最后的人工/重试列表是运营待办，不代表可自动覆盖。MySQL各DDL可能已提交，文件中途失败后保留业务表、冲突表和Flyway失败记录，不自动repair、drop或重建。验收使用独立空库、含已付历史的V5随机schema与故意DDL冲突schema。
 
-迁移文件位于 `backend/src/main/resources/db/migration/`。使用 MySQL 8.4（最低需正确执行 CHECK 的 MySQL 8.0.16+）、InnoDB、utf8mb4、DATETIME(6)。Flyway校验已应用迁移，V1至V6禁止覆盖；后续结构变化新增V7及更高版本。无业务种子数据。
+迁移文件位于 `backend/src/main/resources/db/migration/`。使用 MySQL 8.4（最低需正确执行 CHECK 的 MySQL 8.0.16+）、InnoDB、utf8mb4、DATETIME(6)。Flyway校验已应用迁移，V1至V7禁止覆盖；后续结构变化新增V8及更高版本。无业务种子数据。
+
+## V7 场次工作人员与管理操作审计
+
+`V7__staff_permissions_and_admin_audit.sql`保留V1～V6迁移文件不变。它只扩大`user_account.role`的CHECK，允许原有`USER`、`ADMIN`和新增`CHECKIN_STAFF`；现存账号角色、密码、状态、Session外部行为、历史支付/退款和`electronic_ticket.checked_by/used_at`均不重写。公开注册仍由服务端固定创建USER。
+
+`staff_session_permission`以`staff_id,session_id`唯一，记录`granted_by`、`granted_at`与可空`revoked_at`。用户和场次外键保留历史关系，查询索引分别支持按场次找工作人员及按授权人审计；CHECK禁止撤销时间早于授权时间。撤权更新原记录而非删除，因此旧授权可审计，重新授权也复用同一唯一关系并更新授予事实。服务层在工作人员行锁内复查当前角色、状态及场次许可。
+
+`admin_audit_log`保存管理员、枚举动作、资源类型/ID、UTC发生时间、短摘要、明确的`before_values`/`after_values` JSON和请求关联UUID。操作人外键保留原账号记录；索引支持按操作人时间、资源时间和全局时间分页。V7为该表建立UPDATE/DELETE拒绝触发器，应用只开放ADMIN分页读取，没有改写/删除入口。业务代码只写字段白名单快照，日志不接收原始请求体，也不保存密码、Session/CSRF、凭证或签名密钥。审计插入与活动/场次/票档/工作人员/退款业务更新共用MySQL事务。
+
+升级已有库前只读执行`scripts/audit-staff-audit-readiness.sql`，检查Flyway历史、遗留V7对象、binlog触发器策略和当前迁移账号权限。开发与独立压测Compose启用`log_bin_trust_function_creators=1`，允许具有当前schema TRIGGER权限的非SUPER账号创建审计触发器；其他环境由数据库管理员安排等效权限。MySQL DDL可能部分提交，出现失败历史或遗留对象必须停止升级、保留现场并人工处理，不自动repair、删除表或清空数据卷。
+
+核销工作人员授权不是独立认证系统：Session仍只承载现有principal，`CurrentAccountFilter`每个受保护请求重读数据库账号；实际`(staff_id,session_id,revoked_at IS NULL)`权限在核销事务中复查。管理员授权/撤销、角色降级与禁用先取得目标工作人员账号行，再触碰权限/业务资源；核销按用户→活动→场次→SKU→订单→票券既定锁序进行。V7不更改库存、订单、支付、Outbox或电子票凭证结构。
 
 V2 新增 `V2__activity_session_management.sql`，V1 保持不变。V2 复用 description 作为详情，增加 summary、cover_url、published_at、version；活动状态为 DRAFT/PUBLISHED/OFFLINE，兼容将旧 CANCELLED 转为 OFFLINE。增加 `(status,published_at,id)` 支持公开列表排序。场次增加 sale_starts_at、version 及开售早于开始的 CHECK；旧数据按开始前30天补齐开售时间，新建必须输入。更新时间与版本由业务操作显式更新。
 

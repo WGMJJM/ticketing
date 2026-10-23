@@ -136,7 +136,7 @@ class WaitlistManagementIT {
             jdbc.update("DELETE FROM activity_session WHERE id=?",sessionId);
         }
         if (activityId!=0) jdbc.update("DELETE FROM activity WHERE id=?",activityId);
-        for (long id:userIds) jdbc.update("DELETE FROM user_account WHERE id=?",id);
+        for (long id:userIds) jdbc.update("DELETE FROM user_account WHERE id=? AND id NOT IN (SELECT operator_id FROM admin_audit_log)",id);
     }
 
     @Test

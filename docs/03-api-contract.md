@@ -212,3 +212,27 @@ TICKET_BACKFILL_ENABLED默认false，显式开启后启动扫描PAID订单，默
 HTTP路径、请求字段、Session与CSRF、HTTP状态码及响应字符串状态保持原契约。OrderService应用入口内由OrderReservation、TradeResourceLocker、OrderStateService及同步OrderLifecycle协作；不对客户端暴露内部事务上下文或新增调度/库存写接口。普通和候补预留订单仍共享服务端金额、幂等和限购。
 
 状态由枚举集中表达，序列化仍为原PENDING/PAID等值，不使用ordinal。库存事件只移动Java包与职责，既有类型WAITLIST_DISPATCH_REQUESTED、eventId/skuId/reason和RabbitMQ路由兼容。V5拒绝候补关联错误SKU；数量等业务关系异常仍回滚整个支付或关闭事务。前端拆分不改变路由、真实API、二维码清理或核销确认方式。架构说明见[模块边界](01-architecture.md)。
+
+## 第十一阶段工作人员与操作审计
+
+以下接口仍使用现有HttpSession身份。所有POST都需要当前CSRF令牌；ID通过十进制字符串传输。工作人员角色只授予核销权限，所有`/admin/**`仍仅ADMIN可用。
+
+| 方法与路径（均在`/api/v1`下） | 权限 | 请求与行为 |
+| --- | --- | --- |
+| GET `/admin/staff` | ADMIN | 可授权的USER与CHECKIN_STAFF账号分页列表（不含ADMIN）；可按username筛选 |
+| POST `/admin/staff/{id}/promote` | ADMIN | 将ACTIVE普通账号提升为CHECKIN_STAFF；不接受角色请求体 |
+| POST `/admin/staff/{id}/demote` | ADMIN | 工作人员降回USER，并在同事务撤销其有效场次许可 |
+| POST `/admin/staff/{id}/disable` | ADMIN | 停用工作人员并撤销有效场次许可 |
+| GET `/admin/staff/{id}/sessions` | ADMIN | 分页查看该账号全部场次授权历史，包括已撤销记录 |
+| POST `/admin/staff/{id}/sessions/{sessionId}/grant` | ADMIN | 授权ACTIVE CHECKIN_STAFF核销一个正常场次；重复授权返回当前关系 |
+| POST `/admin/staff/{id}/sessions/{sessionId}/revoke` | ADMIN | 撤销已存在授权并保留历史记录 |
+| GET `/admin/audit-logs` | ADMIN | 分页检索追加式管理审计 |
+| GET `/checkins/sessions` | ADMIN、CHECKIN_STAFF | STAFF仅列出当前有效授权场次；ADMIN列出正常且未结束的场次，分页 |
+| POST `/checkins` | ADMIN、CHECKIN_STAFF | 使用原核销请求`{ "credential": "完整电子票凭证"}`和同一核销服务；工作人员只可核销有效授权场次 |
+| POST `/admin/checkins` | ADMIN | 保持第七阶段路径和管理员原有全场次核销行为 |
+
+工作人员管理列表响应为`{id,username,role,status}`；场次授权响应含`staffId/sessionId/activityTitle/sessionTitle/startsAt/endsAt/sessionStatus/grantedBy/grantedAt/revokedAt`。STAFF场次列表只返回当前有效的授权关系；ADMIN调用同一路径时可查询正常且尚未结束的场次，授予字段为空。若凭证有效但目标场次不在STAFF授权范围内，返回403 `CHECKIN_SESSION_FORBIDDEN`；该检查在数据库核销事务内执行，页面过滤不能代替服务端授权。管理员的核销路径保持原策略，不要求另行授予场次。
+
+审计查询参数为`operatorId`、`action`、`resourceType`、`resourceId`、`from`、`to`、`page`、`size`。时间必须是带偏移的ISO 8601并转换为UTC筛选；`from < to`；页码默认1且最大10000，每页默认10且最大50。响应审计条目含字符串ID、操作人ID/名称、动作、资源类型/ID、UTC时间、受控摘要、变更前后脱敏快照和requestId。允许的动作来自固定AuditAction枚举，资源类型限ACTIVITY/SESSION/TICKET_SKU/STAFF/ORDER。审计查询不会返回密码、会话Cookie、CSRF令牌、有效票凭证或签名密钥。
+
+权限矩阵：USER不可访问管理及核销接口；CHECKIN_STAFF可看本人被授权场次并核销这些场次，不能查看审计或调用其他管理业务接口；ADMIN可使用既有运营接口、管理工作人员和查询全站审计，并保留原管理员核销能力。CurrentAccountFilter每次对这些受保护路由复查账号最新状态/角色；角色降级刷新Session身份，账号禁用使Session失效。工作人员授权另在核销事务中读取数据库事实，授权撤销、停用或降级不会依赖浏览器刷新来生效。登录/退出后仍须重新获取CSRF。

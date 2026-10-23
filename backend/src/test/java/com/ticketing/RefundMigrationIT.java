@@ -17,7 +17,7 @@ class RefundMigrationIT {
         JdbcTemplate db = probe.jdbc();
         var paymentBefore = db.queryForMap("SELECT * FROM payment_record WHERE id=1");
         var ticketsBefore = db.queryForList("SELECT * FROM electronic_ticket ORDER BY id");
-        Flyway latest = migration(probe.url(), null);
+        Flyway latest = migration(probe.url(), "6");
         assertThat(latest.migrate().migrationsExecuted).isEqualTo(1);
         latest.validate();
         assertThat(latest.info().current().getVersion().getVersion()).isEqualTo("6");

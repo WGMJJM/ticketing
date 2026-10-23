@@ -206,7 +206,7 @@ onBeforeUnmount(() => { generation++ })
           </thead>
           <tbody>
             <tr v-for="session in sessions" :key="session.id">
-              <td>{{ session.title }}</td>
+              <td>{{ session.title }}<small>场次编号 {{ session.id }}</small></td>
               <td>
                 {{ formatTime(session.startsAt)
                 }}<small>{{ formatTime(session.endsAt) }}</small>

@@ -9,6 +9,8 @@ export const useAuthStore = defineStore('auth', () => {
   const sessionError = ref('')
   const authenticated = computed(() => user.value !== null)
   const isAdmin = computed(() => user.value?.role === 'ADMIN')
+  const isStaff = computed(() => user.value?.role === 'CHECKIN_STAFF')
+  const canCheckin = computed(() => isAdmin.value || isStaff.value)
   let restoring: Promise<void> | undefined
 
   async function restore(force = false) {
@@ -68,6 +70,8 @@ export const useAuthStore = defineStore('auth', () => {
     sessionError,
     authenticated,
     isAdmin,
+    isStaff,
+    canCheckin,
     restore,
     acceptLogin,
     logout,

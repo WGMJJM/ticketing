@@ -21,7 +21,7 @@ class ArchitectureRulesTest {
     private static final Set<String> LAYERS = Set.of("api", "common", "config", "controller", "dto",
             "entity", "job", "mapper", "messaging", "model", "security", "service");
     private static final Set<String> MODULES = Set.of("application", "auth", "checkin", "common",
-            "config", "event", "messaging", "order", "ticket", "waitlist");
+            "config", "event", "messaging", "order", "ticket", "waitlist", "audit", "staff");
     private static final Set<String> ORDER_COLLABORATORS = Set.of(
             "com.ticketing.service.OrderReservation", "com.ticketing.service.TradeResourceLocker");
     private static final Pattern PACKAGE = Pattern.compile("(?m)^package ([\\w.]+);");

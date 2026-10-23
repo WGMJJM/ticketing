@@ -96,7 +96,7 @@ export default function (data) {
     call('GET', `/activities/${target.activityId}/sessions/${target.sessionId}/tickets`, null, 'tickets');
   } else if (mode === 'checkin') {
     if (Date.now() - exec.scenario.startTime < warmup * 1000) { sleep(0.1); return; }
-    const response = call('POST', '/admin/checkins', { credential: data.credential }, 'checkin');
+    const response = call('POST', fixture.staffCheckin === true ? '/checkins' : '/admin/checkins', { credential: data.credential }, 'checkin');
     if (response.status === 200) checked.add(1);
   } else if (mode === 'waitlist') {
     const response = call('GET', `/waitlist/${fixture.waitlistIds[index]}`, null, 'waitlist');

@@ -46,7 +46,7 @@ async function logout() {
         </div>
         <div>
           <dt>账号身份</dt>
-          <dd>{{ auth.isAdmin ? '管理员' : '普通用户' }}</dd>
+          <dd>{{ auth.isAdmin ? '管理员' : auth.isStaff ? '核销工作人员' : '普通用户' }}</dd>
         </div>
       </dl>
       <p v-if="$route.query.denied" class="inline-error" role="alert">
@@ -77,6 +77,7 @@ async function logout() {
       </nav>
       <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
       <div class="auth-links">
+        <RouterLink v-if="auth.canCheckin" :to="auth.isAdmin ? '/admin/checkins' : '/staff/checkin'">进入电子票核销</RouterLink>
         <RouterLink to="/">继续发现活动</RouterLink
         ><RouterLink v-if="auth.isAdmin" to="/admin/checkins"
           >电子票核销</RouterLink

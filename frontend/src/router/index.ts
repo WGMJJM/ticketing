@@ -5,6 +5,9 @@ import { useAuthStore } from '../stores/auth'
 const router = createRouter({
   history: createWebHistory(),
   routes: [
+    { path: '/admin/staff', component: () => import('../views/AdminStaffView.vue'), meta: { requiresAdmin: true } },
+    { path: '/admin/audit-logs', component: () => import('../views/AdminAuditView.vue'), meta: { requiresAdmin: true } },
+    { path: '/staff/checkin', component: () => import('../views/AdminCheckinView.vue'), props: { staff: true }, meta: { requiresCheckin: true } },
     { path: '/', component: HomeView },
     { path: '/about', component: () => import('../views/AboutView.vue') },
     {
@@ -77,7 +80,7 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
   await auth.restore()
-  if ((to.meta.requiresAuth || to.meta.requiresAdmin) && !auth.authenticated)
+  if ((to.meta.requiresAuth || to.meta.requiresAdmin || to.meta.requiresCheckin) && !auth.authenticated)
     return {
       path: to.meta.requiresAdmin ? '/admin/login' : '/login',
       query: { redirect: to.path },
@@ -87,6 +90,8 @@ router.beforeEach(async (to) => {
     auth.authenticated &&
     !auth.isAdmin
   )
+    return { path: '/profile', query: { denied: '1' } }
+  if (to.meta.requiresCheckin && !auth.canCheckin)
     return { path: '/profile', query: { denied: '1' } }
 })
 export default router

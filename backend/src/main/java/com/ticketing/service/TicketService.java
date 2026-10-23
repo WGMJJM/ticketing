@@ -18,6 +18,8 @@ import com.ticketing.entity.TicketSku;
 import com.ticketing.mapper.TicketSkuMapper;
 import com.ticketing.model.SaleStatus;
 import com.ticketing.model.TicketStatus;
+import com.ticketing.model.AuditAction;
+import java.util.Map;
 
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
@@ -39,16 +41,18 @@ public class TicketService implements SessionWindowGuard {
     private final ActivitySessionMapper sessions;
     private final ActivityMapper activities;
     private final InventoryEvents events;
+    private final AuditWriter audit;
 
     public TicketService(
             TicketSkuMapper tickets,
             ActivitySessionMapper sessions,
             ActivityMapper activities,
-            InventoryEvents events) {
+            InventoryEvents events, AuditWriter audit) {
         this.tickets = tickets;
         this.sessions = sessions;
         this.activities = activities;
         this.events = events;
+        this.audit = audit;
     }
 
     @Transactional(readOnly = true)
@@ -88,6 +92,7 @@ public class TicketService implements SessionWindowGuard {
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public TicketView create(long sessionId, TicketWriteRequest request) {
+        long operatorId = audit.begin();
         ActivitySession session = requireSession(sessionId, true);
         validateSession(session);
         validateWindow(session, request);
@@ -116,11 +121,13 @@ public class TicketService implements SessionWindowGuard {
         } catch (DuplicateKeyException exception) {
             throw duplicateName();
         }
+        audit.record(operatorId, AuditAction.TICKET_CREATE, "TICKET_SKU", sku.getId(), Map.of(), snapshot(sku));
         return view(sku, session);
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public TicketView update(long id, TicketWriteRequest request) {
+        long operatorId = audit.begin();
         TicketSku existing = requireTicket(id);
         ActivitySession session = requireSession(existing.getSessionId(), true);
         TicketSku sku = requireTicket(id);
@@ -157,11 +164,14 @@ public class TicketService implements SessionWindowGuard {
         if (request.totalStock() > sku.getTotalStock()) {
             events.append(id, InventoryChangeReason.STOCK_INCREASED);
         }
+        audit.record(operatorId, !sku.getTotalStock().equals(request.totalStock()) ? AuditAction.STOCK_ADJUST : AuditAction.TICKET_UPDATE,
+                "TICKET_SKU", id, snapshot(sku), snapshot(requireTicket(id)));
         return view(requireTicket(id), session);
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public TicketView publish(long id, VersionRequest request) {
+        long operatorId = audit.begin();
         TicketSku existing = requireTicket(id);
         ActivitySession session = requireSession(existing.getSessionId(), true);
         TicketSku sku = requireTicket(id);
@@ -182,11 +192,13 @@ public class TicketService implements SessionWindowGuard {
                 != 1) {
             throw conflict("票档状态已变化，请刷新后重试");
         }
+        audit.record(operatorId, AuditAction.TICKET_PUBLISH, "TICKET_SKU", id, snapshot(sku), snapshot(requireTicket(id)));
         return view(requireTicket(id), session);
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public TicketView offline(long id, VersionRequest request) {
+        long operatorId = audit.begin();
         TicketSku existing = requireTicket(id);
         ActivitySession session = requireSession(existing.getSessionId(), true);
         TicketSku sku = requireTicket(id);
@@ -199,12 +211,20 @@ public class TicketService implements SessionWindowGuard {
                 != 1) {
             throw conflict("票档状态已变化，请刷新后重试");
         }
+        audit.record(operatorId, AuditAction.TICKET_OFFLINE, "TICKET_SKU", id, snapshot(sku), snapshot(requireTicket(id)));
         return view(requireTicket(id), session);
     }
 
     public static SaleStatus saleStatus(
             Activity activity, ActivitySession session, TicketSku sku, LocalDateTime now) {
         return TicketSale.from(activity, session, sku).statusAt(now);
+    }
+
+    private Map<String, Object> snapshot(TicketSku sku) {
+        return Map.of("name", sku.getName(), "status", sku.getStatus(), "priceCents", sku.getPriceCents().toString(),
+                "totalStock", sku.getTotalStock(), "maxQuantityPerOrder", sku.getMaxQuantityPerOrder(),
+                "saleStartsAt", sku.getSaleStartsAt().atOffset(ZoneOffset.UTC),
+                "saleEndsAt", sku.getSaleEndsAt().atOffset(ZoneOffset.UTC), "version", sku.getVersion());
     }
 
     @Override

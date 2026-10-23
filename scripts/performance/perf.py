@@ -26,7 +26,7 @@ PRIVATE = ROOT / '.local' / 'performance'
 RESULTS = ROOT / 'docs' / 'performance' / 'results'
 BASE = 'http://127.0.0.1:18080'
 MONITOR = '/api/v1/admin/monitoring'
-TABLES = ['electronic_ticket', 'waitlist_entry', 'payment_record', 'ticket_order_item',
+TABLES = ['order_aftercare', 'refund_record', 'electronic_ticket', 'waitlist_entry', 'payment_record', 'ticket_order_item',
           'ticket_order', 'outbox_event', 'ticket_sku', 'activity_session', 'activity', 'user_account']
 OVERRIDES = {'WAITLIST_COMPENSATION_POLL_MS', 'WAITLIST_JOBS_ENABLED', 'WAITLIST_MESSAGING_ENABLED',
              'ORDER_PAYMENT_WINDOW_MINUTES', 'ORDER_EXPIRY_SCAN_DELAY_MS', 'ORDER_EXPIRY_ENABLED',
@@ -141,7 +141,9 @@ def app_start(jar, **overrides):
            and key.upper() not in ('JAVA_TOOL_OPTIONS','JDK_JAVA_OPTIONS','_JAVA_OPTIONS')}
     env.update(PERF_DB_PASSWORD=cfg['dbPassword'], PERF_MQ_PASSWORD=cfg['mqPassword'],
                PERF_ADMIN_PASSWORD=cfg['adminPassword'], PERF_TICKET_KEYS=cfg['ticketKeys'],
-               MYSQL_PASSWORD=cfg['dbPassword'], RABBITMQ_PASSWORD=cfg['mqPassword'])
+               MYSQL_PASSWORD=cfg['dbPassword'], RABBITMQ_PASSWORD=cfg['mqPassword'],
+               SPRING_FLYWAY_USER='root', SPRING_FLYWAY_PASSWORD=cfg['rootPassword'])
+    # 仅专用实例的迁移连接使用已有管理账号创建审计触发器；运行连接池仍用ticketing_perf。
     env.update({key: str(value) for key, value in overrides.items()})
     args = ['java', '-Xms512m', '-Xmx1024m', '-XX:+UseG1GC', '-jar', str(Path(jar).resolve()),
             '--spring.config.additional-location=file:' + (HERE / 'application-performance.yml').as_posix()]
@@ -239,9 +241,11 @@ def environment_snapshot():
     return snapshot
 
 
-def prepare(mode, count):
+def prepare(mode, count, staff_checkin=False):
     if count < 1 or count > 500:
         raise RuntimeError('用户数量须为1至500')
+    if staff_checkin and mode != 'checkin':
+        raise RuntimeError('工作人员授权夹具仅用于核销场景')
     connect().close()  # 必须先验证标记，然后才能删除已知测试表中的行。
     # 暂停应用消除后台扫描对重置过程的影响；迁移、索引及标记均保留。
     app = json.loads((PRIVATE / 'app.json').read_text(encoding='utf-8'))
@@ -253,8 +257,16 @@ def prepare(mode, count):
         if response.status_code not in (204,404):
             raise RuntimeError('专用RabbitMQ队列清理失败')
     with connect() as db, db.cursor() as cur:
+        cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('staff_session_permission','admin_audit_log')")
+        extra_tables = {row['TABLE_NAME'] if 'TABLE_NAME' in row else row['table_name'] for row in cur.fetchall()}
+        if 'staff_session_permission' in extra_tables:
+            cur.execute('DELETE FROM staff_session_permission')
         for table in TABLES:
-            cur.execute('DELETE FROM ' + table)
+            if table == 'user_account' and 'admin_audit_log' in extra_tables:
+                # 审计是只追加的历史事实；仅保留被引用操作人，禁止删除/停用触发器来清空审计。
+                cur.execute('DELETE FROM user_account WHERE id NOT IN (SELECT operator_id FROM admin_audit_log)')
+            else:
+                cur.execute('DELETE FROM ' + table)
     app_start(app['jar'], **app.get('overrides', {}))
     adm = admin()
     # 批量注册仍调用真实 BCrypt 注册接口，准备成本不计入稳定压测。
@@ -264,7 +276,8 @@ def prepare(mode, count):
         Client(account, register=True)
     with ThreadPoolExecutor(max_workers=8) as pool:
         list(pool.map(register, users + admins))
-    execute("UPDATE user_account SET role='ADMIN' WHERE username LIKE 'perf\\_a%%' AND username<>'perf_admin'")
+    if not staff_checkin:
+        execute("UPDATE user_account SET role='ADMIN' WHERE username LIKE 'perf\\_a%%' AND username<>'perf_admin'")
     # 保持查询规模恒定，避免只有一条活动数据的失真查询基线。
     with connect() as db, db.cursor() as cur:
         cur.executemany("INSERT INTO activity(title,category,city,venue,summary,description,status,published_at) VALUES(%s,'CONCERT','北京','专用压测场馆','压测','隔离环境数据','PUBLISHED',UTC_TIMESTAMP(6))",
@@ -286,6 +299,12 @@ def prepare(mode, count):
     fixture = {'environment': 'ticketing-perf-only', 'baseUrl': BASE, 'runId': uuid.uuid4().hex,
                'target': main, 'users': users[:count], 'admins': admins,
                'admin': {'username': 'perf_admin', 'password': config()['adminPassword']}, 'mode': mode}
+    if staff_checkin:
+        fixture['staffCheckin'] = True
+        for account in admins:
+            user_id = rows('SELECT id FROM user_account WHERE username=%s', (account['username'],))[0]['id']
+            adm.request('POST', f'/api/v1/admin/staff/{user_id}/promote')
+            adm.request('POST', f'/api/v1/admin/staff/{user_id}/sessions/{main["sessionId"]}/grant')
     if mode == 'mixed':
         fixture['mixed'] = [main] + [target(i, 1000000) for i in range(1, 64)]
     if mode == 'waitlist':
@@ -529,6 +548,7 @@ def main():
     prepare_cmd = commands.add_parser('prepare')
     prepare_cmd.add_argument('--scenario', choices=['query','hot-ample','hot-scarce','mixed','waitlist','checkin'], required=True)
     prepare_cmd.add_argument('--users', type=int, default=100)
+    prepare_cmd.add_argument('--staff-checkin', action='store_true', help='通过真实管理员API准备指定场次的核销工作人员')
     run_cmd = commands.add_parser('run')
     run_cmd.add_argument('--scenario', choices=['query','hot-ample','hot-scarce','mixed','waitlist','checkin'], required=True)
     run_cmd.add_argument('--vus', type=int, default=10); run_cmd.add_argument('--duration', type=int, default=20)
@@ -546,7 +566,7 @@ def main():
         app_start(args.jar, **overrides)
     elif args.command == 'stop': app_stop()
     elif args.command == 'environment': environment_snapshot();print('环境快照已保存')
-    elif args.command == 'prepare': prepare(args.scenario, args.users)
+    elif args.command == 'prepare': prepare(args.scenario, args.users, args.staff_checkin)
     elif args.command == 'run': run(args)
     elif args.command == 'audit': print(json.dumps(audit(), ensure_ascii=False, default=str))
 

@@ -19,6 +19,6 @@ public class AdminCheckinController {
     public AdminCheckinController(ElectronicTicketService service) { this.service = service; }
     @PostMapping
     public ApiResponse<ElectronicTicketView> checkIn(@AuthenticationPrincipal AccountPrincipal user, @Valid @RequestBody CheckinRequest request) {
-        return ApiResponse.success(service.checkIn(user.getId(), request.credential()));
+        return ApiResponse.success(service.checkIn(user.getId(), request.credential(), false));
     }
 }

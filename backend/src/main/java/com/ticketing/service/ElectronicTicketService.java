@@ -26,6 +26,7 @@ public class ElectronicTicketService {
     private final TicketCredentialSigner signer;
     private final TicketIssuer issuer;
     private final TradeResourceLocker resources;
+    private final StaffService staff;
     private final int opensMinutes;
 
     public ElectronicTicketService(
@@ -33,11 +34,13 @@ public class ElectronicTicketService {
             TicketCredentialSigner signer,
             TicketIssuer issuer,
             TradeResourceLocker resources,
-            CheckinProperties properties) {
+            CheckinProperties properties,
+            StaffService staff) {
         this.tickets = tickets;
         this.signer = signer;
         this.issuer = issuer;
         this.resources = resources;
+        this.staff = staff;
         this.opensMinutes = properties.opensBeforeMinutes();
     }
 
@@ -90,7 +93,7 @@ public class ElectronicTicketService {
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
-    public ElectronicTicketView checkIn(long adminId, String credential) {
+    public ElectronicTicketView checkIn(long operatorId, String credential, boolean allowStaff) {
         var verified = signer.verify(credential);
         ElectronicTicket initial =
                 tickets.selectOne(
@@ -100,9 +103,12 @@ public class ElectronicTicketService {
             throw TicketCredentialSigner.invalid();
         }
         // 核销人员行在最前；绝不在持有订单/票券锁后再回锁用户或父级。
-        var context = resources.lockPurchase(adminId, initial.getSkuId(), true);
+        var context = resources.lockPurchase(operatorId, initial.getSkuId(), true);
         if (!context.admin()) {
-            throw new BusinessException(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "当前账号没有电子票核销权限");
+            if (!allowStaff) {
+                throw new BusinessException(HttpStatus.FORBIDDEN, "ACCESS_DENIED", "当前账号没有管理员核销权限");
+            }
+            staff.requirePermission(operatorId, context.sale().sessionId());
         }
         OrderStatus order = resources.lockOrder(initial.getOrderId(), initial.getOwnerId());
         ElectronicTicket ticket = tickets.selectById(initial.getId());
@@ -118,7 +124,7 @@ public class ElectronicTicketService {
             throw conflict("CHECKIN_SESSION_UNAVAILABLE", "场次已取消或结束，不能核销");
         }
         // 最终条件使用MySQL实际时间，等待锁不能越过核销窗口。
-        if (tickets.checkIn(ticket.getId(), adminId, opensMinutes) != 1) {
+        if (tickets.checkIn(ticket.getId(), operatorId, opensMinutes) != 1) {
             throw conflict("CHECKIN_UNAVAILABLE", "当前不在核销时间内，或电子票状态已变化，请刷新后重试");
         }
         return tickets.view(ticket.getId());
