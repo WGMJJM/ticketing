@@ -1,11 +1,5 @@
 package com.ticketing.messaging;
 
-import com.ticketing.config.OutboxProperties;
-import com.ticketing.service.OutboxService;
-
-import com.ticketing.entity.OutboxEvent;
-import com.ticketing.model.OutboxStatus;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.Message;
@@ -25,6 +19,8 @@ public class OutboxPublisher {
     private final OutboxService service;
     private final RabbitTemplate rabbit;
     private final String exchange;
+    private final String purchaseExchange;
+    private final String purchaseMessageTtl;
     private final int batchSize;
     private final int confirmTimeout;
 
@@ -32,10 +28,14 @@ public class OutboxPublisher {
             OutboxService service,
             RabbitTemplate rabbit,
             @Value("${ticketing.waitlist.exchange:ticketing.waitlist}") String exchange,
+            @Value("${ticketing.purchase.exchange:ticketing.purchase}") String purchaseExchange,
+            @Value("${ticketing.purchase.queue-seconds:120}") int queueSeconds,
             OutboxProperties properties) {
         this.service = service;
         this.rabbit = rabbit;
         this.exchange = exchange;
+        this.purchaseExchange = purchaseExchange;
+        this.purchaseMessageTtl = Long.toString(queueSeconds * 1000L);
         this.batchSize = properties.batchSize();
         this.confirmTimeout = properties.confirmTimeoutMs();
     }
@@ -55,11 +55,13 @@ public class OutboxPublisher {
                 properties.setContentType(MessageProperties.CONTENT_TYPE_JSON);
                 properties.setDeliveryMode(MessageDeliveryMode.PERSISTENT);
                 properties.setMessageId(event.getEventId());
+                // 即使消费者长期停用，过期命令也不会无限留在工作队列；最终资格仍由数据库校验。
+                if (PurchaseCommand.TYPE.equals(event.getEventType())) properties.setExpiration(purchaseMessageTtl);
                 CorrelationData correlation =
                         new CorrelationData(event.getEventId() + ":" + event.getRetryCount());
                 rabbit.send(
-                        exchange,
-                        InventoryEvent.ROUTING_KEY,
+                        PurchaseCommand.TYPE.equals(event.getEventType()) ? purchaseExchange : exchange,
+                        PurchaseCommand.TYPE.equals(event.getEventType()) ? PurchaseCommand.ROUTING_KEY : InventoryEvent.ROUTING_KEY,
                         new Message(
                                 event.getPayload().getBytes(StandardCharsets.UTF_8), properties),
                         correlation);

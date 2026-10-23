@@ -1,7 +1,7 @@
 package com.ticketing;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ticketing.controller.AuthController;
+import com.ticketing.auth.AuthController;
 import jakarta.servlet.http.HttpSession;
 import jakarta.servlet.http.HttpSessionEvent;
 import jakarta.servlet.http.HttpSessionListener;

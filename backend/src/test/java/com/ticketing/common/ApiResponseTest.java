@@ -1,6 +1,6 @@
 package com.ticketing.common;
 
-import com.ticketing.dto.SystemStatusResponse;
+import com.ticketing.common.SystemStatusResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 

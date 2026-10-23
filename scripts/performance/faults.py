@@ -166,9 +166,10 @@ def main():
         observed = type(error).__name__
     perf.compose('up', '-d', '--pull', 'never', '--wait', 'mysql')
     until(lambda: requests.get(perf.BASE + '/api/v1/auth/csrf', timeout=3).status_code == 200)
-    retry = buyers[3].request('POST', '/api/v1/orders', {'skuId':sku4,'quantity':1}, {'Idempotency-Key':key})
-    replay = buyers[3].request('POST', '/api/v1/orders', {'skuId':sku4,'quantity':1}, {'Idempotency-Key':key})
-    assert retry['id'] == replay['id']
+    retry = buyers[3].request('POST', '/api/v1/orders', {'skuId':sku4,'quantity':1}, {'Idempotency-Key':key}, statuses=(200,202))
+    replay = buyers[3].request('POST', '/api/v1/orders', {'skuId':sku4,'quantity':1}, {'Idempotency-Key':key}, statuses=(200,202))
+    assert retry['requestId'] == replay['requestId']
+    retry = buyers[3].resolve_purchase(retry)
     assert buyers[3].request('GET', '/api/v1/orders/' + committed['id'])['status'] == 'PENDING'
     for order_id in [committed['id'], retry['id']]: buyers[3].request('POST', f'/api/v1/orders/{order_id}/cancel')
     replay_checker = perf.Client(fixture['admins'][1])

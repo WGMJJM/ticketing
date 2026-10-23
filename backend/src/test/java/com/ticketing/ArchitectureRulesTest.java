@@ -15,22 +15,20 @@ import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 技术目录保持扁平，逻辑业务归属仍用于校验依赖方向及公开协作边界。 */
+/** 业务包与逻辑归属一致，继续验证无环及公开交易协作边界。 */
 class ArchitectureRulesTest {
     private static final Path SOURCES = Path.of("src/main/java/com/ticketing");
-    private static final Set<String> LAYERS = Set.of("api", "common", "config", "controller", "dto",
-            "entity", "job", "mapper", "messaging", "model", "security", "service");
     private static final Set<String> MODULES = Set.of("application", "auth", "checkin", "common",
-            "config", "event", "messaging", "order", "ticket", "waitlist", "audit", "staff");
+            "appconfig", "activity", "messaging", "trade", "inventory", "waitlist", "audit", "staff", "admission");
     private static final Set<String> ORDER_COLLABORATORS = Set.of(
-            "com.ticketing.service.OrderReservation", "com.ticketing.service.TradeResourceLocker");
+            "com.ticketing.trade.OrderReservation", "com.ticketing.trade.TradeResourceLocker");
     private static final Pattern PACKAGE = Pattern.compile("(?m)^package ([\\w.]+);");
     private static final Pattern REFERENCE = Pattern.compile("com\\.ticketing\\.[A-Za-z0-9_.]+");
     private static final Pattern NON_CODE = Pattern.compile(
             "\"\"\"[\\s\\S]*?\"\"\"|\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'|/\\*[\\s\\S]*?\\*/|//[^\\r\\n]*");
 
     @Test
-    void everySourceHasAnExplicitBusinessOwnerAndAFlatTechnicalDirectory() throws IOException {
+    void everySourceHasAnExplicitBusinessOwnerAndMatchingBusinessPackage() throws IOException {
         Map<String, String> modules = modules();
         Map<String, Path> sources = sources();
         assertThat(modules.keySet()).containsExactlyInAnyOrderElementsOf(sources.keySet());
@@ -42,9 +40,9 @@ class ArchitectureRulesTest {
                 continue;
             }
             assertThat(relative.getNameCount()).as(relative.toString()).isEqualTo(2);
-            String layer = relative.getName(0).toString();
-            assertThat(layer).isIn(LAYERS);
-            assertThat(source.getKey()).isEqualTo("com.ticketing." + layer + "."
+            String module = relative.getName(0).toString();
+            assertThat(module).isEqualTo(modules.get(source.getKey()));
+            assertThat(source.getKey()).isEqualTo("com.ticketing." + module + "."
                     + relative.getFileName().toString().replace(".java", ""));
         }
     }
@@ -83,26 +81,27 @@ class ArchitectureRulesTest {
                     continue;
                 }
                 graph.computeIfAbsent(module, ignored -> new HashSet<>()).add(target);
-                if (module.equals("order")) {
+                if (module.equals("trade")) {
                     assertThat(target).as(source.getKey()).isNotIn("waitlist", "checkin");
                 }
-                if (module.equals("ticket") || module.equals("messaging")) {
+                if (module.equals("inventory") || module.equals("messaging")) {
                     assertThat(target).as(source.getKey()).isNotEqualTo("waitlist");
                 }
-                if ((module.equals("waitlist") || module.equals("checkin")) && target.equals("order")) {
+                if ((module.equals("waitlist") || module.equals("checkin")) && target.equals("trade")) {
                     assertThat(isPublicOrderContract(reference)).as("%s → %s", source.getKey(), reference).isTrue();
                 }
             }
         }
-        assertThat(graph.get("order")).contains("ticket", "auth");
+        assertThat(graph.get("trade")).contains("inventory", "auth");
         for (String module : graph.keySet()) {
             visit(module, graph, new HashSet<>());
         }
     }
 
     private boolean isPublicOrderContract(String reference) {
-        return reference.startsWith("com.ticketing.api.") || reference.startsWith("com.ticketing.dto.")
-                || reference.startsWith("com.ticketing.model.") || ORDER_COLLABORATORS.contains(reference);
+        return Set.of("OrderLifecycle", "TradeContext", "OrderStatus", "OrderOperation", "OrderView", "PaymentView",
+                "RefundResult", "RefundView", "RefundReason").contains(reference.substring(reference.lastIndexOf('.') + 1))
+                || ORDER_COLLABORATORS.contains(reference);
     }
 
     private Map<String, String> modules() throws IOException {

@@ -2,18 +2,18 @@ package com.ticketing.messaging;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ticketing.dto.RegisterRequest;
-import com.ticketing.service.AccountService;
-import com.ticketing.service.OrderService;
-import com.ticketing.service.OutboxService;
-import com.ticketing.model.InventoryChangeReason;
-import com.ticketing.config.OutboxProperties;
-import com.ticketing.entity.OutboxEvent;
-import com.ticketing.mapper.OutboxMapper;
-import com.ticketing.mapper.WaitlistMapper;
-import com.ticketing.service.WaitlistCompensation;
-import com.ticketing.service.WaitlistDispatcher;
-import com.ticketing.service.WaitlistService;
+import com.ticketing.auth.RegisterRequest;
+import com.ticketing.auth.AccountService;
+import com.ticketing.trade.OrderService;
+import com.ticketing.messaging.OutboxService;
+import com.ticketing.messaging.InventoryChangeReason;
+import com.ticketing.messaging.OutboxProperties;
+import com.ticketing.messaging.OutboxEvent;
+import com.ticketing.messaging.OutboxMapper;
+import com.ticketing.waitlist.WaitlistMapper;
+import com.ticketing.waitlist.WaitlistCompensation;
+import com.ticketing.waitlist.WaitlistDispatcher;
+import com.ticketing.waitlist.WaitlistService;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
 import java.net.URI;
@@ -81,6 +81,8 @@ class WaitlistManagementIT {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private AccountService accounts;
     @Autowired private OrderService orders;
+    @Autowired private com.ticketing.trade.PurchaseOrderWorker purchaseWorker;
+    @Autowired private com.ticketing.admission.PurchaseRequestMapper purchaseRequests;
     @Autowired private WaitlistService waitlists;
     @Autowired private OutboxService outbox;
     @Autowired private InventoryEvents writer;
@@ -122,6 +124,7 @@ class WaitlistManagementIT {
     }
     @AfterEach
     void cleanup() {
+        com.ticketing.PurchaseTestSupport.cleanup(jdbc,sessionId);
         registry.stop();
         reset(publisher,dispatcher,waitlistMapper,outboxMapper);
         rabbitAdmin.purgeQueue(QUEUE,false); rabbitAdmin.purgeQueue(QUEUE+".dead",false);
@@ -319,7 +322,7 @@ class WaitlistManagementIT {
         CachingConnectionFactory unavailable=new CachingConnectionFactory("127.0.0.1",1);
         try {
             unavailable.setConnectionTimeout(200);
-            new OutboxPublisher(outbox,new RabbitTemplate(unavailable),"ticketing.waitlist.it",new OutboxProperties(1,100,30,3,2,300)).publishBatch();
+            new OutboxPublisher(outbox,new RabbitTemplate(unavailable),"ticketing.waitlist.it","ticketing.purchase.it",120,new OutboxProperties(1,100,30,3,2,300)).publishBatch();
         } finally { unavailable.destroy(); }
         assertThat(eventStatus()).isEqualTo("PENDING"); assertThat(event().getRetryCount()).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT next_retry_at>UTC_TIMESTAMP(6) FROM outbox_event WHERE id=?",Boolean.class,event().getId())).isTrue();
@@ -345,7 +348,7 @@ class WaitlistManagementIT {
         dueEvent(); OutboxEvent newer=outbox.claimNext(); assertThat(newer.getRetryCount()).isEqualTo(2);
         assertThat(outbox.sent(old)).isFalse(); outbox.failed(old);
         assertThat(eventStatus()).isEqualTo("PROCESSING");
-        dueEvent(); new OutboxPublisher(outbox,rabbit,"ticketing.waitlist.it",new OutboxProperties(1,5000,30,3,2,300)).publishBatch();
+        dueEvent(); new OutboxPublisher(outbox,rabbit,"ticketing.waitlist.it","ticketing.purchase.it",120,new OutboxProperties(1,5000,30,3,2,300)).publishBatch();
         assertThat(eventStatus()).isEqualTo("SENT"); assertThat(event().getRetryCount()).isEqualTo(3);
         registry.start(); await(()->"ALLOCATED".equals(state(entry))); invariant(1,0); assertThat(orderCount()).isEqualTo(1);
     }
@@ -362,7 +365,7 @@ class WaitlistManagementIT {
         CachingConnectionFactory unavailable=new CachingConnectionFactory("127.0.0.1",1);
         try {
             unavailable.setConnectionTimeout(200);
-            OutboxPublisher failed=new OutboxPublisher(outbox,new RabbitTemplate(unavailable),"ticketing.waitlist.it",new OutboxProperties(1,100,30,3,2,300));
+            OutboxPublisher failed=new OutboxPublisher(outbox,new RabbitTemplate(unavailable),"ticketing.waitlist.it","ticketing.purchase.it",120,new OutboxProperties(1,100,30,3,2,300));
             for (int count=0;count<3;count++) { dueEvent(); failed.publishBatch(); }
         } finally { unavailable.destroy(); }
         assertThat(eventStatus()).isEqualTo("FAILED"); assertThat(event().getRetryCount()).isEqualTo(3);
@@ -417,9 +420,10 @@ class WaitlistManagementIT {
         var results=parallel(3,index->{
             if (index==0) return b.call("POST","/orders/"+held.path("id").asText()+"/cancel",null,200).path("code").asText();
             if (index==1) return Integer.toString(dispatcher.dispatch(skuId));
-            JsonNode result=c.raw("POST","/orders",json.writeValueAsString(Map.of("skuId",Long.toString(skuId),"quantity",1)),"application/json",UUID.randomUUID().toString(),-1);
-            assertThat(result.path("httpStatus").asInt()).isIn(200,409);
-            return result.path("httpStatus").asInt()==200?result.path("data").path("id").asText():"-";
+            JsonNode accepted=c.raw("POST","/orders",json.writeValueAsString(Map.of("skuId",Long.toString(skuId),"quantity",1)),"application/json",UUID.randomUUID().toString(),202);
+            var result=com.ticketing.PurchaseTestSupport.resolve(purchaseWorker,purchaseRequests,jdbc,accepted.path("data").path("requestId").asLong());
+            assertThat(result.status()).isIn("SUCCEEDED","FAILED");
+            return result.orderId()==null?"-":result.orderId().toString();
         });
         compensation.scan();
         Long allocated=jdbc.queryForObject("SELECT reserved_order_id FROM waitlist_entry WHERE id=?",Long.class,entry.path("id").asLong());
@@ -500,7 +504,11 @@ class WaitlistManagementIT {
         long id; String token="";
         void csrf() throws Exception { token=call("GET","/auth/csrf",null,200).path("data").path("token").asText(); }
         JsonNode join(long sku,int quantity,int expected) throws Exception { return call("POST","/waitlist",Map.of("skuId",Long.toString(sku),"quantity",quantity),expected).path("data"); }
-        JsonNode create(long sku,int quantity) throws Exception { return raw("POST","/orders",json.writeValueAsString(Map.of("skuId",Long.toString(sku),"quantity",quantity)),"application/json",UUID.randomUUID().toString(),200).path("data"); }
+        JsonNode create(long sku,int quantity) throws Exception {
+            long requestId=raw("POST","/orders",json.writeValueAsString(Map.of("skuId",Long.toString(sku),"quantity",quantity)),"application/json",UUID.randomUUID().toString(),202).path("data").path("requestId").asLong();
+            String orderId=com.ticketing.PurchaseTestSupport.order(purchaseWorker,purchaseRequests,jdbc,requestId);
+            return raw("GET","/orders/"+orderId,"","application/json",null,200).path("data");
+        }
         JsonNode call(String method,String path,Object body,int expected) throws Exception { return raw(method,path,body==null?"":json.writeValueAsString(body),"application/json",null,expected); }
         JsonNode raw(String method,String path,String body,String type,String key,int expected) throws Exception {
             var request=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/api/v1"+path)).timeout(Duration.ofSeconds(20)).header("Content-Type",type);

@@ -5,6 +5,30 @@ export interface PurchaseLimit {
   usedQuantity: number
   remainingQuantity: number
 }
+export interface PurchaseRequest {
+  requestId: string
+  skuId: string
+  quantity: number
+  status: 'QUEUED' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'EXPIRED'
+  orderId: string | null
+  failureCode: string | null
+  failureMessage: string | null
+  acceptedAt: string
+  deadlineAt: string
+  serverTime: string
+}
+export const purchaseStatusText = {
+  QUEUED: '抢票排队中', PROCESSING: '正在确认购票结果', SUCCEEDED: '订单已创建',
+  FAILED: '购票未成功', EXPIRED: '排队已超时',
+}
+export const purchaseApi = {
+  detail: (id: string, signal?: AbortSignal) => useAuthStore().request<PurchaseRequest>({
+    url: '/purchase-requests/' + id, timeout: 10000, signal,
+  }),
+  active: (signal?: AbortSignal) => useAuthStore().request<PurchaseRequest[]>({
+    url: '/purchase-requests', timeout: 10000, signal,
+  }),
+}
 export interface Order {
   id: string
   orderNo: string
@@ -67,7 +91,7 @@ export const orderApi = {
       params: { sessionId },
     }),
   create: (skuId: string, quantity: number, key: string) =>
-    useAuthStore().request<Order>({
+    useAuthStore().request<PurchaseRequest>({
       method: 'POST',
       url: '/orders',
       data: { skuId, quantity },

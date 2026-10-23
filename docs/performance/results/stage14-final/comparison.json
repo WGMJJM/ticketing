@@ -1,0 +1,332 @@
+{
+  "environment": "ticketing-perf-only",
+  "protocol": "async-purchase-v1",
+  "rounds": [
+    {
+      "scenario": "hot-ample",
+      "vus": 10,
+      "httpRps": 53.2,
+      "acceptedTps": 9.1,
+      "orderCompletionTps": 9.1,
+      "acceptanceMs": {
+        "med": 44.99895,
+        "p(95)": 75.08934999999998,
+        "p(99)": 99.57028599999994
+      },
+      "completionMs": {
+        "med": 845.5,
+        "p(95)": 1894.95,
+        "p(99)": 1925.09
+      },
+      "businessFailures": 0,
+      "backpressure503": 0,
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "outboxSampledPeak": 17,
+      "purchaseQueueSampledPeak": 2,
+      "rowLockWaitMs": 19541,
+      "finalOutbox": [
+        {
+          "status": "SENT",
+          "n": 522,
+          "attempts": 2
+        }
+      ],
+      "finalPurchaseRequests": [
+        {
+          "status": "SUCCEEDED",
+          "failure_code": "NONE",
+          "n": 261
+        }
+      ],
+      "finalChannelLag": [
+        {
+          "event_type": "PURCHASE_REQUEST_ACCEPTED",
+          "n": 261,
+          "avg_ms": "743.67926054",
+          "max_ms": "1710.3980"
+        },
+        {
+          "event_type": "WAITLIST_DISPATCH_REQUESTED",
+          "n": 261,
+          "avg_ms": "367.58900766",
+          "max_ms": "1386.7360"
+        }
+      ],
+      "auditPassed": true,
+      "k6ExitCode": 0
+    },
+    {
+      "scenario": "hot-ample",
+      "vus": 100,
+      "httpRps": 331.8,
+      "acceptedTps": 6.65,
+      "orderCompletionTps": 6.7,
+      "acceptanceMs": {
+        "med": 56.3225,
+        "p(95)": 267.55117999999965,
+        "p(99)": 531.7429800000004
+      },
+      "completionMs": {
+        "med": 15366,
+        "p(95)": 20012.199999999997,
+        "p(99)": 21402.02999999999
+      },
+      "businessFailures": 0,
+      "backpressure503": 0,
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "outboxSampledPeak": 106,
+      "purchaseQueueSampledPeak": 2,
+      "rowLockWaitMs": 24713,
+      "finalOutbox": [
+        {
+          "status": "SENT",
+          "n": 488,
+          "attempts": 1
+        }
+      ],
+      "finalPurchaseRequests": [
+        {
+          "status": "SUCCEEDED",
+          "failure_code": "NONE",
+          "n": 244
+        }
+      ],
+      "finalChannelLag": [
+        {
+          "event_type": "PURCHASE_REQUEST_ACCEPTED",
+          "n": 244,
+          "avg_ms": "12361.34309016",
+          "max_ms": "18640.8850"
+        },
+        {
+          "event_type": "WAITLIST_DISPATCH_REQUESTED",
+          "n": 244,
+          "avg_ms": "552.99676639",
+          "max_ms": "2519.0780"
+        }
+      ],
+      "auditPassed": true,
+      "k6ExitCode": 0
+    },
+    {
+      "scenario": "hot-ample",
+      "vus": 25,
+      "httpRps": 106.65,
+      "acceptedTps": 8.6,
+      "orderCompletionTps": 8.7,
+      "acceptanceMs": {
+        "med": 46.677,
+        "p(95)": 85.1577699999998,
+        "p(99)": 148.8141319999996
+      },
+      "completionMs": {
+        "med": 2981,
+        "p(95)": 3649.35,
+        "p(99)": 3783.81
+      },
+      "businessFailures": 0,
+      "backpressure503": 0,
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "outboxSampledPeak": 35,
+      "purchaseQueueSampledPeak": 3,
+      "rowLockWaitMs": 26392,
+      "finalOutbox": [
+        {
+          "status": "SENT",
+          "n": 506,
+          "attempts": 1
+        }
+      ],
+      "finalPurchaseRequests": [
+        {
+          "status": "SUCCEEDED",
+          "failure_code": "NONE",
+          "n": 253
+        }
+      ],
+      "finalChannelLag": [
+        {
+          "event_type": "PURCHASE_REQUEST_ACCEPTED",
+          "n": 253,
+          "avg_ms": "2468.79906719",
+          "max_ms": "4092.4240"
+        },
+        {
+          "event_type": "WAITLIST_DISPATCH_REQUESTED",
+          "n": 253,
+          "avg_ms": "708.90429644",
+          "max_ms": "1710.2590"
+        }
+      ],
+      "auditPassed": true,
+      "k6ExitCode": 0
+    },
+    {
+      "scenario": "hot-ample",
+      "vus": 50,
+      "httpRps": 196.85,
+      "acceptedTps": 8.55,
+      "orderCompletionTps": 8.6,
+      "acceptanceMs": {
+        "med": 45.4155,
+        "p(95)": 78.6742,
+        "p(99)": 137.30597000000063
+      },
+      "completionMs": {
+        "med": 5429.5,
+        "p(95)": 9012.85,
+        "p(99)": 9881.61
+      },
+      "businessFailures": 0,
+      "backpressure503": 0,
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "outboxSampledPeak": 55,
+      "purchaseQueueSampledPeak": 1,
+      "rowLockWaitMs": 21602,
+      "finalOutbox": [
+        {
+          "status": "SENT",
+          "n": 514,
+          "attempts": 1
+        }
+      ],
+      "finalPurchaseRequests": [
+        {
+          "status": "SUCCEEDED",
+          "failure_code": "NONE",
+          "n": 257
+        }
+      ],
+      "finalChannelLag": [
+        {
+          "event_type": "PURCHASE_REQUEST_ACCEPTED",
+          "n": 257,
+          "avg_ms": "5376.42672374",
+          "max_ms": "8304.2260"
+        },
+        {
+          "event_type": "WAITLIST_DISPATCH_REQUESTED",
+          "n": 257,
+          "avg_ms": "493.46554086",
+          "max_ms": "1823.3130"
+        }
+      ],
+      "auditPassed": true,
+      "k6ExitCode": 0
+    },
+    {
+      "scenario": "hot-scarce",
+      "vus": 100,
+      "httpRps": 343.8,
+      "acceptedTps": 6.95,
+      "orderCompletionTps": 6.85,
+      "acceptanceMs": {
+        "med": 50.2941,
+        "p(95)": 220.3804899999999,
+        "p(99)": 296.5072120000001
+      },
+      "completionMs": {
+        "med": 15066,
+        "p(95)": 19471.4,
+        "p(99)": 20636.04
+      },
+      "businessFailures": 0,
+      "backpressure503": 0,
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "outboxSampledPeak": 106,
+      "purchaseQueueSampledPeak": 1,
+      "rowLockWaitMs": 29770,
+      "finalOutbox": [
+        {
+          "status": "SENT",
+          "n": 506,
+          "attempts": 1
+        }
+      ],
+      "finalPurchaseRequests": [
+        {
+          "status": "SUCCEEDED",
+          "failure_code": "NONE",
+          "n": 253
+        }
+      ],
+      "finalChannelLag": [
+        {
+          "event_type": "PURCHASE_REQUEST_ACCEPTED",
+          "n": 253,
+          "avg_ms": "11723.40101976",
+          "max_ms": "18431.7760"
+        },
+        {
+          "event_type": "WAITLIST_DISPATCH_REQUESTED",
+          "n": 253,
+          "avg_ms": "408.50086561",
+          "max_ms": "1667.9220"
+        }
+      ],
+      "auditPassed": true,
+      "k6ExitCode": 0
+    },
+    {
+      "scenario": "mixed",
+      "vus": 25,
+      "httpRps": 111.45,
+      "acceptedTps": 10.45,
+      "orderCompletionTps": 10.4,
+      "acceptanceMs": {
+        "med": 42.8727,
+        "p(95)": 80.34378,
+        "p(99)": 102.80665599999996
+      },
+      "completionMs": {
+        "med": 2049,
+        "p(95)": 3467.25,
+        "p(99)": 3593.44
+      },
+      "businessFailures": 0,
+      "backpressure503": 0,
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "outboxSampledPeak": 42,
+      "purchaseQueueSampledPeak": 11,
+      "rowLockWaitMs": 37092,
+      "finalOutbox": [
+        {
+          "status": "SENT",
+          "n": 502,
+          "attempts": 2
+        }
+      ],
+      "finalPurchaseRequests": [
+        {
+          "status": "SUCCEEDED",
+          "failure_code": "NONE",
+          "n": 302
+        }
+      ],
+      "finalChannelLag": [
+        {
+          "event_type": "PURCHASE_REQUEST_ACCEPTED",
+          "n": 302,
+          "avg_ms": "2362.77875497",
+          "max_ms": "5202.6260"
+        },
+        {
+          "event_type": "WAITLIST_DISPATCH_REQUESTED",
+          "n": 200,
+          "avg_ms": "620.74479500",
+          "max_ms": "1892.9840"
+        }
+      ],
+      "auditPassed": true,
+      "k6ExitCode": 0
+    }
+  ],
+  "measurement": "按稳定窗口内HTTP完成/终态查询完成统计；受理延迟与端到端延迟分离；不和历史同步订单TPS直接比较",
+  "passed": true
+}

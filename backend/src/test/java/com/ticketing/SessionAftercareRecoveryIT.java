@@ -1,9 +1,9 @@
 package com.ticketing;
 
-import com.ticketing.dto.RegisterRequest;
-import com.ticketing.service.AccountService;
-import com.ticketing.dto.CreateOrderRequest;
-import com.ticketing.service.OrderService;
+import com.ticketing.auth.RegisterRequest;
+import com.ticketing.auth.AccountService;
+import com.ticketing.trade.CreateOrderRequest;
+import com.ticketing.trade.OrderService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
@@ -40,9 +40,12 @@ class SessionAftercareRecoveryIT {
                 db.update("INSERT INTO ticket_sku(session_id,name,price_cents,total_stock,sale_starts_at,sale_ends_at,status) VALUES(?,'重启善后票',100,10,TIMESTAMPADD(HOUR,-1,UTC_TIMESTAMP(6)),TIMESTAMPADD(HOUR,1,UTC_TIMESTAMP(6)),'ON_SALE')",sessionId);
                 skuId = db.queryForObject("SELECT id FROM ticket_sku WHERE session_id=?",Long.class,sessionId);
                 OrderService orders = first.getBean(OrderService.class);
-                paid = orders.create(userId,new CreateOrderRequest(Long.toString(skuId),1),"paid-"+suffix).id();
+                var admission=first.getBean(com.ticketing.admission.PurchaseAdmission.class);
+                var worker=first.getBean(com.ticketing.trade.PurchaseOrderWorker.class);
+                var requests=first.getBean(com.ticketing.admission.PurchaseRequestMapper.class);
+                paid = PurchaseTestSupport.order(worker,requests,db,Long.parseLong(admission.accept(userId,Long.toString(skuId),1,"paid-"+suffix).requestId()));
                 orders.pay(userId,Long.parseLong(paid));
-                pending = orders.create(userId,new CreateOrderRequest(Long.toString(skuId),1),"pending-"+suffix).id();
+                pending = PurchaseTestSupport.order(worker,requests,db,Long.parseLong(admission.accept(userId,Long.toString(skuId),1,"pending-"+suffix).requestId()));
                 db.update("UPDATE user_account SET status='DISABLED' WHERE id=?",userId);
                 db.update("UPDATE activity_session SET status='CANCELLED' WHERE id=?",sessionId);
             }
@@ -61,6 +64,7 @@ class SessionAftercareRecoveryIT {
             }
         } finally {
             if (cleanup != null) {
+                PurchaseTestSupport.cleanup(cleanup,sessionId);
                 cleanup.update("DELETE e FROM outbox_event e JOIN ticket_sku s ON e.aggregate_id=s.id WHERE e.aggregate_type='TICKET_SKU' AND s.session_id=?",sessionId);
                 for (String table: List.of("order_aftercare","refund_record","electronic_ticket","payment_record","ticket_order_item")) cleanup.update("DELETE t FROM "+table+" t JOIN ticket_order o ON o.id=t.order_id WHERE o.session_id=?",sessionId);
                 cleanup.update("DELETE FROM ticket_order WHERE session_id=?",sessionId);

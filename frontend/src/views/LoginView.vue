@@ -28,12 +28,14 @@ async function submit() {
     const allowed =
       redirect === '/profile' ||
       redirect === '/orders' ||
+      redirect === '/purchase-requests' ||
       redirect === '/waitlist' ||
       redirect === '/tickets' ||
       (auth.canCheckin && redirect === '/staff/checkin') ||
       /^\/tickets\/[1-9][0-9]*$/.test(redirect) ||
       /^\/waitlist\/[1-9][0-9]*$/.test(redirect) ||
       /^\/orders\/[1-9][0-9]*$/.test(redirect) ||
+      /^\/purchase-requests\/[1-9][0-9]*$/.test(redirect) ||
       /^\/activities\/[1-9][0-9]*$/.test(redirect) ||
       (auth.isAdmin &&
         (['/admin/activities', '/admin/checkins', '/admin/orders', '/admin/staff', '/admin/audit-logs'].includes(redirect)))

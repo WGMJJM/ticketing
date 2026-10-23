@@ -111,7 +111,7 @@ onBeforeUnmount(() => controller?.abort())
           <div class="stage-notice" role="status">
             {{
               selected ? '已选择场次。' : '可选择正常场次查看安排。'
-            }}可选择正在售票的票档提交订单并体验模拟支付，不产生实际扣款。
+            }}可选择正在售票的票档提交购票申请，订单创建成功后可体验模拟支付，不产生实际扣款。
           </div>
         </section>
       </div>

@@ -1,5 +1,7 @@
 package com.ticketing.model;
 
+import com.ticketing.trade.OrderStatus;
+
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 

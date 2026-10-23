@@ -26,12 +26,14 @@ PRIVATE = ROOT / '.local' / 'performance'
 RESULTS = ROOT / 'docs' / 'performance' / 'results'
 BASE = 'http://127.0.0.1:18080'
 MONITOR = '/api/v1/admin/monitoring'
-TABLES = ['order_aftercare', 'refund_record', 'electronic_ticket', 'waitlist_entry', 'payment_record', 'ticket_order_item',
+TABLES = ['purchase_request', 'order_aftercare', 'refund_record', 'electronic_ticket', 'waitlist_entry', 'payment_record', 'ticket_order_item',
           'ticket_order', 'outbox_event', 'ticket_sku', 'activity_session', 'activity', 'user_account']
 OVERRIDES = {'WAITLIST_COMPENSATION_POLL_MS', 'WAITLIST_JOBS_ENABLED', 'WAITLIST_MESSAGING_ENABLED',
              'ORDER_PAYMENT_WINDOW_MINUTES', 'ORDER_EXPIRY_SCAN_DELAY_MS', 'ORDER_EXPIRY_ENABLED',
              'SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE', 'SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE',
              'TICKETING_WAITLIST_OUTBOX_BATCH_SIZE'}
+OVERRIDES |= {'PURCHASE_CAPACITY', 'PURCHASE_QUEUE_SECONDS', 'PURCHASE_LEASE_SECONDS', 'PURCHASE_RECOVERY_SECONDS',
+              'PURCHASE_JOBS_ENABLED', 'PURCHASE_MESSAGING_ENABLED', 'OUTBOX_JOBS_ENABLED'}
 
 
 def save(path, value):
@@ -116,8 +118,20 @@ class Client:
         return response.json() if path.startswith(MONITOR) else response.json().get('data')
 
     def order(self, sku, quantity=1):
-        return self.request('POST', '/api/v1/orders', {'skuId': str(sku), 'quantity': quantity},
-                            {'Idempotency-Key': str(uuid.uuid4())})
+        accepted = self.request('POST', '/api/v1/orders', {'skuId': str(sku), 'quantity': quantity},
+                                {'Idempotency-Key': str(uuid.uuid4())}, statuses=(200, 202))
+        return self.resolve_purchase(accepted)
+
+    def resolve_purchase(self, accepted):
+        if 'requestId' not in accepted:
+            return accepted  # 仅供显式运行旧基线JAR的工具兼容，不是当前HTTP同步旁路。
+        deadline = time.monotonic() + 150
+        while accepted['status'] in ('QUEUED', 'PROCESSING') and time.monotonic() < deadline:
+            time.sleep(0.25)
+            accepted = self.request('GET', '/api/v1/purchase-requests/' + accepted['requestId'])
+        if accepted['status'] != 'SUCCEEDED':
+            raise RuntimeError('专用购票未成功结束 ' + str(accepted.get('failureCode') or accepted['status']))
+        return self.request('GET', '/api/v1/orders/' + accepted['orderId'])
 
 
 def admin():
@@ -146,7 +160,7 @@ def app_start(jar, rate_limit_mode='regression', **overrides):
         raise RuntimeError('先运行 stop，避免两个压测进程共用端口')
     # 不继承可能重定向数据源/端口或注入JVM参数的开发环境；只在子进程中隔离。
     prefixes = ('SPRING_','MANAGEMENT_','TICKETING_','MYSQL_','RABBITMQ_','REDIS_','SERVER_',
-                'ORDER_','WAITLIST_','ADMIN_','SESSION_','TICKET_','CHECKIN_','LOGGING_','RATE_LIMIT_','PERF_','CLIENT_ADDRESS_')
+                'ORDER_','WAITLIST_','PURCHASE_','OUTBOX_','ADMIN_','SESSION_','TICKET_','CHECKIN_','LOGGING_','RATE_LIMIT_','PERF_','CLIENT_ADDRESS_')
     env = {key:value for key,value in os.environ.items()
            if not key.upper().replace('.','_').replace('-','_').startswith(prefixes)
            and key.upper() not in ('JAVA_TOOL_OPTIONS','JDK_JAVA_OPTIONS','_JAVA_OPTIONS')}
@@ -264,7 +278,7 @@ def prepare(mode, count, staff_checkin=False):
     app = json.loads((PRIVATE / 'app.json').read_text(encoding='utf-8'))
     app_stop()
     # 应用停止后清理上一轮持久消息，避免已删除夹具留下孤立事件。
-    for queue in ['ticketing.waitlist.dispatch', 'ticketing.waitlist.dispatch.dead']:
+    for queue in ['ticketing.waitlist.dispatch', 'ticketing.waitlist.dispatch.dead', 'ticketing.purchase.orders', 'ticketing.purchase.orders.dead']:
         response = requests.delete('http://127.0.0.1:25673/api/queues/%2F/' + queue + '/contents',
                                    auth=('ticketing_perf', config()['mqPassword']), timeout=10)
         if response.status_code not in (204,404):
@@ -275,11 +289,19 @@ def prepare(mode, count, staff_checkin=False):
         if 'staff_session_permission' in extra_tables:
             cur.execute('DELETE FROM staff_session_permission')
         for table in TABLES:
+            # 历史基线JAR仍可运行，旧schema尚无V8请求表。
+            if table == 'purchase_request':
+                cur.execute("SELECT COUNT(*) n FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='purchase_request'")
+                if not cur.fetchone()['n']:
+                    continue
             if table == 'user_account' and 'admin_audit_log' in extra_tables:
                 # 审计是只追加的历史事实；仅保留被引用操作人，禁止删除/停用触发器来清空审计。
                 cur.execute('DELETE FROM user_account WHERE id NOT IN (SELECT operator_id FROM admin_audit_log)')
             else:
                 cur.execute('DELETE FROM ' + table)
+        cur.execute("SELECT COUNT(*) n FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='purchase_capacity'")
+        if cur.fetchone()['n']:
+            cur.execute('UPDATE purchase_capacity SET pending_count=0 WHERE id=1')
     app_start(app['jar'], rate_limit_mode=app.get('rateLimitMode', 'regression'), **app.get('overrides', {}))
     adm = admin()
     # 批量注册仍调用真实 BCrypt 注册接口，准备成本不计入稳定压测。
@@ -348,12 +370,19 @@ def audit():
     with connect() as db, db.cursor() as cur:
         cur.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ')
         cur.execute('START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY')
+        cur.execute("SELECT COUNT(*) n FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='purchase_request'")
+        async_schema = bool(cur.fetchone()['n'])
+        if async_schema:
+            sql += '\n' + '\n'.join(line for line in (HERE / 'audit-purchase.sql').read_text(encoding='utf-8').splitlines()
+                                     if not line.lstrip().startswith('--'))
         for statement in sql.split(';'):
             if statement.strip():
                 cur.execute(statement)
                 checks.extend(cur.fetchall())
         counts = {}
         for table in TABLES:
+            if table == 'purchase_request' and not async_schema:
+                continue
             cur.execute(f'SELECT COUNT(*) n FROM {table}')
             counts[table] = cur.fetchone()['n']
         db.commit()
@@ -373,7 +402,24 @@ def db_snapshot():
         outbox = cur.fetchall()
         cur.execute("SELECT COUNT(*) n,AVG(TIMESTAMPDIFF(MICROSECOND,created_at,sent_at))/1000 avg_ms,MAX(TIMESTAMPDIFF(MICROSECOND,created_at,sent_at))/1000 max_ms FROM outbox_event WHERE status='SENT'")
         lag = cur.fetchone()
-        return {'mysql': status, 'outbox': outbox, 'outboxLag': lag}
+        cur.execute("SELECT event_type,status,COUNT(*) n FROM outbox_event GROUP BY event_type,status")
+        channels = cur.fetchall()
+        cur.execute("""SELECT event_type,COUNT(*) n,
+            AVG(TIMESTAMPDIFF(MICROSECOND,created_at,sent_at))/1000 avg_ms,
+            MAX(TIMESTAMPDIFF(MICROSECOND,created_at,sent_at))/1000 max_ms
+            FROM outbox_event WHERE status='SENT' GROUP BY event_type""")
+        channel_lag = cur.fetchall()
+        cur.execute("""SELECT event_type,COUNT(*) n,
+            MAX(TIMESTAMPDIFF(MICROSECOND,created_at,UTC_TIMESTAMP(6)))/1000 oldest_ms
+            FROM outbox_event WHERE status IN('PENDING','PROCESSING') GROUP BY event_type""")
+        backlog = cur.fetchall()
+        cur.execute("SELECT COUNT(*) n FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='purchase_request'")
+        purchase = []
+        if cur.fetchone()['n']:
+            cur.execute("SELECT status,COALESCE(failure_code,'NONE') failure_code,COUNT(*) n FROM purchase_request GROUP BY status,failure_code")
+            purchase = cur.fetchall()
+        return {'mysql': status, 'outbox': outbox, 'outboxLag': lag, 'outboxChannels': channels,
+                'outboxChannelLag': channel_lag, 'outboxBacklogAge': backlog, 'purchaseRequests': purchase}
 
 
 def diagnostics():
@@ -508,7 +554,7 @@ def run(args):
     try:
         process = subprocess.run([str(binary), 'run', '--quiet', str(HERE / 'scenarios.js')],
                                  cwd=ROOT, env=env, capture_output=True, text=True, encoding='utf-8', errors='replace',
-                                 timeout=args.duration + args.warmup + 120)
+                                 timeout=args.duration + args.warmup + 210)
     finally:
         stop.set(); worker.join(timeout=15)
         if release_thread: release_thread.join(timeout=30)
@@ -533,6 +579,7 @@ def run(args):
             raise RuntimeError('候补队列没有在压力窗口内全部分配并支付，不得视为闭环成功')
     metadata = {'environment': 'ticketing-perf-only', 'baseCommit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
                 'scenario': args.scenario, 'vus': args.vus, 'warmupSeconds': args.warmup, 'steadySeconds': args.duration,
+                'gracefulStopSeconds': 150, 'outboxDrainMaxSeconds': 30,
                 'data': {'activities': 1000, 'sessions': 64 if args.scenario=='mixed' else 1, 'users': args.vus},
                 'app': json.loads((PRIVATE / 'app.json').read_text(encoding='utf-8')), 'k6ExitCode': process.returncode,
                 'initial': initial, 'final': final, 'mysqlDelta': {k: final['mysql'][k]-v for k,v in initial['mysql'].items()},

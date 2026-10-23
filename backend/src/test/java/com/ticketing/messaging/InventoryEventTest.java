@@ -1,7 +1,7 @@
 package com.ticketing.messaging;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ticketing.model.InventoryChangeReason;
+import com.ticketing.messaging.InventoryChangeReason;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 

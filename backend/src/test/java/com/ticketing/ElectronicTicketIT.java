@@ -2,24 +2,24 @@ package com.ticketing;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ticketing.dto.RegisterRequest;
-import com.ticketing.service.AccountService;
-import com.ticketing.entity.ElectronicTicket;
-import com.ticketing.mapper.ElectronicTicketMapper;
-import com.ticketing.security.TicketCredentialSigner;
-import com.ticketing.service.ElectronicTicketService;
-import com.ticketing.job.TicketBackfillJob;
-import com.ticketing.mapper.OrderMapper;
-import com.ticketing.service.OrderService;
-import com.ticketing.config.CheckinProperties;
-import com.ticketing.service.TradeResourceLocker;
-import com.ticketing.api.OrderLifecycle;
-import com.ticketing.service.OrderReservation;
-import com.ticketing.service.TicketInventory;
+import com.ticketing.auth.RegisterRequest;
+import com.ticketing.auth.AccountService;
+import com.ticketing.checkin.ElectronicTicket;
+import com.ticketing.checkin.ElectronicTicketMapper;
+import com.ticketing.checkin.TicketCredentialSigner;
+import com.ticketing.checkin.ElectronicTicketService;
+import com.ticketing.checkin.TicketBackfillJob;
+import com.ticketing.trade.OrderMapper;
+import com.ticketing.trade.OrderService;
+import com.ticketing.checkin.CheckinProperties;
+import com.ticketing.trade.TradeResourceLocker;
+import com.ticketing.trade.OrderLifecycle;
+import com.ticketing.trade.OrderReservation;
+import com.ticketing.inventory.TicketInventory;
 import org.springframework.aop.framework.AopProxyUtils;
 import org.springframework.transaction.IllegalTransactionStateException;
-import com.ticketing.mapper.TicketSkuMapper;
-import com.ticketing.service.WaitlistDispatcher;
+import com.ticketing.inventory.TicketSkuMapper;
+import com.ticketing.waitlist.WaitlistDispatcher;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
 import java.net.URI;
@@ -77,6 +77,8 @@ class ElectronicTicketIT {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private AccountService accounts;
     @Autowired private OrderService orders;
+    @Autowired private com.ticketing.trade.PurchaseOrderWorker purchaseWorker;
+    @Autowired private com.ticketing.admission.PurchaseRequestMapper purchaseRequests;
     @Autowired private TradeResourceLocker resources;
     @Autowired private OrderReservation reservation;
     @Autowired private TicketInventory inventoryApi;
@@ -111,6 +113,7 @@ class ElectronicTicketIT {
     }
     @AfterEach
     void cleanup() {
+        PurchaseTestSupport.cleanup(jdbc, sessionId);
         reset(tickets);
         if (sessionId != 0) {
             jdbc.update("DELETE e FROM outbox_event e JOIN ticket_sku s ON e.aggregate_id=s.id WHERE e.aggregate_type='TICKET_SKU' AND s.session_id=?", sessionId);
@@ -400,7 +403,7 @@ class ElectronicTicketIT {
     void sharedWriteCollaboratorsRequireAnExistingTransactionAndKeepParticipantOrder() {
         assertThatThrownBy(() -> resources.lockPurchase(buyer.id, skuId, true))
                 .isInstanceOf(IllegalTransactionStateException.class);
-        assertThatThrownBy(() -> reservation.create(buyer.id, skuId, 1, "outside-transaction"))
+        assertThatThrownBy(() -> reservation.reservePurchase(null, 1, "outside-transaction"))
                 .isInstanceOf(IllegalTransactionStateException.class);
         assertThatThrownBy(() -> inventoryApi.reserve(skuId, 1))
                 .isInstanceOf(IllegalTransactionStateException.class);
@@ -487,7 +490,11 @@ class ElectronicTicketIT {
         HttpResponse<String> lastResponse;
         void csrf() throws Exception { token = call("GET", "/auth/csrf", null, 200).path("data").path("token").asText(); }
         JsonNode check(String value, int expected) throws Exception { return call("POST", "/admin/checkins", Map.of("credential", value), expected); }
-        JsonNode create(long sku, int quantity) throws Exception { return raw("POST", "/orders", json.writeValueAsString(Map.of("skuId", Long.toString(sku), "quantity", quantity)), "application/json", UUID.randomUUID().toString(), 200).path("data"); }
+        JsonNode create(long sku, int quantity) throws Exception {
+            long requestId=raw("POST", "/orders", json.writeValueAsString(Map.of("skuId", Long.toString(sku), "quantity", quantity)), "application/json", UUID.randomUUID().toString(), 202).path("data").path("requestId").asLong();
+            String orderId=PurchaseTestSupport.order(purchaseWorker,purchaseRequests,jdbc,requestId);
+            return raw("GET","/orders/"+orderId,"","application/json",null,200).path("data");
+        }
         JsonNode call(String method, String path, Object body, int expected) throws Exception { return raw(method, path, body == null ? "" : json.writeValueAsString(body), "application/json", null, expected); }
         JsonNode raw(String method, String path, String body, String type, String key, int expected) throws Exception {
             var request = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + "/api/v1" + path)).timeout(Duration.ofSeconds(20)).header("Content-Type", type);

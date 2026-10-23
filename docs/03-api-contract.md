@@ -107,7 +107,9 @@ ON_SALE仅为管理状态。后端先判断活动发布、场次正常且未结�
 
 | 方法与路径（均在 /api/v1 下） | 语义 |
 | --- | --- |
-| POST `/orders` | JSON仅 `{ "skuId":"10001", "quantity":2 }`，必需请求头Idempotency-Key；成功200返回OrderView |
+| POST `/orders` | JSON仅 `{ "skuId":"10001", "quantity":2 }`，必需请求头Idempotency-Key；持久受理成功202返回PurchaseRequestView，终态同键重放200；不在HTTP内预占或创建订单 |
+| GET `/purchase-requests/{requestId}` | 本人购票请求真实进度；不存在及非本人统一404，no-store |
+| GET `/purchase-requests` | 本人最近50笔进行中的抢票申请，供刷新与导航恢复；no-store |
 | GET `/orders?page=1&size=10` | 本人订单，按创建时间及ID降序，返回items/total/page/size；页码1至10000，每页1至50 |
 | GET `/orders/limits?sessionId=10001` | 当前用户该场次限额 `{maxPerSession,usedQuantity,remainingQuantity}`；供表单展示，下单时重新校验 |
 | GET `/orders/{orderId}` | 本人订单详情；不存在或属于其他用户统一404 |
@@ -115,9 +117,11 @@ ON_SALE仅为管理状态。后端先判断活动发布、场次正常且未结�
 | POST `/orders/{orderId}/pay` | 本人订单模拟支付；无业务请求体（允许空对象），不接收金额、用户ID等字段；成功200返回PaymentView |
 | GET `/orders/{orderId}/payment` | 本人订单成功模拟支付流水；没有成功记录404 PAYMENT_NOT_FOUND，非本人订单404 ORDER_NOT_FOUND |
 
-skuId为正十进制字符串且不能超过Java long，quantity为正INT整数，拒绝小数。未知创建字段（userId、价格、金额、状态、库存等）400；身份和价格只能来自服务端。幂等键为1至128位可见ASCII字符（不含空格），区分大小写；缺失或非法400。操作域固定CREATE_ORDER，同一用户同键同参返回原单，同键异SKU/数量409 IDEMPOTENCY_CONFLICT，不同用户可共用键。旧单已取消仍返回CANCELLED，不重复预占；创建失败整个事务回滚，同键可以重新尝试。
+skuId为正十进制字符串且不能超过Java long，quantity为正INT整数，拒绝小数。未知创建字段（userId、价格、金额、状态、库存等）400；身份和价格只能来自服务端。幂等键为1至128位可见ASCII字符（不含空格），区分大小写；缺失或非法400。操作域固定CREATE_ORDER，同一用户同键同参返回同一个requestId及真实状态，不续期、不重复占预算或追加消息；同键异SKU/数量409 IDEMPOTENCY_CONFLICT，不同用户可共用键。V8将旧普通订单幂等事实登记为SUCCEEDED，旧订单已取消仍关联该原单，不重复预占。
 
-下单锁定父级并统一校验活动PUBLISHED、场次SCHEDULED及销售窗口、SKU ON_SALE、可售量；区间为 `[saleStartsAt,saleEndsAt)`。数量还受SKU单笔上限和跨SKU用户场次限额约束，默认每人每场4张，PENDING/PAID占额，CANCELLED/EXPIRED不占额。限额查询只是即时展示，无法替代服务端事务校验。库存或不可售409（TICKET_UNAVAILABLE/STOCK_UNAVAILABLE），超限409 PURCHASE_LIMIT，金额乘法溢出400 ORDER_AMOUNT_INVALID。数据库写入异常整体回滚，不返回半成品成功。
+PurchaseRequestView为 `{requestId,skuId,quantity,status,orderId,failureCode,failureMessage,acceptedAt,deadlineAt,serverTime}`，ID按字符串传输。状态为QUEUED（抢票排队）、PROCESSING（确认中）、SUCCEEDED（订单已创建）、FAILED（业务失败）、EXPIRED（排队超时）。后面三种为终态；只有SUCCEEDED有真实orderId。202只证明受理事务已提交，不表示占库存或可支付。默认容量200、排队120秒，配置须通过校验；首次受理在同一MySQL事务中申请容量、保存请求和Outbox。满额503 PURCHASE_QUEUE_FULL，带Retry-After=2，不返回排队成功。
+
+购票命令消费者在MySQL事务内按用户→活动→场次→SKU→订单→购票请求→容量预算加锁，校验活动PUBLISHED、场次SCHEDULED及销售窗口、SKU ON_SALE、可售量；区间为 `[saleStartsAt,saleEndsAt)`。数量受SKU单笔上限和跨SKU用户场次限额约束，默认每人每场4张，PENDING/PAID占额，CANCELLED/EXPIRED/REFUNDED不占额。库存或不可售、限购及金额异常表现为请求FAILED和有限业务码及中文说明；临时数据库异常回滚并保持可恢复状态。成功订单、明细、库存预占及SUCCEEDED绑定必须一起提交。排队截止与订单15分钟支付截止独立，支付时间从正式订单创建开始计算。
 
 OrderView字段：id/orderNo/activityId/activityTitle/sessionId/sessionTitle/sessionStartsAt/skuId/skuName/quantity/unitPriceCents/totalAmountCents/status/createdAt/expiresAt/paymentDeadlinePassed/canCancel/canPay/payment/serverTime。ID和金额分为字符串，数量为整数，时间UTC带Z、页面北京时间。skuName、单价和数量来自下单明细快照，活动/场次名称及开始时间是当前关联资料。总额为服务端单价乘数量，不采用客户端预计金额。payment无成功流水时为null，否则为PaymentView，列表通过JOIN读取，不逐订单额外查询。
 
@@ -137,7 +141,7 @@ Spring Scheduling默认开启，启动即扫描MySQL的 `PENDING AND expires_at<
 
 环境配置为ORDER_EXPIRY_ENABLED（默认true）、ORDER_EXPIRY_SCAN_DELAY_MS（默认30000）、ORDER_EXPIRY_BATCH_SIZE（默认100）。截止与实际关闭之间存在扫描延迟，大量积压、锁等待或错误重试会进一步延迟，但截止后支付SQL立即拒绝；不要将暂时仍PENDING误报为仍可支付或已释放。
 
-前端数量范围按可售量、单笔上限及限额查询取最小值，金额用BigInt。确认提交期间禁止重复点击，每次新尝试生成UUID幂等键；当前页面遇网络/5xx结果不明时保留键和数量供用户手动重试或查看我的订单，不自动重放POST。刷新或离开页面后先查订单，不能假定未创建。取消成功后重新查询订单，活动页通过刷新票档获取释放后的库存。
+前端数量范围按可售量、单笔上限及限额查询取最小值，金额用BigInt。首次提交前在sessionStorage按用户与SKU保存非敏感的数量、幂等键及已知requestId；不保存Session、CSRF或票券凭证。网络/5xx结果不明时手动重试原键，刷新与导航后可恢复，不换键重复创建。排队页每次请求最多10秒、每轮最多60次，间隔2至5秒，隐藏或卸载页面停止查询；停止轮询不伪装服务端已过期。只有真实SUCCEEDED才进入订单，抢票排队与缺票候补分开显示。
 
 ## 候补申请与查询
 
@@ -166,7 +170,7 @@ WaitlistView字段：id/skuId/sessionId/activityId/activityTitle/sessionTitle/sk
 
 RabbitMQ持久交换机ticketing.waitlist，路由inventory.available，持久队列ticketing.waitlist.dispatch；死信交换机ticketing.waitlist.dead，死信队列ticketing.waitlist.dispatch.dead，路由failed。消费者核对已提交Outbox与messageId、SKU，事务完成后确认；重复消息重查数据库，不重复创建订单。消费最多4次、间隔1/2/4秒，失败拒绝重新入队并进入死信，避免快速无限循环。
 
-独立数据库补偿默认每60秒扫描100个仍有WAITING的SKU，每SKU至多处理50次队首；覆盖有库存未分配及无库存但队首已失效的情况。逐SKU隔离失败，游标前进并回绕，重启从数据库恢复。WAITLIST_MESSAGING_ENABLED=false可用于本地故障隔离，补偿仍运行；WAITLIST_JOBS_ENABLED=false仅供受控测试关闭后台任务。消息与补偿均为最终推进，不保证即时分配或吞吐指标。
+独立数据库补偿默认每60秒扫描100个仍有WAITING的SKU，每SKU至多处理50次队首；覆盖有库存未分配及无库存但队首已失效的情况。逐SKU隔离失败，游标前进并回绕，重启从数据库恢复。WAITLIST_MESSAGING_ENABLED=false关闭候补拓扑及消费，补偿仍运行；WAITLIST_JOBS_ENABLED=false关闭候补后台补偿。第十四阶段通用Outbox发布统一由OUTBOX_JOBS_ENABLED控制，同时服务候补和购票通道；购票消费和请求恢复分别由PURCHASE_MESSAGING_ENABLED、PURCHASE_JOBS_ENABLED控制。关闭任何通道仅供受控故障验证，正常部署均保持开启；不保证即时分配或吞吐指标。
 
 ## 电子票查询与入场凭证
 

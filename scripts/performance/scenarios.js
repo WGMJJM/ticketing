@@ -16,19 +16,27 @@ if (vus < 1 || vus > fixture.users.length || duration < 1 || warmup < 1) throw n
 const latency = new Trend('steady_latency', true);
 const requests = new Counter('steady_requests');
 const unexpected = new Rate('unexpected_error');
+const allUnexpected = new Rate('all_unexpected_error');
+const outcomes = new Counter('all_http_outcomes');
 const conflicts = new Counter('expected_conflicts');
 const orders = new Counter('created_orders');
+const acceptedRequests = new Counter('accepted_purchase_requests');
+const acceptanceLatency = new Trend('steady_acceptance_latency', true);
+const completionLatency = new Trend('steady_purchase_completion_latency', true);
+const purchaseFailures = new Counter('purchase_business_failures');
+const admissionRejected = new Counter('admission_rejected');
 const paid = new Counter('paid_orders');
 const checked = new Counter('checked_tickets');
 const idem = new Rate('idempotency_correct');
 const serverErrors = new Counter('server_errors');
 const transportErrors = new Counter('transport_errors');
-const routes = ['activities', 'activity', 'sessions', 'tickets', 'create', 'cancel', 'pay', 'waitlist', 'checkin'];
-const thresholds = { unexpected_error: ['rate==0'], http_req_failed: ['rate==0'] };
+const routes = ['activities', 'activity', 'sessions', 'tickets', 'create', 'purchase_status', 'cancel', 'pay', 'waitlist', 'checkin'];
+const thresholds = { unexpected_error: ['rate==0'], all_unexpected_error: ['rate==0'], http_req_failed: ['rate==0'], server_errors: ['count==0'], transport_errors: ['count==0'] };
+for (const status of [0, 400, 401, 403, 404, 429, 500, 503]) thresholds[`all_http_outcomes{status:${status}}`] = ['count==0'];
 if (['mixed', 'hot-ample', 'hot-scarce'].includes(mode)) thresholds.idempotency_correct = ['rate==1'];
 for (const name of routes) thresholds[`steady_latency{name:${name}}`] = ['p(95)<30000'];
 export const options = {
-  scenarios: { load: { executor: 'constant-vus', vus, duration: `${warmup + duration}s`, gracefulStop: '10s' } },
+  scenarios: { load: { executor: 'constant-vus', vus, duration: `${warmup + duration}s`, gracefulStop: '150s' } },
   noCookiesReset: true,
   systemTags: ['status', 'method', 'name', 'scenario', 'expected_response'],
   summaryTrendStats: ['avg', 'min', 'med', 'max', 'p(90)', 'p(95)', 'p(99)'],
@@ -47,18 +55,24 @@ function call(method, path, body, name, extra = {}, measured = true) {
   const response = http.request(method, fixture.baseUrl + '/api/v1' + path,
     body === null ? null : JSON.stringify(body), {
       headers: { 'Content-Type': 'application/json', ...(token ? { [token.headerName]: token.token } : {}), ...extra },
-      tags: { name }, timeout: '20s', responseCallback: http.expectedStatuses(200, 409),
+      tags: { name }, timeout: '20s', responseCallback: http.expectedStatuses(200, 202, 409),
     });
   const stable = measured && isSteady();
+  let expected = false;
+  if (response.status === 409) {
+    try { expected = expectedCodes.has(response.json('code')); } catch (_) { /* 解析失败计为非预期错误 */ }
+  }
+  let backpressure = false;
+  try { backpressure = response.status === 503 && response.json('code') === 'PURCHASE_QUEUE_FULL'; } catch (_) { /* 未知503仍失败 */ }
+  const invalid = ![200, 202].includes(response.status) && !expected && !backpressure;
+  outcomes.add(1, { status: String(response.status) });
+  allUnexpected.add(invalid);
+  serverErrors.add(response.status >= 500 ? 1 : 0);
+  transportErrors.add(response.status === 0 ? 1 : 0);
   if (stable && measured) {
     requests.add(1); latency.add(response.timings.duration, { name });
-    let expected = false;
-    if (response.status === 409) {
-      try { expected = expectedCodes.has(response.json('code')); } catch (_) { /* 解析失败计为非预期错误 */ }
-    }
-    unexpected.add(response.status !== 200 && !expected);
-    serverErrors.add(response.status >= 500 ? 1 : 0);
-    transportErrors.add(response.status === 0 ? 1 : 0);
+    unexpected.add(invalid);
+    if (backpressure) admissionRejected.add(1);
     if (expected) conflicts.add(1);
   }
   return response;
@@ -108,15 +122,36 @@ export default function (data) {
   } else {
     const key = `perf-${fixture.runId}-${exec.vu.idInTest}-${exec.vu.iterationInScenario}`;
     const body = { skuId: target.skuId, quantity: 1 };
+    const submittedAt = Date.now();
     const response = call('POST', '/orders', body, 'create', { 'Idempotency-Key': key });
-    if (response.status !== 200) { sleep(0.01); return; }
-    const id = response.json('data.id');
-    const stable = isSteady();
-    if (stable) orders.add(1);
+    if (![200, 202].includes(response.status)) { sleep(0.1); return; }
+    const requestId = response.json('data.requestId');
+    if (response.status === 202 && isSteady()) { acceptedRequests.add(1); acceptanceLatency.add(response.timings.duration); }
     if (exec.vu.iterationInScenario % 5 === 0) {
       const replay = call('POST', '/orders', body, 'create', { 'Idempotency-Key': key });
-      if (stable) idem.add(replay.status === 200 && replay.json('data.id') === id);
+      idem.add([200, 202].includes(replay.status) && replay.json('data.requestId') === requestId);
     }
+    let result = response.json('data');
+    // 每次购票有限轮询；端到端时间按终态查询完成截取，不以202延迟代替。
+    for (let poll = 0; ['QUEUED', 'PROCESSING'].includes(result.status) && poll < 80; poll++) {
+      sleep(0.25);
+      const status = call('GET', `/purchase-requests/${requestId}`, null, 'purchase_status');
+      if (status.status !== 200) { allUnexpected.add(true); return; }
+      result = status.json('data');
+    }
+    const stable = isSteady();
+    if (['QUEUED', 'PROCESSING'].includes(result.status)) { allUnexpected.add(true); return; }
+    if (stable) completionLatency.add(Date.now() - submittedAt);
+    if (result.status !== 'SUCCEEDED') {
+      const known = expectedCodes.has(result.failureCode) || result.failureCode === 'QUEUE_EXPIRED';
+      unexpected.add(!known);
+      allUnexpected.add(!known);
+      if (stable) purchaseFailures.add(1, { code: known ? result.failureCode : 'UNKNOWN' });
+      return;
+    }
+    const id = result.orderId;
+    if (!id) { allUnexpected.add(true); return; }
+    if (stable) orders.add(1);
     if (mode === 'mixed' && exec.vu.iterationInScenario % 3 === 0) {
       const result = call('POST', `/orders/${id}/pay`, null, 'pay');
       if (result.status === 200 && stable) paid.add(1);

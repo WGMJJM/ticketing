@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import axios from 'axios'
 import { ElMessageBox } from 'element-plus'
 import 'element-plus/es/components/message-box/style/css'
 import { useAuthStore } from '../stores/auth'
 import { orderApi, type PurchaseLimit } from '../api/orders'
+import { readAttempt, saveAttempt, clearAttempt, type PurchaseAttempt } from '../utils/purchaseAttempts'
 import type { TicketSku } from '../api/tickets'
 import { formatCents } from '../utils/money'
 import { chineseValidation, clearValidation } from '../utils/validation'
@@ -19,159 +19,95 @@ const limit = ref<PurchaseLimit>()
 const loading = ref(false)
 const busy = ref(false)
 const error = ref('')
-const uncertain = ref(false)
-let attempt: { quantity: number; key: string } | undefined
-const maximum = computed(() =>
-  Math.min(
-    props.ticket.availableStock,
-    props.ticket.maxQuantityPerOrder,
-    limit.value?.remainingQuantity ?? props.ticket.maxQuantityPerOrder,
-  ),
-)
-const estimate = computed(() =>
-  formatCents(
-    (
-      BigInt(props.ticket.priceCents) *
-      BigInt(Number.isInteger(quantity.value) ? quantity.value : 0)
-    ).toString(),
-  ),
-)
+const attempt = ref<PurchaseAttempt>()
+let generation = 0
+onBeforeUnmount(() => { generation++ })
+const maximum = computed(() => Math.min(props.ticket.availableStock, props.ticket.maxQuantityPerOrder,
+  limit.value?.remainingQuantity ?? props.ticket.maxQuantityPerOrder))
+const estimate = computed(() => formatCents((BigInt(props.ticket.priceCents) *
+  BigInt(Number.isInteger(quantity.value) ? quantity.value : 0)).toString()))
 async function loadLimit() {
+  const active = generation
   if (!auth.authenticated) return
   loading.value = true
-  error.value = ''
   limit.value = undefined
   try {
-    limit.value = await orderApi.limits(props.ticket.sessionId)
+    const result = await orderApi.limits(props.ticket.sessionId)
+    if (active === generation) limit.value = result
   } catch (failure) {
-    error.value =
-      failure instanceof Error ? failure.message : '限购信息加载失败'
-  } finally {
-    loading.value = false
-  }
+    if (active === generation) error.value = failure instanceof Error ? failure.message : '限购信息加载失败'
+  } finally { if (active === generation) loading.value = false }
 }
-watch(
-  () => auth.user?.id,
-  () => {
-    attempt = undefined
-    uncertain.value = false
-    quantity.value = 1
-    void loadLimit()
-  },
-  { immediate: true },
-)
-watch(quantity, () => {
-  if (!uncertain.value) attempt = undefined
-})
+watch(() => [auth.user?.id, props.ticket.id], () => {
+  generation++
+  busy.value = false
+  error.value = ''
+  attempt.value = auth.user ? readAttempt(auth.user.id, props.ticket.id) : undefined
+  quantity.value = attempt.value?.quantity ?? 1
+  void loadLimit()
+}, { immediate: true })
 async function purchase() {
-  if (!auth.authenticated) {
-    await router.push({ path: '/login', query: { redirect: route.path } })
-    return
+  if (busy.value) return
+  const userId = auth.user?.id
+  if (!userId) { await router.push({ path: '/login', query: { redirect: route.path } }); return }
+  if (attempt.value?.requestId) { await router.push('/purchase-requests/' + attempt.value.requestId); return }
+  if (!attempt.value && (!Number.isInteger(quantity.value) || quantity.value < 1 || quantity.value > maximum.value)) {
+    error.value = '请按库存与限购范围选择数量'; return
   }
-  if (
-    !Number.isInteger(quantity.value) ||
-    quantity.value < 1 ||
-    quantity.value > maximum.value
-  ) {
-    error.value = '请按库存与限购范围选择数量'
-    return
-  }
+  const active = generation
+  const skuId = props.ticket.id
   busy.value = true
   error.value = ''
   try {
-    if (!uncertain.value) {
+    if (!attempt.value) {
       try {
         await ElMessageBox.confirm(
-          `确认预订“${props.ticket.name}”${quantity.value}张？预计${estimate.value}，金额以服务端订单为准。提交后将占用库存，请在截止前完成模拟支付，超时自动关闭。`,
-          '确认购票订单',
-          {
-            confirmButtonText: '确认提交订单',
-            cancelButtonText: '再想想',
-            type: 'warning',
-          },
+          `确认申请“${props.ticket.name}”${quantity.value}张？预计${estimate.value}，金额以正式订单为准。提交后先排队，排队不占库存；订单创建成功后，请按正式订单显示的截止时间完成模拟支付。`,
+          '确认购票申请', { confirmButtonText: '确认加入抢票排队', cancelButtonText: '再想想', closeOnClickModal: false, type: 'warning' },
         )
-      } catch {
-        return
-      }
+      } catch { return }
+      if (active !== generation) return
+      const created = { quantity: quantity.value, key: crypto.randomUUID() }
+      saveAttempt(userId, skuId, created)
+      attempt.value = created
     }
-    if (!attempt)
-      attempt = { quantity: quantity.value, key: crypto.randomUUID() }
-    const order = await orderApi.create(
-      props.ticket.id,
-      attempt.quantity,
-      attempt.key,
-    )
-    attempt = undefined
-    uncertain.value = false
+    const current = attempt.value
+    if (!current || active !== generation) return
+    const result = await orderApi.create(skuId, current.quantity, current.key)
+    saveAttempt(userId, skuId, { ...current, requestId: result.requestId })
+    if (active !== generation) return
+    attempt.value = { ...current, requestId: result.requestId }
     emit('changed')
-    await router.push('/orders/' + order.id)
+    if (result.status === 'SUCCEEDED' && result.orderId) {
+      clearAttempt(userId, skuId, current.key)
+      await router.push('/orders/' + result.orderId)
+    } else await router.push('/purchase-requests/' + result.requestId)
   } catch (failure) {
-    const rejectedBeforeWrite = axios.isAxiosError(failure) &&
-      (failure.response?.status === 429 || failure.response?.data?.code === 'RATE_LIMIT_UNAVAILABLE')
-    // 先前超时的提交仍可能已成功；本次安全拒绝不能抹掉原请求的不确定性及幂等键。
-    const previouslyUncertain = uncertain.value
-    uncertain.value =
-      (previouslyUncertain && rejectedBeforeWrite) ||
-      (axios.isAxiosError(failure) &&
-        (!failure.response || (failure.response.status >= 500 && !rejectedBeforeWrite)))
-    if (!uncertain.value) {
-      attempt = undefined
-      void loadLimit()
-    }
-    error.value =
-      (failure instanceof Error ? failure.message : '提交订单失败') +
-      (uncertain.value
-        ? '。结果尚未确认，请保持数量并用同一请求重试，或先查看我的订单。'
-        : '')
-  } finally {
-    busy.value = false
-  }
+    if (active === generation) error.value = (failure instanceof Error ? failure.message : '购票申请提交失败') +
+      (attempt.value ? '。结果尚未确认，请用同一申请重试；刷新页面后也会保留原申请。' : '。请确认浏览器允许本站会话存储后重试。')
+  } finally { if (active === generation) busy.value = false }
 }
 </script>
 <template>
-  <form
-    class="purchase-panel"
-    @submit.prevent="purchase"
-    @invalid.capture="chineseValidation"
-    @input.capture="clearValidation"
-    @change.capture="clearValidation"
-  >
+  <form class="purchase-panel" @submit.prevent="purchase" @invalid.capture="chineseValidation"
+    @input.capture="clearValidation" @change.capture="clearValidation">
     <template v-if="auth.authenticated">
       <p v-if="loading">正在读取限购信息…</p>
-      <p v-else-if="limit">
-        本场限购 {{ limit.maxPerSession }} 张，已占用
-        {{ limit.usedQuantity }} 张，还可购买 {{ limit.remainingQuantity }} 张
-      </p>
+      <p v-else-if="limit">本场限购 {{ limit.maxPerSession }} 张，已占用 {{ limit.usedQuantity }} 张，还可购买 {{ limit.remainingQuantity }} 张</p>
       <ElButton v-else @click="loadLimit">重试限购查询</ElButton>
     </template>
     <label :for="'quantity-' + ticket.id">购买数量</label>
-    <input
-      :id="'quantity-' + ticket.id"
-      v-model.number="quantity"
-      type="number"
-      min="1"
-      :max="maximum"
-      step="1"
-      required
-      :disabled="busy || uncertain || maximum < 1"
-      :aria-label="ticket.name + '购买数量'"
-    />
+    <input :id="'quantity-' + ticket.id" v-model.number="quantity" type="number" min="1"
+      :max="attempt ? undefined : maximum" step="1" required :disabled="busy || !!attempt || maximum < 1"
+      :aria-label="ticket.name + '购买数量'" />
     <span class="purchase-estimate"><small>预计金额</small><strong>{{ estimate }}</strong></span>
+    <p>抢票排队不保证有票，订单创建成功后才会预占库存。</p>
+    <p v-if="attempt" role="status">已保留原购票申请，重复点击和刷新将查询同一结果。</p>
     <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
-    <ElButton
-      type="primary"
-      native-type="submit"
-      :loading="busy"
-      :disabled="maximum < 1 || (auth.authenticated && (!limit || loading))"
-    >
-      {{
-        !auth.authenticated
-          ? '登录后购票'
-          : uncertain
-            ? '重试确认该订单'
-            : '提交购票订单'
-      }}
+    <ElButton type="primary" native-type="submit" :loading="busy"
+      :disabled="!attempt && (maximum < 1 || (auth.authenticated && (!limit || loading)))">
+      {{ !auth.authenticated ? '登录后购票' : attempt?.requestId ? '查看该购票请求' : attempt ? '重试确认该申请' : '加入抢票排队' }}
     </ElButton>
-    <RouterLink v-if="auth.authenticated" to="/orders">查看我的订单</RouterLink>
+    <RouterLink v-if="auth.authenticated" to="/purchase-requests">查看我的抢票排队</RouterLink>
   </form>
 </template>

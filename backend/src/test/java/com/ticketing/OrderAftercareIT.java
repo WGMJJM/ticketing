@@ -2,17 +2,17 @@ package com.ticketing;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ticketing.dto.RegisterRequest;
-import com.ticketing.service.AccountService;
-import com.ticketing.mapper.ElectronicTicketMapper;
-import com.ticketing.config.AftercareProperties;
-import com.ticketing.mapper.AftercareMapper;
-import com.ticketing.mapper.RefundMapper;
-import com.ticketing.model.RefundReason;
-import com.ticketing.service.OrderRefundService;
-import com.ticketing.service.OrderService;
-import com.ticketing.job.SessionAftercareJob;
-import com.ticketing.service.WaitlistDispatcher;
+import com.ticketing.auth.RegisterRequest;
+import com.ticketing.auth.AccountService;
+import com.ticketing.checkin.ElectronicTicketMapper;
+import com.ticketing.trade.AftercareProperties;
+import com.ticketing.trade.AftercareMapper;
+import com.ticketing.trade.RefundMapper;
+import com.ticketing.trade.RefundReason;
+import com.ticketing.trade.OrderRefundService;
+import com.ticketing.trade.OrderService;
+import com.ticketing.trade.SessionAftercareJob;
+import com.ticketing.waitlist.WaitlistDispatcher;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -39,6 +39,8 @@ class OrderAftercareIT {
     @Autowired AccountService accounts;
     @Autowired OrderRefundService service;
     @Autowired OrderService orders;
+    @Autowired com.ticketing.trade.PurchaseOrderWorker purchaseWorker;
+    @Autowired com.ticketing.admission.PurchaseRequestMapper purchaseRequests;
     @Autowired AftercareMapper aftercare;
     @Autowired WaitlistDispatcher dispatcher;
     @MockitoSpyBean RefundMapper refunds;
@@ -63,6 +65,7 @@ class OrderAftercareIT {
     void cleanup() {
         reset(refunds, tickets);
         if (sessionId != 0) {
+            PurchaseTestSupport.cleanup(jdbc, sessionId);
             jdbc.update("DELETE e FROM outbox_event e JOIN ticket_sku s ON e.aggregate_id=s.id WHERE e.aggregate_type='TICKET_SKU' AND s.session_id=?", sessionId);
             for (String table : List.of("order_aftercare", "refund_record", "waitlist_entry", "electronic_ticket", "payment_record", "ticket_order_item")) {
                 String link = table.equals("waitlist_entry") ? "reserved_order_id" : "order_id";
@@ -389,7 +392,10 @@ class OrderAftercareIT {
         final HttpClient http=HttpClient.newBuilder().cookieHandler(new CookieManager(null,CookiePolicy.ACCEPT_ALL)).build();
         long id; String token=""; String username;
         void csrf() throws Exception { token=call("GET","/auth/csrf",null,200).path("data").path("token").asText(); }
-        long create(int quantity) throws Exception { return raw("POST","/orders",json.writeValueAsString(Map.of("skuId",Long.toString(skuId),"quantity",quantity)),"application/json",UUID.randomUUID().toString(),200).path("data").path("id").asLong(); }
+        long create(int quantity) throws Exception {
+            long requestId=raw("POST","/orders",json.writeValueAsString(Map.of("skuId",Long.toString(skuId),"quantity",quantity)),"application/json",UUID.randomUUID().toString(),202).path("data").path("requestId").asLong();
+            return Long.parseLong(PurchaseTestSupport.order(purchaseWorker,purchaseRequests,jdbc,requestId));
+        }
         JsonNode call(String method,String path,Object body,int expected) throws Exception { return raw(method,path,body==null?"":json.writeValueAsString(body),"application/json",null,expected); }
         JsonNode raw(String method,String path,String body,String type,String key,int expected) throws Exception {
             var request=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/api/v1"+path)).timeout(Duration.ofSeconds(25)).header("Content-Type",type);

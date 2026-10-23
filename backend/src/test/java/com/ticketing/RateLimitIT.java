@@ -2,12 +2,12 @@ package com.ticketing;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ticketing.config.RateLimitProperties;
-import com.ticketing.config.RateLimitProperties.Policy;
-import com.ticketing.dto.RegisterRequest;
-import com.ticketing.security.RedisRateLimiter;
-import com.ticketing.security.RedisRateLimiter.Outcome;
-import com.ticketing.service.AccountService;
+import com.ticketing.auth.RateLimitProperties;
+import com.ticketing.auth.RateLimitProperties.Policy;
+import com.ticketing.auth.RegisterRequest;
+import com.ticketing.auth.RedisRateLimiter;
+import com.ticketing.auth.RedisRateLimiter.Outcome;
+import com.ticketing.auth.AccountService;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
@@ -75,6 +75,8 @@ class RateLimitIT {
     @Autowired ObjectMapper json;
     @Autowired JdbcTemplate jdbc;
     @Autowired AccountService accounts;
+    @Autowired com.ticketing.trade.PurchaseOrderWorker purchaseWorker;
+    @Autowired com.ticketing.admission.PurchaseRequestMapper purchaseRequests;
     @Autowired RedisRateLimiter limiter;
     @Autowired RateLimitProperties properties;
     @MockitoSpyBean StringRedisTemplate redis;
@@ -93,6 +95,7 @@ class RateLimitIT {
         reset(redis);
         clearOwnNamespace();
         if (sessionId != 0) {
+            PurchaseTestSupport.cleanup(jdbc,sessionId);
             jdbc.update("DELETE FROM waitlist_entry WHERE sku_id=?", skuId);
             jdbc.update("DELETE i FROM ticket_order_item i JOIN ticket_order o ON o.id=i.order_id WHERE o.session_id=?", sessionId);
             jdbc.update("DELETE FROM ticket_order WHERE session_id=?", sessionId);
@@ -218,13 +221,16 @@ class RateLimitIT {
         fixture(20);
         Browser buyer = loggedIn();
         Map<String, Object> request = Map.of("skuId", Long.toString(skuId), "quantity", 1);
-        String id = body(buyer.post("/orders", request, "same-key", 200)).path("data").path("id").asText();
-        assertThat(body(buyer.post("/orders", request, "same-key", 200)).path("data").path("id").asText()).isEqualTo(id);
+        String id = body(buyer.post("/orders", request, "same-key", 202)).path("data").path("requestId").asText();
+        assertThat(body(buyer.post("/orders", request, "same-key", 202)).path("data").path("requestId").asText()).isEqualTo(id);
         rejection(buyer.post("/orders", request, "new-key", 429), 429);
+        assertFacts(0, 0, 0);
+        PurchaseTestSupport.order(purchaseWorker,purchaseRequests,jdbc,Long.parseLong(id));
         assertFacts(1, 1, 0);
         Thread.sleep(1100);
-        assertThat(body(buyer.post("/orders", request, "same-key", 200)).path("data").path("id").asText()).isEqualTo(id);
-        buyer.post("/orders", request, "new-key", 200);
+        assertThat(body(buyer.post("/orders", request, "same-key", 200)).path("data").path("requestId").asText()).isEqualTo(id);
+        long second=body(buyer.post("/orders", request, "new-key", 202)).path("data").path("requestId").asLong();
+        PurchaseTestSupport.order(purchaseWorker,purchaseRequests,jdbc,second);
         assertFacts(2, 2, 0);
     }
 
@@ -280,7 +286,8 @@ class RateLimitIT {
         buyer.get("/orders", 200);
         assertFacts(0, 0, 0);
         reset(redis);
-        buyer.post("/orders", Map.of("skuId", Long.toString(skuId), "quantity", 1), "outage", 200);
+        long accepted=body(buyer.post("/orders", Map.of("skuId", Long.toString(skuId), "quantity", 1), "outage", 202)).path("data").path("requestId").asLong();
+        PurchaseTestSupport.order(purchaseWorker,purchaseRequests,jdbc,accepted);
         assertFacts(1, 1, 0);
     }
 

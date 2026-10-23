@@ -1,29 +1,29 @@
 # 架构与模块协作
 
-项目保持Java21、Spring Boot3、MyBatis-Plus、MySQL、RabbitMQ和Spring Security Session的前后端分离模块化单体，后端只有backend/pom.xml一个Maven模块，根包com.ticketing。Vue3、TypeScript、Pinia和Element Plus继续调用原/api/v1接口，不增加微服务或新的业务模块。
+项目保持Java21、Spring Boot3、MyBatis-Plus、MySQL、RabbitMQ和Spring Security Session的前后端分离模块化单体，后端只有backend/pom.xml一个Maven模块及唯一TicketingApplication，根包com.ticketing。第十四阶段普通购票改为HTTP202可靠受理，Vue3前端查询受理状态后才进入真实订单；不增加微服务或应用副本。
 
 ## 当前源码目录
 
-按用户确认统一使用技术分层目录。`controller`、`service`、`mapper`各只有一个目录，所有类直接放入，不按活动、订单或候补再嵌套子目录；类名与业务职责保持不变。业务边界是依赖规则，不再对应独立Java业务包。
+按第十四阶段已确认的执行说明恢复业务包，保留已有类及逻辑边界。采用单Maven模块内的业务包守卫，避免额外构建模块和半迁移；不再把所有业务混放在同一controller/service/mapper包。
 
 ```text
 backend/src/main/java/com/ticketing/
 ├── TicketingApplication.java
-├── controller/  所有HTTP控制器与异常处理
-├── service/     应用服务及已有事务协作
-├── mapper/      MyBatis数据访问
-├── dto/         请求与响应
-├── entity/      数据库实体
-├── model/       状态、操作域及不可变业务上下文
-├── api/         OrderLifecycle、SessionWindowGuard协作契约
+├── activity/    活动、场次及SessionWindowGuard
+├── inventory/   票档销售规则与权威库存条件SQL
+├── auth/        账号、Session、限流与可信身份
+├── admission/   可靠受理、状态、容量预算与恢复
+├── trade/       订单消费者、预占、支付、退款和售后
+├── waitlist/    缺票候补FIFO与同步订单联动
+├── checkin/     出票、凭证及核销
+├── staff/       场次工作人员权限
+├── audit/       只追加管理审计
 ├── common/      ApiResponse、PageResponse、BusinessException
-├── config/      Spring配置、启动初始化及配置属性
-├── security/    身份、会话过滤、请求限流及票券签名
-├── job/         有界后台任务
-└── messaging/   事件、发布器及消费者
+├── appconfig/   Security等装配配置和迁移安全预检
+└── messaging/   通用事件、Outbox及RabbitMQ拓扑
 ```
 
-Spring Boot、配置属性和Mapper仍从`com.ticketing`扫描。技术目录合并没有合并业务类，也没有改变接口、SQL、锁序、事务传播或数据库迁移。`architecture-modules.properties`仅用于测试，逐类登记原逻辑业务归属；守卫覆盖新类登记、同包省略import的依赖、订单公开协作边界及业务依赖无环。完整迁移与回归结果见[目录整理验收](20-flat-package-refactor-verification.md)。
+Spring Boot、配置属性和Mapper仍从`com.ticketing`扫描，启动类、Docker及脚本的构建产物路径不变。`architecture-modules.properties`逐类登记业务归属；守卫覆盖实际业务包匹配、新类完整登记、同包依赖、交易公开协作边界及业务依赖无环。旧目录整理属于历史阶段，当前异步协议及验收见[第十四阶段](25-async-purchase-refactor-verification.md)。
 
 ## 第九阶段之前的依赖
 
@@ -42,20 +42,23 @@ graph LR
 
 ## 当前依赖与协作边界
 
-以下为当前逻辑业务依赖，节点表示业务归属而非Java目录；共用响应、DTO及配置依赖省略。源码守卫检查逻辑模块无环，候补、核销只能调用订单公开契约、模型、DTO及原有资源锁定/预占协作，不能直接访问订单内部服务、Mapper或实体。
+以下为当前核心业务依赖，节点对应业务包；共用响应与装配依赖省略。候补、核销只能调用交易公开契约、模型、DTO及原有资源锁定/预占协作，不能访问交易内部服务、Mapper或实体。受理不依赖交易实现，通用消息设施不依赖任何业务实现。
 
 ```mermaid
 graph LR
-  W[waitlist] --> OA[order api及model]
+  W[waitlist] --> OA[trade公开协作]
   C[checkin] --> OA
-  O[order应用与状态服务] --> OA
-  OA --> A[auth账号及资源查询]
-  OA --> T[ticket销售快照与库存]
+  O[trade应用与消费者] --> OA
+  O --> AD[admission]
+  AD --> A[auth]
+  AD --> M[messaging]
+  OA --> A
+  OA --> T[inventory销售快照与库存]
   O --> T
   O --> M[messaging]
   W --> M
   T --> M
-  T --> E[event及SessionWindowGuard]
+  T --> E[activity及SessionWindowGuard]
 ```
 
 OrderLifecycle是唯一的订单终态同步协作接口，定义小型不可变Transition，不是事件总线。WaitlistOrderLifecycle与TicketIssuer实现该接口，订单模块只注入有序参与者，不引用候补或电子票实现。运行时先完成候补联动，再出票；两者与订单、流水和库存共用同一个MySQL事务。任何异常直接传播并回滚，不使用提交后的异步事件替代这些原子变化。
@@ -66,7 +69,10 @@ SessionWindowGuard归活动模块定义，TicketService在场次UPDATE锁内校�
 
 | 组件 | 当前职责 |
 | --- | --- |
-| OrderService | HTTP业务应用入口与READ_COMMITTED事务边界，订单本人查询和响应组装 |
+| PurchaseAdmission、PurchaseRequestsController | 可靠受理、本人请求查询及恢复；不预占库存或创建订单 |
+| PurchaseProcessing、PurchaseRecoveryJob | 独立认领事务、令牌终态协作、容量释放及有界恢复 |
+| PurchaseOrderConsumer、PurchaseOrderWorker | 核对已提交命令，在交易事务内预占、建单并绑定受理成功，提交后确认 |
+| OrderService | 本人订单查询、模拟支付、取消和超时事务入口，不再提供同步创建入口 |
 | TradeResourceLocker | 用户、活动、场次、SKU及已有订单的固定锁协议，账号有效性及工作人员角色事实 |
 | OrderReservation | 普通下单与候补共用预占、价格快照、用户场次限额、请求哈希和幂等查找；只向候补返回订单ID |
 | OrderStateService | PENDING到PAID/CANCELLED/EXPIRED、数据库截止条件、流水和库存变化、同步参与者与释放事件编排 |
@@ -76,8 +82,8 @@ SessionWindowGuard归活动模块定义，TicketService在场次UPDATE锁内校�
 | WaitlistOrderLifecycle | 订单锁之后核对候补用户、SKU、数量、幂等域及键，原子联动COMPLETED/EXPIRED |
 | TicketIssuer | 支付末端和历史补票共用的按明细序号幂等出票；两个事务入口调用同一个私有算法 |
 | ElectronicTicketService | 本人凭证及展示、核销和受控补票编排；只通过订单公开锁API协作 |
-| OutboxService、OutboxPublisher、OutboxMapper、OutboxPublishJob | Outbox库存事件读写、认领、确认、重试及发布调度，按技术职责分别位于service、messaging、mapper、job |
-| WaitlistRabbitConfig、InventoryConsumer | 候补特有RabbitMQ拓扑、消费者和分配触发，分别位于config、messaging |
+| OutboxService、OutboxPublisher、OutboxMapper、OutboxPublishJob | messaging包中的通用认领、路由、确认及重试；库存/购票通道轮转 |
+| WaitlistRabbitConfig、InventoryConsumer | waitlist包中的独立候补拓扑、消费者和分配触发 |
 
 库存SQL从OrderMapper归回TicketSkuMapper，由TicketInventory使用。候补不再查询OrderMapper，也不依赖OrderService的内部record；核销不再重复实现订单加锁或为角色额外查询一次用户。销售状态计算集中于TicketSale，TicketService与预占/候补使用同一规则。删除重复的SaleContext/PurchaseContext、候补对预留订单的重复回读和限额校验中的冗余场次存在性查询；保留分配和最终预占各自必须重新检查的销售条件。
 
@@ -97,7 +103,7 @@ flowchart LR
 
 OrderService写入口、WaitlistService分配/申请/取消和ElectronicTicketService核销/补票在代理入口开启READ_COMMITTED。TradeResourceLocker、OrderReservation写协作、TicketInventory和OrderLifecycle参与者使用MANDATORY加入现有事务；读限额允许独立只读事务。没有自调用开启独立事务或REQUIRES_NEW分割原子提交。支付、取消和超时共享OrderStateService的锁定流程，只有PENDING可进入三个终态，SQL继续做状态及截止时间条件更新。
 
-同一用户的所有场次写操作仍被用户行串行化，用户锁内SUM统计PENDING/PAID明细保护默认每场4张限额。WAITING不占额，候补分配时重新检查。CREATE_ORDER及WAITLIST_CONFIRM域保持原值，同参重放原订单、异参409；数据库唯一键最终兜底。金额是服务端整数分精确乘算及不可变明细快照，不接收客户端金额或身份。
+同一用户的所有场次写操作仍被用户行串行化，用户锁内SUM统计PENDING/PAID明细保护默认每场4张限额。WAITING及购票请求QUEUED/PROCESSING不占额，实际分配或创建时重新检查。CREATE_ORDER及WAITLIST_CONFIRM域保持原值；普通HTTP同参重放原请求及关联订单，候补内部重放原预留订单，异参409，数据库唯一键最终兜底。金额由服务端整数分精确乘算，不接收客户端金额或身份。
 
 同SKU入队和分配继续共享SKU锁，锁内生成候补ID；分配先非锁定发现队首用户，再按上述顺序加锁并重新确认队首。队首数量不足就停止，每次释放全部锁后才处理下一用户。FIFO只承诺同SKU候补内部，普通新购票仍可竞争库存。
 
@@ -109,7 +115,7 @@ OutboxService继续在短事务中FOR UPDATE SKIP LOCKED认领，租约和递增
 
 ## 状态、配置与前端
 
-订单、支付、候补、电子票、Outbox状态及订单操作域使用各业务枚举，库存事件类型/路由集中定义。数据库状态值和HTTP字符串契约不变，SQL中的状态条件仍明确表达既有数据库值，不引入枚举ordinal或新状态机框架。
+订单、支付、候补、电子票、Outbox状态及订单操作域保留原值，库存事件类型/路由继续集中定义。第十四阶段只为购票受理新增独立状态机及HTTP202协议，不向正式订单混入QUEUED/PROCESSING，不引入枚举ordinal或新状态机框架。
 
 OrderProperties、WaitlistProperties、OutboxProperties、CheckinProperties绑定相关非敏感配置并在启动校验边界。保留原环境变量、属性名、默认限额4/支付15分钟/发布批量100。签名密钥继续由TicketCredentialSigner严格解析私有环境变量，不放进可能打印toString的配置record，没有固定密钥或降级校验。
 
@@ -132,7 +138,7 @@ Session、CSRF、中文页面、北京时间、人民币分和BIGINT字符串规
 
 AdminOrderService提供校验分页、精确筛选和只读明细投影，包含支付、候补、票券状态数量与售后结果，不导出凭证。所有端点在原/admin/**匹配器内复查最新账号，写操作沿用Session和CSRF。
 
-OrderRefundService是整单模拟退款及场次善后的READ_COMMITTED应用入口，不把职责塞回OrderService。依赖方向保持order→ticket/messaging，waitlist/checkin→order公开协作接口；订单不引用候补或票券实现。OrderLifecycle增加锁内退款检查，先候补关联后票券，检查成功后同事务PAID→REFUNDED、sold减量、票券UNUSED→VOID、唯一refund_record、Outbox及售后结果。原SUCCEEDED支付和paid_at保持不变；REFUNDED不再占场次限额。候补完成事实仍为COMPLETED，不重新排队。
+OrderRefundService是整单模拟退款及场次善后的READ_COMMITTED应用入口，不把职责塞回OrderService。依赖方向保持trade→inventory/messaging，waitlist/checkin→trade公开协作接口；交易不引用候补或票券实现。OrderLifecycle增加锁内退款检查，先候补关联后票券，检查成功后同事务PAID→REFUNDED、sold减量、票券UNUSED→VOID、唯一refund_record、Outbox及售后结果。原SUCCEEDED支付和paid_at保持不变；REFUNDED不再占场次限额。候补完成事实仍为COMPLETED，不重新排队。
 
 用户行阶段同时涉及管理员和买家时按ID递增获取，并复查操作人ACTIVE/ADMIN，随后严格活动SHARE→场次SHARE→SKU UPDATE→订单UPDATE→候补→电子票。系统善后仅锁买家，不检查其ACTIVE。退款与核销共用父级、SKU和订单锁，最多产生一次退款或核销效果。缺失明细时没有可锁SKU，仍按用户→父级→订单锁定，只记录人工待办，不猜测数量释放库存。
 

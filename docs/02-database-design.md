@@ -1,6 +1,18 @@
-# 数据库 V1 至 V7
+# 数据库 V1 至 V8
 
-V1～V6保持原文且不修改；第十一阶段仅新增`V7__staff_permissions_and_admin_audit.sql`，在现有角色、场次、用户、退款和核销事实之上增加场次工作人员权限及追加式管理审计。技术目录整理仍仅变更Java包位置，不修改SQL或已应用迁移。阶段测试记录见[工作人员核销与审计验收](21-staff-audit-checkin-verification.md)。
+V1～V7保持原文。第十四阶段新增`V8__async_purchase_admission.sql`，引入普通购票可靠受理及持久预算；第十一阶段V7的角色、场次工作人员权限和追加式管理审计继续保留。当前异步协议见[第十四阶段记录](25-async-purchase-refactor-verification.md)，下文旧阶段说明保留其历史上下文。
+
+## V8 购票受理与预算
+
+`purchase_request`独立于正式订单，状态为QUEUED、PROCESSING、SUCCEEDED、FAILED、EXPIRED。按用户、CREATE_ORDER操作域、区分大小写的可见ASCII幂等键唯一，SHA-256请求摘要按原skuId与quantity规则生成。成功关联订单唯一，复合外键保证订单属于同一用户；CHECK保证成功必须关联订单、失败/过期必须有失败码、处理中必须有租约，其他状态无租约。状态及截止时间/恢复时间、本人请求列表均有扫描索引。
+
+SKU编号是受理参数，不增加会在HTTP容量预算内隐式锁SKU的外键。消费者在数据库锁序内重新加载用户、活动、场次及SKU并验证，最终通过既有订单明细外键与条件库存更新保证真实交易关联。消息只传eventId/requestId/版本，不信任客户端或消息中的身份、价格和数量。
+
+`purchase_capacity`单行保存pending_count。首次受理插入请求、条件递增容量和Outbox同事务；每个首次终态条件更新和递减预算同事务，崩溃不会留下只有预算而无请求的占位。上限来自已验证配置，不能用非原子COUNT后INSERT替代。处理令牌递增、租约及数据库时间条件阻止迟到消费者提交订单，恢复任务复用唯一Outbox，不追加无限副本。
+
+V8把已有CREATE_ORDER订单及原明细登记为SUCCEEDED请求，不改订单、支付时间、库存、候补或电子票，历史取消订单仍关联原单。部署须先停写并执行`scripts/audit-async-purchase-readiness.sql`；缺明细、摘要不匹配或多明细只报告并停止。已应用V1～V7不修改、无clean或自动repair。
+
+Outbox新增(event_type,status,next_retry_at,id)索引用于购票/候补两个业务通道的公平认领。原认领租约、递增尝试令牌、Publisher Confirm、mandatory Return和SENT条件更新继续有效。购票终态不能被消息TTL覆盖，TTL仅控制代理中副本的工作队列寿命。
 
 ## V6 整单模拟退款与场次善后
 

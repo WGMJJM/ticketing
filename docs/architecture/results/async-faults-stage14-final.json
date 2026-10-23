@@ -1,0 +1,129 @@
+{
+  "environment": "ticketing-perf-only",
+  "passed": true,
+  "checks": [
+    {
+      "name": "消费者与发布器停止时可靠受理有界",
+      "passed": true,
+      "accepted": 3,
+      "rejected503": 1
+    },
+    {
+      "name": "受理提交后强制停止应用仍恢复三笔订单",
+      "passed": true
+    },
+    {
+      "name": "中途崩溃前命令真实进入代理",
+      "passed": true
+    },
+    {
+      "name": "处理中崩溃由租约与重启扫描恢复且不重复建单",
+      "passed": true
+    },
+    {
+      "name": "代理持续停机后请求明确过期并释放预算",
+      "passed": true,
+      "observedSeconds": 30.52,
+      "expired": 3
+    },
+    {
+      "name": "过期购票命令不再积压为待发事件",
+      "passed": true
+    },
+    {
+      "name": "预算释放后再次受理且代理恢复后成功",
+      "passed": true
+    },
+    {
+      "name": "数据库恢复后同键重试只产生一个请求和订单",
+      "passed": true,
+      "faultResponse": "ReadTimeout"
+    }
+  ],
+  "startedAt": "2026-10-23T16:02:52.457064+00:00",
+  "audit": {
+    "passed": true,
+    "checks": [
+      {
+        "invariant": "stock_bounds",
+        "violation_count": 0
+      },
+      {
+        "invariant": "stock_order_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "payment_snapshot",
+        "violation_count": 0
+      },
+      {
+        "invariant": "order_snapshot",
+        "violation_count": 0
+      },
+      {
+        "invariant": "session_quota",
+        "violation_count": 0
+      },
+      {
+        "invariant": "waitlist_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "fifo_allocation_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "ticket_quantity",
+        "violation_count": 0
+      },
+      {
+        "invariant": "ticket_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "duplicate_payment_effect",
+        "violation_count": 0
+      },
+      {
+        "invariant": "duplicate_active_waitlist",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_capacity",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_order_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_no_unbound_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_no_late_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_reliable_command",
+        "violation_count": 0
+      }
+    ],
+    "counts": {
+      "purchase_request": 22,
+      "order_aftercare": 0,
+      "refund_record": 0,
+      "electronic_ticket": 1,
+      "waitlist_entry": 0,
+      "payment_record": 1,
+      "ticket_order_item": 16,
+      "ticket_order": 16,
+      "outbox_event": 36,
+      "ticket_sku": 15,
+      "activity_session": 15,
+      "activity": 1014,
+      "user_account": 18
+    }
+  },
+  "finishedAt": "2026-10-23T16:05:21.542836+00:00"
+}

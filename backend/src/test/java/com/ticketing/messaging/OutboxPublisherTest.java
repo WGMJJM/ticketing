@@ -1,9 +1,9 @@
 package com.ticketing.messaging;
 
-import com.ticketing.config.OutboxProperties;
-import com.ticketing.service.OutboxService;
+import com.ticketing.messaging.OutboxProperties;
+import com.ticketing.messaging.OutboxService;
 
-import com.ticketing.entity.OutboxEvent;
+import com.ticketing.messaging.OutboxEvent;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.core.Message;
@@ -69,7 +69,23 @@ class OutboxPublisherTest {
         }
     }
 
-    private OutboxPublisher publisher() { return new OutboxPublisher(service, rabbit, "test.exchange", new OutboxProperties(100, 100, 30, 10, 2, 300)); }
+    @Test
+    void purchaseMessagesUseSeparateRouteAndFiniteBrokerLifetime() {
+        OutboxEvent event = event(1);
+        event.setEventType(PurchaseCommand.TYPE);
+        when(service.claimNext()).thenReturn(event, null);
+        doAnswer(call -> {
+            assertThat(call.getArgument(0, String.class)).isEqualTo("test.purchase");
+            assertThat(call.getArgument(1, String.class)).isEqualTo(PurchaseCommand.ROUTING_KEY);
+            assertThat(call.getArgument(2, Message.class).getMessageProperties().getExpiration()).isEqualTo("120000");
+            call.getArgument(3, CorrelationData.class).getFuture().complete(new CorrelationData.Confirm(true, null));
+            return null;
+        }).when(rabbit).send(anyString(), anyString(), any(Message.class), any(CorrelationData.class));
+        publisher().publishBatch();
+        verify(service).sent(event);
+    }
+
+    private OutboxPublisher publisher() { return new OutboxPublisher(service, rabbit, "test.exchange", "test.purchase", 120, new OutboxProperties(100, 100, 30, 10, 2, 300)); }
     private OutboxEvent event(long id) {
         OutboxEvent event = new OutboxEvent();
         event.setId(id);

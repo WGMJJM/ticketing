@@ -1,8 +1,11 @@
 package com.ticketing.security;
 
+import com.ticketing.auth.AccountPrincipal;
+import com.ticketing.auth.CurrentAccountFilter;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ticketing.entity.UserAccount;
-import com.ticketing.mapper.UserAccountMapper;
+import com.ticketing.auth.UserAccount;
+import com.ticketing.auth.UserAccountMapper;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -39,6 +42,7 @@ class CurrentAccountFilterTest {
     private final CurrentAccountFilter filter = new CurrentAccountFilter(accounts,
             new OrRequestMatcher(PathPatternRequestMatcher.withDefaults().matcher("/api/v1/admin/**"),
                     PathPatternRequestMatcher.withDefaults().matcher("/api/v1/orders/**"),
+                    PathPatternRequestMatcher.withDefaults().matcher("/api/v1/purchase-requests/**"),
                     PathPatternRequestMatcher.withDefaults().matcher("/api/v1/waitlist/**"),
                     PathPatternRequestMatcher.withDefaults().matcher("/api/v1/tickets/**"),
                     PathPatternRequestMatcher.withDefaults().matcher("/api/v1/checkins/**"),
@@ -63,7 +67,7 @@ class CurrentAccountFilterTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/api/v1/auth/me", "/api/v1/orders", "/api/v1/orders/1", "/api/v1/orders/limits", "/api/v1/waitlist", "/api/v1/waitlist/1", "/api/v1/tickets", "/api/v1/tickets/1/credential", "/api/v1/checkins", "/api/v1/checkins/sessions", "/api/v1/admin/staff", "/api/v1/admin/audit-logs"})
+    @ValueSource(strings = {"/api/v1/auth/me", "/api/v1/orders", "/api/v1/orders/1", "/api/v1/orders/limits", "/api/v1/purchase-requests", "/api/v1/purchase-requests/1", "/api/v1/waitlist", "/api/v1/waitlist/1", "/api/v1/tickets", "/api/v1/tickets/1/credential", "/api/v1/checkins", "/api/v1/checkins/sessions", "/api/v1/admin/staff", "/api/v1/admin/audit-logs"})
     void anonymousProtectedRequestDoesNotQueryAccount(String path) throws Exception {
         SecurityContextHolder.getContext().setAuthentication(new AnonymousAuthenticationToken("test", "anonymous",
                 AuthorityUtils.createAuthorityList("ROLE_ANONYMOUS")));

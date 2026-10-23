@@ -54,7 +54,7 @@ class StaffMigrationIT {
         var roles = db.queryForList("SELECT id,role,status FROM user_account ORDER BY id");
         var tickets = db.queryForList("SELECT * FROM electronic_ticket ORDER BY id");
         var payments = db.queryForList("SELECT * FROM payment_record ORDER BY id");
-        var flyway = migration(url, null);
+        var flyway = migration(url, "7");
         assertThat(flyway.migrate().migrationsExecuted).isEqualTo(1);
         flyway.validate();
         assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("7");

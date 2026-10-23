@@ -1,10 +1,12 @@
 package com.ticketing.model;
 
-import com.ticketing.service.TicketService;
+import com.ticketing.inventory.SaleStatus;
 
-import com.ticketing.entity.Activity;
-import com.ticketing.entity.ActivitySession;
-import com.ticketing.entity.TicketSku;
+import com.ticketing.inventory.TicketService;
+
+import com.ticketing.activity.Activity;
+import com.ticketing.activity.ActivitySession;
+import com.ticketing.inventory.TicketSku;
 import java.time.LocalDateTime;
 import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;

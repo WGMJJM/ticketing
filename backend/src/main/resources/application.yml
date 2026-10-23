@@ -78,6 +78,19 @@ mybatis-plus:
   global-config:
     banner: false
 ticketing:
+  purchase:
+    capacity: ${PURCHASE_CAPACITY:200}
+    queue-seconds: ${PURCHASE_QUEUE_SECONDS:120}
+    lease-seconds: ${PURCHASE_LEASE_SECONDS:30}
+    recovery-seconds: ${PURCHASE_RECOVERY_SECONDS:10}
+    batch-size: ${PURCHASE_RECOVERY_BATCH_SIZE:100}
+    scan-delay-ms: ${PURCHASE_SCAN_DELAY_MS:1000}
+    jobs-enabled: ${PURCHASE_JOBS_ENABLED:true}
+    messaging-enabled: ${PURCHASE_MESSAGING_ENABLED:true}
+    exchange: ticketing.purchase
+    queue: ticketing.purchase.orders
+  messaging:
+    jobs-enabled: ${OUTBOX_JOBS_ENABLED:true}
   security:
     client-address:
       mode: ${CLIENT_ADDRESS_MODE:DIRECT}

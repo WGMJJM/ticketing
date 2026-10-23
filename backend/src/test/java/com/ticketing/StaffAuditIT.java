@@ -6,10 +6,10 @@ import static org.mockito.Mockito.*;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ticketing.dto.RegisterRequest;
-import com.ticketing.mapper.AuditMapper;
-import com.ticketing.service.AccountService;
-import com.ticketing.service.StaffService;
+import com.ticketing.auth.RegisterRequest;
+import com.ticketing.audit.AuditMapper;
+import com.ticketing.auth.AccountService;
+import com.ticketing.staff.StaffService;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -73,6 +73,8 @@ class StaffAuditIT {
     @Autowired ObjectMapper json;
     @Autowired JdbcTemplate jdbc;
     @Autowired AccountService accounts;
+    @Autowired com.ticketing.trade.PurchaseOrderWorker purchaseWorker;
+    @Autowired com.ticketing.admission.PurchaseRequestMapper purchaseRequests;
     @Autowired StaffService staffService;
     @Autowired PlatformTransactionManager transactions;
     @MockitoSpyBean AuditMapper audit;
@@ -858,8 +860,9 @@ class StaffAuditIT {
                         json.writeValueAsString(Map.of("skuId", Long.toString(sku), "quantity", 1)),
                         "application/json",
                         UUID.randomUUID().toString(),
-                        200);
-        long id = json.readTree(response.body()).path("data").path("id").asLong();
+                        202);
+        long requestId = json.readTree(response.body()).path("data").path("requestId").asLong();
+        long id = Long.parseLong(PurchaseTestSupport.order(purchaseWorker,purchaseRequests,jdbc,requestId));
         buyer.call("POST", "/orders/" + id + "/pay", null, 200);
         return id;
     }

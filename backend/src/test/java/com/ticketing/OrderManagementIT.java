@@ -2,23 +2,23 @@ package com.ticketing;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ticketing.dto.RegisterRequest;
-import com.ticketing.service.AccountService;
+import com.ticketing.auth.RegisterRequest;
+import com.ticketing.auth.AccountService;
 import java.net.*;
 import java.net.http.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
-import com.ticketing.mapper.OrderMapper;
-import com.ticketing.mapper.PaymentMapper;
-import com.ticketing.entity.PaymentRecord;
-import com.ticketing.service.OrderService;
-import com.ticketing.job.OrderExpiryJob;
-import com.ticketing.entity.TicketOrder;
-import com.ticketing.entity.TicketSku;
-import com.ticketing.model.TicketSale;
-import com.ticketing.config.OrderProperties;
-import com.ticketing.mapper.TicketSkuMapper;
+import com.ticketing.trade.OrderMapper;
+import com.ticketing.trade.PaymentMapper;
+import com.ticketing.trade.PaymentRecord;
+import com.ticketing.trade.OrderService;
+import com.ticketing.trade.OrderExpiryJob;
+import com.ticketing.trade.TicketOrder;
+import com.ticketing.inventory.TicketSku;
+import com.ticketing.inventory.TicketSale;
+import com.ticketing.trade.OrderProperties;
+import com.ticketing.inventory.TicketSkuMapper;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.junit.jupiter.api.*;
@@ -45,6 +45,8 @@ class OrderManagementIT {
     @MockitoSpyBean private TicketSkuMapper inventory;
     @MockitoSpyBean private PaymentMapper paymentMapper;
     @Autowired private OrderService orderService;
+    @Autowired private com.ticketing.trade.PurchaseOrderWorker purchaseWorker;
+    @Autowired private com.ticketing.admission.PurchaseRequestMapper purchaseRequests;
     private final List<Long> users = new ArrayList<>();
     private long activityId;
     private long sessionId;
@@ -69,6 +71,7 @@ class OrderManagementIT {
     @AfterEach
     void cleanup() {
         if (sessionId != 0) {
+            PurchaseTestSupport.cleanup(jdbc, sessionId);
             jdbc.update("DELETE e FROM outbox_event e JOIN ticket_sku s ON e.aggregate_id=s.id WHERE e.aggregate_type='TICKET_SKU' AND s.session_id=?",sessionId);
             jdbc.update("DELETE t FROM electronic_ticket t JOIN ticket_order o ON t.order_id=o.id WHERE o.session_id=?", sessionId);
             jdbc.update("DELETE p FROM payment_record p JOIN ticket_order o ON p.order_id=o.id WHERE o.session_id=?", sessionId);
@@ -132,8 +135,8 @@ class OrderManagementIT {
         jdbc.update("UPDATE ticket_sku SET total_stock=1 WHERE id=?", skuId);
         buyer.create(skuId, 2, "too-much-stock", 409);
         assertThat(orderCount()).isZero();
-        List<Integer> results = parallel(2, index -> (index == 0 ? buyer : other).create(skuId, 1, "last-ticket", -1).path("httpStatus").asInt());
-        assertThat(results).containsExactlyInAnyOrder(200, 409);
+        List<String> results = parallel(2, index -> (index == 0 ? buyer : other).create(skuId, 1, "last-ticket", -1).path("creationOutcome").asText());
+        assertThat(results).containsExactlyInAnyOrder("SUCCEEDED", "FAILED");
         invariant(1, 0);
         assertThat(orderCount()).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT SUM(quantity) FROM ticket_order_item WHERE session_id=?", Integer.class, sessionId)).isEqualTo(1);
@@ -159,8 +162,8 @@ class OrderManagementIT {
     @Test
     void concurrentDifferentSkusShareOneUserSessionLimit() throws Exception {
         long secondSku = sku(20, 10000);
-        var results = parallel(2, index -> buyer.create(index == 0 ? skuId : secondSku, 3, "quota-" + index, -1).path("httpStatus").asInt());
-        assertThat(results).containsExactlyInAnyOrder(200, 409);
+        var results = parallel(2, index -> buyer.create(index == 0 ? skuId : secondSku, 3, "quota-" + index, -1).path("creationOutcome").asText());
+        assertThat(results).containsExactlyInAnyOrder("SUCCEEDED", "FAILED");
         assertThat(used(buyer)).isEqualTo(3);
         assertThat(orderCount()).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT SUM(locked_stock) FROM ticket_sku WHERE session_id=?", Integer.class, sessionId)).isEqualTo(3);
@@ -175,12 +178,15 @@ class OrderManagementIT {
         // 只注入最后一步写入故障；前面的库存和订单SQL、HTTP及事务均为真实执行。
         doThrow(new DataIntegrityViolationException("验收注入明细写入失败")).when(orderMapper)
                 .insertItem(any(TicketOrder.class), any(TicketSale.class), eq(2));
+        long requestId = buyer.call("POST", "/orders", Map.of("skuId", Long.toString(skuId), "quantity", 2), "retry-after-failure", 202).path("data").path("requestId").asLong();
         try {
-            buyer.create(skuId, 2, "retry-after-failure", 409);
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> purchaseWorker.process(requestId))
+                    .isInstanceOf(DataIntegrityViolationException.class);
             invariant(0, 0);
             assertThat(orderCount()).isZero();
             assertThat(used(buyer)).isZero();
         } finally { reset(orderMapper, inventory); }
+        jdbc.update("UPDATE purchase_request SET processing_lease_until=TIMESTAMPADD(SECOND,-1,UTC_TIMESTAMP(6)) WHERE id=?",requestId);
         buyer.create(skuId, 2, "retry-after-failure", 200);
         invariant(2, 0);
         assertThat(orderCount()).isEqualTo(1);
@@ -291,16 +297,16 @@ class OrderManagementIT {
     void activityOfflineAndSessionCancellationRacesSerializeWithCreate() throws Exception {
         var results = parallel(2, index -> index == 0 ? buyer.create(skuId, 1, "offline-race", -1)
                 : admin.call("POST", "/admin/activities/" + activityId + "/offline", Map.of("version", 0), null, 200));
-        int created = results.get(0).path("httpStatus").asInt() == 200 ? 1 : 0;
-        assertThat(results.get(0).path("httpStatus").asInt()).isIn(200, 409);
+        int created = results.get(0).path("creationOutcome").asText().equals("SUCCEEDED") ? 1 : 0;
+        assertThat(results.get(0).path("creationOutcome").asText()).isIn("SUCCEEDED", "FAILED");
         buyer.create(skuId, 1, "after-offline", 409);
         invariant(created, 0);
         assertThat(orderCount()).isEqualTo(created);
         jdbc.update("UPDATE activity SET status='PUBLISHED' WHERE id=?", activityId);
         var next = parallel(2, index -> index == 0 ? other.create(skuId, 1, "cancel-race", -1)
                 : admin.call("POST", "/admin/sessions/" + sessionId + "/cancel", Map.of("version", 0), null, 200));
-        int second = next.get(0).path("httpStatus").asInt() == 200 ? 1 : 0;
-        assertThat(next.get(0).path("httpStatus").asInt()).isIn(200, 409);
+        int second = next.get(0).path("creationOutcome").asText().equals("SUCCEEDED") ? 1 : 0;
+        assertThat(next.get(0).path("creationOutcome").asText()).isIn("SUCCEEDED", "FAILED");
         other.create(skuId, 1, "after-session-cancel", 409);
         invariant(created + second, 0);
         assertThat(orderCount()).isEqualTo(created + second);
@@ -623,7 +629,22 @@ class OrderManagementIT {
         String token = "";
         void csrf() throws Exception { token = call("GET", "/auth/csrf", null, null, 200).path("data").path("token").asText(); }
         JsonNode create(long sku, int quantity, String key, int expected) throws Exception {
-            return call("POST", "/orders", Map.of("skuId", Long.toString(sku), "quantity", quantity), key, expected);
+            var accepted = call("POST", "/orders", Map.of("skuId", Long.toString(sku), "quantity", quantity), key, -1);
+            int http = accepted.path("httpStatus").asInt();
+            if (http != 202 && !(http == 200 && accepted.path("data").has("requestId"))) {
+                if (expected >= 0) assertThat(http).isEqualTo(expected);
+                ((com.fasterxml.jackson.databind.node.ObjectNode) accepted).put("creationOutcome", "REJECTED");
+                return accepted;
+            }
+            assertThat(http).isIn(200, 202); // 这里只证明可靠受理，绝不当作订单完成。
+            var result = PurchaseTestSupport.resolve(purchaseWorker, purchaseRequests, jdbc, accepted.path("data").path("requestId").asLong());
+            if (expected == 200) assertThat(result.status()).isEqualTo("SUCCEEDED");
+            if (expected == 409 || expected == 400) assertThat(result.status()).isEqualTo("FAILED");
+            var response = result.orderId() != null
+                    ? call("GET", "/orders/" + result.orderId(), null, null, 200)
+                    : call("GET", "/purchase-requests/" + result.id(), null, null, 200);
+            ((com.fasterxml.jackson.databind.node.ObjectNode) response).put("creationOutcome", result.status());
+            return response;
         }
         JsonNode call(String method, String path, Object body, String key, int expected) throws Exception {
             return raw(method, path, body == null ? "" : json.writeValueAsString(body), "application/json", key, expected);
