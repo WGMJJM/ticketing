@@ -12,7 +12,7 @@ const connectionText = computed(
     ({
       loading: '正在连接服务',
       online: '服务运行正常',
-      offline: '暂时无法连接后端服务',
+      offline: '服务暂时无法连接',
     })[connection.value],
 )
 const checkedTime = computed(() =>
@@ -150,7 +150,7 @@ onBeforeUnmount(() => controller.abort())
   <section
     class="connection-panel"
     :class="connection"
-    aria-label="后端连接状态"
+    aria-label="服务连接状态"
   >
     <div class="connection-copy" role="status" aria-live="polite">
       <span class="status-dot" aria-hidden="true"></span>
@@ -159,8 +159,8 @@ onBeforeUnmount(() => controller.abort())
         <p>
           {{
             connection === 'offline'
-              ? '请确认后端已启动，您可以稍后重新连接。'
-              : '平台基础服务连接检测，可选择活动体验购票、模拟支付与候补。'
+              ? '请稍后重新连接，已显示的内容可继续浏览。'
+              : '发现喜欢的活动，选择场次，安排下一次现场。'
           }}
         </p>
       </div>

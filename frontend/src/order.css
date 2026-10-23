@@ -1,7 +1,7 @@
 .purchase-panel {
   margin-top: 22px;
   padding-top: 18px;
-  border-top: 1px solid #e3e7dc;
+  border-top: 1px solid var(--border);
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
@@ -16,17 +16,17 @@
 .purchase-panel input {
   width: 70px;
   padding: 8px;
-  border: 1px solid #ced5c3;
+  border: 1px solid var(--border);
   border-radius: 9px;
-  color: #384b2c;
+  color: var(--ink);
   font: inherit;
 }
 .purchase-panel > a {
-  color: #61794d;
+  color: var(--green);
 }
 .purchase-estimate {
   margin-left: auto;
-  color: #536d3b;
+  color: var(--green);
   font-weight: 600;
   display: grid;
   gap: 5px;
@@ -47,7 +47,7 @@
   margin: auto;
 }
 .orders-page > p {
-  color: #79836e;
+  color: var(--muted);
   font-size: 13px;
   line-height: 1.9;
   margin: 18px 0 28px;
@@ -79,9 +79,9 @@
   margin: 0 auto 25px;
   width: 66px;
   height: 76px;
-  border: 1px dashed #b8c6ab;
+  border: 1px dashed var(--border);
   border-radius: 14px;
-  background: #eef3e6;
+  background: var(--green-soft);
   color: #6e8758;
   font-size: 36px;
   transform: rotate(-6deg);
@@ -101,18 +101,18 @@
   align-items: center;
   gap: 24px;
   padding: 11px 18px;
-  border: 1px solid #d0ddc8;
+  border: 1px solid var(--border);
   border-radius: 10px;
   color: var(--green);
-  background: #f6f9f0;
+  background: var(--surface-soft);
 }
 .empty-action:hover {
-  background: #e8f0de;
+  background: var(--green-soft);
 }
 .waitlist-purchase {
   padding: 20px;
-  background: #f6f7f0;
-  border: 1px dashed #d6dfcb;
+  background: var(--surface-soft);
+  border: 1px dashed var(--border);
   border-radius: 12px;
 }
 .order-card {
@@ -143,11 +143,12 @@
 }
 .order-line {
   padding: 18px 0;
-  border-bottom: 1px solid #e3e7dc;
+  border-bottom: 1px solid var(--border);
 }
 .order-total {
   font-size: 26px;
-  color: #536e3c;
+  color: var(--green);
+  font-variant-numeric: tabular-nums;
 }
 .order-card dl div {
   display: grid;
@@ -162,13 +163,13 @@
 }
 .order-note {
   padding: 16px 18px;
-  background: #edf4e8;
+  background: var(--green-soft);
   border-radius: 9px;
 }
 .payment-info {
   margin: 20px 0;
   padding: 18px;
-  background: #edf4e8;
+  background: var(--green-soft);
   border-radius: 6px;
 }
 .payment-info h3 {
@@ -199,13 +200,13 @@
 }
 .order-card[data-status='PENDING'] > .order-top > .ticket-sale-label,
 .order-card[data-status='ALLOCATED'] > .order-top > .ticket-sale-label {
-  color: #8c5b1b;
-  background: #fbf0d7;
+  color: #8a5c23;
+  background: #fff3dc;
 }
 .order-card[data-status='PAID'] > .order-top > .ticket-sale-label,
 .order-card[data-status='COMPLETED'] > .order-top > .ticket-sale-label {
-  color: #356747;
-  background: #e8f2e5;
+  color: var(--green);
+  background: var(--green-soft);
 }
 .order-card[data-status='WAITING'] > .order-top > .ticket-sale-label,
 .order-card[data-status='USED'] > .order-top > .ticket-sale-label {
@@ -215,12 +216,12 @@
 .order-card[data-status='CANCELLED'] > .order-top > .ticket-sale-label,
 .order-card[data-status='EXPIRED'] > .order-top > .ticket-sale-label,
 .order-card[data-status='VOID'] > .order-top > .ticket-sale-label {
-  color: #6c736b;
-  background: #eef0ec;
+  color: #52665f;
+  background: #edf2f0;
 }
 .purchase-panel input {
   min-height: 40px;
-  background: #fafcf6;
+  background: var(--surface-soft);
 }
 .purchase-panel .el-button--primary {
   min-height: 40px;
