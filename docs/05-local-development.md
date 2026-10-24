@@ -206,3 +206,11 @@ try {
 新购票前置速率由`PURCHASE_ADMISSION_LIMIT_ENABLED`控制，默认关闭；本机初次A/B中开启后热点订单TPS下降、终态P95上升，因此只提供显式启用的保护能力，不将其作为默认性能优化。开启时`PURCHASE_ADMISSION_GLOBAL_RATE/GLOBAL_BURST`默认20/40，`PURCHASE_ADMISSION_TICKET_RATE/TICKET_BURST`默认10/20，须按负载目标验证。只控制新受理速率，不代表库存；同键只读查重先于新增Lua，原安全限流仍在更前面。429携带具体全局/票档繁忙码，Redis故障503。数据库排队容量200和其他原配置含义不变。不能关闭原安全限流作为故障兜底。
 
 本阶段不新增Flyway迁移；开发库仍须完成V8部署预检再升级。详细协议及验证见[第十五阶段记录](26-redis-catalog-and-ticket-admission-verification.md)。
+
+## 第十六阶段额度迁移
+
+限购仍使用`ORDER_SESSION_LIMIT`，默认4；运行限额查询和交易改读用户场次独立额度，支付不重复占额，取消/过期/退款成功才释放。普通受理保持异步协议及原用户排他锁，交易侧使用共享账号协调和精确场次额度锁。
+
+已有历史订单且尚未应用V9时，默认启动预检报`STOP_QUOTA_SWITCH`，不会自动进行额度切换。必须停写并备份，使用同一只读连接先`SET @ticketing_quota_limit=<实际ORDER_SESSION_LIMIT>`再执行`scripts/audit-user-session-quota.sql`，并完成既有关系/退款/管理审计/受理预检。无异常后单次设置`ORDER_QUOTA_MIGRATION_APPROVED=true`迁移；校验全部额度组与有效订单SUM一致后撤销开关、恢复写入。失败现场保留，不执行repair或清库。
+
+原开发库当前仍V7，本次只读核对而未部署V8/V9。不要直接运行普通启动命令替代受控升级。固定隔离基准与真实结果见[第十六阶段验收](27-trade-quota-and-transaction-verification.md)。

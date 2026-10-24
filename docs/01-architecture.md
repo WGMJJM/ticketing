@@ -73,7 +73,8 @@ SessionWindowGuard归活动模块定义，TicketService在场次UPDATE锁内校�
 | PurchaseProcessing、PurchaseRecoveryJob | 独立认领事务、令牌终态协作、容量释放及有界恢复 |
 | PurchaseOrderConsumer、PurchaseOrderWorker | 核对已提交命令，在交易事务内预占、建单并绑定受理成功，提交后确认 |
 | OrderService | 本人订单查询、模拟支付、取消和超时事务入口，不再提供同步创建入口 |
-| TradeResourceLocker | 用户、活动、场次、SKU及已有订单的固定锁协议，账号有效性及工作人员角色事实 |
+| TradeResourceLocker | 账号SHARE、父级SHARE、可选额度UPDATE、票档及订单UPDATE的固定协议，稳定账号状态和角色 |
+| UserSessionQuotaService、UserSessionQuotaMapper | 精确用户场次额度的按需锁行、条件占额/释放和只读查询，不聚合历史热路径 |
 | OrderReservation | 普通下单与候补共用预占、价格快照、用户场次限额、请求哈希和幂等查找；只向候补返回订单ID |
 | OrderStateService | PENDING到PAID/CANCELLED/EXPIRED、数据库截止条件、流水和库存变化、同步参与者与释放事件编排 |
 | TicketInventory | 票档权威库存条件更新，预占、释放和locked转sold；写入口要求已有事务 |
@@ -91,9 +92,11 @@ SessionWindowGuard归活动模块定义，TicketService在场次UPDATE锁内校�
 
 ```mermaid
 flowchart LR
-  U[用户 UPDATE] --> A[活动 SHARE]
+  U[账号 SHARE] --> A[活动 SHARE]
   A --> S[场次 SHARE]
-  S --> K[票档 UPDATE]
+  S --> Q[写额度时 用户场次额度 UPDATE]
+  Q --> K[票档 UPDATE]
+  S -->|支付 核销 补票 无额度写| K
   K --> O[已有订单 UPDATE]
   O --> W[候补行]
   W --> T[电子票]
@@ -101,9 +104,9 @@ flowchart LR
 
 用户主动操作要求ACTIVE；超时释放和历史补票只要求取得用户行锁，禁用账号也必须回收历史锁定库存。核销最前面的用户行属于工作人员，随后沿持票订单的活动、场次、SKU、订单、票券顺序处理，在该工作人员行锁中取得最新ADMIN或CHECKIN_STAFF角色。CHECKIN_STAFF还要在同一事务内复查目标场次授权；管理授权变更先锁该工作人员用户行，因此撤权与核销按同一用户行串行。持有子资源锁后不得再获取其他用户或父级锁。
 
-OrderService写入口、WaitlistService分配/申请/取消和ElectronicTicketService核销/补票在代理入口开启READ_COMMITTED。TradeResourceLocker、OrderReservation写协作、TicketInventory和OrderLifecycle参与者使用MANDATORY加入现有事务；读限额允许独立只读事务。没有自调用开启独立事务或REQUIRES_NEW分割原子提交。支付、取消和超时共享OrderStateService的锁定流程，只有PENDING可进入三个终态，SQL继续做状态及截止时间条件更新。
+OrderService支付/超时、独立OrderStateService取消命令、WaitlistService及ElectronicTicketService的写代理开启READ_COMMITTED。OrderService取消编排禁止外围事务，命令提交后才查询公开投影。TradeResourceLocker、OrderReservation、TicketInventory、额度写协作和OrderLifecycle以MANDATORY加入事务；限额读可独立只读。没有自调用开启独立事务或REQUIRES_NEW拆分原子提交。终态继续使用状态及数据库截止时间条件更新。
 
-同一用户的所有场次写操作仍被用户行串行化，用户锁内SUM统计PENDING/PAID明细保护默认每场4张限额。WAITING及购票请求QUEUED/PROCESSING不占额，实际分配或创建时重新检查。CREATE_ORDER及WAITLIST_CONFIRM域保持原值；普通HTTP同参重放原请求及关联订单，候补内部重放原预留订单，异参409，数据库唯一键最终兜底。金额由服务端整数分精确乘算，不接收客户端金额或身份。
+第十六阶段交易账号SHARE允许同用户跨场次并行，与停用/撤权UPDATE协调；同场次通过user_session_quota精确互斥。PENDING/PAID占额，取消、过期及退款成功才同事务释放，支付不再次占额，SUM只用于审计。WAITING及QUEUED/PROCESSING不占额。受理侧仍用账号UPDATE串行保护原幂等和容量协议，CREATE_ORDER/WAITLIST_CONFIRM域、重放及异参409不变。金额由服务端整数分精确乘算，不接收客户端金额或身份。完整锁表、V9回填与对照见[第十六阶段](27-trade-quota-and-transaction-verification.md)。
 
 同SKU入队和分配继续共享SKU锁，锁内生成候补ID；分配先非锁定发现队首用户，再按上述顺序加锁并重新确认队首。队首数量不足就停止，每次释放全部锁后才处理下一用户。FIFO只承诺同SKU候补内部，普通新购票仍可竞争库存。
 

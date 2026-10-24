@@ -117,11 +117,13 @@ ON_SALE仅为管理状态。后端先判断活动发布、场次正常且未结�
 | POST `/orders/{orderId}/pay` | 本人订单模拟支付；无业务请求体（允许空对象），不接收金额、用户ID等字段；成功200返回PaymentView |
 | GET `/orders/{orderId}/payment` | 本人订单成功模拟支付流水；没有成功记录404 PAYMENT_NOT_FOUND，非本人订单404 ORDER_NOT_FOUND |
 
+第十六阶段该限额改读MySQL用户场次独立额度，返回字段不变，仍跨该场次全部票档共享。PENDING与PAID占额，支付不重复占额，取消/过期/整单退款成功才同事务释放；WAITING及未建单请求不占额。交易账号SHARE与禁用/撤权UPDATE协调，限额写在精确额度行串行；HTTP受理仍保留原账号UPDATE、幂等键和容量事务。取消成功响应在写事务提交后读取公开详情，不暴露内部额度记录。迁移及完整锁协议见[第十六阶段说明](27-trade-quota-and-transaction-verification.md)。
+
 skuId为正十进制字符串且不能超过Java long，quantity为正INT整数，拒绝小数。未知创建字段（userId、价格、金额、状态、库存等）400；身份和价格只能来自服务端。幂等键为1至128位可见ASCII字符（不含空格），区分大小写；缺失或非法400。操作域固定CREATE_ORDER，同一用户同键同参返回同一个requestId及真实状态，不续期、不重复占预算或追加消息；同键异SKU/数量409 IDEMPOTENCY_CONFLICT，不同用户可共用键。V8将旧普通订单幂等事实登记为SUCCEEDED，旧订单已取消仍关联该原单，不重复预占。
 
 PurchaseRequestView为 `{requestId,skuId,quantity,status,orderId,failureCode,failureMessage,acceptedAt,deadlineAt,serverTime}`，ID按字符串传输。状态为QUEUED（抢票排队）、PROCESSING（确认中）、SUCCEEDED（订单已创建）、FAILED（业务失败）、EXPIRED（排队超时）。后面三种为终态；只有SUCCEEDED有真实orderId。202只证明受理事务已提交，不表示占库存或可支付。默认容量200、排队120秒，配置须通过校验；首次受理在同一MySQL事务中申请容量、保存请求和Outbox。满额503 PURCHASE_QUEUE_FULL，带Retry-After=2，不返回排队成功。
 
-购票命令消费者在MySQL事务内按用户→活动→场次→SKU→订单→购票请求→容量预算加锁，校验活动PUBLISHED、场次SCHEDULED及销售窗口、SKU ON_SALE、可售量；区间为 `[saleStartsAt,saleEndsAt)`。数量受SKU单笔上限和跨SKU用户场次限额约束，默认每人每场4张，PENDING/PAID占额，CANCELLED/EXPIRED/REFUNDED不占额。库存或不可售、限购及金额异常表现为请求FAILED和有限业务码及中文说明；临时数据库异常回滚并保持可恢复状态。成功订单、明细、库存预占及SUCCEEDED绑定必须一起提交。排队截止与订单15分钟支付截止独立，支付时间从正式订单创建开始计算。
+购票命令消费者在MySQL事务内按账号SHARE→活动SHARE→场次SHARE→用户场次额度UPDATE→SKU UPDATE→订单→购票请求→容量预算加锁，校验活动PUBLISHED、场次SCHEDULED及销售窗口、SKU ON_SALE、可售量；区间为 `[saleStartsAt,saleEndsAt)`。数量受SKU单笔上限和跨SKU用户场次限额约束，默认每人每场4张，PENDING/PAID占额，CANCELLED/EXPIRED/REFUNDED不占额。库存或不可售、限购及金额异常表现为请求FAILED和有限业务码及中文说明；临时数据库异常回滚并保持可恢复状态。成功订单、明细、库存、额度及SUCCEEDED绑定必须一起提交。排队截止与订单15分钟支付截止独立，支付时间从正式订单创建开始计算。
 
 OrderView字段：id/orderNo/activityId/activityTitle/sessionId/sessionTitle/sessionStartsAt/skuId/skuName/quantity/unitPriceCents/totalAmountCents/status/createdAt/expiresAt/paymentDeadlinePassed/canCancel/canPay/payment/serverTime。ID和金额分为字符串，数量为整数，时间UTC带Z、页面北京时间。skuName、单价和数量来自下单明细快照，活动/场次名称及开始时间是当前关联资料。总额为服务端单价乘数量，不采用客户端预计金额。payment无成功流水时为null，否则为PaymentView，列表通过JOIN读取，不逐订单额外查询。
 
@@ -160,7 +162,7 @@ WaitlistView字段：id/skuId/sessionId/activityId/activityTitle/sessionTitle/sk
 
 状态映射：WAITING等待候补、ALLOCATED已分配待支付、COMPLETED候补完成、CANCELLED已取消候补、EXPIRED候补已过期或失效。ALLOCATED的支付截止以orderExpiresAt为准，原expiresAt仅是等待申请截止。支付成功→COMPLETED；预留订单主动取消或自动过期→EXPIRED，状态联动与库存同事务。已分配不可直接取消候补，重复支付仍返回原流水。
 
-同SKU有效队列按ID升序，队首数量不足不跳过；队首过期、账号禁用、父级下架/取消、停售或额度不足转EXPIRED后继续。入队及分配在同SKU锁内串行，锁顺序固定用户→活动→场次→SKU→订单→候补。候补订单固定WAITLIST_CONFIRM域，服务端唯一键waitlist-{候补ID}，复用服务端金额和库存条件更新。FIFO只承诺同SKU候补内部顺序，不保证优先于所有直接购票请求。
+同SKU有效队列按ID升序，队首数量不足不跳过；队首过期、账号禁用、父级下架/取消、停售或额度不足转EXPIRED后继续。入队及分配在同SKU锁内串行；分配按账号SHARE→活动SHARE→场次SHARE→用户场次额度UPDATE→SKU UPDATE→订单→候补，入队只读额度预检而不锁额度。候补订单固定WAITLIST_CONFIRM域，服务端唯一键waitlist-{候补ID}，复用服务端金额和库存条件更新。FIFO只承诺同SKU候补内部顺序，不保证优先于所有直接购票请求。
 
 ## 候补消息与补偿
 
