@@ -72,7 +72,7 @@ def main():
                                      headers={**client.token,'Idempotency-Key':'full'},timeout=10)
         check('消费者与发布器停止时可靠受理有界',response.status_code==503 and response.json()['code']=='PURCHASE_QUEUE_FULL'
           and perf.rows('SELECT pending_count n FROM purchase_capacity WHERE id=1')[0]['n']==3
-          and perf.rows('SELECT locked_stock n FROM ticket_sku WHERE id=%s',(sku,))[0]['n']==0,accepted=3,rejected503=1)
+          and perf.stock_snapshot(sku)[0]['locked_stock']==0,accepted=3,rejected503=1)
         restart()
         client=perf.Client(account)
         for item in accepted:created.append(client.resolve_purchase(item)['id'])

@@ -1,0 +1,477 @@
+{
+  "environment": "ticketing-perf-only",
+  "rounds": [
+    {
+      "scenario": "same-user-cross-session",
+      "vus": 25,
+      "distinctBuyerAccounts": 1,
+      "sessions": 64,
+      "inventoryStrategy": "BUCKETED",
+      "bucketCount": 4,
+      "stockSwitch": {
+        "bucketCount": 4,
+        "skuId": "1271",
+        "backup": ".local\\performance\\backups\\stage17-bucket4-r3-same-user-cross-session-before-stock-switch.sql.gz",
+        "backupSha256": "dd425fc1c0b513b4af9dda7792a708485aa650f2c5cdae20cf3ff2856f65cd23",
+        "backupUncompressedBytes": 2099461,
+        "preflightAudit": true,
+        "postflightAudit": true,
+        "cliExitCode": 0
+      },
+      "consumerConcurrency": 2,
+      "consumerPrefetch": 1,
+      "httpRps": 108.35,
+      "acceptedTps": 14.2,
+      "orderTps": 11.1,
+      "completionMs": {
+        "med": 1653.5,
+        "p(95)": 2542.499999999999,
+        "p(99)": 2791.9500000000007,
+        "max": 2964
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 4908,
+        "Com_rollback": 76,
+        "Com_select": 29711,
+        "Innodb_row_lock_time": 81195,
+        "Innodb_row_lock_waits": 1314,
+        "Questions": 61842,
+        "Slow_queries": 597,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "final": {
+        "mysql": {
+          "Com_commit": 241726,
+          "Com_rollback": 1007,
+          "Com_select": 1683475,
+          "Innodb_row_lock_time": 1878766,
+          "Innodb_row_lock_waits": 39747,
+          "Questions": 3373266,
+          "Slow_queries": 14633,
+          "Threads_connected": 11,
+          "Threads_running": 2,
+          "lock_deadlocks": 1,
+          "lock_timeouts": 0,
+          "current_lock_waits": 0
+        },
+        "outbox": [
+          {
+            "status": "SENT",
+            "n": 562,
+            "attempts": 2
+          }
+        ],
+        "outboxLag": {
+          "n": 562,
+          "avg_ms": "580.04174199",
+          "max_ms": "3660.0600"
+        },
+        "outboxChannels": [
+          {
+            "event_type": "PURCHASE_REQUEST_ACCEPTED",
+            "status": "SENT",
+            "n": 375
+          },
+          {
+            "event_type": "WAITLIST_DISPATCH_REQUESTED",
+            "status": "SENT",
+            "n": 187
+          }
+        ],
+        "outboxChannelLag": [
+          {
+            "event_type": "PURCHASE_REQUEST_ACCEPTED",
+            "n": 375,
+            "avg_ms": "647.57916533",
+            "max_ms": "3660.0600"
+          },
+          {
+            "event_type": "WAITLIST_DISPATCH_REQUESTED",
+            "n": 187,
+            "avg_ms": "444.60573262",
+            "max_ms": "1177.4270"
+          }
+        ],
+        "outboxBacklogAge": [],
+        "purchaseRequests": [
+          {
+            "status": "SUCCEEDED",
+            "failure_code": "NONE",
+            "n": 299
+          },
+          {
+            "status": "FAILED",
+            "failure_code": "PURCHASE_LIMIT",
+            "n": 76
+          }
+        ]
+      },
+      "artifactSha256": "4a12f97c8bc0d9f7cf9a8dd014cb54de0cc5f739a42b970a2097652baa993459",
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "raw": "docs\\performance\\results\\stage17-bucket4-r3\\same-user-cross-session\\mixed-25"
+    },
+    {
+      "scenario": "mixed",
+      "vus": 25,
+      "distinctBuyerAccounts": 25,
+      "sessions": 64,
+      "inventoryStrategy": "BUCKETED",
+      "bucketCount": 4,
+      "stockSwitch": {
+        "bucketCount": 4,
+        "skuId": "1335",
+        "backup": ".local\\performance\\backups\\stage17-bucket4-r3-mixed-before-stock-switch.sql.gz",
+        "backupSha256": "b156d6ae41f309793933004a1a5cdb1f5ffe641e09bc0f6225bcae618338f3cd",
+        "backupUncompressedBytes": 2186427,
+        "preflightAudit": true,
+        "postflightAudit": true,
+        "cliExitCode": 0
+      },
+      "consumerConcurrency": 2,
+      "consumerPrefetch": 1,
+      "httpRps": 113.6,
+      "acceptedTps": 13.5,
+      "orderTps": 13.4,
+      "completionMs": {
+        "med": 1664,
+        "p(95)": 2649.3,
+        "p(99)": 2738.3199999999997,
+        "max": 2841
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 5353,
+        "Com_rollback": 0,
+        "Com_select": 32671,
+        "Innodb_row_lock_time": 37506,
+        "Innodb_row_lock_waits": 857,
+        "Questions": 67744,
+        "Slow_queries": 288,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "final": {
+        "mysql": {
+          "Com_commit": 247362,
+          "Com_rollback": 1007,
+          "Com_select": 1718831,
+          "Innodb_row_lock_time": 1916272,
+          "Innodb_row_lock_waits": 40604,
+          "Questions": 3447059,
+          "Slow_queries": 14921,
+          "Threads_connected": 11,
+          "Threads_running": 2,
+          "lock_deadlocks": 1,
+          "lock_timeouts": 0,
+          "current_lock_waits": 0
+        },
+        "outbox": [
+          {
+            "status": "SENT",
+            "n": 577,
+            "attempts": 2
+          }
+        ],
+        "outboxLag": {
+          "n": 577,
+          "avg_ms": "1114.26237608",
+          "max_ms": "3322.7900"
+        },
+        "outboxChannels": [
+          {
+            "event_type": "PURCHASE_REQUEST_ACCEPTED",
+            "status": "SENT",
+            "n": 351
+          },
+          {
+            "event_type": "WAITLIST_DISPATCH_REQUESTED",
+            "status": "SENT",
+            "n": 226
+          }
+        ],
+        "outboxChannelLag": [
+          {
+            "event_type": "PURCHASE_REQUEST_ACCEPTED",
+            "n": 351,
+            "avg_ms": "1470.50774929",
+            "max_ms": "3322.7900"
+          },
+          {
+            "event_type": "WAITLIST_DISPATCH_REQUESTED",
+            "n": 226,
+            "avg_ms": "560.97863274",
+            "max_ms": "1243.1700"
+          }
+        ],
+        "outboxBacklogAge": [],
+        "purchaseRequests": [
+          {
+            "status": "SUCCEEDED",
+            "failure_code": "NONE",
+            "n": 351
+          }
+        ]
+      },
+      "artifactSha256": "4a12f97c8bc0d9f7cf9a8dd014cb54de0cc5f739a42b970a2097652baa993459",
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "raw": "docs\\performance\\results\\stage17-bucket4-r3\\mixed\\mixed-25"
+    },
+    {
+      "scenario": "hot-scarce",
+      "vus": 100,
+      "distinctBuyerAccounts": 100,
+      "sessions": 1,
+      "inventoryStrategy": "BUCKETED",
+      "bucketCount": 4,
+      "stockSwitch": {
+        "bucketCount": 4,
+        "skuId": "1399",
+        "backup": ".local\\performance\\backups\\stage17-bucket4-r3-hot-scarce-before-stock-switch.sql.gz",
+        "backupSha256": "89fb4c3b5064d97de434672d071bfb814eaebe76bc57eb1980bf6620006684e6",
+        "backupUncompressedBytes": 2187920,
+        "preflightAudit": true,
+        "postflightAudit": true,
+        "cliExitCode": 0
+      },
+      "consumerConcurrency": 2,
+      "consumerPrefetch": 1,
+      "httpRps": 301.85,
+      "acceptedTps": 10.8,
+      "orderTps": 9.85,
+      "completionMs": {
+        "med": 9348,
+        "p(95)": 15474.55,
+        "p(99)": 16825.95,
+        "max": 17479
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 9506,
+        "Com_rollback": 91,
+        "Com_select": 46729,
+        "Innodb_row_lock_time": 19262,
+        "Innodb_row_lock_waits": 435,
+        "Questions": 102430,
+        "Slow_queries": 89,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "final": {
+        "mysql": {
+          "Com_commit": 257112,
+          "Com_rollback": 1098,
+          "Com_select": 1766808,
+          "Innodb_row_lock_time": 1935534,
+          "Innodb_row_lock_waits": 41039,
+          "Questions": 3553380,
+          "Slow_queries": 15010,
+          "Threads_connected": 11,
+          "Threads_running": 2,
+          "lock_deadlocks": 1,
+          "lock_timeouts": 0,
+          "current_lock_waits": 0
+        },
+        "outbox": [
+          {
+            "status": "SENT",
+            "n": 616,
+            "attempts": 2
+          }
+        ],
+        "outboxLag": {
+          "n": 616,
+          "avg_ms": "3706.23954058",
+          "max_ms": "14224.2290"
+        },
+        "outboxChannels": [
+          {
+            "event_type": "PURCHASE_REQUEST_ACCEPTED",
+            "status": "SENT",
+            "n": 327
+          },
+          {
+            "event_type": "WAITLIST_DISPATCH_REQUESTED",
+            "status": "SENT",
+            "n": 289
+          }
+        ],
+        "outboxChannelLag": [
+          {
+            "event_type": "PURCHASE_REQUEST_ACCEPTED",
+            "n": 327,
+            "avg_ms": "5864.54900000",
+            "max_ms": "14224.2290"
+          },
+          {
+            "event_type": "WAITLIST_DISPATCH_REQUESTED",
+            "n": 289,
+            "avg_ms": "1264.13852595",
+            "max_ms": "2518.2290"
+          }
+        ],
+        "outboxBacklogAge": [],
+        "purchaseRequests": [
+          {
+            "status": "SUCCEEDED",
+            "failure_code": "NONE",
+            "n": 289
+          },
+          {
+            "status": "FAILED",
+            "failure_code": "TICKET_UNAVAILABLE",
+            "n": 35
+          },
+          {
+            "status": "FAILED",
+            "failure_code": "STOCK_UNAVAILABLE",
+            "n": 3
+          }
+        ]
+      },
+      "artifactSha256": "4a12f97c8bc0d9f7cf9a8dd014cb54de0cc5f739a42b970a2097652baa993459",
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "raw": "docs\\performance\\results\\stage17-bucket4-r3\\hot-scarce\\hot-scarce-100"
+    },
+    {
+      "scenario": "hot-ample",
+      "vus": 100,
+      "distinctBuyerAccounts": 100,
+      "sessions": 1,
+      "inventoryStrategy": "BUCKETED",
+      "bucketCount": 4,
+      "stockSwitch": {
+        "bucketCount": 4,
+        "skuId": "1400",
+        "backup": ".local\\performance\\backups\\stage17-bucket4-r3-hot-ample-before-stock-switch.sql.gz",
+        "backupSha256": "9deb521448b1995af91dc966080f77c098f45b047cbda196121045c0e3b059bf",
+        "backupUncompressedBytes": 2189275,
+        "preflightAudit": true,
+        "postflightAudit": true,
+        "cliExitCode": 0
+      },
+      "consumerConcurrency": 2,
+      "consumerPrefetch": 1,
+      "httpRps": 310.3,
+      "acceptedTps": 11.15,
+      "orderTps": 11.2,
+      "completionMs": {
+        "med": 9212.5,
+        "p(95)": 14996.5,
+        "p(99)": 15676.11,
+        "max": 16017
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 9940,
+        "Com_rollback": 0,
+        "Com_select": 48890,
+        "Innodb_row_lock_time": 19090,
+        "Innodb_row_lock_waits": 496,
+        "Questions": 106889,
+        "Slow_queries": 97,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "final": {
+        "mysql": {
+          "Com_commit": 267294,
+          "Com_rollback": 1098,
+          "Com_select": 1816939,
+          "Innodb_row_lock_time": 1954624,
+          "Innodb_row_lock_waits": 41535,
+          "Questions": 3664143,
+          "Slow_queries": 15107,
+          "Threads_connected": 11,
+          "Threads_running": 2,
+          "lock_deadlocks": 1,
+          "lock_timeouts": 0,
+          "current_lock_waits": 0
+        },
+        "outbox": [
+          {
+            "status": "SENT",
+            "n": 680,
+            "attempts": 2
+          }
+        ],
+        "outboxLag": {
+          "n": 680,
+          "avg_ms": "4017.56328529",
+          "max_ms": "16844.5780"
+        },
+        "outboxChannels": [
+          {
+            "event_type": "PURCHASE_REQUEST_ACCEPTED",
+            "status": "SENT",
+            "n": 340
+          },
+          {
+            "event_type": "WAITLIST_DISPATCH_REQUESTED",
+            "status": "SENT",
+            "n": 340
+          }
+        ],
+        "outboxChannelLag": [
+          {
+            "event_type": "PURCHASE_REQUEST_ACCEPTED",
+            "n": 340,
+            "avg_ms": "6821.99807353",
+            "max_ms": "16844.5780"
+          },
+          {
+            "event_type": "WAITLIST_DISPATCH_REQUESTED",
+            "n": 340,
+            "avg_ms": "1213.12849706",
+            "max_ms": "2746.0370"
+          }
+        ],
+        "outboxBacklogAge": [],
+        "purchaseRequests": [
+          {
+            "status": "SUCCEEDED",
+            "failure_code": "NONE",
+            "n": 340
+          }
+        ]
+      },
+      "artifactSha256": "4a12f97c8bc0d9f7cf9a8dd014cb54de0cc5f739a42b970a2097652baa993459",
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "raw": "docs\\performance\\results\\stage17-bucket4-r3\\hot-ample\\hot-ample-100"
+    }
+  ],
+  "complete": true,
+  "inventoryStrategy": "BUCKETED",
+  "bucketCount": 4,
+  "consumerConcurrency": 2,
+  "consumerPrefetch": 1,
+  "scenarioOrder": [
+    "same-user-cross-session",
+    "mixed",
+    "hot-scarce",
+    "hot-ample"
+  ],
+  "scenarioScriptSha256": "36aa11449b0faa42a8c1c5bc38dd1455a710dedb073b5802b2c2375d97ded5b2",
+  "passed": true
+}

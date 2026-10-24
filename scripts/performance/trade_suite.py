@@ -5,9 +5,11 @@ import gzip
 import json
 import re
 import subprocess
+import sys
 import zipfile
 from types import SimpleNamespace
 import perf
+import verify_stock_switch
 
 
 def quota_upgrade(jar, directory):
@@ -44,11 +46,37 @@ def quota_upgrade(jar, directory):
     return {'ORDER_QUOTA_MIGRATION_APPROVED':'true'}
 
 
+def enable_empty_sku_buckets(fixture, count, label):
+    """每个性能轮只对新建、无订单的固定实验SKU执行真实停写与备份切换。"""
+    perf.connect().close()
+    perf.app_stop()
+    preflight=perf.audit()
+    path,digest,raw_bytes=verify_stock_switch.verified_backup(label)
+    operator=perf.rows("SELECT id FROM user_account WHERE username='perf_admin'")[0]['id']
+    command=[sys.executable,str(perf.HERE/'switch_stock.py'),'--sku-id',str(fixture['target']['skuId']),
+             '--buckets',str(count),'--operator-id',str(operator),'--backup',str(path),
+             '--backup-sha256',digest,'--writes-stopped','--approve']
+    result=subprocess.run(command,cwd=perf.ROOT,capture_output=True,text=True,encoding='utf-8',errors='replace')
+    if result.returncode!=0:
+        raise RuntimeError('完整链路性能夹具离线切换失败；隔离库现场已保留')
+    postflight=perf.audit()
+    app=json.loads((perf.PRIVATE/'app.json').read_text(encoding='utf-8'))
+    perf.app_start(app['jar'],rate_limit_mode=app.get('rateLimitMode','regression'),**app.get('overrides',{}))
+    return {'bucketCount':count,'skuId':fixture['target']['skuId'],'backup':str(path.relative_to(perf.ROOT)),
+            'backupSha256':digest,'backupUncompressedBytes':raw_bytes,'preflightAudit':preflight['passed'],
+            'postflightAudit':postflight['passed'],'cliExitCode':result.returncode}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--jar', required=True)
     parser.add_argument('--label', required=True)
     parser.add_argument('--outbox-window', type=int, choices=[1,16,32,64])
+    parser.add_argument('--stock-buckets',type=int,choices=[0,1,4,8,16],default=0,
+                        help='0保持SINGLE，其余档位对每轮新建空SKU执行受控离线切换')
+    parser.add_argument('--consumer-concurrency',type=int,choices=[1,2,4,8,16],default=2)
+    parser.add_argument('--consumer-prefetch',type=int,choices=[1,3,8,16],default=1)
+    parser.add_argument('--reverse-order',action='store_true',help='按反向场景顺序执行以轮换顺序偏差')
     parser.add_argument('--scenarios', nargs='+', choices=['hot-ample','hot-scarce','mixed','same-user-cross-session'],
                         help='省略时四轮齐全；诊断复测可显式选择场景，新标签独立保存')
     args = parser.parse_args()
@@ -62,6 +90,8 @@ def main():
     approved=quota_upgrade(args.jar,directory)
     if args.outbox_window is not None:
         approved['WAITLIST_OUTBOX_IN_FLIGHT_WINDOW'] = str(args.outbox_window)
+    approved.update(PURCHASE_CONSUMER_CONCURRENCY=str(args.consumer_concurrency),
+                    PURCHASE_CONSUMER_PREFETCH=str(args.consumer_prefetch))
     perf.app_start(args.jar, rate_limit_mode='regression', CATALOG_CACHE_ENABLED='true', PURCHASE_ADMISSION_LIMIT_ENABLED='false',**approved)
     original = perf.RESULTS
     try:
@@ -72,9 +102,14 @@ def main():
     rows = []
     selected=[(scenario,vus) for scenario,vus in [('hot-ample',100),('hot-scarce',100),('mixed',25),('same-user-cross-session',25)]
               if args.scenarios is None or scenario in args.scenarios]
+    if args.reverse_order:selected.reverse()
     for scenario, vus in selected:
         mode = 'mixed' if scenario == 'same-user-cross-session' else scenario
         fixture = perf.prepare(mode, vus)
+        if args.stock_buckets:
+            stockSwitch=enable_empty_sku_buckets(fixture,args.stock_buckets,f'{args.label}-{scenario}')
+        else:
+            stockSwitch={'bucketCount':0,'strategy':'SINGLE'}
         if scenario == 'same-user-cross-session':
             fixture['users'] = [fixture['users'][0]] * vus
             fixture['sharedUserScenario'] = True
@@ -94,6 +129,8 @@ def main():
             return {key: values.get(key) for key in ('med','p(95)','p(99)','max')}
         rows.append({'scenario':scenario, 'vus':vus, 'distinctBuyerAccounts':1 if fixture.get('sharedUserScenario') else vus,
                      'sessions':len(fixture.get('mixed', [fixture['target']])),
+                     'inventoryStrategy':'BUCKETED' if args.stock_buckets else 'SINGLE','bucketCount':args.stock_buckets,
+                     'stockSwitch':stockSwitch,'consumerConcurrency':args.consumer_concurrency,'consumerPrefetch':args.consumer_prefetch,
                      'httpRps':count('steady_requests')/20, 'acceptedTps':count('accepted_purchase_requests')/20,
                      'orderTps':count('created_orders')/20, 'completionMs':latency('steady_purchase_completion_latency'),
                      'serverErrors':count('server_errors'), 'transportErrors':count('transport_errors'),
@@ -104,6 +141,9 @@ def main():
     assert len(rows)==len(selected) and len({r['artifactSha256'] for r in rows})==1
     perf.save(directory / 'comparison.json', {
         'environment':'ticketing-perf-only', 'rounds':rows, 'complete':True,
+        'inventoryStrategy':'BUCKETED' if args.stock_buckets else 'SINGLE','bucketCount':args.stock_buckets,
+        'consumerConcurrency':args.consumer_concurrency,'consumerPrefetch':args.consumer_prefetch,
+        'scenarioOrder':[scenario for scenario,_ in selected],
         'scenarioScriptSha256':hashlib.sha256((perf.HERE/'scenarios.js').read_bytes()).hexdigest(),
         'passed':all(r['auditPassed'] and r['k6ExitCode']==0 and r['serverErrors']==r['transportErrors']==0 for r in rows)})
 

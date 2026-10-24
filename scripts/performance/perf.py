@@ -38,6 +38,7 @@ OVERRIDES |= {'CATALOG_CACHE_ENABLED', 'PURCHASE_ADMISSION_LIMIT_ENABLED', 'PURC
               'PURCHASE_ADMISSION_GLOBAL_BURST', 'PURCHASE_ADMISSION_TICKET_RATE', 'PURCHASE_ADMISSION_TICKET_BURST'}
 OVERRIDES.add('ORDER_QUOTA_MIGRATION_APPROVED')
 OVERRIDES.add('WAITLIST_OUTBOX_IN_FLIGHT_WINDOW')
+OVERRIDES |= {'PURCHASE_CONSUMER_CONCURRENCY', 'PURCHASE_CONSUMER_PREFETCH'}
 
 
 def save(path, value):
@@ -292,6 +293,10 @@ def prepare(mode, count, staff_checkin=False):
     with connect() as db, db.cursor() as cur:
         cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('staff_session_permission','admin_audit_log','user_session_quota')")
         extra_tables = {row['TABLE_NAME'] if 'TABLE_NAME' in row else row['table_name'] for row in cur.fetchall()}
+        cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('order_stock_allocation','stock_strategy_switch','ticket_waitlist_gate','ticket_stock_bucket')")
+        stock_tables = {next(iter(row.values())) for row in cur.fetchall()}
+        for table in ['order_stock_allocation','stock_strategy_switch','ticket_waitlist_gate','ticket_stock_bucket']:
+            if table in stock_tables: cur.execute('DELETE FROM ' + table)
         if 'staff_session_permission' in extra_tables:
             cur.execute('DELETE FROM staff_session_permission')
         if 'user_session_quota' in extra_tables:
@@ -388,6 +393,11 @@ def audit():
         if quota_schema:
             sql += '\n' + '\n'.join(line for line in (HERE / 'audit-quota.sql').read_text(encoding='utf-8').splitlines()
                                      if not line.lstrip().startswith('--'))
+        cur.execute("SELECT COUNT(*) n FROM information_schema.views WHERE table_schema=DATABASE() AND table_name='ticket_stock_balance'")
+        bucket_schema = bool(cur.fetchone()['n'])
+        if bucket_schema:
+            sql = sql.replace('FROM ticket_sku', 'FROM ticket_stock_balance')
+            sql += '\n' + '\n'.join(line for line in (HERE / 'audit-buckets.sql').read_text(encoding='utf-8').splitlines() if not line.lstrip().startswith('--'))
         for statement in sql.split(';'):
             if statement.strip():
                 cur.execute(statement)
@@ -406,6 +416,12 @@ def audit():
     if not result['passed']:
         raise RuntimeError('数据库一致性审计失败 ' + json.dumps(checks))
     return result
+
+
+def stock_snapshot(sku_id):
+    available = rows("SELECT COUNT(*) n FROM information_schema.views WHERE table_schema=DATABASE() AND table_name='ticket_stock_balance'")[0]['n']
+    table = 'ticket_stock_balance' if available else 'ticket_sku'
+    return rows('SELECT total_stock,locked_stock,sold_stock FROM ' + table + ' WHERE id=%s', (sku_id,))
 
 
 def db_snapshot():

@@ -49,7 +49,7 @@ def main():
         inflight = until(lambda: events() if len(events()) == 3 and any(e['status'] == 'PROCESSING' for e in events()) else None, 15)
         tokens = {e['request_id']: e['retry_count'] for e in inflight if e['status'] == 'PROCESSING'}
         check('真实进程认领后代理暂停且库存仍未预占', len(inflight) == 3 and
-              perf.rows('SELECT locked_stock FROM ticket_sku WHERE id=%s', (sku,))[0]['locked_stock'] == 0,
+              perf.stock_snapshot(sku)[0]['locked_stock'] == 0,
               accepted=3, claimed=len(tokens), attempts=[e['retry_count'] for e in inflight])
         perf.app_stop()  # 已验证PID归属，真实终止Java进程，不手工改Outbox或请求状态。
         check('进程终止后持久PROCESSING租约仍存在', any(e['status'] == 'PROCESSING' for e in events()))

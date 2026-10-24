@@ -1,0 +1,254 @@
+{
+  "environment": "ticketing-perf-only",
+  "baseCommit": "f0401c38618899edec08e49f485d01adce0a9a55",
+  "scenario": "mixed",
+  "vus": 25,
+  "warmupSeconds": 10,
+  "steadySeconds": 20,
+  "gracefulStopSeconds": 150,
+  "outboxDrainMaxSeconds": 30,
+  "data": {
+    "activities": 1000,
+    "sessions": 64,
+    "users": 25
+  },
+  "app": {
+    "jar": "D:\\ticketing\\.local\\stage17\\candidate-v10-final.jar",
+    "sha256": "4a12f97c8bc0d9f7cf9a8dd014cb54de0cc5f739a42b970a2097652baa993459",
+    "overrides": {
+      "CATALOG_CACHE_ENABLED": "true",
+      "PURCHASE_ADMISSION_LIMIT_ENABLED": "false",
+      "PURCHASE_CONSUMER_CONCURRENCY": "2",
+      "PURCHASE_CONSUMER_PREFETCH": "1"
+    },
+    "rateLimitMode": "regression",
+    "startedAt": "2026-10-24T15:12:27.738756+00:00"
+  },
+  "k6ExitCode": 0,
+  "initial": {
+    "mysql": {
+      "Com_commit": 327692,
+      "Com_rollback": 1315,
+      "Com_select": 2128685,
+      "Innodb_row_lock_time": 2234831,
+      "Innodb_row_lock_waits": 47521,
+      "Questions": 4348645,
+      "Slow_queries": 17151,
+      "Threads_connected": 11,
+      "Threads_running": 2,
+      "lock_deadlocks": 1,
+      "lock_timeouts": 0,
+      "current_lock_waits": 0
+    },
+    "outbox": [],
+    "outboxLag": {
+      "n": 0,
+      "avg_ms": null,
+      "max_ms": null
+    },
+    "outboxChannels": [],
+    "outboxChannelLag": [],
+    "outboxBacklogAge": [],
+    "purchaseRequests": []
+  },
+  "final": {
+    "mysql": {
+      "Com_commit": 332447,
+      "Com_rollback": 1381,
+      "Com_select": 2157404,
+      "Innodb_row_lock_time": 2319292,
+      "Innodb_row_lock_waits": 48772,
+      "Questions": 4408385,
+      "Slow_queries": 17743,
+      "Threads_connected": 11,
+      "Threads_running": 2,
+      "lock_deadlocks": 1,
+      "lock_timeouts": 0,
+      "current_lock_waits": 0
+    },
+    "outbox": [
+      {
+        "status": "SENT",
+        "n": 542,
+        "attempts": 2
+      }
+    ],
+    "outboxLag": {
+      "n": 542,
+      "avg_ms": "568.65509225",
+      "max_ms": "2494.4470"
+    },
+    "outboxChannels": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "SENT",
+        "n": 360
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "SENT",
+        "n": 182
+      }
+    ],
+    "outboxChannelLag": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 360,
+        "avg_ms": "627.46610833",
+        "max_ms": "2494.4470"
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "n": 182,
+        "avg_ms": "452.32560989",
+        "max_ms": "1261.9630"
+      }
+    ],
+    "outboxBacklogAge": [],
+    "purchaseRequests": [
+      {
+        "status": "SUCCEEDED",
+        "failure_code": "NONE",
+        "n": 294
+      },
+      {
+        "status": "FAILED",
+        "failure_code": "PURCHASE_LIMIT",
+        "n": 66
+      }
+    ]
+  },
+  "mysqlDelta": {
+    "Com_commit": 4755,
+    "Com_rollback": 66,
+    "Com_select": 28719,
+    "Innodb_row_lock_time": 84461,
+    "Innodb_row_lock_waits": 1251,
+    "Questions": 59740,
+    "Slow_queries": 592,
+    "Threads_connected": 0,
+    "Threads_running": 0,
+    "lock_deadlocks": 0,
+    "lock_timeouts": 0,
+    "current_lock_waits": 0
+  },
+  "monitorFailures": [],
+  "release": {},
+  "audit": {
+    "passed": true,
+    "checks": [
+      {
+        "invariant": "stock_bounds",
+        "violation_count": 0
+      },
+      {
+        "invariant": "stock_order_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "payment_snapshot",
+        "violation_count": 0
+      },
+      {
+        "invariant": "order_snapshot",
+        "violation_count": 0
+      },
+      {
+        "invariant": "session_quota",
+        "violation_count": 0
+      },
+      {
+        "invariant": "waitlist_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "fifo_allocation_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "ticket_quantity",
+        "violation_count": 0
+      },
+      {
+        "invariant": "ticket_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "duplicate_payment_effect",
+        "violation_count": 0
+      },
+      {
+        "invariant": "duplicate_active_waitlist",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_capacity",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_order_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_no_unbound_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_no_late_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_reliable_command",
+        "violation_count": 0
+      },
+      {
+        "invariant": "quota_order_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "quota_extra_or_orphan",
+        "violation_count": 0
+      },
+      {
+        "invariant": "bucket_strategy_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "bucket_bounds",
+        "violation_count": 0
+      },
+      {
+        "invariant": "allocation_quantity",
+        "violation_count": 0
+      },
+      {
+        "invariant": "bucket_order_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "allocation_relations",
+        "violation_count": 0
+      },
+      {
+        "invariant": "bucket_switch_receipt",
+        "violation_count": 0
+      }
+    ],
+    "counts": {
+      "purchase_request": 360,
+      "order_aftercare": 0,
+      "refund_record": 0,
+      "electronic_ticket": 112,
+      "waitlist_entry": 0,
+      "payment_record": 112,
+      "ticket_order_item": 294,
+      "ticket_order": 294,
+      "outbox_event": 542,
+      "ticket_sku": 64,
+      "activity_session": 64,
+      "activity": 1000,
+      "user_account": 52,
+      "user_session_quota": 38
+    }
+  }
+}

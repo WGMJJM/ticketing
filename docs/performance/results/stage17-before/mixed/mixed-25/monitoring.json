@@ -1,0 +1,6337 @@
+[
+  {
+    "elapsedUtc": "2026-10-24T13:02:05.065473+00:00",
+    "mysql": {
+      "Com_commit": 21746,
+      "Com_rollback": 19,
+      "Com_select": 96938,
+      "Innodb_row_lock_time": 87564,
+      "Innodb_row_lock_waits": 1632,
+      "Questions": 224374,
+      "Slow_queries": 674,
+      "Threads_connected": 11,
+      "Threads_running": 2,
+      "lock_deadlocks": 0,
+      "lock_timeouts": 0,
+      "current_lock_waits": 0
+    },
+    "outbox": [],
+    "outboxLag": {
+      "n": 0,
+      "avg_ms": null,
+      "max_ms": null
+    },
+    "outboxChannels": [],
+    "outboxChannelLag": [],
+    "outboxBacklogAge": [],
+    "purchaseRequests": [],
+    "jvm": {
+      "process.cpu.usage": [
+        {
+          "statistic": "VALUE",
+          "value": 0.052513524122948525
+        }
+      ],
+      "jvm.memory.used": [
+        {
+          "statistic": "VALUE",
+          "value": 322540288.0
+        }
+      ],
+      "jvm.gc.pause": [
+        {
+          "statistic": "COUNT",
+          "value": 1.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.034
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.034
+        }
+      ],
+      "jvm.threads.live": [
+        {
+          "statistic": "VALUE",
+          "value": 40.0
+        }
+      ],
+      "hikaricp.connections.active": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.pending": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.max": [
+        {
+          "statistic": "VALUE",
+          "value": 10.0
+        }
+      ],
+      "hikaricp.connections.acquire": [
+        {
+          "statistic": "COUNT",
+          "value": 575.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.3350112
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.0877621
+        }
+      ],
+      "hikaricp.connections.timeout": [
+        {
+          "statistic": "COUNT",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.usage": [
+        {
+          "statistic": "COUNT",
+          "value": 577.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 19.352
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.314
+        }
+      ],
+      "ticketing.catalog.loads.active": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.catalog.local.entries": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ]
+    },
+    "rabbitmq": [
+      {
+        "name": "ticketing.audit.pipeline.it.queue",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.orders",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 720,
+          "ack_details": {
+            "rate": 0.0
+          },
+          "deliver": 720,
+          "deliver_details": {
+            "rate": 0.0
+          },
+          "deliver_get": 720,
+          "deliver_get_details": {
+            "rate": 0.0
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 720,
+          "publish_details": {
+            "rate": 0.0
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.purchase.orders.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders.dead",
+        "messages_ready": 99,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 633,
+          "ack_details": {
+            "rate": 0.0
+          },
+          "deliver": 633,
+          "deliver_details": {
+            "rate": 0.0
+          },
+          "deliver_get": 633,
+          "deliver_get_details": {
+            "rate": 0.0
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 633,
+          "publish_details": {
+            "rate": 0.0
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.waitlist.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch",
+        "messages_ready": 1,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      }
+    ]
+  },
+  {
+    "elapsedUtc": "2026-10-24T13:02:05.936025+00:00",
+    "mysql": {
+      "Com_commit": 21747,
+      "Com_rollback": 19,
+      "Com_select": 96976,
+      "Innodb_row_lock_time": 87564,
+      "Innodb_row_lock_waits": 1632,
+      "Questions": 224421,
+      "Slow_queries": 674,
+      "Threads_connected": 11,
+      "Threads_running": 2,
+      "lock_deadlocks": 0,
+      "lock_timeouts": 0,
+      "current_lock_waits": 0
+    },
+    "outbox": [],
+    "outboxLag": {
+      "n": 0,
+      "avg_ms": null,
+      "max_ms": null
+    },
+    "outboxChannels": [],
+    "outboxChannelLag": [],
+    "outboxBacklogAge": [],
+    "purchaseRequests": [],
+    "jvm": {
+      "process.cpu.usage": [
+        {
+          "statistic": "VALUE",
+          "value": 0.052513524122948525
+        }
+      ],
+      "jvm.memory.used": [
+        {
+          "statistic": "VALUE",
+          "value": 328831744.0
+        }
+      ],
+      "jvm.gc.pause": [
+        {
+          "statistic": "COUNT",
+          "value": 1.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.034
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.034
+        }
+      ],
+      "jvm.threads.live": [
+        {
+          "statistic": "VALUE",
+          "value": 40.0
+        }
+      ],
+      "hikaricp.connections.active": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.pending": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.max": [
+        {
+          "statistic": "VALUE",
+          "value": 10.0
+        }
+      ],
+      "hikaricp.connections.acquire": [
+        {
+          "statistic": "COUNT",
+          "value": 627.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.3993815
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.0877621
+        }
+      ],
+      "hikaricp.connections.timeout": [
+        {
+          "statistic": "COUNT",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.usage": [
+        {
+          "statistic": "COUNT",
+          "value": 630.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 20.137
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.314
+        }
+      ],
+      "ticketing.catalog.loads.active": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.catalog.local.entries": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ]
+    },
+    "rabbitmq": [
+      {
+        "name": "ticketing.audit.pipeline.it.queue",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.orders",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 720,
+          "ack_details": {
+            "rate": 0.0
+          },
+          "deliver": 720,
+          "deliver_details": {
+            "rate": 0.0
+          },
+          "deliver_get": 720,
+          "deliver_get_details": {
+            "rate": 0.0
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 720,
+          "publish_details": {
+            "rate": 0.0
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.purchase.orders.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders.dead",
+        "messages_ready": 99,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 633,
+          "ack_details": {
+            "rate": 0.0
+          },
+          "deliver": 633,
+          "deliver_details": {
+            "rate": 0.0
+          },
+          "deliver_get": 633,
+          "deliver_get_details": {
+            "rate": 0.0
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 633,
+          "publish_details": {
+            "rate": 0.0
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.waitlist.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch",
+        "messages_ready": 1,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      }
+    ]
+  },
+  {
+    "elapsedUtc": "2026-10-24T13:02:08.896726+00:00",
+    "mysql": {
+      "Com_commit": 22008,
+      "Com_rollback": 19,
+      "Com_select": 98272,
+      "Innodb_row_lock_time": 91989,
+      "Innodb_row_lock_waits": 1671,
+      "Questions": 227334,
+      "Slow_queries": 704,
+      "Threads_connected": 11,
+      "Threads_running": 6,
+      "lock_deadlocks": 0,
+      "lock_timeouts": 0,
+      "current_lock_waits": 3
+    },
+    "outbox": [
+      {
+        "status": "PENDING",
+        "n": 4,
+        "attempts": 0
+      },
+      {
+        "status": "SENT",
+        "n": 25,
+        "attempts": 1
+      }
+    ],
+    "outboxLag": {
+      "n": 25,
+      "avg_ms": "994.64916000",
+      "max_ms": "1086.7340"
+    },
+    "outboxChannels": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "PENDING",
+        "n": 4
+      },
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "SENT",
+        "n": 25
+      }
+    ],
+    "outboxChannelLag": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 25,
+        "avg_ms": "994.64916000",
+        "max_ms": "1086.7340"
+      }
+    ],
+    "outboxBacklogAge": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 4,
+        "oldest_ms": "250.7040"
+      }
+    ],
+    "purchaseRequests": [
+      {
+        "status": "SUCCEEDED",
+        "failure_code": "NONE",
+        "n": 8
+      },
+      {
+        "status": "PROCESSING",
+        "failure_code": "NONE",
+        "n": 1
+      },
+      {
+        "status": "QUEUED",
+        "failure_code": "NONE",
+        "n": 20
+      }
+    ],
+    "jvm": {
+      "process.cpu.usage": [
+        {
+          "statistic": "VALUE",
+          "value": 0.16690948461679347
+        }
+      ],
+      "jvm.memory.used": [
+        {
+          "statistic": "VALUE",
+          "value": 142598496.0
+        }
+      ],
+      "jvm.gc.pause": [
+        {
+          "statistic": "COUNT",
+          "value": 3.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.08399999999999999
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.034
+        }
+      ],
+      "jvm.threads.live": [
+        {
+          "statistic": "VALUE",
+          "value": 75.0
+        }
+      ],
+      "hikaricp.connections.active": [
+        {
+          "statistic": "VALUE",
+          "value": 10.0
+        }
+      ],
+      "hikaricp.connections.pending": [
+        {
+          "statistic": "VALUE",
+          "value": 8.0
+        }
+      ],
+      "hikaricp.connections.max": [
+        {
+          "statistic": "VALUE",
+          "value": 10.0
+        }
+      ],
+      "hikaricp.connections.acquire": [
+        {
+          "statistic": "COUNT",
+          "value": 1213.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 11.0187928
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.354812
+        }
+      ],
+      "hikaricp.connections.timeout": [
+        {
+          "statistic": "COUNT",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.usage": [
+        {
+          "statistic": "COUNT",
+          "value": 1211.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 39.123
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.504
+        }
+      ],
+      "spring.rabbitmq.listener": [
+        {
+          "statistic": "COUNT",
+          "value": 10.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 2.7422723
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.4127475
+        }
+      ],
+      "ticketing.catalog.loads.active": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.catalog.local.entries": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.trade.transaction.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 10.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 1.9984138
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.3391382
+        }
+      ],
+      "ticketing.trade.lock.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 51.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 2.7164618
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.3950292
+        }
+      ],
+      "ticketing.trade.quota": [
+        {
+          "statistic": "COUNT",
+          "value": 10.0
+        }
+      ],
+      "ticketing.outbox.confirm.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 25.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.2373082
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.0379714
+        }
+      ],
+      "ticketing.outbox.publish": [
+        {
+          "statistic": "COUNT",
+          "value": 50.0
+        }
+      ],
+      "ticketing.outbox.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 25.0
+        }
+      ],
+      "ticketing.purchase.accepted.to.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 12.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 18.940105
+        },
+        {
+          "statistic": "MAX",
+          "value": 2.302951
+        }
+      ]
+    },
+    "rabbitmq": [
+      {
+        "name": "ticketing.audit.pipeline.it.queue",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.orders",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 720,
+          "ack_details": {
+            "rate": 0.0
+          },
+          "deliver": 720,
+          "deliver_details": {
+            "rate": 0.0
+          },
+          "deliver_get": 720,
+          "deliver_get_details": {
+            "rate": 0.0
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 720,
+          "publish_details": {
+            "rate": 0.0
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.purchase.orders.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders.dead",
+        "messages_ready": 99,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 633,
+          "ack_details": {
+            "rate": 0.0
+          },
+          "deliver": 633,
+          "deliver_details": {
+            "rate": 0.0
+          },
+          "deliver_get": 633,
+          "deliver_get_details": {
+            "rate": 0.0
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 633,
+          "publish_details": {
+            "rate": 0.0
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.waitlist.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch",
+        "messages_ready": 1,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      }
+    ]
+  },
+  {
+    "elapsedUtc": "2026-10-24T13:02:11.496821+00:00",
+    "mysql": {
+      "Com_commit": 22427,
+      "Com_rollback": 19,
+      "Com_select": 100694,
+      "Innodb_row_lock_time": 96175,
+      "Innodb_row_lock_waits": 1740,
+      "Questions": 232460,
+      "Slow_queries": 739,
+      "Threads_connected": 11,
+      "Threads_running": 4,
+      "lock_deadlocks": 0,
+      "lock_timeouts": 0,
+      "current_lock_waits": 3
+    },
+    "outbox": [
+      {
+        "status": "PENDING",
+        "n": 30,
+        "attempts": 1
+      },
+      {
+        "status": "SENT",
+        "n": 33,
+        "attempts": 2
+      }
+    ],
+    "outboxLag": {
+      "n": 33,
+      "avg_ms": "1676.32972727",
+      "max_ms": "2705.7410"
+    },
+    "outboxChannels": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "PENDING",
+        "n": 23
+      },
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "SENT",
+        "n": 33
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "PENDING",
+        "n": 7
+      }
+    ],
+    "outboxChannelLag": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 33,
+        "avg_ms": "1676.32972727",
+        "max_ms": "2705.7410"
+      }
+    ],
+    "outboxBacklogAge": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 23,
+        "oldest_ms": "2050.0840"
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "n": 7,
+        "oldest_ms": "709.3670"
+      }
+    ],
+    "purchaseRequests": [
+      {
+        "status": "SUCCEEDED",
+        "failure_code": "NONE",
+        "n": 35
+      },
+      {
+        "status": "PROCESSING",
+        "failure_code": "NONE",
+        "n": 2
+      },
+      {
+        "status": "QUEUED",
+        "failure_code": "NONE",
+        "n": 19
+      }
+    ],
+    "jvm": {
+      "process.cpu.usage": [
+        {
+          "statistic": "VALUE",
+          "value": 0.1299002869418948
+        }
+      ],
+      "jvm.memory.used": [
+        {
+          "statistic": "VALUE",
+          "value": 301982048.0
+        }
+      ],
+      "jvm.gc.pause": [
+        {
+          "statistic": "COUNT",
+          "value": 3.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.08399999999999999
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.034
+        }
+      ],
+      "jvm.threads.live": [
+        {
+          "statistic": "VALUE",
+          "value": 80.0
+        }
+      ],
+      "hikaricp.connections.active": [
+        {
+          "statistic": "VALUE",
+          "value": 8.0
+        }
+      ],
+      "hikaricp.connections.pending": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.max": [
+        {
+          "statistic": "VALUE",
+          "value": 10.0
+        }
+      ],
+      "hikaricp.connections.acquire": [
+        {
+          "statistic": "COUNT",
+          "value": 1983.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 12.906701
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.354812
+        }
+      ],
+      "hikaricp.connections.timeout": [
+        {
+          "statistic": "COUNT",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.usage": [
+        {
+          "statistic": "COUNT",
+          "value": 1979.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 55.217
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.504
+        }
+      ],
+      "spring.rabbitmq.listener": [
+        {
+          "statistic": "COUNT",
+          "value": 56.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 7.6506371
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.4496002
+        }
+      ],
+      "ticketing.catalog.loads.active": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.catalog.local.entries": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.trade.transaction.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 36.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 5.471572
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.3485051
+        }
+      ],
+      "ticketing.trade.lock.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 190.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 6.1908375
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.3950292
+        }
+      ],
+      "ticketing.trade.quota": [
+        {
+          "statistic": "COUNT",
+          "value": 46.0
+        }
+      ],
+      "ticketing.outbox.confirm.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 69.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.4273207
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.0379714
+        }
+      ],
+      "ticketing.outbox.publish": [
+        {
+          "statistic": "COUNT",
+          "value": 144.0
+        }
+      ],
+      "ticketing.outbox.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 75.0
+        }
+      ],
+      "ticketing.purchase.accepted.to.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 37.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 77.139939
+        },
+        {
+          "statistic": "MAX",
+          "value": 3.262805
+        }
+      ],
+      "ticketing.purchase.delivery": [
+        {
+          "statistic": "COUNT",
+          "value": 17.0
+        }
+      ]
+    },
+    "rabbitmq": [
+      {
+        "name": "ticketing.audit.pipeline.it.queue",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.orders",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 720,
+          "ack_details": {
+            "rate": 0.0
+          },
+          "deliver": 720,
+          "deliver_details": {
+            "rate": 0.0
+          },
+          "deliver_get": 720,
+          "deliver_get_details": {
+            "rate": 0.0
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 720,
+          "publish_details": {
+            "rate": 0.0
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.purchase.orders.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders.dead",
+        "messages_ready": 99,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 633,
+          "ack_details": {
+            "rate": 0.0
+          },
+          "deliver": 633,
+          "deliver_details": {
+            "rate": 0.0
+          },
+          "deliver_get": 633,
+          "deliver_get_details": {
+            "rate": 0.0
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 633,
+          "publish_details": {
+            "rate": 0.0
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.waitlist.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch",
+        "messages_ready": 1,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      }
+    ]
+  },
+  {
+    "elapsedUtc": "2026-10-24T13:02:13.865862+00:00",
+    "mysql": {
+      "Com_commit": 22793,
+      "Com_rollback": 19,
+      "Com_select": 102749,
+      "Innodb_row_lock_time": 99088,
+      "Innodb_row_lock_waits": 1794,
+      "Questions": 236862,
+      "Slow_queries": 761,
+      "Threads_connected": 11,
+      "Threads_running": 4,
+      "lock_deadlocks": 0,
+      "lock_timeouts": 0,
+      "current_lock_waits": 0
+    },
+    "outbox": [
+      {
+        "status": "PENDING",
+        "n": 34,
+        "attempts": 1
+      },
+      {
+        "status": "SENT",
+        "n": 72,
+        "attempts": 2
+      }
+    ],
+    "outboxLag": {
+      "n": 72,
+      "avg_ms": "1326.00511111",
+      "max_ms": "2705.7410"
+    },
+    "outboxChannels": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "PENDING",
+        "n": 24
+      },
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "SENT",
+        "n": 54
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "PENDING",
+        "n": 10
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "SENT",
+        "n": 18
+      }
+    ],
+    "outboxChannelLag": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 54,
+        "avg_ms": "1613.98444444",
+        "max_ms": "2705.7410"
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "n": 18,
+        "avg_ms": "462.06711111",
+        "max_ms": "787.3650"
+      }
+    ],
+    "outboxBacklogAge": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 24,
+        "oldest_ms": "2667.9450"
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "n": 10,
+        "oldest_ms": "666.1110"
+      }
+    ],
+    "purchaseRequests": [
+      {
+        "status": "SUCCEEDED",
+        "failure_code": "NONE",
+        "n": 56
+      },
+      {
+        "status": "PROCESSING",
+        "failure_code": "NONE",
+        "n": 2
+      },
+      {
+        "status": "QUEUED",
+        "failure_code": "NONE",
+        "n": 20
+      }
+    ],
+    "jvm": {
+      "process.cpu.usage": [
+        {
+          "statistic": "VALUE",
+          "value": 0.1487902719320978
+        }
+      ],
+      "jvm.memory.used": [
+        {
+          "statistic": "VALUE",
+          "value": 137903728.0
+        }
+      ],
+      "jvm.gc.pause": [
+        {
+          "statistic": "COUNT",
+          "value": 4.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.10200000000000001
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.034
+        }
+      ],
+      "jvm.threads.live": [
+        {
+          "statistic": "VALUE",
+          "value": 83.0
+        }
+      ],
+      "hikaricp.connections.active": [
+        {
+          "statistic": "VALUE",
+          "value": 7.0
+        }
+      ],
+      "hikaricp.connections.pending": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.max": [
+        {
+          "statistic": "VALUE",
+          "value": 10.0
+        }
+      ],
+      "hikaricp.connections.acquire": [
+        {
+          "statistic": "COUNT",
+          "value": 2694.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 14.8769676
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.354812
+        }
+      ],
+      "hikaricp.connections.timeout": [
+        {
+          "statistic": "COUNT",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.usage": [
+        {
+          "statistic": "COUNT",
+          "value": 2693.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 71.203
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.504
+        }
+      ],
+      "spring.rabbitmq.listener": [
+        {
+          "statistic": "COUNT",
+          "value": 102.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 12.4037256
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.4496002
+        }
+      ],
+      "ticketing.catalog.loads.active": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.catalog.local.entries": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.trade.transaction.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 58.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 8.7843383
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.3485051
+        }
+      ],
+      "ticketing.trade.lock.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 318.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 9.013336200000001
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.3950292
+        }
+      ],
+      "ticketing.trade.quota": [
+        {
+          "statistic": "COUNT",
+          "value": 88.0
+        }
+      ],
+      "ticketing.outbox.confirm.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 112.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.7212834
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.0379714
+        }
+      ],
+      "ticketing.outbox.publish": [
+        {
+          "statistic": "COUNT",
+          "value": 224.0
+        }
+      ],
+      "ticketing.outbox.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 112.0
+        }
+      ],
+      "ticketing.purchase.accepted.to.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 60.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 125.882843
+        },
+        {
+          "statistic": "MAX",
+          "value": 3.262805
+        }
+      ],
+      "ticketing.purchase.delivery": [
+        {
+          "statistic": "COUNT",
+          "value": 27.0
+        }
+      ]
+    },
+    "rabbitmq": [
+      {
+        "name": "ticketing.audit.pipeline.it.queue",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.orders",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 778,
+          "ack_details": {
+            "rate": 17.4
+          },
+          "deliver": 780,
+          "deliver_details": {
+            "rate": 17.4
+          },
+          "deliver_get": 780,
+          "deliver_get_details": {
+            "rate": 17.4
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 801,
+          "publish_details": {
+            "rate": 16.2
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.purchase.orders.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders.dead",
+        "messages_ready": 99,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 643,
+          "ack_details": {
+            "rate": 8.2
+          },
+          "deliver": 643,
+          "deliver_details": {
+            "rate": 8.2
+          },
+          "deliver_get": 643,
+          "deliver_get_details": {
+            "rate": 8.2
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 643,
+          "publish_details": {
+            "rate": 8.2
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.waitlist.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch",
+        "messages_ready": 1,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      }
+    ]
+  },
+  {
+    "elapsedUtc": "2026-10-24T13:02:16.206425+00:00",
+    "mysql": {
+      "Com_commit": 23176,
+      "Com_rollback": 19,
+      "Com_select": 105036,
+      "Innodb_row_lock_time": 101846,
+      "Innodb_row_lock_waits": 1857,
+      "Questions": 241651,
+      "Slow_queries": 778,
+      "Threads_connected": 11,
+      "Threads_running": 5,
+      "lock_deadlocks": 0,
+      "lock_timeouts": 0,
+      "current_lock_waits": 0
+    },
+    "outbox": [
+      {
+        "status": "PENDING",
+        "n": 1,
+        "attempts": 0
+      },
+      {
+        "status": "PROCESSING",
+        "n": 1,
+        "attempts": 1
+      },
+      {
+        "status": "SENT",
+        "n": 149,
+        "attempts": 2
+      }
+    ],
+    "outboxLag": {
+      "n": 149,
+      "avg_ms": "1212.23051007",
+      "max_ms": "3264.1540"
+    },
+    "outboxChannels": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "PENDING",
+        "n": 1
+      },
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "SENT",
+        "n": 100
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "SENT",
+        "n": 50
+      }
+    ],
+    "outboxChannelLag": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 100,
+        "avg_ms": "1538.04869000",
+        "max_ms": "3264.1540"
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "n": 50,
+        "avg_ms": "539.16702000",
+        "max_ms": "1154.7650"
+      }
+    ],
+    "outboxBacklogAge": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 1,
+        "oldest_ms": "81.4270"
+      }
+    ],
+    "purchaseRequests": [
+      {
+        "status": "SUCCEEDED",
+        "failure_code": "NONE",
+        "n": 81
+      },
+      {
+        "status": "PROCESSING",
+        "failure_code": "NONE",
+        "n": 1
+      },
+      {
+        "status": "QUEUED",
+        "failure_code": "NONE",
+        "n": 19
+      }
+    ],
+    "jvm": {
+      "process.cpu.usage": [
+        {
+          "statistic": "VALUE",
+          "value": 0.14545868173465296
+        }
+      ],
+      "jvm.memory.used": [
+        {
+          "statistic": "VALUE",
+          "value": 283655792.0
+        }
+      ],
+      "jvm.gc.pause": [
+        {
+          "statistic": "COUNT",
+          "value": 4.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.10200000000000001
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.034
+        }
+      ],
+      "jvm.threads.live": [
+        {
+          "statistic": "VALUE",
+          "value": 87.0
+        }
+      ],
+      "hikaricp.connections.active": [
+        {
+          "statistic": "VALUE",
+          "value": 7.0
+        }
+      ],
+      "hikaricp.connections.pending": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.max": [
+        {
+          "statistic": "VALUE",
+          "value": 10.0
+        }
+      ],
+      "hikaricp.connections.acquire": [
+        {
+          "statistic": "COUNT",
+          "value": 3542.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 16.7689933
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.354812
+        }
+      ],
+      "hikaricp.connections.timeout": [
+        {
+          "statistic": "COUNT",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.usage": [
+        {
+          "statistic": "COUNT",
+          "value": 3541.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 88.568
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.504
+        }
+      ],
+      "spring.rabbitmq.listener": [
+        {
+          "statistic": "COUNT",
+          "value": 172.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 17.2638204
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.4496002
+        }
+      ],
+      "ticketing.catalog.loads.active": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.catalog.local.entries": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.trade.transaction.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 82.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 12.2034357
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.4033814
+        }
+      ],
+      "ticketing.trade.lock.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 460.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 12.1997667
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.3950292
+        }
+      ],
+      "ticketing.trade.quota": [
+        {
+          "statistic": "COUNT",
+          "value": 132.0
+        }
+      ],
+      "ticketing.outbox.confirm.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 196.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 1.281413
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.0379714
+        }
+      ],
+      "ticketing.outbox.publish": [
+        {
+          "statistic": "COUNT",
+          "value": 393.0
+        }
+      ],
+      "ticketing.outbox.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 197.0
+        }
+      ],
+      "ticketing.purchase.accepted.to.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 84.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 172.149568
+        },
+        {
+          "statistic": "MAX",
+          "value": 3.262805
+        }
+      ],
+      "ticketing.purchase.delivery": [
+        {
+          "statistic": "COUNT",
+          "value": 41.0
+        }
+      ]
+    },
+    "rabbitmq": [
+      {
+        "name": "ticketing.audit.pipeline.it.queue",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.orders",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 778,
+          "ack_details": {
+            "rate": 17.4
+          },
+          "deliver": 780,
+          "deliver_details": {
+            "rate": 17.4
+          },
+          "deliver_get": 780,
+          "deliver_get_details": {
+            "rate": 17.4
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 801,
+          "publish_details": {
+            "rate": 16.2
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.purchase.orders.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders.dead",
+        "messages_ready": 99,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 643,
+          "ack_details": {
+            "rate": 8.2
+          },
+          "deliver": 643,
+          "deliver_details": {
+            "rate": 8.2
+          },
+          "deliver_get": 643,
+          "deliver_get_details": {
+            "rate": 8.2
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 643,
+          "publish_details": {
+            "rate": 8.2
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.waitlist.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch",
+        "messages_ready": 1,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      }
+    ]
+  },
+  {
+    "elapsedUtc": "2026-10-24T13:02:18.437060+00:00",
+    "mysql": {
+      "Com_commit": 23638,
+      "Com_rollback": 19,
+      "Com_select": 107804,
+      "Innodb_row_lock_time": 104879,
+      "Innodb_row_lock_waits": 1937,
+      "Questions": 247462,
+      "Slow_queries": 801,
+      "Threads_connected": 11,
+      "Threads_running": 7,
+      "lock_deadlocks": 0,
+      "lock_timeouts": 0,
+      "current_lock_waits": 1
+    },
+    "outbox": [
+      {
+        "status": "PENDING",
+        "n": 15,
+        "attempts": 1
+      },
+      {
+        "status": "PROCESSING",
+        "n": 2,
+        "attempts": 1
+      },
+      {
+        "status": "SENT",
+        "n": 176,
+        "attempts": 2
+      }
+    ],
+    "outboxLag": {
+      "n": 176,
+      "avg_ms": "1248.92453977",
+      "max_ms": "3264.1540"
+    },
+    "outboxChannels": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "PENDING",
+        "n": 11
+      },
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "PROCESSING",
+        "n": 2
+      },
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "SENT",
+        "n": 120
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "PENDING",
+        "n": 4
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "SENT",
+        "n": 56
+      }
+    ],
+    "outboxChannelLag": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 120,
+        "avg_ms": "1594.84516667",
+        "max_ms": "3264.1540"
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "n": 56,
+        "avg_ms": "507.66605357",
+        "max_ms": "1154.7650"
+      }
+    ],
+    "outboxBacklogAge": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 13,
+        "oldest_ms": "1588.9650"
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "n": 4,
+        "oldest_ms": "196.3180"
+      }
+    ],
+    "purchaseRequests": [
+      {
+        "status": "SUCCEEDED",
+        "failure_code": "NONE",
+        "n": 111
+      },
+      {
+        "status": "PROCESSING",
+        "failure_code": "NONE",
+        "n": 2
+      },
+      {
+        "status": "QUEUED",
+        "failure_code": "NONE",
+        "n": 21
+      }
+    ],
+    "jvm": {
+      "process.cpu.usage": [
+        {
+          "statistic": "VALUE",
+          "value": 0.09426927692512624
+        }
+      ],
+      "jvm.memory.used": [
+        {
+          "statistic": "VALUE",
+          "value": 155896008.0
+        }
+      ],
+      "jvm.gc.pause": [
+        {
+          "statistic": "COUNT",
+          "value": 5.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.11099999999999999
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.034
+        }
+      ],
+      "jvm.threads.live": [
+        {
+          "statistic": "VALUE",
+          "value": 88.0
+        }
+      ],
+      "hikaricp.connections.active": [
+        {
+          "statistic": "VALUE",
+          "value": 9.0
+        }
+      ],
+      "hikaricp.connections.pending": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.max": [
+        {
+          "statistic": "VALUE",
+          "value": 10.0
+        }
+      ],
+      "hikaricp.connections.acquire": [
+        {
+          "statistic": "COUNT",
+          "value": 4457.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 17.0615056
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.354812
+        }
+      ],
+      "hikaricp.connections.timeout": [
+        {
+          "statistic": "COUNT",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.usage": [
+        {
+          "statistic": "COUNT",
+          "value": 4455.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 103.815
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.504
+        }
+      ],
+      "spring.rabbitmq.listener": [
+        {
+          "statistic": "COUNT",
+          "value": 235.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 21.8703219
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.4496002
+        }
+      ],
+      "ticketing.catalog.loads.active": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.catalog.local.entries": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.trade.transaction.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 113.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 15.5151363
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.4033814
+        }
+      ],
+      "ticketing.trade.lock.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 629.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 15.3848813
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.3950292
+        }
+      ],
+      "ticketing.trade.quota": [
+        {
+          "statistic": "COUNT",
+          "value": 175.0
+        }
+      ],
+      "ticketing.outbox.confirm.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 249.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 1.6213183
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.0379714
+        }
+      ],
+      "ticketing.outbox.publish": [
+        {
+          "statistic": "COUNT",
+          "value": 509.0
+        }
+      ],
+      "ticketing.outbox.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 260.0
+        }
+      ],
+      "ticketing.purchase.accepted.to.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 115.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 215.96063
+        },
+        {
+          "statistic": "MAX",
+          "value": 3.262805
+        }
+      ],
+      "ticketing.purchase.delivery": [
+        {
+          "statistic": "COUNT",
+          "value": 62.0
+        }
+      ]
+    },
+    "rabbitmq": [
+      {
+        "name": "ticketing.audit.pipeline.it.queue",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.orders",
+        "messages_ready": 27,
+        "messages_unacknowledged": 2,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 857,
+          "ack_details": {
+            "rate": 15.8
+          },
+          "deliver": 859,
+          "deliver_details": {
+            "rate": 15.8
+          },
+          "deliver_get": 859,
+          "deliver_get_details": {
+            "rate": 15.8
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 882,
+          "publish_details": {
+            "rate": 16.2
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.purchase.orders.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders.dead",
+        "messages_ready": 99,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 683,
+          "ack_details": {
+            "rate": 8.0
+          },
+          "deliver": 683,
+          "deliver_details": {
+            "rate": 8.0
+          },
+          "deliver_get": 683,
+          "deliver_get_details": {
+            "rate": 8.0
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 683,
+          "publish_details": {
+            "rate": 8.0
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.waitlist.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch",
+        "messages_ready": 1,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      }
+    ]
+  },
+  {
+    "elapsedUtc": "2026-10-24T13:02:20.807132+00:00",
+    "mysql": {
+      "Com_commit": 24101,
+      "Com_rollback": 19,
+      "Com_select": 110584,
+      "Innodb_row_lock_time": 107603,
+      "Innodb_row_lock_waits": 2011,
+      "Questions": 253288,
+      "Slow_queries": 821,
+      "Threads_connected": 11,
+      "Threads_running": 6,
+      "lock_deadlocks": 0,
+      "lock_timeouts": 0,
+      "current_lock_waits": 3
+    },
+    "outbox": [
+      {
+        "status": "PENDING",
+        "n": 34,
+        "attempts": 1
+      },
+      {
+        "status": "PROCESSING",
+        "n": 2,
+        "attempts": 1
+      },
+      {
+        "status": "SENT",
+        "n": 218,
+        "attempts": 2
+      }
+    ],
+    "outboxLag": {
+      "n": 218,
+      "avg_ms": "1165.21591743",
+      "max_ms": "3264.1540"
+    },
+    "outboxChannels": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "PENDING",
+        "n": 22
+      },
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "PROCESSING",
+        "n": 1
+      },
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "SENT",
+        "n": 141
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "PENDING",
+        "n": 12
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "PROCESSING",
+        "n": 1
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "SENT",
+        "n": 77
+      }
+    ],
+    "outboxChannelLag": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 141,
+        "avg_ms": "1526.46788652",
+        "max_ms": "3264.1540"
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "n": 77,
+        "avg_ms": "503.70257143",
+        "max_ms": "1154.7650"
+      }
+    ],
+    "outboxBacklogAge": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 23,
+        "oldest_ms": "2235.4530"
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "n": 13,
+        "oldest_ms": "926.2390"
+      }
+    ],
+    "purchaseRequests": [
+      {
+        "status": "SUCCEEDED",
+        "failure_code": "NONE",
+        "n": 144
+      },
+      {
+        "status": "PROCESSING",
+        "failure_code": "NONE",
+        "n": 2
+      },
+      {
+        "status": "QUEUED",
+        "failure_code": "NONE",
+        "n": 18
+      }
+    ],
+    "jvm": {
+      "process.cpu.usage": [
+        {
+          "statistic": "VALUE",
+          "value": 0.11810988854493337
+        }
+      ],
+      "jvm.memory.used": [
+        {
+          "statistic": "VALUE",
+          "value": 324716744.0
+        }
+      ],
+      "jvm.gc.pause": [
+        {
+          "statistic": "COUNT",
+          "value": 5.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.11099999999999999
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.034
+        }
+      ],
+      "jvm.threads.live": [
+        {
+          "statistic": "VALUE",
+          "value": 88.0
+        }
+      ],
+      "hikaricp.connections.active": [
+        {
+          "statistic": "VALUE",
+          "value": 9.0
+        }
+      ],
+      "hikaricp.connections.pending": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.max": [
+        {
+          "statistic": "VALUE",
+          "value": 10.0
+        }
+      ],
+      "hikaricp.connections.acquire": [
+        {
+          "statistic": "COUNT",
+          "value": 5376.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 17.3020234
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.354812
+        }
+      ],
+      "hikaricp.connections.timeout": [
+        {
+          "statistic": "COUNT",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.usage": [
+        {
+          "statistic": "COUNT",
+          "value": 5381.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 117.332
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.504
+        }
+      ],
+      "spring.rabbitmq.listener": [
+        {
+          "statistic": "COUNT",
+          "value": 305.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 26.462987000000002
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.4496002
+        }
+      ],
+      "ticketing.catalog.loads.active": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.catalog.local.entries": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.trade.transaction.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 146.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 18.775529
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.4033814
+        }
+      ],
+      "ticketing.trade.lock.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 827.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 18.5395317
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.3950292
+        }
+      ],
+      "ticketing.trade.quota": [
+        {
+          "statistic": "COUNT",
+          "value": 240.0
+        }
+      ],
+      "ticketing.outbox.confirm.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 309.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 1.9726192
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.0379714
+        }
+      ],
+      "ticketing.outbox.publish": [
+        {
+          "statistic": "COUNT",
+          "value": 629.0
+        }
+      ],
+      "ticketing.outbox.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 319.0
+        }
+      ],
+      "ticketing.purchase.accepted.to.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 148.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 263.189629
+        },
+        {
+          "statistic": "MAX",
+          "value": 3.262805
+        }
+      ],
+      "ticketing.purchase.delivery": [
+        {
+          "statistic": "COUNT",
+          "value": 73.0
+        }
+      ]
+    },
+    "rabbitmq": [
+      {
+        "name": "ticketing.audit.pipeline.it.queue",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.orders",
+        "messages_ready": 27,
+        "messages_unacknowledged": 2,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 857,
+          "ack_details": {
+            "rate": 15.8
+          },
+          "deliver": 859,
+          "deliver_details": {
+            "rate": 15.8
+          },
+          "deliver_get": 859,
+          "deliver_get_details": {
+            "rate": 15.8
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 882,
+          "publish_details": {
+            "rate": 16.2
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.purchase.orders.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders.dead",
+        "messages_ready": 99,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 683,
+          "ack_details": {
+            "rate": 8.0
+          },
+          "deliver": 683,
+          "deliver_details": {
+            "rate": 8.0
+          },
+          "deliver_get": 683,
+          "deliver_get_details": {
+            "rate": 8.0
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 683,
+          "publish_details": {
+            "rate": 8.0
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.waitlist.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch",
+        "messages_ready": 1,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      }
+    ]
+  },
+  {
+    "elapsedUtc": "2026-10-24T13:02:23.083662+00:00",
+    "mysql": {
+      "Com_commit": 24524,
+      "Com_rollback": 19,
+      "Com_select": 113208,
+      "Innodb_row_lock_time": 111068,
+      "Innodb_row_lock_waits": 2090,
+      "Questions": 258722,
+      "Slow_queries": 849,
+      "Threads_connected": 11,
+      "Threads_running": 4,
+      "lock_deadlocks": 0,
+      "lock_timeouts": 0,
+      "current_lock_waits": 0
+    },
+    "outbox": [
+      {
+        "status": "PENDING",
+        "n": 11,
+        "attempts": 0
+      },
+      {
+        "status": "SENT",
+        "n": 285,
+        "attempts": 2
+      }
+    ],
+    "outboxLag": {
+      "n": 285,
+      "avg_ms": "1139.99458246",
+      "max_ms": "3264.1540"
+    },
+    "outboxChannels": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "PENDING",
+        "n": 11
+      },
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "SENT",
+        "n": 185
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "SENT",
+        "n": 100
+      }
+    ],
+    "outboxChannelLag": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 185,
+        "avg_ms": "1471.30995676",
+        "max_ms": "3264.1540"
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "n": 100,
+        "avg_ms": "527.06114000",
+        "max_ms": "1154.7650"
+      }
+    ],
+    "outboxBacklogAge": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 11,
+        "oldest_ms": "760.4500"
+      }
+    ],
+    "purchaseRequests": [
+      {
+        "status": "SUCCEEDED",
+        "failure_code": "NONE",
+        "n": 175
+      },
+      {
+        "status": "PROCESSING",
+        "failure_code": "NONE",
+        "n": 1
+      },
+      {
+        "status": "QUEUED",
+        "failure_code": "NONE",
+        "n": 20
+      }
+    ],
+    "jvm": {
+      "process.cpu.usage": [
+        {
+          "statistic": "VALUE",
+          "value": 0.09270390663370189
+        }
+      ],
+      "jvm.memory.used": [
+        {
+          "statistic": "VALUE",
+          "value": 183722960.0
+        }
+      ],
+      "jvm.gc.pause": [
+        {
+          "statistic": "COUNT",
+          "value": 6.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.121
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.034
+        }
+      ],
+      "jvm.threads.live": [
+        {
+          "statistic": "VALUE",
+          "value": 88.0
+        }
+      ],
+      "hikaricp.connections.active": [
+        {
+          "statistic": "VALUE",
+          "value": 6.0
+        }
+      ],
+      "hikaricp.connections.pending": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.max": [
+        {
+          "statistic": "VALUE",
+          "value": 10.0
+        }
+      ],
+      "hikaricp.connections.acquire": [
+        {
+          "statistic": "COUNT",
+          "value": 6260.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 17.6303178
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.354812
+        }
+      ],
+      "hikaricp.connections.timeout": [
+        {
+          "statistic": "COUNT",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.usage": [
+        {
+          "statistic": "COUNT",
+          "value": 6261.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 132.419
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.504
+        }
+      ],
+      "spring.rabbitmq.listener": [
+        {
+          "statistic": "COUNT",
+          "value": 364.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 31.0796187
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.4496002
+        }
+      ],
+      "ticketing.catalog.loads.active": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.catalog.local.entries": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.trade.transaction.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 176.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 22.134846
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.4033814
+        }
+      ],
+      "ticketing.trade.lock.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 983.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 21.7374053
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.3950292
+        }
+      ],
+      "ticketing.trade.quota": [
+        {
+          "statistic": "COUNT",
+          "value": 279.0
+        }
+      ],
+      "ticketing.outbox.confirm.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 387.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 2.2276801
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.0379714
+        }
+      ],
+      "ticketing.outbox.publish": [
+        {
+          "statistic": "COUNT",
+          "value": 774.0
+        }
+      ],
+      "ticketing.outbox.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 387.0
+        }
+      ],
+      "ticketing.purchase.accepted.to.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 178.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 306.976742
+        },
+        {
+          "statistic": "MAX",
+          "value": 3.262805
+        }
+      ],
+      "ticketing.purchase.delivery": [
+        {
+          "statistic": "COUNT",
+          "value": 90.0
+        }
+      ]
+    },
+    "rabbitmq": [
+      {
+        "name": "ticketing.audit.pipeline.it.queue",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.orders",
+        "messages_ready": 4,
+        "messages_unacknowledged": 2,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 964,
+          "ack_details": {
+            "rate": 21.4
+          },
+          "deliver": 966,
+          "deliver_details": {
+            "rate": 21.4
+          },
+          "deliver_get": 966,
+          "deliver_get_details": {
+            "rate": 21.4
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 987,
+          "publish_details": {
+            "rate": 21.0
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.purchase.orders.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders.dead",
+        "messages_ready": 99,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 733,
+          "ack_details": {
+            "rate": 10.0
+          },
+          "deliver": 733,
+          "deliver_details": {
+            "rate": 10.0
+          },
+          "deliver_get": 733,
+          "deliver_get_details": {
+            "rate": 10.0
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 733,
+          "publish_details": {
+            "rate": 10.0
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.waitlist.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch",
+        "messages_ready": 1,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      }
+    ]
+  },
+  {
+    "elapsedUtc": "2026-10-24T13:02:25.328715+00:00",
+    "mysql": {
+      "Com_commit": 25026,
+      "Com_rollback": 19,
+      "Com_select": 116332,
+      "Innodb_row_lock_time": 113885,
+      "Innodb_row_lock_waits": 2186,
+      "Questions": 265228,
+      "Slow_queries": 872,
+      "Threads_connected": 11,
+      "Threads_running": 6,
+      "lock_deadlocks": 0,
+      "lock_timeouts": 0,
+      "current_lock_waits": 1
+    },
+    "outbox": [
+      {
+        "status": "PENDING",
+        "n": 5,
+        "attempts": 1
+      },
+      {
+        "status": "PROCESSING",
+        "n": 11,
+        "attempts": 2
+      },
+      {
+        "status": "SENT",
+        "n": 348,
+        "attempts": 2
+      }
+    ],
+    "outboxLag": {
+      "n": 349,
+      "avg_ms": "1056.10600860",
+      "max_ms": "3264.1540"
+    },
+    "outboxChannels": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "PENDING",
+        "n": 4
+      },
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "PROCESSING",
+        "n": 8
+      },
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "SENT",
+        "n": 220
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "PENDING",
+        "n": 1
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "PROCESSING",
+        "n": 2
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "SENT",
+        "n": 129
+      }
+    ],
+    "outboxChannelLag": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 220,
+        "avg_ms": "1403.01353182",
+        "max_ms": "3264.1540"
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "n": 129,
+        "avg_ms": "464.48077519",
+        "max_ms": "1154.7650"
+      }
+    ],
+    "outboxBacklogAge": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 12,
+        "oldest_ms": "1271.2580"
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "n": 3,
+        "oldest_ms": "258.8330"
+      }
+    ],
+    "purchaseRequests": [
+      {
+        "status": "SUCCEEDED",
+        "failure_code": "NONE",
+        "n": 210
+      },
+      {
+        "status": "PROCESSING",
+        "failure_code": "NONE",
+        "n": 1
+      },
+      {
+        "status": "QUEUED",
+        "failure_code": "NONE",
+        "n": 21
+      }
+    ],
+    "jvm": {
+      "process.cpu.usage": [
+        {
+          "statistic": "VALUE",
+          "value": 0.07199766479788079
+        }
+      ],
+      "jvm.memory.used": [
+        {
+          "statistic": "VALUE",
+          "value": 55091136.0
+        }
+      ],
+      "jvm.gc.pause": [
+        {
+          "statistic": "COUNT",
+          "value": 7.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.13
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.034
+        }
+      ],
+      "jvm.threads.live": [
+        {
+          "statistic": "VALUE",
+          "value": 88.0
+        }
+      ],
+      "hikaricp.connections.active": [
+        {
+          "statistic": "VALUE",
+          "value": 6.0
+        }
+      ],
+      "hikaricp.connections.pending": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.max": [
+        {
+          "statistic": "VALUE",
+          "value": 10.0
+        }
+      ],
+      "hikaricp.connections.acquire": [
+        {
+          "statistic": "COUNT",
+          "value": 7271.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 17.71554
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.354812
+        }
+      ],
+      "hikaricp.connections.timeout": [
+        {
+          "statistic": "COUNT",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.usage": [
+        {
+          "statistic": "COUNT",
+          "value": 7270.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 146.069
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.504
+        }
+      ],
+      "spring.rabbitmq.listener": [
+        {
+          "statistic": "COUNT",
+          "value": 452.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 35.5005367
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.4496002
+        }
+      ],
+      "ticketing.catalog.loads.active": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.catalog.local.entries": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.trade.transaction.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 212.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 25.2961957
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.4033814
+        }
+      ],
+      "ticketing.trade.lock.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 1194.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 24.5857326
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.3950292
+        }
+      ],
+      "ticketing.trade.quota": [
+        {
+          "statistic": "COUNT",
+          "value": 347.0
+        }
+      ],
+      "ticketing.outbox.confirm.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 480.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 2.6181713
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.0379714
+        }
+      ],
+      "ticketing.outbox.publish": [
+        {
+          "statistic": "COUNT",
+          "value": 961.0
+        }
+      ],
+      "ticketing.outbox.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 481.0
+        }
+      ],
+      "ticketing.purchase.accepted.to.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 214.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 351.858972
+        },
+        {
+          "statistic": "MAX",
+          "value": 3.262805
+        }
+      ],
+      "ticketing.purchase.delivery": [
+        {
+          "statistic": "COUNT",
+          "value": 110.0
+        }
+      ]
+    },
+    "rabbitmq": [
+      {
+        "name": "ticketing.audit.pipeline.it.queue",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.orders",
+        "messages_ready": 4,
+        "messages_unacknowledged": 2,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 964,
+          "ack_details": {
+            "rate": 21.4
+          },
+          "deliver": 966,
+          "deliver_details": {
+            "rate": 21.4
+          },
+          "deliver_get": 966,
+          "deliver_get_details": {
+            "rate": 21.4
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 987,
+          "publish_details": {
+            "rate": 21.0
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.purchase.orders.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders.dead",
+        "messages_ready": 99,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 733,
+          "ack_details": {
+            "rate": 10.0
+          },
+          "deliver": 733,
+          "deliver_details": {
+            "rate": 10.0
+          },
+          "deliver_get": 733,
+          "deliver_get_details": {
+            "rate": 10.0
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 733,
+          "publish_details": {
+            "rate": 10.0
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.waitlist.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch",
+        "messages_ready": 1,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      }
+    ]
+  },
+  {
+    "elapsedUtc": "2026-10-24T13:02:27.534649+00:00",
+    "mysql": {
+      "Com_commit": 25484,
+      "Com_rollback": 19,
+      "Com_select": 119126,
+      "Innodb_row_lock_time": 116024,
+      "Innodb_row_lock_waits": 2265,
+      "Questions": 271042,
+      "Slow_queries": 888,
+      "Threads_connected": 11,
+      "Threads_running": 4,
+      "lock_deadlocks": 0,
+      "lock_timeouts": 0,
+      "current_lock_waits": 1
+    },
+    "outbox": [
+      {
+        "status": "PENDING",
+        "n": 4,
+        "attempts": 0
+      },
+      {
+        "status": "PROCESSING",
+        "n": 2,
+        "attempts": 1
+      },
+      {
+        "status": "SENT",
+        "n": 406,
+        "attempts": 2
+      }
+    ],
+    "outboxLag": {
+      "n": 406,
+      "avg_ms": "1066.28094581",
+      "max_ms": "3264.1540"
+    },
+    "outboxChannels": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "PENDING",
+        "n": 4
+      },
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "PROCESSING",
+        "n": 2
+      },
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "SENT",
+        "n": 256
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "SENT",
+        "n": 150
+      }
+    ],
+    "outboxChannelLag": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 256,
+        "avg_ms": "1390.53579297",
+        "max_ms": "3264.1540"
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "n": 150,
+        "avg_ms": "512.88600667",
+        "max_ms": "1209.4100"
+      }
+    ],
+    "outboxBacklogAge": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 6,
+        "oldest_ms": "710.8540"
+      }
+    ],
+    "purchaseRequests": [
+      {
+        "status": "SUCCEEDED",
+        "failure_code": "NONE",
+        "n": 244
+      },
+      {
+        "status": "PROCESSING",
+        "failure_code": "NONE",
+        "n": 1
+      },
+      {
+        "status": "QUEUED",
+        "failure_code": "NONE",
+        "n": 18
+      }
+    ],
+    "jvm": {
+      "process.cpu.usage": [
+        {
+          "statistic": "VALUE",
+          "value": 0.05909947352646175
+        }
+      ],
+      "jvm.memory.used": [
+        {
+          "statistic": "VALUE",
+          "value": 231251904.0
+        }
+      ],
+      "jvm.gc.pause": [
+        {
+          "statistic": "COUNT",
+          "value": 7.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.13
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.034
+        }
+      ],
+      "jvm.threads.live": [
+        {
+          "statistic": "VALUE",
+          "value": 89.0
+        }
+      ],
+      "hikaricp.connections.active": [
+        {
+          "statistic": "VALUE",
+          "value": 9.0
+        }
+      ],
+      "hikaricp.connections.pending": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.max": [
+        {
+          "statistic": "VALUE",
+          "value": 10.0
+        }
+      ],
+      "hikaricp.connections.acquire": [
+        {
+          "statistic": "COUNT",
+          "value": 8202.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 17.7866611
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.354812
+        }
+      ],
+      "hikaricp.connections.timeout": [
+        {
+          "statistic": "COUNT",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.usage": [
+        {
+          "statistic": "COUNT",
+          "value": 8200.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 157.847
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.504
+        }
+      ],
+      "spring.rabbitmq.listener": [
+        {
+          "statistic": "COUNT",
+          "value": 521.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 39.609009
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.4496002
+        }
+      ],
+      "ticketing.catalog.loads.active": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.catalog.local.entries": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.trade.transaction.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 245.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 27.9552617
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.4033814
+        }
+      ],
+      "ticketing.trade.lock.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 1374.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 26.9536734
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.3950292
+        }
+      ],
+      "ticketing.trade.quota": [
+        {
+          "statistic": "COUNT",
+          "value": 395.0
+        }
+      ],
+      "ticketing.outbox.confirm.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 539.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 2.8367436999999995
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.0379714
+        }
+      ],
+      "ticketing.outbox.publish": [
+        {
+          "statistic": "COUNT",
+          "value": 1080.0
+        }
+      ],
+      "ticketing.outbox.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 541.0
+        }
+      ],
+      "ticketing.purchase.accepted.to.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 247.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 393.928395
+        },
+        {
+          "statistic": "MAX",
+          "value": 3.262805
+        }
+      ],
+      "ticketing.purchase.delivery": [
+        {
+          "statistic": "COUNT",
+          "value": 126.0
+        }
+      ]
+    },
+    "rabbitmq": [
+      {
+        "name": "ticketing.audit.pipeline.it.queue",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.orders",
+        "messages_ready": 31,
+        "messages_unacknowledged": 2,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 1083,
+          "ack_details": {
+            "rate": 23.8
+          },
+          "deliver": 1085,
+          "deliver_details": {
+            "rate": 23.8
+          },
+          "deliver_get": 1085,
+          "deliver_get_details": {
+            "rate": 23.8
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 1089,
+          "publish_details": {
+            "rate": 20.4
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.purchase.orders.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders.dead",
+        "messages_ready": 99,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 783,
+          "ack_details": {
+            "rate": 10.0
+          },
+          "deliver": 783,
+          "deliver_details": {
+            "rate": 10.0
+          },
+          "deliver_get": 783,
+          "deliver_get_details": {
+            "rate": 10.0
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 783,
+          "publish_details": {
+            "rate": 10.0
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.waitlist.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch",
+        "messages_ready": 1,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      }
+    ]
+  },
+  {
+    "elapsedUtc": "2026-10-24T13:02:29.775929+00:00",
+    "mysql": {
+      "Com_commit": 25936,
+      "Com_rollback": 19,
+      "Com_select": 121999,
+      "Innodb_row_lock_time": 119422,
+      "Innodb_row_lock_waits": 2365,
+      "Questions": 276939,
+      "Slow_queries": 915,
+      "Threads_connected": 11,
+      "Threads_running": 7,
+      "lock_deadlocks": 0,
+      "lock_timeouts": 0,
+      "current_lock_waits": 3
+    },
+    "outbox": [
+      {
+        "status": "PENDING",
+        "n": 19,
+        "attempts": 0
+      },
+      {
+        "status": "PROCESSING",
+        "n": 6,
+        "attempts": 1
+      },
+      {
+        "status": "SENT",
+        "n": 449,
+        "attempts": 2
+      }
+    ],
+    "outboxLag": {
+      "n": 449,
+      "avg_ms": "1074.81806459",
+      "max_ms": "3264.1540"
+    },
+    "outboxChannels": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "PENDING",
+        "n": 16
+      },
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "PROCESSING",
+        "n": 1
+      },
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "SENT",
+        "n": 282
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "PENDING",
+        "n": 3
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "PROCESSING",
+        "n": 5
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "SENT",
+        "n": 167
+      }
+    ],
+    "outboxChannelLag": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 282,
+        "avg_ms": "1406.91289362",
+        "max_ms": "3264.1540"
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "n": 167,
+        "avg_ms": "514.03517964",
+        "max_ms": "1209.4100"
+      }
+    ],
+    "outboxBacklogAge": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 17,
+        "oldest_ms": "1255.1350"
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "n": 9,
+        "oldest_ms": "535.8660"
+      }
+    ],
+    "purchaseRequests": [
+      {
+        "status": "SUCCEEDED",
+        "failure_code": "NONE",
+        "n": 279
+      },
+      {
+        "status": "PROCESSING",
+        "failure_code": "NONE",
+        "n": 1
+      },
+      {
+        "status": "QUEUED",
+        "failure_code": "NONE",
+        "n": 19
+      }
+    ],
+    "jvm": {
+      "process.cpu.usage": [
+        {
+          "statistic": "VALUE",
+          "value": 0.05952637977233258
+        }
+      ],
+      "jvm.memory.used": [
+        {
+          "statistic": "VALUE",
+          "value": 100755208.0
+        }
+      ],
+      "jvm.gc.pause": [
+        {
+          "statistic": "COUNT",
+          "value": 8.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.139
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.034
+        }
+      ],
+      "jvm.threads.live": [
+        {
+          "statistic": "VALUE",
+          "value": 89.0
+        }
+      ],
+      "hikaricp.connections.active": [
+        {
+          "statistic": "VALUE",
+          "value": 7.0
+        }
+      ],
+      "hikaricp.connections.pending": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.max": [
+        {
+          "statistic": "VALUE",
+          "value": 10.0
+        }
+      ],
+      "hikaricp.connections.acquire": [
+        {
+          "statistic": "COUNT",
+          "value": 9136.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 18.0562575
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.354812
+        }
+      ],
+      "hikaricp.connections.timeout": [
+        {
+          "statistic": "COUNT",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.usage": [
+        {
+          "statistic": "COUNT",
+          "value": 9135.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 172.57
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.504
+        }
+      ],
+      "spring.rabbitmq.listener": [
+        {
+          "statistic": "COUNT",
+          "value": 589.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 44.226605199999995
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.4496002
+        }
+      ],
+      "ticketing.catalog.loads.active": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.catalog.local.entries": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.trade.transaction.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 280.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 31.21833
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.4033814
+        }
+      ],
+      "ticketing.trade.lock.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 1578.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 30.1142715
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.3950292
+        }
+      ],
+      "ticketing.trade.quota": [
+        {
+          "statistic": "COUNT",
+          "value": 459.0
+        }
+      ],
+      "ticketing.outbox.confirm.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 595.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 3.0718123
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.0379714
+        }
+      ],
+      "ticketing.outbox.publish": [
+        {
+          "statistic": "COUNT",
+          "value": 1206.0
+        }
+      ],
+      "ticketing.outbox.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 611.0
+        }
+      ],
+      "ticketing.purchase.accepted.to.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 282.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 437.807008
+        },
+        {
+          "statistic": "MAX",
+          "value": 3.262805
+        }
+      ],
+      "ticketing.purchase.delivery": [
+        {
+          "statistic": "COUNT",
+          "value": 138.0
+        }
+      ]
+    },
+    "rabbitmq": [
+      {
+        "name": "ticketing.audit.pipeline.it.queue",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.orders",
+        "messages_ready": 31,
+        "messages_unacknowledged": 2,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 1083,
+          "ack_details": {
+            "rate": 23.8
+          },
+          "deliver": 1085,
+          "deliver_details": {
+            "rate": 23.8
+          },
+          "deliver_get": 1085,
+          "deliver_get_details": {
+            "rate": 23.8
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 1089,
+          "publish_details": {
+            "rate": 20.4
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.purchase.orders.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders.dead",
+        "messages_ready": 99,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 783,
+          "ack_details": {
+            "rate": 10.0
+          },
+          "deliver": 783,
+          "deliver_details": {
+            "rate": 10.0
+          },
+          "deliver_get": 783,
+          "deliver_get_details": {
+            "rate": 10.0
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 783,
+          "publish_details": {
+            "rate": 10.0
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.waitlist.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch",
+        "messages_ready": 1,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      }
+    ]
+  },
+  {
+    "elapsedUtc": "2026-10-24T13:02:31.990510+00:00",
+    "mysql": {
+      "Com_commit": 26396,
+      "Com_rollback": 19,
+      "Com_select": 124861,
+      "Innodb_row_lock_time": 123280,
+      "Innodb_row_lock_waits": 2464,
+      "Questions": 282889,
+      "Slow_queries": 946,
+      "Threads_connected": 11,
+      "Threads_running": 2,
+      "lock_deadlocks": 0,
+      "lock_timeouts": 0,
+      "current_lock_waits": 0
+    },
+    "outbox": [
+      {
+        "status": "PENDING",
+        "n": 41,
+        "attempts": 1
+      },
+      {
+        "status": "SENT",
+        "n": 494,
+        "attempts": 2
+      }
+    ],
+    "outboxLag": {
+      "n": 494,
+      "avg_ms": "1039.03173684",
+      "max_ms": "3264.1540"
+    },
+    "outboxChannels": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "PENDING",
+        "n": 30
+      },
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "SENT",
+        "n": 305
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "PENDING",
+        "n": 11
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "SENT",
+        "n": 189
+      }
+    ],
+    "outboxChannelLag": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 305,
+        "avg_ms": "1376.26550492",
+        "max_ms": "3264.1540"
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "n": 189,
+        "avg_ms": "494.81851323",
+        "max_ms": "1209.4100"
+      }
+    ],
+    "outboxBacklogAge": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 30,
+        "oldest_ms": "1698.9390"
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "n": 11,
+        "oldest_ms": "1012.8480"
+      }
+    ],
+    "purchaseRequests": [
+      {
+        "status": "SUCCEEDED",
+        "failure_code": "NONE",
+        "n": 313
+      },
+      {
+        "status": "QUEUED",
+        "failure_code": "NONE",
+        "n": 22
+      }
+    ],
+    "jvm": {
+      "process.cpu.usage": [
+        {
+          "statistic": "VALUE",
+          "value": 0.049217087643647746
+        }
+      ],
+      "jvm.memory.used": [
+        {
+          "statistic": "VALUE",
+          "value": 266430216.0
+        }
+      ],
+      "jvm.gc.pause": [
+        {
+          "statistic": "COUNT",
+          "value": 8.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.139
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.034
+        }
+      ],
+      "jvm.threads.live": [
+        {
+          "statistic": "VALUE",
+          "value": 89.0
+        }
+      ],
+      "hikaricp.connections.active": [
+        {
+          "statistic": "VALUE",
+          "value": 3.0
+        }
+      ],
+      "hikaricp.connections.pending": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.max": [
+        {
+          "statistic": "VALUE",
+          "value": 10.0
+        }
+      ],
+      "hikaricp.connections.acquire": [
+        {
+          "statistic": "COUNT",
+          "value": 9999.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 18.1549444
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.354812
+        }
+      ],
+      "hikaricp.connections.timeout": [
+        {
+          "statistic": "COUNT",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.usage": [
+        {
+          "statistic": "COUNT",
+          "value": 10001.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 185.431
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.504
+        }
+      ],
+      "spring.rabbitmq.listener": [
+        {
+          "statistic": "COUNT",
+          "value": 647.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 48.346795900000004
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.4496002
+        }
+      ],
+      "ticketing.catalog.loads.active": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.catalog.local.entries": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.trade.transaction.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 313.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 34.1190901
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.4033814
+        }
+      ],
+      "ticketing.trade.lock.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 1765.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 33.3727283
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.3950292
+        }
+      ],
+      "ticketing.trade.quota": [
+        {
+          "statistic": "COUNT",
+          "value": 513.0
+        }
+      ],
+      "ticketing.outbox.confirm.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 647.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 3.2988455
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.0379714
+        }
+      ],
+      "ticketing.outbox.publish": [
+        {
+          "statistic": "COUNT",
+          "value": 1294.0
+        }
+      ],
+      "ticketing.outbox.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 647.0
+        }
+      ],
+      "ticketing.purchase.accepted.to.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 313.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 477.876172
+        },
+        {
+          "statistic": "MAX",
+          "value": 3.262805
+        }
+      ],
+      "ticketing.purchase.delivery": [
+        {
+          "statistic": "COUNT",
+          "value": 145.0
+        }
+      ]
+    },
+    "rabbitmq": [
+      {
+        "name": "ticketing.audit.pipeline.it.queue",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.orders",
+        "messages_ready": 31,
+        "messages_unacknowledged": 2,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 1083,
+          "ack_details": {
+            "rate": 23.8
+          },
+          "deliver": 1085,
+          "deliver_details": {
+            "rate": 23.8
+          },
+          "deliver_get": 1085,
+          "deliver_get_details": {
+            "rate": 23.8
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 1089,
+          "publish_details": {
+            "rate": 20.4
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.purchase.orders.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders.dead",
+        "messages_ready": 99,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 783,
+          "ack_details": {
+            "rate": 10.0
+          },
+          "deliver": 783,
+          "deliver_details": {
+            "rate": 10.0
+          },
+          "deliver_get": 783,
+          "deliver_get_details": {
+            "rate": 10.0
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 783,
+          "publish_details": {
+            "rate": 10.0
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.waitlist.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch",
+        "messages_ready": 1,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      }
+    ]
+  },
+  {
+    "elapsedUtc": "2026-10-24T13:02:34.159435+00:00",
+    "mysql": {
+      "Com_commit": 26857,
+      "Com_rollback": 19,
+      "Com_select": 127823,
+      "Innodb_row_lock_time": 125935,
+      "Innodb_row_lock_waits": 2553,
+      "Questions": 288973,
+      "Slow_queries": 960,
+      "Threads_connected": 11,
+      "Threads_running": 3,
+      "lock_deadlocks": 0,
+      "lock_timeouts": 0,
+      "current_lock_waits": 1
+    },
+    "outbox": [
+      {
+        "status": "PENDING",
+        "n": 15,
+        "attempts": 0
+      },
+      {
+        "status": "SENT",
+        "n": 577,
+        "attempts": 2
+      }
+    ],
+    "outboxLag": {
+      "n": 577,
+      "avg_ms": "1025.93900347",
+      "max_ms": "3264.1540"
+    },
+    "outboxChannels": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "PENDING",
+        "n": 8
+      },
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "SENT",
+        "n": 363
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "PENDING",
+        "n": 7
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "SENT",
+        "n": 214
+      }
+    ],
+    "outboxChannelLag": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 363,
+        "avg_ms": "1331.45066942",
+        "max_ms": "3264.1540"
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "n": 214,
+        "avg_ms": "507.71127103",
+        "max_ms": "1211.8670"
+      }
+    ],
+    "outboxBacklogAge": [
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "n": 7,
+        "oldest_ms": "371.6120"
+      },
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 8,
+        "oldest_ms": "334.9010"
+      }
+    ],
+    "purchaseRequests": [
+      {
+        "status": "SUCCEEDED",
+        "failure_code": "NONE",
+        "n": 350
+      },
+      {
+        "status": "PROCESSING",
+        "failure_code": "NONE",
+        "n": 1
+      },
+      {
+        "status": "QUEUED",
+        "failure_code": "NONE",
+        "n": 20
+      }
+    ],
+    "jvm": {
+      "process.cpu.usage": [
+        {
+          "statistic": "VALUE",
+          "value": 0.044631462092992485
+        }
+      ],
+      "jvm.memory.used": [
+        {
+          "statistic": "VALUE",
+          "value": 138425384.0
+        }
+      ],
+      "jvm.gc.pause": [
+        {
+          "statistic": "COUNT",
+          "value": 9.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.145
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.034
+        }
+      ],
+      "jvm.threads.live": [
+        {
+          "statistic": "VALUE",
+          "value": 91.0
+        }
+      ],
+      "hikaricp.connections.active": [
+        {
+          "statistic": "VALUE",
+          "value": 3.0
+        }
+      ],
+      "hikaricp.connections.pending": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.max": [
+        {
+          "statistic": "VALUE",
+          "value": 10.0
+        }
+      ],
+      "hikaricp.connections.acquire": [
+        {
+          "statistic": "COUNT",
+          "value": 10981.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 18.1855325
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.354812
+        }
+      ],
+      "hikaricp.connections.timeout": [
+        {
+          "statistic": "COUNT",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.usage": [
+        {
+          "statistic": "COUNT",
+          "value": 10981.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 198.146
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.504
+        }
+      ],
+      "spring.rabbitmq.listener": [
+        {
+          "statistic": "COUNT",
+          "value": 726.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 52.469824200000005
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.4496002
+        }
+      ],
+      "ticketing.catalog.loads.active": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.catalog.local.entries": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.trade.transaction.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 351.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 36.9732228
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.4033814
+        }
+      ],
+      "ticketing.trade.lock.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 1976.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 35.7770275
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.3950292
+        }
+      ],
+      "ticketing.trade.quota": [
+        {
+          "statistic": "COUNT",
+          "value": 574.0
+        }
+      ],
+      "ticketing.outbox.confirm.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 747.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 3.634575
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.0379714
+        }
+      ],
+      "ticketing.outbox.publish": [
+        {
+          "statistic": "COUNT",
+          "value": 1494.0
+        }
+      ],
+      "ticketing.outbox.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 747.0
+        }
+      ],
+      "ticketing.purchase.accepted.to.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 353.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 524.587882
+        },
+        {
+          "statistic": "MAX",
+          "value": 3.262805
+        }
+      ],
+      "ticketing.purchase.delivery": [
+        {
+          "statistic": "COUNT",
+          "value": 163.0
+        }
+      ]
+    },
+    "rabbitmq": [
+      {
+        "name": "ticketing.audit.pipeline.it.queue",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.orders",
+        "messages_ready": 18,
+        "messages_unacknowledged": 2,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 1178,
+          "ack_details": {
+            "rate": 19.0
+          },
+          "deliver": 1178,
+          "deliver_details": {
+            "rate": 18.6
+          },
+          "deliver_get": 1178,
+          "deliver_get_details": {
+            "rate": 18.6
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 1178,
+          "publish_details": {
+            "rate": 17.8
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.purchase.orders.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders.dead",
+        "messages_ready": 99,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 822,
+          "ack_details": {
+            "rate": 7.8
+          },
+          "deliver": 822,
+          "deliver_details": {
+            "rate": 7.8
+          },
+          "deliver_get": 822,
+          "deliver_get_details": {
+            "rate": 7.8
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 822,
+          "publish_details": {
+            "rate": 7.8
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.waitlist.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch",
+        "messages_ready": 1,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      }
+    ]
+  },
+  {
+    "elapsedUtc": "2026-10-24T13:02:36.337556+00:00",
+    "mysql": {
+      "Com_commit": 27320,
+      "Com_rollback": 19,
+      "Com_select": 130730,
+      "Innodb_row_lock_time": 128115,
+      "Innodb_row_lock_waits": 2632,
+      "Questions": 294954,
+      "Slow_queries": 973,
+      "Threads_connected": 11,
+      "Threads_running": 7,
+      "lock_deadlocks": 0,
+      "lock_timeouts": 0,
+      "current_lock_waits": 3
+    },
+    "outbox": [
+      {
+        "status": "PENDING",
+        "n": 5,
+        "attempts": 1
+      },
+      {
+        "status": "PROCESSING",
+        "n": 15,
+        "attempts": 1
+      },
+      {
+        "status": "SENT",
+        "n": 630,
+        "attempts": 2
+      }
+    ],
+    "outboxLag": {
+      "n": 630,
+      "avg_ms": "1046.01459841",
+      "max_ms": "3264.1540"
+    },
+    "outboxChannels": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "PENDING",
+        "n": 5
+      },
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "PROCESSING",
+        "n": 12
+      },
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "SENT",
+        "n": 383
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "PROCESSING",
+        "n": 3
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "SENT",
+        "n": 247
+      }
+    ],
+    "outboxChannelLag": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 383,
+        "avg_ms": "1359.33099478",
+        "max_ms": "3264.1540"
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "n": 247,
+        "avg_ms": "560.18391093",
+        "max_ms": "1356.2970"
+      }
+    ],
+    "outboxBacklogAge": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 17,
+        "oldest_ms": "1340.7500"
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "n": 3,
+        "oldest_ms": "227.5640"
+      }
+    ],
+    "purchaseRequests": [
+      {
+        "status": "SUCCEEDED",
+        "failure_code": "NONE",
+        "n": 385
+      },
+      {
+        "status": "PROCESSING",
+        "failure_code": "NONE",
+        "n": 1
+      },
+      {
+        "status": "QUEUED",
+        "failure_code": "NONE",
+        "n": 14
+      }
+    ],
+    "jvm": {
+      "process.cpu.usage": [
+        {
+          "statistic": "VALUE",
+          "value": 0.05333518573813676
+        }
+      ],
+      "jvm.memory.used": [
+        {
+          "statistic": "VALUE",
+          "value": 317731880.0
+        }
+      ],
+      "jvm.gc.pause": [
+        {
+          "statistic": "COUNT",
+          "value": 9.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.145
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.034
+        }
+      ],
+      "jvm.threads.live": [
+        {
+          "statistic": "VALUE",
+          "value": 91.0
+        }
+      ],
+      "hikaricp.connections.active": [
+        {
+          "statistic": "VALUE",
+          "value": 6.0
+        }
+      ],
+      "hikaricp.connections.pending": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.max": [
+        {
+          "statistic": "VALUE",
+          "value": 10.0
+        }
+      ],
+      "hikaricp.connections.acquire": [
+        {
+          "statistic": "COUNT",
+          "value": 11965.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 18.2803535
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.354812
+        }
+      ],
+      "hikaricp.connections.timeout": [
+        {
+          "statistic": "COUNT",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.usage": [
+        {
+          "statistic": "COUNT",
+          "value": 11967.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 210.062
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.504
+        }
+      ],
+      "spring.rabbitmq.listener": [
+        {
+          "statistic": "COUNT",
+          "value": 812.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 56.3666535
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.4496002
+        }
+      ],
+      "ticketing.catalog.loads.active": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.catalog.local.entries": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.trade.transaction.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 386.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 39.5471746
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.4033814
+        }
+      ],
+      "ticketing.trade.lock.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 2179.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 37.9044512
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.3950292
+        }
+      ],
+      "ticketing.trade.quota": [
+        {
+          "statistic": "COUNT",
+          "value": 637.0
+        }
+      ],
+      "ticketing.outbox.confirm.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 817.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 3.8942926
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.0379714
+        }
+      ],
+      "ticketing.outbox.publish": [
+        {
+          "statistic": "COUNT",
+          "value": 1644.0
+        }
+      ],
+      "ticketing.outbox.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 827.0
+        }
+      ],
+      "ticketing.purchase.accepted.to.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 389.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 567.351378
+        },
+        {
+          "statistic": "MAX",
+          "value": 3.262805
+        }
+      ],
+      "ticketing.purchase.delivery": [
+        {
+          "statistic": "COUNT",
+          "value": 177.0
+        }
+      ]
+    },
+    "rabbitmq": [
+      {
+        "name": "ticketing.audit.pipeline.it.queue",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.orders",
+        "messages_ready": 18,
+        "messages_unacknowledged": 2,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 1178,
+          "ack_details": {
+            "rate": 19.0
+          },
+          "deliver": 1178,
+          "deliver_details": {
+            "rate": 18.6
+          },
+          "deliver_get": 1178,
+          "deliver_get_details": {
+            "rate": 18.6
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 1178,
+          "publish_details": {
+            "rate": 17.8
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.purchase.orders.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.purchase.stage14.it.orders.dead",
+        "messages_ready": 99,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 2,
+        "message_stats": {
+          "ack": 822,
+          "ack_details": {
+            "rate": 7.8
+          },
+          "deliver": 822,
+          "deliver_details": {
+            "rate": 7.8
+          },
+          "deliver_get": 822,
+          "deliver_get_details": {
+            "rate": 7.8
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 822,
+          "publish_details": {
+            "rate": 7.8
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.waitlist.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch",
+        "messages_ready": 1,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.stage14.it.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      }
+    ]
+  }
+]

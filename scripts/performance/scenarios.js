@@ -126,7 +126,11 @@ export function setup() {
 }
 export default function (data) {
   const index = exec.vu.idInTest - 1;
-  if (!token) login(mode === 'checkin' ? fixture.admins[index] : fixture.users[index]);
+  if (!token) {
+    // 登录与CSRF仅用于建立独立买家会话，不计入稳态窗口；错开初始BCrypt/数据库检查，避免夹具启动突发占满连接池。
+    sleep(Math.min(index, 99) * 0.04);
+    login(mode === 'checkin' ? fixture.admins[index] : fixture.users[index]);
+  }
   const target = mode === 'mixed' ? fixture.mixed[(exec.vu.iterationInScenario +
     (fixture.sharedUserScenario === true ? index : 0)) % fixture.mixed.length] : fixture.target;
   if (mode === 'query') {

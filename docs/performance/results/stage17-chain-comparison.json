@@ -1,0 +1,494 @@
+{
+  "environment": "ticketing-perf-only",
+  "passed": true,
+  "candidateJarSha256": "4a12f97c8bc0d9f7cf9a8dd014cb54de0cc5f739a42b970a2097652baa993459",
+  "scenarioScriptSha256": "36aa11449b0faa42a8c1c5bc38dd1455a710dedb073b5802b2c2375d97ded5b2",
+  "consumerConcurrency": 2,
+  "consumerPrefetch": 1,
+  "outboxWindow": 16,
+  "hikariPoolSize": 10,
+  "warmupSeconds": 10,
+  "steadyWindowSeconds": 20,
+  "vusByScenario": {
+    "hot-ample": 100,
+    "hot-scarce": 100,
+    "mixed": 25,
+    "same-user-cross-session": 25
+  },
+  "aggregation": "每个模式每个场景两轮；订单TPS、端到端延迟、MySQL锁等待以两轮各自稳定窗口结果的中位数汇总。可靠受理TPS与HTTP RPS单独呈现，不代替订单TPS。",
+  "orderRotation": {
+    "stage17-single-r3": [
+      "hot-ample",
+      "hot-scarce",
+      "mixed",
+      "same-user-cross-session"
+    ],
+    "stage17-single-r4": [
+      "same-user-cross-session",
+      "mixed",
+      "hot-scarce",
+      "hot-ample"
+    ],
+    "stage17-bucket4-r3": [
+      "same-user-cross-session",
+      "mixed",
+      "hot-scarce",
+      "hot-ample"
+    ],
+    "stage17-bucket4-r4": [
+      "hot-ample",
+      "hot-scarce",
+      "mixed",
+      "same-user-cross-session"
+    ]
+  },
+  "completeComparisonRounds": [
+    "stage17-single-r3",
+    "stage17-single-r4",
+    "stage17-bucket4-r3",
+    "stage17-bucket4-r4"
+  ],
+  "failedEarlierBucketedRounds": [
+    "stage17-bucket4-r1",
+    "stage17-bucket4-r2"
+  ],
+  "limitations": [
+    "旧包历史基线使用原脚本且只测一轮，仅用于上下文；生产策略结论基于同一候选JAR与同一新脚本的SINGLE/4桶两轮对照。",
+    "登录初始化按VU索引每40ms错峰，最多延迟3.96秒；10秒预热后才统计20秒稳态窗口。正式交易VU并发不变。",
+    "单机固定参数对照不等同于生产容量保证。"
+  ],
+  "scenarios": [
+    {
+      "scenario": "hot-ample",
+      "historicalBeforeStage17": {
+        "jarSha256": "4d86020249e9e837248e4ff68c80215160818ddd33cadd19971e162da5a62610",
+        "orderTps": 10.05,
+        "acceptedTps": 10.15,
+        "httpRps": 328.25,
+        "p50Ms": 10586,
+        "p95Ms": 15281,
+        "p99Ms": 16148,
+        "raw": "docs\\performance\\results\\stage17-before\\hot-ample\\hot-ample-100"
+      },
+      "candidateSingle": {
+        "roundCount": 2,
+        "orderTpsMedian": 13.7,
+        "acceptedTpsMedian": 13.775,
+        "httpRpsMedian": 372.425,
+        "endToEndCompletionMs": {
+          "p50Median": 7540.0,
+          "p95Median": 9804.8,
+          "p99Median": 10523.87
+        },
+        "mysqlRowLockWaitMsMedian": 54807.5,
+        "mysqlRowLockWaitsMedian": 1219.0,
+        "mysqlDeadlocksTotal": 0,
+        "mysqlLockTimeoutsTotal": 0,
+        "serverErrorsTotal": 0,
+        "transportErrorsTotal": 0,
+        "allAuditsPassed": true,
+        "outboxBacklogRowsAtEndTotal": 0,
+        "runValues": [
+          {
+            "label": "stage17-single-r3",
+            "orderTps": 16.55,
+            "acceptedTps": 16.7,
+            "httpRps": 410.55,
+            "p50Ms": 5791,
+            "p95Ms": 6849,
+            "p99Ms": 7125.5,
+            "mysqlRowLockTimeMs": 66702,
+            "mysqlDeadlocks": 0,
+            "auditPassed": true
+          },
+          {
+            "label": "stage17-single-r4",
+            "orderTps": 10.85,
+            "acceptedTps": 10.85,
+            "httpRps": 334.3,
+            "p50Ms": 9289,
+            "p95Ms": 12760.599999999999,
+            "p99Ms": 13922.24,
+            "mysqlRowLockTimeMs": 42913,
+            "mysqlDeadlocks": 0,
+            "auditPassed": true
+          }
+        ]
+      },
+      "candidateBucketed4": {
+        "roundCount": 2,
+        "orderTpsMedian": 11.425,
+        "acceptedTpsMedian": 11.425,
+        "httpRpsMedian": 314.075,
+        "endToEndCompletionMs": {
+          "p50Median": 8765.25,
+          "p95Median": 14477.95,
+          "p99Median": 15368.655
+        },
+        "mysqlRowLockWaitMsMedian": 21688.5,
+        "mysqlRowLockWaitsMedian": 517.5,
+        "mysqlDeadlocksTotal": 0,
+        "mysqlLockTimeoutsTotal": 0,
+        "serverErrorsTotal": 0,
+        "transportErrorsTotal": 0,
+        "allAuditsPassed": true,
+        "outboxBacklogRowsAtEndTotal": 0,
+        "runValues": [
+          {
+            "label": "stage17-bucket4-r3",
+            "orderTps": 11.2,
+            "acceptedTps": 11.15,
+            "httpRps": 310.3,
+            "p50Ms": 9212.5,
+            "p95Ms": 14996.5,
+            "p99Ms": 15676.11,
+            "mysqlRowLockTimeMs": 19090,
+            "mysqlDeadlocks": 0,
+            "auditPassed": true
+          },
+          {
+            "label": "stage17-bucket4-r4",
+            "orderTps": 11.65,
+            "acceptedTps": 11.7,
+            "httpRps": 317.85,
+            "p50Ms": 8318,
+            "p95Ms": 13959.4,
+            "p99Ms": 15061.200000000004,
+            "mysqlRowLockTimeMs": 24287,
+            "mysqlDeadlocks": 0,
+            "auditPassed": true
+          }
+        ]
+      },
+      "bucket4VsSinglePct": {
+        "orderTps": -16.61,
+        "p95": 47.66,
+        "p99": 46.04
+      }
+    },
+    {
+      "scenario": "hot-scarce",
+      "historicalBeforeStage17": {
+        "jarSha256": "4d86020249e9e837248e4ff68c80215160818ddd33cadd19971e162da5a62610",
+        "orderTps": 10.05,
+        "acceptedTps": 10.55,
+        "httpRps": 321.8,
+        "p50Ms": 9895,
+        "p95Ms": 16068,
+        "p99Ms": 16793.5,
+        "raw": "docs\\performance\\results\\stage17-before\\hot-scarce\\hot-scarce-100"
+      },
+      "candidateSingle": {
+        "roundCount": 2,
+        "orderTpsMedian": 10.7,
+        "acceptedTpsMedian": 11.25,
+        "httpRpsMedian": 338.175,
+        "endToEndCompletionMs": {
+          "p50Median": 9227.25,
+          "p95Median": 13094.85,
+          "p99Median": 13916.555
+        },
+        "mysqlRowLockWaitMsMedian": 38240.5,
+        "mysqlRowLockWaitsMedian": 848.5,
+        "mysqlDeadlocksTotal": 0,
+        "mysqlLockTimeoutsTotal": 0,
+        "serverErrorsTotal": 0,
+        "transportErrorsTotal": 0,
+        "allAuditsPassed": true,
+        "outboxBacklogRowsAtEndTotal": 0,
+        "runValues": [
+          {
+            "label": "stage17-single-r3",
+            "orderTps": 10.2,
+            "acceptedTps": 10.7,
+            "httpRps": 330.35,
+            "p50Ms": 9595,
+            "p95Ms": 13534.199999999999,
+            "p99Ms": 14459.96,
+            "mysqlRowLockTimeMs": 38687,
+            "mysqlDeadlocks": 0,
+            "auditPassed": true
+          },
+          {
+            "label": "stage17-single-r4",
+            "orderTps": 11.2,
+            "acceptedTps": 11.8,
+            "httpRps": 346.0,
+            "p50Ms": 8859.5,
+            "p95Ms": 12655.5,
+            "p99Ms": 13373.15,
+            "mysqlRowLockTimeMs": 37794,
+            "mysqlDeadlocks": 0,
+            "auditPassed": true
+          }
+        ]
+      },
+      "candidateBucketed4": {
+        "roundCount": 2,
+        "orderTpsMedian": 9.975,
+        "acceptedTpsMedian": 10.825,
+        "httpRpsMedian": 309.175,
+        "endToEndCompletionMs": {
+          "p50Median": 9498.5,
+          "p95Median": 14984.725,
+          "p99Median": 16015.375
+        },
+        "mysqlRowLockWaitMsMedian": 18350.5,
+        "mysqlRowLockWaitsMedian": 427.5,
+        "mysqlDeadlocksTotal": 0,
+        "mysqlLockTimeoutsTotal": 0,
+        "serverErrorsTotal": 0,
+        "transportErrorsTotal": 0,
+        "allAuditsPassed": true,
+        "outboxBacklogRowsAtEndTotal": 0,
+        "runValues": [
+          {
+            "label": "stage17-bucket4-r3",
+            "orderTps": 9.85,
+            "acceptedTps": 10.8,
+            "httpRps": 301.85,
+            "p50Ms": 9348,
+            "p95Ms": 15474.55,
+            "p99Ms": 16825.95,
+            "mysqlRowLockTimeMs": 19262,
+            "mysqlDeadlocks": 0,
+            "auditPassed": true
+          },
+          {
+            "label": "stage17-bucket4-r4",
+            "orderTps": 10.1,
+            "acceptedTps": 10.85,
+            "httpRps": 316.5,
+            "p50Ms": 9649,
+            "p95Ms": 14494.9,
+            "p99Ms": 15204.8,
+            "mysqlRowLockTimeMs": 17439,
+            "mysqlDeadlocks": 0,
+            "auditPassed": true
+          }
+        ]
+      },
+      "bucket4VsSinglePct": {
+        "orderTps": -6.78,
+        "p95": 14.43,
+        "p99": 15.08
+      }
+    },
+    {
+      "scenario": "mixed",
+      "historicalBeforeStage17": {
+        "jarSha256": "4d86020249e9e837248e4ff68c80215160818ddd33cadd19971e162da5a62610",
+        "orderTps": 14.95,
+        "acceptedTps": 15.0,
+        "httpRps": 118.2,
+        "p50Ms": 1629,
+        "p95Ms": 1970.1,
+        "p99Ms": 2219.02,
+        "raw": "docs\\performance\\results\\stage17-before\\mixed\\mixed-25"
+      },
+      "candidateSingle": {
+        "roundCount": 2,
+        "orderTpsMedian": 14.775,
+        "acceptedTpsMedian": 14.7,
+        "httpRpsMedian": 118.1,
+        "endToEndCompletionMs": {
+          "p50Median": 1631.75,
+          "p95Median": 2015.95,
+          "p99Median": 2164.63
+        },
+        "mysqlRowLockWaitMsMedian": 40820.0,
+        "mysqlRowLockWaitsMedian": 996.5,
+        "mysqlDeadlocksTotal": 0,
+        "mysqlLockTimeoutsTotal": 0,
+        "serverErrorsTotal": 0,
+        "transportErrorsTotal": 0,
+        "allAuditsPassed": true,
+        "outboxBacklogRowsAtEndTotal": 0,
+        "runValues": [
+          {
+            "label": "stage17-single-r3",
+            "orderTps": 15.15,
+            "acceptedTps": 15.0,
+            "httpRps": 119.35,
+            "p50Ms": 1624,
+            "p95Ms": 1956,
+            "p99Ms": 2024,
+            "mysqlRowLockTimeMs": 39608,
+            "mysqlDeadlocks": 0,
+            "auditPassed": true
+          },
+          {
+            "label": "stage17-single-r4",
+            "orderTps": 14.4,
+            "acceptedTps": 14.4,
+            "httpRps": 116.85,
+            "p50Ms": 1639.5,
+            "p95Ms": 2075.8999999999996,
+            "p99Ms": 2305.26,
+            "mysqlRowLockTimeMs": 42032,
+            "mysqlDeadlocks": 0,
+            "auditPassed": true
+          }
+        ]
+      },
+      "candidateBucketed4": {
+        "roundCount": 2,
+        "orderTpsMedian": 13.2,
+        "acceptedTpsMedian": 13.25,
+        "httpRpsMedian": 112.425,
+        "endToEndCompletionMs": {
+          "p50Median": 1664.25,
+          "p95Median": 2887.45,
+          "p99Median": 2981.825
+        },
+        "mysqlRowLockWaitMsMedian": 35712.5,
+        "mysqlRowLockWaitsMedian": 832.5,
+        "mysqlDeadlocksTotal": 0,
+        "mysqlLockTimeoutsTotal": 0,
+        "serverErrorsTotal": 0,
+        "transportErrorsTotal": 0,
+        "allAuditsPassed": true,
+        "outboxBacklogRowsAtEndTotal": 0,
+        "runValues": [
+          {
+            "label": "stage17-bucket4-r3",
+            "orderTps": 13.4,
+            "acceptedTps": 13.5,
+            "httpRps": 113.6,
+            "p50Ms": 1664,
+            "p95Ms": 2649.3,
+            "p99Ms": 2738.3199999999997,
+            "mysqlRowLockTimeMs": 37506,
+            "mysqlDeadlocks": 0,
+            "auditPassed": true
+          },
+          {
+            "label": "stage17-bucket4-r4",
+            "orderTps": 13.0,
+            "acceptedTps": 13.0,
+            "httpRps": 111.25,
+            "p50Ms": 1664.5,
+            "p95Ms": 3125.6,
+            "p99Ms": 3225.3300000000004,
+            "mysqlRowLockTimeMs": 33919,
+            "mysqlDeadlocks": 0,
+            "auditPassed": true
+          }
+        ]
+      },
+      "bucket4VsSinglePct": {
+        "orderTps": -10.66,
+        "p95": 43.23,
+        "p99": 37.75
+      }
+    },
+    {
+      "scenario": "same-user-cross-session",
+      "historicalBeforeStage17": {
+        "jarSha256": "4d86020249e9e837248e4ff68c80215160818ddd33cadd19971e162da5a62610",
+        "orderTps": 11.6,
+        "acceptedTps": 15.65,
+        "httpRps": 114.6,
+        "p50Ms": 1477,
+        "p95Ms": 1875.35,
+        "p99Ms": 2119.35,
+        "raw": "docs\\performance\\results\\stage17-before\\same-user-cross-session\\mixed-25"
+      },
+      "candidateSingle": {
+        "roundCount": 2,
+        "orderTpsMedian": 10.925,
+        "acceptedTpsMedian": 15.25,
+        "httpRpsMedian": 113.1,
+        "endToEndCompletionMs": {
+          "p50Median": 1536.25,
+          "p95Median": 1963.475,
+          "p99Median": 2126.37
+        },
+        "mysqlRowLockWaitMsMedian": 81995.0,
+        "mysqlRowLockWaitsMedian": 1467.0,
+        "mysqlDeadlocksTotal": 0,
+        "mysqlLockTimeoutsTotal": 0,
+        "serverErrorsTotal": 0,
+        "transportErrorsTotal": 0,
+        "allAuditsPassed": true,
+        "outboxBacklogRowsAtEndTotal": 0,
+        "runValues": [
+          {
+            "label": "stage17-single-r3",
+            "orderTps": 10.95,
+            "acceptedTps": 15.05,
+            "httpRps": 112.75,
+            "p50Ms": 1558.5,
+            "p95Ms": 1936.25,
+            "p99Ms": 2136.8,
+            "mysqlRowLockTimeMs": 82167,
+            "mysqlDeadlocks": 0,
+            "auditPassed": true
+          },
+          {
+            "label": "stage17-single-r4",
+            "orderTps": 10.9,
+            "acceptedTps": 15.45,
+            "httpRps": 113.45,
+            "p50Ms": 1514,
+            "p95Ms": 1990.7,
+            "p99Ms": 2115.94,
+            "mysqlRowLockTimeMs": 81823,
+            "mysqlDeadlocks": 0,
+            "auditPassed": true
+          }
+        ]
+      },
+      "candidateBucketed4": {
+        "roundCount": 2,
+        "orderTpsMedian": 11.075,
+        "acceptedTpsMedian": 14.075,
+        "httpRpsMedian": 107.6,
+        "endToEndCompletionMs": {
+          "p50Median": 1674.25,
+          "p95Median": 2431.275,
+          "p99Median": 2674.36
+        },
+        "mysqlRowLockWaitMsMedian": 82828.0,
+        "mysqlRowLockWaitsMedian": 1282.5,
+        "mysqlDeadlocksTotal": 0,
+        "mysqlLockTimeoutsTotal": 0,
+        "serverErrorsTotal": 0,
+        "transportErrorsTotal": 0,
+        "allAuditsPassed": true,
+        "outboxBacklogRowsAtEndTotal": 0,
+        "runValues": [
+          {
+            "label": "stage17-bucket4-r3",
+            "orderTps": 11.1,
+            "acceptedTps": 14.2,
+            "httpRps": 108.35,
+            "p50Ms": 1653.5,
+            "p95Ms": 2542.499999999999,
+            "p99Ms": 2791.9500000000007,
+            "mysqlRowLockTimeMs": 81195,
+            "mysqlDeadlocks": 0,
+            "auditPassed": true
+          },
+          {
+            "label": "stage17-bucket4-r4",
+            "orderTps": 11.05,
+            "acceptedTps": 13.95,
+            "httpRps": 106.85,
+            "p50Ms": 1695,
+            "p95Ms": 2320.0499999999997,
+            "p99Ms": 2556.7700000000004,
+            "mysqlRowLockTimeMs": 84461,
+            "mysqlDeadlocks": 0,
+            "auditPassed": true
+          }
+        ]
+      },
+      "bucket4VsSinglePct": {
+        "orderTps": 1.37,
+        "p95": 23.83,
+        "p99": 25.77
+      }
+    }
+  ]
+}

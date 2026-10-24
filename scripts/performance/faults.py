@@ -86,7 +86,7 @@ def main():
 
     ticket = buyers[0].request('GET',f'/api/v1/tickets?orderId={allocated["reservedOrderId"]}')['items'][0]
     checkin_credential = buyers[0].request('GET',f'/api/v1/tickets/{ticket["id"]}/credential')['credential']
-    stock_before = perf.rows('SELECT total_stock,locked_stock,sold_stock FROM ticket_sku WHERE id=%s',(sku,))
+    stock_before = perf.stock_snapshot(sku)
     checkers = [perf.Client(a) for a in fixture['admins']]
     def check_in(client):
         response = client.session.post(perf.BASE+'/api/v1/admin/checkins',json={'credential':checkin_credential},headers=client.token,timeout=30)
@@ -96,7 +96,7 @@ def main():
         checkin_statuses = list(pool.map(check_in,checkers))
     used = perf.rows('SELECT status,used_at,checked_by FROM electronic_ticket WHERE id=%s',(ticket['id'],))[0]
     assert checkin_statuses.count(200)==1 and used['status']=='USED' and used['used_at'] and used['checked_by']
-    assert perf.rows('SELECT total_stock,locked_stock,sold_stock FROM ticket_sku WHERE id=%s',(sku,))==stock_before
+    assert perf.stock_snapshot(sku)==stock_before
     checked('多管理员核销竞争并核对真实USED行',{'concurrentAdmins':10,'successes':1,'conflicts':9,'stockUnchanged':True})
 
     event = perf.rows("SELECT event_id,payload FROM outbox_event WHERE aggregate_id=%s ORDER BY id DESC LIMIT 1", (sku,))[0]
