@@ -178,7 +178,9 @@ ticketing:
     queue: ticketing.waitlist.dispatch
     outbox-poll-ms: ${WAITLIST_OUTBOX_POLL_MS:1000}
     compensation-poll-ms: ${WAITLIST_COMPENSATION_POLL_MS:60000}
+    compensation-initial-delay-ms: ${WAITLIST_COMPENSATION_INITIAL_DELAY_MS:1000}
     compensation-batch-size: 100
+    continuation-queue-capacity: ${WAITLIST_CONTINUATION_QUEUE_CAPACITY:64}
     outbox:
       in-flight-window: ${WAITLIST_OUTBOX_IN_FLIGHT_WINDOW:16}
       batch-size: ${WAITLIST_OUTBOX_BATCH_SIZE:100}

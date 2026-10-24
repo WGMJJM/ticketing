@@ -13,7 +13,9 @@ public class WaitlistBackgroundJob {
         this.compensation = compensation;
     }
 
-    @Scheduled(fixedDelayString = "${ticketing.waitlist.compensation-poll-ms:60000}")
+    @Scheduled(
+            fixedDelayString = "${ticketing.waitlist.compensation-poll-ms:60000}",
+            initialDelayString = "${ticketing.waitlist.compensation-initial-delay-ms:1000}")
     public void compensate() {
         compensation.scan();
     }

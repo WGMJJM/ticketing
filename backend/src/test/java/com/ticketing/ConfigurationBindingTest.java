@@ -30,6 +30,7 @@ class ConfigurationBindingTest {
             assertThat(context.getBean(PurchaseConsumerProperties.class).prefetch()).isEqualTo(1);
             assertThat(context.getBean(CheckinProperties.class).opensBeforeMinutes()).isEqualTo(60);
             assertThat(context.getBean(WaitlistProperties.class).dispatchMaxSteps()).isEqualTo(50);
+            assertThat(context.getBean(WaitlistProperties.class).continuationQueueCapacity()).isEqualTo(64);
             assertThat(context.getBean(PurchaseProperties.class).capacity()).isEqualTo(200);
             assertThat(context.getBean(CatalogCacheProperties.class).maximumEntries()).isEqualTo(2000);
             assertThat(context.getBean(AdmissionLimitProperties.class).globalBurst()).isEqualTo(40);
@@ -49,6 +50,7 @@ class ConfigurationBindingTest {
                 "ticketing.order.expiry.batch-size=501", "ticketing.waitlist.outbox.batch-size=101",
                 "ticketing.waitlist.outbox.retry-max-seconds=1", "ticketing.checkin.opens-before-minutes=1441",
                 "ticketing.waitlist.compensation-batch-size=0", "ticketing.order.aftercare.batch-size=501",
+                "ticketing.waitlist.continuation-queue-capacity=0", "ticketing.waitlist.continuation-queue-capacity=257",
                 "ticketing.order.aftercare.max-attempts=1", "ticketing.order.aftercare.retry-delay-seconds=0",
                 "ticketing.purchase.consumer.concurrency=17", "ticketing.purchase.consumer.prefetch=0",
                 "ticketing.purchase.consumer.prefetch=65", "ticketing.purchase.consumer.concurrency=0",

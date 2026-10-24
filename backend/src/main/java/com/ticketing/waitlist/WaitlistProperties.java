@@ -12,4 +12,5 @@ import org.springframework.validation.annotation.Validated;
 public record WaitlistProperties(
         @DefaultValue("60") @Min(1) int maxWaitMinutes,
         @DefaultValue("50") @Min(1) @Max(500) int dispatchMaxSteps,
-        @DefaultValue("100") @Min(1) @Max(500) int compensationBatchSize) {}
+        @DefaultValue("100") @Min(1) @Max(500) int compensationBatchSize,
+        @DefaultValue("64") @Min(1) @Max(256) int continuationQueueCapacity) {}

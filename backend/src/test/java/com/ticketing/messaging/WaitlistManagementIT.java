@@ -13,7 +13,10 @@ import com.ticketing.messaging.OutboxMapper;
 import com.ticketing.waitlist.WaitlistMapper;
 import com.ticketing.waitlist.WaitlistCompensation;
 import com.ticketing.waitlist.WaitlistDispatcher;
+import com.ticketing.waitlist.WaitlistEntry;
+import com.ticketing.waitlist.WaitlistProperties;
 import com.ticketing.waitlist.WaitlistService;
+import com.ticketing.waitlist.JoinWaitlistRequest;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
 import java.net.URI;
@@ -70,6 +73,7 @@ import static org.mockito.Mockito.reset;
 @SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,properties={
         "server.servlet.session.cookie.secure=false","ticketing.admin-bootstrap.enabled=false",
         "ticketing.order.expiry.enabled=false","ticketing.waitlist.jobs.enabled=false",
+        "ticketing.messaging.jobs-enabled=false",
         "ticketing.waitlist.messaging.enabled=true","ticketing.waitlist.exchange=ticketing.waitlist.it",
         "ticketing.waitlist.queue=ticketing.waitlist.it.dispatch","spring.rabbitmq.listener.simple.auto-startup=false",
         "spring.rabbitmq.listener.simple.retry.max-attempts=3","spring.rabbitmq.listener.simple.retry.initial-interval=100ms",
@@ -372,6 +376,117 @@ class WaitlistManagementIT {
         assertThat(state(entry)).isEqualTo("WAITING");
         compensation.scan(); assertThat(state(entry)).isEqualTo("ALLOCATED"); invariant(1,0);
     }
+
+    @Test
+    void continuesHundredAvailableWaitlistEntriesAfterSingleRabbitEventAndCoalescesDuplicates() throws Exception {
+        populateWaiting(100);
+        stock(100);
+        clearEvents();
+        appendEvent();
+        publisher.publishBatch();
+        assertThat(eventStatus()).isEqualTo("SENT");
+        assertThat(depth(QUEUE)).isEqualTo(1);
+
+        registry.start();
+        await(()->allocatedCount()==100);
+        await(()->depth(QUEUE)==0);
+        assertThat(allocatedCount()).isEqualTo(100);
+        assertThat(waitingCount()).isZero();
+        assertThat(orderCount()).isEqualTo(100);
+        invariant(100,0);
+
+        OutboxEvent event=event();
+        for(int duplicate=0;duplicate<5;duplicate++) sendDuplicate(event);
+        await(()->depth(QUEUE)==0);
+        assertThat(allocatedCount()).isEqualTo(100);
+        assertThat(orderCount()).isEqualTo(100);
+        invariant(100,0);
+    }
+
+    @Test
+    void resumesFifoAfterPartialCapacityIsIncreasedAndAnotherRealEventArrives() throws Exception {
+        populateWaiting(100);
+        stock(50);
+        clearEvents();
+        appendEvent();
+        publisher.publishBatch();
+        registry.start();
+        await(()->allocatedCount()==50);
+        await(()->depth(QUEUE)==0);
+        assertThat(waitingCount()).isEqualTo(50);
+        assertThat(orderCount()).isEqualTo(50);
+        invariant(50,0);
+
+        stock(100);
+        clearEvents();
+        appendEvent();
+        publisher.publishBatch();
+        await(()->allocatedCount()==100);
+        await(()->depth(QUEUE)==0);
+        assertThat(waitingCount()).isZero();
+        assertThat(orderCount()).isEqualTo(100);
+        invariant(100,0);
+    }
+
+    @Test
+    void continuesOneThousandAvailableWaitlistEntriesAcrossBoundedBatchesAndDuplicateMessages() throws Exception {
+        populateWaiting(1000);
+        stock(1000);
+        clearEvents();
+        appendEvent();
+        publisher.publishBatch();
+        assertThat(eventStatus()).isEqualTo("SENT");
+        assertThat(depth(QUEUE)).isEqualTo(1);
+
+        long startedAt=System.nanoTime();
+        registry.start();
+        await(()->allocatedCount()>=50,Duration.ofMinutes(3));
+        OutboxEvent event=event();
+        for(int duplicate=0;duplicate<10;duplicate++) sendDuplicate(event);
+        await(()->allocatedCount()==1000,Duration.ofMinutes(3));
+        await(()->depth(QUEUE)==0,Duration.ofSeconds(30));
+
+        long elapsedMs=TimeUnit.NANOSECONDS.toMillis(System.nanoTime()-startedAt);
+        System.out.printf("1000条候补单事件续跑完成：%d ms；重复库存消息10条%n",elapsedMs);
+        assertThat(waitingCount()).isZero();
+        assertThat(orderCount()).isEqualTo(1000);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ticket_order WHERE session_id=? AND status='PENDING'",Integer.class,sessionId)).isEqualTo(1000);
+        invariant(1000,0);
+    }
+
+    @Test
+    void freshSchedulerAndCursorRestoreRemainingWaitlistFromMySql() throws Exception {
+        populateWaiting(100);
+        stock(100);
+        for(int allocation=0;allocation<50;allocation++) {
+            WaitlistEntry head=waitlistMapper.head(skuId);
+            assertThat(head).isNotNull();
+            assertThat(waitlists.allocateHead(skuId,head.getId())).isEqualTo(WaitlistService.Allocation.ALLOCATED);
+        }
+        assertThat(allocatedCount()).isEqualTo(50);
+        assertThat(waitingCount()).isEqualTo(50);
+        assertThat(orderCount()).isEqualTo(50);
+        invariant(50,0);
+
+        WaitlistProperties restartedProperties=new WaitlistProperties(60,50,100,64);
+        var restartedContinuations=new com.ticketing.waitlist.WaitlistContinuationScheduler(
+                restartedProperties,new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
+        try {
+            var restartedDispatcher=new WaitlistDispatcher(waitlistMapper,waitlists,restartedProperties,restartedContinuations);
+            WaitlistCompensation restartedCompensation=new WaitlistCompensation(waitlistMapper,restartedDispatcher,restartedProperties);
+            long recoveryStartedAt=System.nanoTime();
+            restartedCompensation.scan();
+            await(()->allocatedCount()==100);
+            long recoveryMs=TimeUnit.NANOSECONDS.toMillis(System.nanoTime()-recoveryStartedAt);
+            System.out.printf("新调度器从MySQL恢复剩余50条候补：%d ms%n",recoveryMs);
+        } finally {
+            restartedContinuations.shutdown();
+        }
+        assertThat(allocatedCount()).isEqualTo(100);
+        assertThat(waitingCount()).isZero();
+        assertThat(orderCount()).isEqualTo(100);
+        invariant(100,0);
+    }
     @Test
     void consumerTransientFailureRetriesWithBackoffAndEventuallyCommits() throws Exception {
         JsonNode entry=a.join(skuId,1,200); stock(1); clearEvents(); appendEvent();
@@ -440,6 +555,23 @@ class WaitlistManagementIT {
     }
 
     private void clearEvents() { jdbc.update("DELETE FROM outbox_event WHERE aggregate_type='TICKET_SKU' AND aggregate_id=?",skuId); }
+    private void populateWaiting(int count) {
+        String usernamePrefix="wl_batch_"+UUID.randomUUID().toString().replace("-","").substring(0,16)+"_";
+        String passwordHash=jdbc.queryForObject("SELECT password_hash FROM user_account WHERE id=?",String.class,a.id);
+        List<Object[]> batch=new ArrayList<>(count);
+        for(int index=0;index<count;index++) {
+            batch.add(new Object[]{usernamePrefix+String.format("%04d",index),passwordHash});
+        }
+        jdbc.batchUpdate("INSERT INTO user_account(username,password_hash,status,role) VALUES(?,?,'ACTIVE','USER')",batch);
+        List<Long> batchUserIds=jdbc.queryForList("SELECT id FROM user_account WHERE LOCATE(?,username)=1 ORDER BY id",Long.class,usernamePrefix);
+        assertThat(batchUserIds).hasSize(count);
+        userIds.addAll(batchUserIds);
+        for(long userId:batchUserIds) {
+            waitlists.join(userId,new JoinWaitlistRequest(Long.toString(skuId),1));
+        }
+    }
+    private int allocatedCount() { return jdbc.queryForObject("SELECT COUNT(*) FROM waitlist_entry WHERE sku_id=? AND status='ALLOCATED'",Integer.class,skuId); }
+    private int waitingCount() { return jdbc.queryForObject("SELECT COUNT(*) FROM waitlist_entry WHERE sku_id=? AND status='WAITING'",Integer.class,skuId); }
     private void appendEvent() { new TransactionTemplate(transactions).executeWithoutResult(status->writer.append(skuId,InventoryChangeReason.STOCK_INCREASED)); }
     private OutboxEvent event() { return outboxMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<OutboxEvent>().eq(OutboxEvent::getAggregateId,skuId).eq(OutboxEvent::getAggregateType,"TICKET_SKU")); }
     private String eventStatus() { return event().getStatus(); }
@@ -495,7 +627,10 @@ class WaitlistManagementIT {
     }
     @FunctionalInterface private interface CheckedFunction<T> { T apply(int index) throws Exception; }
     private void await(BooleanSupplier condition) throws Exception {
-        long deadline=System.nanoTime()+Duration.ofSeconds(15).toNanos();
+        await(condition,Duration.ofSeconds(15));
+    }
+    private void await(BooleanSupplier condition,Duration timeout) throws Exception {
+        long deadline=System.nanoTime()+timeout.toNanos();
         while (!condition.getAsBoolean() && System.nanoTime()<deadline) Thread.sleep(100);
         assertThat(condition.getAsBoolean()).isTrue();
     }
