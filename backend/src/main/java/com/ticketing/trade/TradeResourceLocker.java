@@ -17,6 +17,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import io.micrometer.core.instrument.MeterRegistry;
+import java.util.concurrent.TimeUnit;
 
 /** 所有交易入口共用的锁协议，调用方必须已开启READ_COMMITTED事务。 */
 @Service
@@ -27,18 +29,22 @@ public class TradeResourceLocker {
     private final ActivitySessionMapper sessions;
     private final TicketSkuMapper tickets;
     private final OrderMapper orders;
+    private final UserSessionQuotaService quotas;
+    private final MeterRegistry meters;
 
     public TradeResourceLocker(
             UserAccountMapper users,
             ActivityMapper activities,
             ActivitySessionMapper sessions,
             TicketSkuMapper tickets,
-            OrderMapper orders) {
+            OrderMapper orders, UserSessionQuotaService quotas, MeterRegistry meters) {
         this.users = users;
         this.activities = activities;
         this.sessions = sessions;
         this.tickets = tickets;
         this.orders = orders;
+        this.quotas = quotas;
+        this.meters = meters;
     }
 
     public void lockUser(long userId, boolean requireActive) {
@@ -70,6 +76,17 @@ public class TradeResourceLocker {
                 lockSale(skuId));
     }
 
+    /** 真正预占才锁精确额度；候补入队、核销、补票不创建或锁定额度行。 */
+    public TradeContext lockReservation(long userId, long skuId, boolean requireActive) {
+        UserAccount account = account(userId, requireActive);
+        return new TradeContext(userId, "ACTIVE".equals(account.getStatus()), "ADMIN".equals(account.getRole()),
+                lockSaleForQuota(userId, skuId));
+    }
+
+    public TicketSale lockSaleForQuota(long userId, long skuId) {
+        return sale(skuId, userId);
+    }
+
     /** 仅供缺失订单明细的异常善后：不存在可锁SKU，仍先锁活动/场次再锁订单并记录人工处理。 */
     public SessionStatus lockSession(long sessionId) {
         ActivitySession initial = sessions.selectById(sessionId);
@@ -85,6 +102,11 @@ public class TradeResourceLocker {
 
     /** 已持用户锁后调用；最初两次非锁定读取只发现父ID，之后严格由父到子加锁。 */
     public TicketSale lockSale(long skuId) {
+        return sale(skuId, null);
+    }
+
+    /** 用户SHARE→活动SHARE→场次SHARE→可选额度UPDATE→票档UPDATE→订单，禁止后置补锁额度。 */
+    private TicketSale sale(long skuId, Long quotaUser) {
         TicketSku initial = tickets.selectById(skuId);
         if (initial == null) {
             throw new BusinessException(HttpStatus.NOT_FOUND, "TICKET_NOT_FOUND", "票档不存在");
@@ -103,12 +125,19 @@ public class TradeResourceLocker {
                         new LambdaQueryWrapper<ActivitySession>()
                                 .eq(ActivitySession::getId, parent.getId())
                                 .last("FOR SHARE"));
-        TicketSku sku =
+        if (activity == null || session == null) {
+            throw new BusinessException(HttpStatus.CONFLICT, "TICKET_UNAVAILABLE", "票档所属活动或场次不存在");
+        }
+        if (quotaUser != null) quotas.lock(quotaUser, session.getId());
+        long started = System.nanoTime();
+        TicketSku sku;
+        try { sku =
                 tickets.selectOne(
                         new LambdaQueryWrapper<TicketSku>()
                                 .eq(TicketSku::getId, skuId)
                                 .last("FOR UPDATE"));
-        if (activity == null || session == null || sku == null) {
+        } finally { meters.timer("ticketing.trade.lock.duration","resource","stock").record(System.nanoTime()-started,TimeUnit.NANOSECONDS); }
+        if (sku == null || !sku.getSessionId().equals(session.getId()) || !session.getActivityId().equals(activity.getId())) {
             throw new BusinessException(HttpStatus.CONFLICT, "TICKET_UNAVAILABLE", "票档所属活动或场次不存在");
         }
         return TicketSale.from(activity, session, sku);
@@ -129,7 +158,9 @@ public class TradeResourceLocker {
     }
 
     private UserAccount account(long userId, boolean requireActive) {
-        UserAccount account =
+        long started = System.nanoTime();
+        UserAccount account;
+        try { account =
                 users.selectOne(
                         new LambdaQueryWrapper<UserAccount>()
                                 .select(
@@ -137,7 +168,8 @@ public class TradeResourceLocker {
                                         UserAccount::getStatus,
                                         UserAccount::getRole)
                                 .eq(UserAccount::getId, userId)
-                                .last("FOR UPDATE"));
+                                .last("FOR SHARE"));
+        } finally { meters.timer("ticketing.trade.lock.duration","resource","account").record(System.nanoTime()-started,TimeUnit.NANOSECONDS); }
         if (account == null || (requireActive && !"ACTIVE".equals(account.getStatus()))) {
             throw new BusinessException(
                     HttpStatus.UNAUTHORIZED, "ACCOUNT_UNAVAILABLE", "账号已停用或不存在，请重新登录");

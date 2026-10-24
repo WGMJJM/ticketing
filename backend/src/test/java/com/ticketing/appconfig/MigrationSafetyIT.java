@@ -33,14 +33,14 @@ class MigrationSafetyIT {
     }
     Flyway migration(String target){
         var builder=Flyway.configure().dataSource(url,"ticketing_perf",System.getenv("MIGRATION_TEST_PASSWORD"))
-                .locations("classpath:db/migration").cleanDisabled(true);
+                .locations("classpath:db/migration").cleanDisabled(true).placeholders(java.util.Map.of("quotaLimit","4"));
         if(target!=null)builder.target(target);
         return builder.load();
     }
     void guarded(Flyway flyway){new MigrationSafetyConfig().migrationSafetyStrategy().migrate(flyway);}
     @Test void schemaScopedOrdinaryAccountMigratesFreshDatabaseAndRepeatedStartupSafely(){
         grant(true);var flyway=migration(null);guarded(flyway);guarded(flyway);flyway.validate();
-        assertThat(db.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class)).isEqualTo(8);
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class)).isEqualTo(9);
         assertThat(db.queryForObject("SELECT COUNT(*) FROM information_schema.triggers WHERE trigger_schema=DATABASE()",Integer.class)).isEqualTo(2);
         var ordinary=jdbc(schema,"ticketing_perf",System.getenv("MIGRATION_TEST_PASSWORD"));
         assertThat(ordinary.queryForList("SHOW GRANTS",String.class)).noneMatch(value->value.contains("SUPER")||value.contains("ALL PRIVILEGES ON *.*"));
@@ -56,7 +56,17 @@ class MigrationSafetyIT {
         grant(true);migration("6").migrate();var flyway=migration(null);guarded(flyway);flyway.validate();
         db.execute("DROP TRIGGER admin_audit_no_update");
         assertThatThrownBy(()->guarded(flyway)).hasMessageContaining("STOP_V7_STRUCTURE");
-        assertThat(db.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class)).isEqualTo(8);
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class)).isEqualTo(9);
+    }
+    @Test void existingBusinessRequiresExplicitStoppedBackupAuditedQuotaSwitchBeforeAnyV9Ddl(){
+        grant(true);migration("8").migrate();
+        db.update("INSERT INTO user_account(id,username,password_hash) VALUES(1,'switch_probe','隔离不可登录')");
+        db.update("INSERT INTO activity(id,title,category,city,venue) VALUES(1,'切换探针','CONCERT','上海','隔离')");
+        db.update("INSERT INTO activity_session(id,activity_id,title,starts_at,ends_at,sale_starts_at) VALUES(1,1,'历史','2030-01-01 10:00:00','2030-01-01 12:00:00','2029-01-01')");
+        db.update("INSERT INTO ticket_order(id,order_no,user_id,session_id,total_amount_cents,idempotency_operation,idempotency_key,request_hash,created_at,expires_at) VALUES(1,'SWITCH',1,1,100,'CREATE_ORDER','switch',UNHEX(SHA2('switch',256)),'2029-01-01','2030-01-01')");
+        assertThatThrownBy(()->guarded(migration(null))).hasMessageContaining("STOP_QUOTA_SWITCH");
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='user_session_quota'",Integer.class)).isZero();
+        assertThat(db.queryForObject("SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history",Integer.class)).isEqualTo(8);
     }
     @Test void unsafePolicyIsBlockedAndReal1419PartialFailureIsPreserved(){
         grant(true);int original=root.queryForObject("SELECT @@log_bin_trust_function_creators",Integer.class);

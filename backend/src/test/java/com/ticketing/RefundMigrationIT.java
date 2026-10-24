@@ -75,7 +75,7 @@ class RefundMigrationIT {
 
     private Flyway migration(String url,String target) {
         var configuration = Flyway.configure().dataSource(url,System.getenv("MYSQL_USER"),System.getenv("MYSQL_PASSWORD"))
-                .locations("classpath:db/migration").cleanDisabled(true);
+                .locations("classpath:db/migration").cleanDisabled(true).placeholders(java.util.Map.of("quotaLimit","4"));
         if (target != null) configuration.target(target);
         return configuration.load();
     }

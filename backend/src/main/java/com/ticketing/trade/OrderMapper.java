@@ -34,6 +34,13 @@ public interface OrderMapper extends BaseMapper<TicketOrder> {
     @Select(VIEW + " WHERE o.id=#{id}")
     TicketOrder detail(long id);
 
+    String SNAPSHOT = "SELECT o.*,i.sku_id,i.quantity,i.unit_price_cents,i.sku_name_snapshot "
+            + "FROM ticket_order o LEFT JOIN ticket_order_item i ON i.order_id=o.id";
+    @Select(SNAPSHOT + " WHERE o.id=#{id} AND o.user_id=#{user}")
+    TicketOrder ownedSnapshot(@Param("id") long id, @Param("user") long userId);
+    @Select(SNAPSHOT + " WHERE o.id=#{id}")
+    TicketOrder snapshot(long id);
+
     @Update("""
             UPDATE ticket_order SET status='REFUNDED',updated_at=UTC_TIMESTAMP(6)
             WHERE id=#{id} AND status='PAID' AND paid_at IS NOT NULL
@@ -92,6 +99,7 @@ public interface OrderMapper extends BaseMapper<TicketOrder> {
             SELECT COALESCE(SUM(i.quantity),0) FROM ticket_order o JOIN ticket_order_item i ON i.order_id=o.id
             WHERE o.user_id=#{userId} AND o.session_id=#{sessionId} AND o.status IN ('PENDING','PAID')
             """)
+    /** 仅供历史数据审计对账，交易与限购查询禁止调用。 */
     long occupied(@Param("userId") long userId, @Param("sessionId") long sessionId);
 
     @Insert(

@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 
 import java.time.ZoneOffset;
 
@@ -25,7 +26,8 @@ public class OrderService {
         this.states = states;
     }
 
-    @Transactional(isolation = Isolation.READ_COMMITTED)
+    // 独立状态Bean提交后才组装包含支付/退款/活动等信息的公开投影。
+    @Transactional(propagation = Propagation.NEVER)
     public OrderView cancel(long userId, long orderId) {
         states.cancel(userId, orderId);
         return view(orderId, userId);

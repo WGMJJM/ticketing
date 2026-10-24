@@ -149,7 +149,7 @@ public class WaitlistService {
         if (initial == null || !initial.getSkuId().equals(skuId)) {
             return Allocation.RETRY;
         }
-        TradeContext context = resources.lockPurchase(initial.getUserId(), skuId, false);
+        TradeContext context = resources.lockReservation(initial.getUserId(), skuId, false);
         WaitlistEntry head = waitlists.head(skuId);
         // 等待SKU锁期间队首可能已经改变，不能拿着旧用户锁替下一位分配。
         if (head == null || !head.getId().equals(candidateId)) {

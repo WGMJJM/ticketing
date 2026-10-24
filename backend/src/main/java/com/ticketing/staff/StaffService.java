@@ -161,7 +161,7 @@ public class StaffService {
         return mapper.permission(staffId, sessionId);
     }
 
-    /** 调用方已取得同一工作人员账号行UPDATE锁，撤权与核销在此锁上串行。 */
+    /** 核销持工作人员账号SHARE锁，撤权持UPDATE锁；权限读取在该协调锁保护下。 */
     @Transactional(propagation = Propagation.MANDATORY)
     public void requirePermission(long staffId, long sessionId) {
         if (mapper.permitted(staffId, sessionId) != 1) {

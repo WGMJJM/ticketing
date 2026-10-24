@@ -31,10 +31,11 @@ public class OrderRefundService {
     private final OrderStateService states;
     private final List<OrderLifecycle> participants;
     private final AuditWriter audit;
+    private final UserSessionQuotaService quotas;
 
     public OrderRefundService(OrderMapper orders, PaymentMapper payments, RefundMapper refunds,
             AftercareMapper aftercare, TradeResourceLocker resources, TicketInventory inventory,
-            InventoryEvents events, OrderStateService states, List<OrderLifecycle> participants, AuditWriter audit) {
+            InventoryEvents events, OrderStateService states, List<OrderLifecycle> participants, AuditWriter audit, UserSessionQuotaService quotas) {
         this.orders = orders;
         this.payments = payments;
         this.refunds = refunds;
@@ -45,6 +46,7 @@ public class OrderRefundService {
         this.states = states;
         this.participants = List.copyOf(participants);
         this.audit = audit;
+        this.quotas = quotas;
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -131,6 +133,7 @@ public class OrderRefundService {
             throw conflict("订单状态已变化，请刷新后重试");
         }
         inventory.refund(order.getSkuId(), order.getQuantity());
+        quotas.release(order.getUserId(), order.getSessionId(), order.getQuantity());
         for (OrderLifecycle participant : participants) {
             participant.onTransition(transition);
         }
@@ -164,15 +167,15 @@ public class OrderRefundService {
             throw new BusinessException(HttpStatus.NOT_FOUND, "ORDER_NOT_FOUND", "订单不存在");
         }
         resources.lockRefundUsers(initial.getUserId(), operatorId);
-        TicketOrder detail = orders.detail(orderId);
+        TicketOrder detail = orders.snapshot(orderId);
         if (detail == null || detail.getSkuId() == null) {
             SessionStatus session = resources.lockSession(initial.getSessionId());
             OrderStatus status = resources.lockOrder(orderId, initial.getUserId());
             return new Locked(orders.selectById(orderId), null, status, session);
         }
-        TicketSale sale = resources.lockSale(detail.getSkuId());
+        TicketSale sale = resources.lockSaleForQuota(initial.getUserId(), detail.getSkuId());
         OrderStatus status = resources.lockOrder(orderId, initial.getUserId());
-        return new Locked(orders.detail(orderId), sale, status, sale.sessionStatus());
+        return new Locked(orders.snapshot(orderId), sale, status, sale.sessionStatus());
     }
 
     private BusinessException conflict(String message) {

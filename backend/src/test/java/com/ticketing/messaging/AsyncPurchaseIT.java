@@ -96,6 +96,7 @@ class AsyncPurchaseIT {
             db.update("DELETE t FROM "+table+" t JOIN ticket_order o ON o.id=t."+column+" WHERE o.session_id=?",session);
         }
         db.update("DELETE FROM ticket_order WHERE session_id=?",session);
+        db.update("DELETE FROM user_session_quota WHERE session_id=?",session);
         db.update("DELETE FROM ticket_sku WHERE session_id=?",session);
         db.update("DELETE FROM activity_session WHERE id=?",session);
         db.update("DELETE FROM activity WHERE id=?",activity);
@@ -305,7 +306,7 @@ class AsyncPurchaseIT {
     }
     void expireLease(long id){db.update("UPDATE purchase_request SET processing_lease_until=TIMESTAMPADD(SECOND,-1,UTC_TIMESTAMP(6)),next_recovery_at=UTC_TIMESTAMP(6) WHERE id=?",id);}
     int count(String table){return db.queryForObject("SELECT COUNT(*) FROM "+table+" WHERE session_id=?",Integer.class,session);}
-    void stock(int locked){assertThat(db.queryForObject("SELECT locked_stock FROM ticket_sku WHERE id=?",Integer.class,sku)).isEqualTo(locked);}
+    void stock(int locked){assertThat(db.queryForObject("SELECT locked_stock FROM ticket_sku WHERE id=?",Integer.class,sku)).isEqualTo(locked);com.ticketing.PurchaseTestSupport.assertQuotaConsistent(db,session);}
     void capacity(int value){assertThat(db.queryForObject("SELECT pending_count FROM purchase_capacity WHERE id=1",Integer.class)).isEqualTo(value);}
     Client client()throws Exception {
         String name="async_"+UUID.randomUUID().toString().replace("-","").substring(0,22),password=UUID.randomUUID().toString();

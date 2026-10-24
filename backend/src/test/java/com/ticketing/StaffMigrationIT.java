@@ -102,7 +102,7 @@ class StaffMigrationIT {
                         .dataSource(
                                 url, System.getenv("MYSQL_USER"), System.getenv("MYSQL_PASSWORD"))
                         .locations("classpath:db/migration")
-                        .cleanDisabled(true);
+                        .cleanDisabled(true).placeholders(java.util.Map.of("quotaLimit","4"));
         if (target != null) {
             config.target(target);
         }

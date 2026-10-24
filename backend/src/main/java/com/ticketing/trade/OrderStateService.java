@@ -14,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 
 import java.util.List;
 import java.util.UUID;
@@ -28,6 +29,7 @@ public class OrderStateService {
     private final TicketInventory inventory;
     private final InventoryEvents events;
     private final List<OrderLifecycle> participants;
+    private final UserSessionQuotaService quotas;
 
     public OrderStateService(
             OrderMapper orders,
@@ -35,17 +37,19 @@ public class OrderStateService {
             TradeResourceLocker resources,
             TicketInventory inventory,
             InventoryEvents events,
-            List<OrderLifecycle> participants) {
+            List<OrderLifecycle> participants, UserSessionQuotaService quotas) {
         this.orders = orders;
         this.payments = payments;
         this.resources = resources;
         this.inventory = inventory;
         this.events = events;
         this.participants = List.copyOf(participants);
+        this.quotas = quotas;
     }
 
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void cancel(long userId, long orderId) {
-        LockedOrder locked = lock(userId, orderId, true);
+        LockedOrder locked = lock(userId, orderId, true, true);
         if (locked.status() == OrderStatus.CANCELLED) {
             return;
         }
@@ -54,12 +58,13 @@ public class OrderStateService {
             throw conflict("ORDER_STATE_CONFLICT", "订单状态已变化，请刷新后重试");
         }
         inventory.release(locked.sale().skuId(), locked.order().getQuantity());
+        quotas.release(userId, locked.sale().sessionId(), locked.order().getQuantity());
         complete(locked.order(), OrderStatus.CANCELLED);
         events.append(locked.sale().skuId(), InventoryChangeReason.ORDER_CANCELLED);
     }
 
     public PaymentView pay(long userId, long orderId) {
-        LockedOrder locked = lock(userId, orderId, true);
+        LockedOrder locked = lock(userId, orderId, true, false);
         if (locked.status() == OrderStatus.PAID) {
             return payment(userId, orderId);
         }
@@ -93,17 +98,19 @@ public class OrderStateService {
             throw conflict("ORDER_STATE_CONFLICT", "场次或订单状态已变化");
         }
         inventory.release(sale.skuId(), order.getQuantity());
+        quotas.release(order.getUserId(), sale.sessionId(), order.getQuantity());
         complete(order, OrderStatus.CANCELLED);
         events.append(sale.skuId(), InventoryChangeReason.ORDER_CANCELLED);
     }
 
     public boolean expire(long userId, long orderId) {
-        LockedOrder locked = lock(userId, orderId, false);
+        LockedOrder locked = lock(userId, orderId, false, true);
         if (!locked.status().canTransitionTo(OrderStatus.EXPIRED)
                 || orders.markExpired(orderId, userId) != 1) {
             return false;
         }
         inventory.release(locked.sale().skuId(), locked.order().getQuantity());
+        quotas.release(userId, locked.sale().sessionId(), locked.order().getQuantity());
         complete(locked.order(), OrderStatus.EXPIRED);
         events.append(locked.sale().skuId(), InventoryChangeReason.ORDER_EXPIRED);
         return true;
@@ -122,15 +129,15 @@ public class OrderStateService {
         return PaymentView.from(payment);
     }
 
-    private LockedOrder lock(long userId, long orderId, boolean requireActive) {
+    private LockedOrder lock(long userId, long orderId, boolean requireActive, boolean releasesQuota) {
         resources.lockUser(userId, requireActive);
         TicketOrder order = requireOwned(userId, orderId);
-        TicketSale sale = resources.lockSale(order.getSkuId());
+        TicketSale sale = releasesQuota ? resources.lockSaleForQuota(userId, order.getSkuId()) : resources.lockSale(order.getSkuId());
         return new LockedOrder(order, sale, resources.lockOrder(orderId, userId));
     }
 
     private TicketOrder requireOwned(long userId, long orderId) {
-        TicketOrder order = orders.owned(orderId, userId);
+        TicketOrder order = orders.ownedSnapshot(orderId, userId);
         if (order == null) {
             throw new BusinessException(HttpStatus.NOT_FOUND, "ORDER_NOT_FOUND", "订单不存在");
         }

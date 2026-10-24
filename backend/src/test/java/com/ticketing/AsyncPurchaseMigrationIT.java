@@ -25,8 +25,8 @@ class AsyncPurchaseMigrationIT {
     }
     Flyway migration(String target) {
         var configuration=Flyway.configure().dataSource(url,System.getenv("MYSQL_USER"),System.getenv("MYSQL_PASSWORD"))
-                .locations("classpath:db/migration").cleanDisabled(true);
-        if(target!=null)configuration.target(target);
+                .locations("classpath:db/migration").cleanDisabled(true).placeholders(Map.of("quotaLimit","4"));
+        configuration.target(target==null?"8":target); // 此类固定验证第十四阶段V8；V9由QuotaMigrationIT单独覆盖。
         return configuration.load();
     }
     @Test void freshDatabaseHasConsistentEmptyBudgetAndRequestConstraints() {

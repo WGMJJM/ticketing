@@ -27,16 +27,18 @@ public class OrderReservation {
     private final TicketInventory inventory;
     private final ActivitySessionMapper sessions;
     private final OrderProperties properties;
+    private final UserSessionQuotaService quotas;
 
     public OrderReservation(
             OrderMapper orders,
             TicketInventory inventory,
             ActivitySessionMapper sessions,
-            OrderProperties properties) {
+            OrderProperties properties, UserSessionQuotaService quotas) {
         this.orders = orders;
         this.inventory = inventory;
         this.sessions = sessions;
         this.properties = properties;
+        this.quotas = quotas;
     }
 
     /** 消费者已按用户→父级→SKU加锁，复用唯一的预占和金额快照算法。 */
@@ -56,7 +58,7 @@ public class OrderReservation {
         byte[] hash = requestHash(sale.skuId(), quantity);
         TicketOrder existing = find(context.userId(), OrderOperation.WAITLIST_CONFIRM, key);
         if (existing != null) {
-            TicketOrder owned = orders.owned(existing.getId(), context.userId());
+            TicketOrder owned = orders.ownedSnapshot(existing.getId(), context.userId());
             if (!MessageDigest.isEqual(existing.getRequestHash(), hash)
                     || !OrderStatus.PENDING.name().equals(existing.getStatus())
                     || owned == null
@@ -93,7 +95,7 @@ public class OrderReservation {
         if (sessions.selectById(sessionId) == null) {
             throw new BusinessException(HttpStatus.NOT_FOUND, "SESSION_NOT_FOUND", "场次不存在");
         }
-        long used = orders.occupied(userId, sessionId);
+        long used = quotas.occupied(userId, sessionId);
         return new PurchaseLimit(
                 properties.maxPerUserSession(),
                 used,
@@ -101,7 +103,7 @@ public class OrderReservation {
     }
 
     private long remaining(long userId, long sessionId) {
-        return Math.max(0, properties.maxPerUserSession() - orders.occupied(userId, sessionId));
+        return Math.max(0, properties.maxPerUserSession() - quotas.occupied(userId, sessionId));
     }
 
     private long insert(
@@ -125,11 +127,6 @@ public class OrderReservation {
         if (quantity > sale.maxQuantityPerOrder()) {
             throw conflict("PURCHASE_LIMIT", "购买数量超过该票档单笔限购");
         }
-        if (quantity > remaining(userId, sale.sessionId())) {
-            throw conflict(
-                    "PURCHASE_LIMIT",
-                    "同一用户每场最多占有" + properties.maxPerUserSession() + "张，请先取消不需要的待支付订单");
-        }
         long total;
         try {
             total = Math.multiplyExact(sale.priceCents(), (long) quantity);
@@ -137,6 +134,7 @@ public class OrderReservation {
             throw new BusinessException(
                     HttpStatus.BAD_REQUEST, "ORDER_AMOUNT_INVALID", "订单金额超出允许范围");
         }
+        quotas.occupy(userId, sale.sessionId(), quantity);
         inventory.reserve(sale.skuId(), quantity);
         TicketOrder order = new TicketOrder();
         order.setOrderNo(UUID.randomUUID().toString().replace("-", ""));

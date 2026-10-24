@@ -6,10 +6,13 @@ import java.util.Locale;
 import org.springframework.boot.autoconfigure.flyway.FlywayMigrationStrategy;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Value;
 
 /** Flyway开始任何DDL前检查已知失败状态和触发器创建前提；不repair、不改历史。 */
 @Configuration(proxyBeanMethods = false)
 public class MigrationSafetyConfig {
+    @Value("${ticketing.order.quota-migration-approved:false}")
+    private boolean quotaMigrationApproved;
     @Bean
     FlywayMigrationStrategy migrationSafetyStrategy() {
         return flyway -> {
@@ -30,6 +33,7 @@ public class MigrationSafetyConfig {
         }
         boolean appliedV7 = false;
         boolean appliedV8 = false;
+        boolean appliedV9 = false;
         if (history) {
             try (var statement = connection.createStatement(); var rows = statement.executeQuery(
                     "SELECT version,success FROM flyway_schema_history ORDER BY installed_rank")) {
@@ -39,8 +43,14 @@ public class MigrationSafetyConfig {
                     }
                     if ("7".equals(rows.getString("version"))) appliedV7 = true;
                     if ("8".equals(rows.getString("version"))) appliedV8 = true;
+                    if ("9".equals(rows.getString("version"))) appliedV9 = true;
                 }
             }
+        }
+        if (history && !appliedV9 && !quotaMigrationApproved
+                && scalar(connection,"SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='ticket_order'")!=0
+                && scalar(connection,"SELECT COUNT(*) FROM ticket_order")!=0) {
+            throw new IllegalStateException("STOP_QUOTA_SWITCH 历史库升级V9须先停写、备份及只读审计，再显式批准切换");
         }
         if (appliedV7 && !appliedV8 && scalar(connection,
                 "SELECT COUNT(*) FROM ticket_order o LEFT JOIN ticket_order_item i ON i.order_id=o.id "

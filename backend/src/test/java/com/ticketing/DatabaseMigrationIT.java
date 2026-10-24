@@ -37,7 +37,7 @@ class DatabaseMigrationIT {
 
     @Test
     void flywayCreatesDomainAndAftercareTablesWithChecksAndIndexes() {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("8");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("9");
         assertThat(jdbc.queryForList("SELECT column_name FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='ticket_order' AND index_name='idx_order_user_session_status' ORDER BY seq_in_index", String.class))
                 .containsExactly("user_id", "session_id", "status", "id");
         flyway.validate();
