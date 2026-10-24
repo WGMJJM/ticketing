@@ -1,0 +1,258 @@
+{
+  "environment": "ticketing-perf-only",
+  "baseCommit": "b134b250133b03ea49cf6e2d7feeb99696c7c6c6",
+  "scenario": "mixed",
+  "vus": 25,
+  "warmupSeconds": 10,
+  "steadySeconds": 20,
+  "gracefulStopSeconds": 150,
+  "outboxDrainMaxSeconds": 30,
+  "data": {
+    "activities": 1000,
+    "sessions": 64,
+    "users": 25
+  },
+  "app": {
+    "jar": "D:\\ticketing\\.local\\stage17\\candidate-v10-final.jar",
+    "sha256": "4a12f97c8bc0d9f7cf9a8dd014cb54de0cc5f739a42b970a2097652baa993459",
+    "overrides": {
+      "CATALOG_CACHE_ENABLED": "true",
+      "PURCHASE_ADMISSION_LIMIT_ENABLED": "false",
+      "PURCHASE_CONSUMER_CONCURRENCY": "2",
+      "PURCHASE_CONSUMER_PREFETCH": "1"
+    },
+    "rateLimitMode": "regression",
+    "startedAt": "2026-10-24T18:29:21.914641+00:00"
+  },
+  "k6ExitCode": 0,
+  "initial": {
+    "mysql": {
+      "Com_commit": 397610,
+      "Com_rollback": 3086,
+      "Com_select": 2679531,
+      "Innodb_row_lock_time": 2627844,
+      "Innodb_row_lock_waits": 56073,
+      "Questions": 5421877,
+      "Slow_queries": 21444,
+      "Threads_connected": 11,
+      "Threads_running": 2,
+      "lock_deadlocks": 9,
+      "lock_timeouts": 4,
+      "current_lock_waits": 0
+    },
+    "outbox": [],
+    "outboxLag": {
+      "n": 0,
+      "avg_ms": null,
+      "max_ms": null
+    },
+    "outboxChannels": [],
+    "outboxChannelLag": [],
+    "outboxBacklogAge": [],
+    "purchaseRequests": []
+  },
+  "final": {
+    "mysql": {
+      "Com_commit": 402998,
+      "Com_rollback": 3191,
+      "Com_select": 2712447,
+      "Innodb_row_lock_time": 2704518,
+      "Innodb_row_lock_waits": 57581,
+      "Questions": 5490358,
+      "Slow_queries": 22000,
+      "Threads_connected": 11,
+      "Threads_running": 2,
+      "lock_deadlocks": 9,
+      "lock_timeouts": 4,
+      "current_lock_waits": 0
+    },
+    "outbox": [
+      {
+        "status": "SENT",
+        "n": 633,
+        "attempts": 2
+      }
+    ],
+    "outboxLag": {
+      "n": 633,
+      "avg_ms": "599.08040442",
+      "max_ms": "2726.8800"
+    },
+    "outboxChannels": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "SENT",
+        "n": 431
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "SENT",
+        "n": 202
+      }
+    ],
+    "outboxChannelLag": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 431,
+        "avg_ms": "626.94978422",
+        "max_ms": "2726.8800"
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "n": 202,
+        "avg_ms": "539.61652970",
+        "max_ms": "1559.6220"
+      }
+    ],
+    "outboxBacklogAge": [],
+    "purchaseRequests": [
+      {
+        "status": "SUCCEEDED",
+        "failure_code": "NONE",
+        "n": 326
+      },
+      {
+        "status": "FAILED",
+        "failure_code": "PURCHASE_LIMIT",
+        "n": 105
+      }
+    ]
+  },
+  "mysqlDelta": {
+    "Com_commit": 5388,
+    "Com_rollback": 105,
+    "Com_select": 32916,
+    "Innodb_row_lock_time": 76674,
+    "Innodb_row_lock_waits": 1508,
+    "Questions": 68481,
+    "Slow_queries": 556,
+    "Threads_connected": 0,
+    "Threads_running": 0,
+    "lock_deadlocks": 0,
+    "lock_timeouts": 0,
+    "current_lock_waits": 0
+  },
+  "monitorFailures": [],
+  "release": {},
+  "audit": {
+    "passed": true,
+    "checks": [
+      {
+        "invariant": "stock_bounds",
+        "violation_count": 0
+      },
+      {
+        "invariant": "stock_order_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "payment_snapshot",
+        "violation_count": 0
+      },
+      {
+        "invariant": "order_snapshot",
+        "violation_count": 0
+      },
+      {
+        "invariant": "session_quota",
+        "violation_count": 0
+      },
+      {
+        "invariant": "waitlist_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "fifo_allocation_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "ticket_quantity",
+        "violation_count": 0
+      },
+      {
+        "invariant": "ticket_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "duplicate_payment_effect",
+        "violation_count": 0
+      },
+      {
+        "invariant": "duplicate_active_waitlist",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_capacity",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_order_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_no_unbound_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_no_late_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_reliable_command",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_exhausted_command_active",
+        "violation_count": 0
+      },
+      {
+        "invariant": "quota_order_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "quota_extra_or_orphan",
+        "violation_count": 0
+      },
+      {
+        "invariant": "bucket_strategy_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "bucket_bounds",
+        "violation_count": 0
+      },
+      {
+        "invariant": "allocation_quantity",
+        "violation_count": 0
+      },
+      {
+        "invariant": "bucket_order_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "allocation_relations",
+        "violation_count": 0
+      },
+      {
+        "invariant": "bucket_switch_receipt",
+        "violation_count": 0
+      }
+    ],
+    "counts": {
+      "purchase_request": 431,
+      "order_aftercare": 0,
+      "refund_record": 0,
+      "electronic_ticket": 124,
+      "waitlist_entry": 0,
+      "payment_record": 124,
+      "ticket_order_item": 326,
+      "ticket_order": 326,
+      "outbox_event": 633,
+      "ticket_sku": 64,
+      "activity_session": 64,
+      "activity": 1000,
+      "user_account": 52,
+      "user_session_quota": 41
+    }
+  }
+}

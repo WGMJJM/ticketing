@@ -1,0 +1,87 @@
+{
+  "channels": {
+    "PURCHASE_REQUEST_ACCEPTED": {
+      "states": {
+        "PENDING": 0,
+        "PROCESSING": 0,
+        "SENT": 396,
+        "FAILED": 0
+      },
+      "retryEvents": 220,
+      "createdToConfirmedRecordMs": {
+        "count": 396,
+        "p50": 1298.4275,
+        "p95": 2571.991,
+        "p99": 3083.46945,
+        "max": 3133.827
+      },
+      "pendingAgeMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      }
+    },
+    "WAITLIST_DISPATCH_REQUESTED": {
+      "states": {
+        "PENDING": 0,
+        "PROCESSING": 0,
+        "SENT": 252,
+        "FAILED": 0
+      },
+      "retryEvents": 0,
+      "createdToConfirmedRecordMs": {
+        "count": 252,
+        "p50": 523.4,
+        "p95": 1152.6926,
+        "p99": 1268.3061500000001,
+        "max": 1307.906
+      },
+      "pendingAgeMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      }
+    }
+  },
+  "purchaseStates": {
+    "QUEUED": 0,
+    "PROCESSING": 0,
+    "SUCCEEDED": 396,
+    "FAILED": 0,
+    "EXPIRED": 0
+  },
+  "acceptedToOutboxMs": {
+    "count": 396,
+    "p50": 10.233,
+    "p95": 68.3745,
+    "p99": 140.30405000000002,
+    "max": 158.61
+  },
+  "acceptedToOrderWriteMs": {
+    "count": 396,
+    "p50": 1407.1265,
+    "p95": 2480.4804999999997,
+    "p99": 2712.0545500000003,
+    "max": 2895.401
+  },
+  "acceptedToTerminalWriteMs": {
+    "count": 396,
+    "p50": 1417.4409999999998,
+    "p95": 2501.6125,
+    "p99": 2717.9169000000006,
+    "max": 2901.135
+  },
+  "confirmedRecordToOrderWriteSignedMs": {
+    "count": 396,
+    "p50": 117.255,
+    "p95": 929.29275,
+    "p99": 1444.7781000000002,
+    "max": 2109.619
+  },
+  "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+  "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+}
