@@ -42,5 +42,8 @@ public class PurchaseCommands {
     public void recover(long requestId) { outbox.recoverPurchase(PurchaseCommand.eventId(requestId)); }
 
     @Transactional(propagation=Propagation.MANDATORY)
+    public boolean failed(long requestId) { return outbox.purchaseFailed(PurchaseCommand.eventId(requestId)); }
+
+    @Transactional(propagation=Propagation.MANDATORY)
     public void close(long requestId) { outbox.closePurchase(PurchaseCommand.eventId(requestId)); }
 }

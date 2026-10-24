@@ -55,6 +55,14 @@ public interface PurchaseRequestMapper {
         """)
     int expire(long id);
 
+    @Update("""
+        UPDATE purchase_request SET status='FAILED',failure_code='PURCHASE_COMMAND_DELIVERY_EXHAUSTED',
+          processing_lease_until=NULL,processing_token=processing_token+1,updated_at=UTC_TIMESTAMP(6)
+        WHERE id=#{id} AND order_id IS NULL AND deadline_at>UTC_TIMESTAMP(6)
+          AND (status='QUEUED' OR (status='PROCESSING' AND processing_lease_until<=UTC_TIMESTAMP(6)))
+        """)
+    int failDeliveryExhausted(long id);
+
     @Select("""
         <script>SELECT id FROM purchase_request WHERE status IN('QUEUED','PROCESSING') AND id>#{after}
           AND (deadline_at&lt;=UTC_TIMESTAMP(6) OR next_recovery_at&lt;=UTC_TIMESTAMP(6))

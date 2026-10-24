@@ -19,3 +19,6 @@ SELECT 'purchase_reliable_command' AS invariant,COUNT(*) AS violation_count
  FROM purchase_request p LEFT JOIN outbox_event e ON e.event_id=CONCAT('purchase-',p.id)
  WHERE p.status IN('QUEUED','PROCESSING') AND (e.id IS NULL OR e.event_type<>'PURCHASE_REQUEST_ACCEPTED'
  OR e.aggregate_type<>'PURCHASE_REQUEST' OR e.aggregate_id<>p.id);
+SELECT 'purchase_exhausted_command_active' AS invariant,COUNT(*) AS violation_count
+ FROM purchase_request p JOIN outbox_event e ON e.event_id=CONCAT('purchase-',p.id)
+ WHERE p.status IN('QUEUED','PROCESSING') AND e.status='FAILED';

@@ -33,6 +33,8 @@ import static org.mockito.ArgumentMatchers.*;
     "ticketing.purchase.capacity=200","ticketing.purchase.queue-seconds=120","ticketing.purchase.lease-seconds=2",
     "ticketing.purchase.consumer.concurrency=4","ticketing.purchase.consumer.prefetch=3",
     "ticketing.purchase.recovery-seconds=1","ticketing.purchase.messaging-enabled=true",
+    "ticketing.messaging.jobs-enabled=false",
+    "ticketing.waitlist.outbox.max-attempts=2",
     "ticketing.purchase.exchange=ticketing.purchase.stage14.it","ticketing.purchase.queue=ticketing.purchase.stage14.it.orders",
     "ticketing.waitlist.messaging.enabled=true","ticketing.waitlist.exchange=ticketing.waitlist.stage14.it",
     "ticketing.waitlist.queue=ticketing.waitlist.stage14.it.dispatch",
@@ -57,6 +59,7 @@ class AsyncPurchaseIT {
     @Autowired Declarables waitlistTopology;
     @Autowired InventoryEvents inventoryEvents;
     @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
+    @Autowired io.micrometer.core.instrument.MeterRegistry meters;
     @MockitoSpyBean OutboxPublisher publisher;
     @MockitoSpyBean OutboxMapper eventOutbox;
     @MockitoSpyBean com.ticketing.trade.OrderMapper orders;
@@ -277,6 +280,41 @@ class AsyncPurchaseIT {
         for(int i=0;i<20;i++)processing.recover(id);
         assertThat(db.queryForObject("SELECT COUNT(*) FROM outbox_event WHERE event_id=?",Integer.class,PurchaseCommand.eventId(id))).isEqualTo(1);
         startConsumer();assertThat(await(buyer,Long.toString(id)).path("status").asText()).isEqualTo("SUCCEEDED");stock(1);capacity(0);
+    }
+
+    @Test void failedPurchaseCommandTerminatesActiveRequestAndRejectsLateMessage() throws Exception {
+        long id=accept(buyer,sku,1,"publish-exhausted-active").path("requestId").asLong();
+        String unavailableExchange="ticketing.purchase.missing."+UUID.randomUUID();
+        OutboxPublisher failing=new OutboxPublisher(publisherState,rabbit,"ticketing.waitlist.stage14.it",unavailableExchange,120,
+                new OutboxProperties(1,5000,30,2,1,2,1),meters);
+        for(int attempt=0;attempt<2;attempt++) {
+            db.update("UPDATE outbox_event SET next_retry_at=UTC_TIMESTAMP(6) WHERE event_id=?",PurchaseCommand.eventId(id));
+            failing.publishBatch();
+        }
+        assertThat(eventOutbox.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<OutboxEvent>()
+                .eq(OutboxEvent::getEventId,PurchaseCommand.eventId(id))).getStatus()).isEqualTo("FAILED");
+        assertThat(requests.find(id).status()).isEqualTo("QUEUED");
+        db.update("UPDATE purchase_request SET next_recovery_at=UTC_TIMESTAMP(6) WHERE id=?",id);
+        processing.recover(id);
+        PurchaseRequest failed=requests.find(id);
+        assertThat(failed.status()).isEqualTo("FAILED");
+        assertThat(failed.failureCode()).isEqualTo("PURCHASE_COMMAND_DELIVERY_EXHAUSTED");
+        assertThat(buyer.call("GET","/purchase-requests/"+id,null,null,200).path("data").path("failureMessage").asText())
+                .contains("本次未创建订单");
+        capacity(0);stock(0);assertThat(count("ticket_order")).isZero();
+
+        MessageProperties lateProperties=new MessageProperties();
+        lateProperties.setDeliveryMode(MessageDeliveryMode.PERSISTENT);
+        lateProperties.setMessageId(PurchaseCommand.eventId(id));
+        rabbit.send("ticketing.purchase.stage14.it",PurchaseCommand.ROUTING_KEY,
+                new Message(json.writeValueAsBytes(new PurchaseCommand(PurchaseCommand.eventId(id),Long.toString(id),1)),lateProperties));
+        startConsumer();
+        long deadline=System.nanoTime()+Duration.ofSeconds(10).toNanos();
+        while(System.nanoTime()<deadline && ((Number)broker.getQueueProperties(QUEUE).get("QUEUE_MESSAGE_COUNT")).intValue()>0) Thread.sleep(50);
+        assertThat(((Number)broker.getQueueProperties(QUEUE).get("QUEUE_MESSAGE_COUNT")).intValue()).isZero();
+        processing.recover(id);worker.process(id);
+        assertThat(requests.find(id).status()).isEqualTo("FAILED");
+        assertThat(count("ticket_order")).isZero();capacity(0);stock(0);
     }
 
     @Test void commitBeforeAcknowledgementFailureAndMalformedMessagesUseRealBrokerRedeliveryAndDeadLetter() throws Exception {

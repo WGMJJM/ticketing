@@ -74,6 +74,14 @@ public class PurchaseProcessing {
         PurchaseRequest current=requests.lock(id);
         if(current==null || current.terminal()) return;
         if(requests.expire(id)==1) { release(); commands.close(id); return; }
+        if(commands.failed(id)) {
+            if(requests.failDeliveryExhausted(id)==1) {
+                release();
+                meters.counter("ticketing.purchase.recovery","outcome","delivery-exhausted").increment();
+                return;
+            }
+            if(requests.expire(id)==1) { release(); commands.close(id); return; }
+        }
         if(requests.scheduleRecovery(id,properties.recoverySeconds())==1) commands.recover(id);
     }
     private boolean lockCurrent(PurchaseRequest claim) {
