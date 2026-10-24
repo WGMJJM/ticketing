@@ -214,3 +214,9 @@ try {
 已有历史订单且尚未应用V9时，默认启动预检报`STOP_QUOTA_SWITCH`，不会自动进行额度切换。必须停写并备份，使用同一只读连接先`SET @ticketing_quota_limit=<实际ORDER_SESSION_LIMIT>`再执行`scripts/audit-user-session-quota.sql`，并完成既有关系/退款/管理审计/受理预检。无异常后单次设置`ORDER_QUOTA_MIGRATION_APPROVED=true`迁移；校验全部额度组与有效订单SUM一致后撤销开关、恢复写入。失败现场保留，不执行repair或清库。
 
 原开发库当前仍V7，本次只读核对而未部署V8/V9。不要直接运行普通启动命令替代受控升级。固定隔离基准与真实结果见[第十六阶段验收](27-trade-quota-and-transaction-verification.md)。
+
+## 第十六阶段后审查
+
+Outbox增加`WAITLIST_OUTBOX_IN_FLIGHT_WINDOW`，默认16、允许1至64，实际认领数量还受原健康批量1至100限制。每个窗口先短事务认领，再流水线发送及异步Confirm通知，调度线程独立落账；30秒租约必须超过5000毫秒确认超时并预留至少一秒。故障后不认领新窗口，未确认记录保持可由数据库租约恢复。不要通过扩大窗口替代端到端测量，64档未重复出稳定收益。
+
+新申请的实时预检不占库存，使用独立短只读事务以及时归还MyBatis连接；原同键回放优先，原安全限流和消费者最终检查保持。只读`GET /purchase-requests/lookup`使用Idempotency-Key请求头恢复本人申请。此次不新增迁移，V1至V9冻结，开发库继续遵守原升级门禁。审查结果、失败样本和复现命令见[后审查记录](28-post-stage16-audit-and-remediation.md)。

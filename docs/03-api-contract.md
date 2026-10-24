@@ -110,6 +110,7 @@ ON_SALE仅为管理状态。后端先判断活动发布、场次正常且未结�
 | POST `/orders` | JSON仅 `{ "skuId":"10001", "quantity":2 }`，必需请求头Idempotency-Key；持久受理成功202返回PurchaseRequestView，终态同键重放200；不在HTTP内预占或创建订单 |
 | GET `/purchase-requests/{requestId}` | 本人购票请求真实进度；不存在及非本人统一404，no-store |
 | GET `/purchase-requests` | 本人最近50笔进行中的抢票申请，供刷新与导航恢复；no-store |
+| GET `/purchase-requests/lookup` | 请求头Idempotency-Key（相同1至128位可见ASCII规则），只读查询当前用户该键的原申请；没有记录统一404 PURCHASE_REQUEST_NOT_FOUND，no-store；不提交新申请 |
 | GET `/orders?page=1&size=10` | 本人订单，按创建时间及ID降序，返回items/total/page/size；页码1至10000，每页1至50 |
 | GET `/orders/limits?sessionId=10001` | 当前用户该场次限额 `{maxPerSession,usedQuantity,remainingQuantity}`；供表单展示，下单时重新校验 |
 | GET `/orders/{orderId}` | 本人订单详情；不存在或属于其他用户统一404 |
@@ -118,6 +119,10 @@ ON_SALE仅为管理状态。后端先判断活动发布、场次正常且未结�
 | GET `/orders/{orderId}/payment` | 本人订单成功模拟支付流水；没有成功记录404 PAYMENT_NOT_FOUND，非本人订单404 ORDER_NOT_FOUND |
 
 第十六阶段该限额改读MySQL用户场次独立额度，返回字段不变，仍跨该场次全部票档共享。PENDING与PAID占额，支付不重复占额，取消/过期/整单退款成功才同事务释放；WAITING及未建单请求不占额。交易账号SHARE与禁用/撤权UPDATE协调，限额写在精确额度行串行；HTTP受理仍保留原账号UPDATE、幂等键和容量事务。取消成功响应在写事务提交后读取公开详情，不暴露内部额度记录。迁移及完整锁协议见[第十六阶段说明](27-trade-quota-and-transaction-verification.md)。
+
+后审查增加实时销售预检：原申请查重优先；新键在写受理之前通过独立短只读事务按票档及父级主键检查。不存在票档404 TICKET_NOT_FOUND，明确未销售/下架/取消或窗口关闭409 TICKET_UNAVAILABLE，不写请求、预算或Outbox。预检不判断库存和场次剩余额度，消费者仍做最终锁内校验；预检通过不保证建单成功。恢复开售后原先未受理的键可以重试。此查询不用展示缓存或Redis负缓存。
+
+POST原安全429/故障503仍可能先于业务查重，不因同键而放宽。丢失首次响应时可登录后用上述只读lookup恢复既有事实；404才表示当前读取时尚无已提交申请，重试写入仍须原键。客户端不自动循环重发写请求。取消响应超时或提交后详情读取失败也不代表取消未发生，应查询订单状态；CANCELLED可安全重试取消而不再次释放库存或额度。
 
 skuId为正十进制字符串且不能超过Java long，quantity为正INT整数，拒绝小数。未知创建字段（userId、价格、金额、状态、库存等）400；身份和价格只能来自服务端。幂等键为1至128位可见ASCII字符（不含空格），区分大小写；缺失或非法400。操作域固定CREATE_ORDER，同一用户同键同参返回同一个requestId及真实状态，不续期、不重复占预算或追加消息；同键异SKU/数量409 IDEMPOTENCY_CONFLICT，不同用户可共用键。V8将旧普通订单幂等事实登记为SUCCEEDED，旧订单已取消仍关联该原单，不重复预占。
 
