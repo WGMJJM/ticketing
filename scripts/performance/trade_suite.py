@@ -16,6 +16,9 @@ def quota_upgrade(jar, directory):
         if 'BOOT-INF/classes/db/migration/V9__user_session_quota.sql' not in archive.namelist():
             return {}
     with perf.connect() as db, db.cursor() as cur:
+        cur.execute("SELECT COUNT(*) n FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='ticket_order'")
+        if not cur.fetchone()['n']:
+            return {}  # 全新隔离库由Flyway正常建库，没有历史订单需要批准切换。
         cur.execute("SELECT COUNT(*) n FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='user_session_quota'")
         if cur.fetchone()['n']:
             return {}
@@ -45,6 +48,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--jar', required=True)
     parser.add_argument('--label', required=True)
+    parser.add_argument('--outbox-window', type=int, choices=[1,16,32,64])
     parser.add_argument('--scenarios', nargs='+', choices=['hot-ample','hot-scarce','mixed','same-user-cross-session'],
                         help='省略时四轮齐全；诊断复测可显式选择场景，新标签独立保存')
     args = parser.parse_args()
@@ -56,6 +60,8 @@ def main():
     perf.connect().close()
     perf.app_stop()
     approved=quota_upgrade(args.jar,directory)
+    if args.outbox_window is not None:
+        approved['WAITLIST_OUTBOX_IN_FLIGHT_WINDOW'] = str(args.outbox_window)
     perf.app_start(args.jar, rate_limit_mode='regression', CATALOG_CACHE_ENABLED='true', PURCHASE_ADMISSION_LIMIT_ENABLED='false',**approved)
     original = perf.RESULTS
     try:

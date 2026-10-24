@@ -60,6 +60,11 @@ def main():
               httpStatus=response.status_code, code=response.json()['code'])
         replay = buyer.session.post(perf.BASE + '/api/v1/orders', json=body, headers={**buyer.token, 'Idempotency-Key': key}, timeout=5)
         check('Redis停机时原用户安全过滤器也会先拒绝幂等回放', replay.status_code == 503 and replay.json()['code'] == 'RATE_LIMIT_UNAVAILABLE')
+        lookup = buyer.session.get(perf.BASE + '/api/v1/purchase-requests/lookup',
+                                   headers={'Idempotency-Key': key}, timeout=5)
+        check('Redis真实停机时本人只读查找仍恢复原申请且禁止缓存', lookup.status_code == 200
+              and lookup.json()['data']['requestId'] == accepted['requestId']
+              and 'no-store' in lookup.headers.get('Cache-Control', ''))
         check('故障拒绝没有新增受理及容量占用', perf.rows('SELECT COUNT(*) n FROM purchase_request')[0]['n'] == before
               and perf.rows('SELECT pending_count n FROM purchase_capacity WHERE id=1')[0]['n'] == 0
               and perf.rows("SELECT COUNT(*) n FROM outbox_event WHERE aggregate_type='PURCHASE_REQUEST'")[0]['n'] == commands_before)

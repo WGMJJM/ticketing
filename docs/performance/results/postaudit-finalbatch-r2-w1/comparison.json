@@ -1,0 +1,105 @@
+{
+  "environment": "ticketing-perf-only",
+  "rounds": [
+    {
+      "scenario": "hot-ample",
+      "vus": 100,
+      "distinctBuyerAccounts": 100,
+      "sessions": 1,
+      "httpRps": 354.0,
+      "acceptedTps": 7.35,
+      "orderTps": 7.4,
+      "completionMs": {
+        "med": 13209.5,
+        "p(95)": 18753.25,
+        "p(99)": 19219.36,
+        "max": 19492
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 12039,
+        "Com_rollback": 0,
+        "Com_select": 49028,
+        "Innodb_row_lock_time": 22208,
+        "Innodb_row_lock_waits": 545,
+        "Questions": 115956,
+        "Slow_queries": 125,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "final": {
+        "mysql": {
+          "Com_commit": 479381,
+          "Com_rollback": 1728,
+          "Com_select": 2292043,
+          "Innodb_row_lock_time": 5347239,
+          "Innodb_row_lock_waits": 67801,
+          "Questions": 5252984,
+          "Slow_queries": 51658,
+          "Threads_connected": 11,
+          "Threads_running": 2,
+          "lock_deadlocks": 7,
+          "lock_timeouts": 4,
+          "current_lock_waits": 0
+        },
+        "outbox": [
+          {
+            "status": "SENT",
+            "n": 524,
+            "attempts": 1
+          }
+        ],
+        "outboxLag": {
+          "n": 524,
+          "avg_ms": "5899.76819847",
+          "max_ms": "16308.4970"
+        },
+        "outboxChannels": [
+          {
+            "event_type": "PURCHASE_REQUEST_ACCEPTED",
+            "status": "SENT",
+            "n": 262
+          },
+          {
+            "event_type": "WAITLIST_DISPATCH_REQUESTED",
+            "status": "SENT",
+            "n": 262
+          }
+        ],
+        "outboxChannelLag": [
+          {
+            "event_type": "PURCHASE_REQUEST_ACCEPTED",
+            "n": 262,
+            "avg_ms": "11149.75920229",
+            "max_ms": "16308.4970"
+          },
+          {
+            "event_type": "WAITLIST_DISPATCH_REQUESTED",
+            "n": 262,
+            "avg_ms": "649.77719466",
+            "max_ms": "2349.7750"
+          }
+        ],
+        "outboxBacklogAge": [],
+        "purchaseRequests": [
+          {
+            "status": "SUCCEEDED",
+            "failure_code": "NONE",
+            "n": 262
+          }
+        ]
+      },
+      "artifactSha256": "75d410981a56894c3f97aca9e946629b278f7337ef62bf9d00e7133de2d00f8a",
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "raw": "docs\\performance\\results\\postaudit-finalbatch-r2-w1\\hot-ample\\hot-ample-100"
+    }
+  ],
+  "complete": true,
+  "scenarioScriptSha256": "771f9f614f3dfa6d1054d8e515643593b2fe5868ed3a1fecce27aa8258495304",
+  "passed": true
+}

@@ -1,0 +1,205 @@
+{
+  "scope": "场景收尾的应用分位估计；保持原单位，不将重叠阶段直接相加。",
+  "metrics": [
+    {
+      "name": "ticketing.outbox.confirm.duration",
+      "baseUnit": "seconds",
+      "measurements": [
+        {
+          "statistic": "COUNT",
+          "value": 747.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 3.8925257
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.0863858
+        }
+      ],
+      "availableTags": [
+        {
+          "tag": "channel",
+          "values": [
+            "inventory",
+            "purchase"
+          ]
+        },
+        {
+          "tag": "outcome",
+          "values": [
+            "confirmed"
+          ]
+        }
+      ]
+    },
+    {
+      "selectedTags": {
+        "phi": "0.95",
+        "channel": "purchase",
+        "outcome": "confirmed"
+      },
+      "name": "ticketing.outbox.confirm.duration.percentile",
+      "baseUnit": "seconds",
+      "measurements": [
+        {
+          "statistic": "VALUE",
+          "value": 0.011993088
+        }
+      ],
+      "availableTags": []
+    },
+    {
+      "selectedTags": {
+        "phi": "0.95",
+        "channel": "inventory",
+        "outcome": "confirmed"
+      },
+      "name": "ticketing.outbox.confirm.duration.percentile",
+      "baseUnit": "seconds",
+      "measurements": [
+        {
+          "statistic": "VALUE",
+          "value": 0.009895936
+        }
+      ],
+      "availableTags": []
+    },
+    {
+      "selectedTags": {
+        "phi": "0.99",
+        "channel": "purchase",
+        "outcome": "confirmed"
+      },
+      "name": "ticketing.outbox.confirm.duration.percentile",
+      "baseUnit": "seconds",
+      "measurements": [
+        {
+          "statistic": "VALUE",
+          "value": 0.031391744
+        }
+      ],
+      "availableTags": []
+    },
+    {
+      "selectedTags": {
+        "phi": "0.99",
+        "channel": "inventory",
+        "outcome": "confirmed"
+      },
+      "name": "ticketing.outbox.confirm.duration.percentile",
+      "baseUnit": "seconds",
+      "measurements": [
+        {
+          "statistic": "VALUE",
+          "value": 0.014614528
+        }
+      ],
+      "availableTags": []
+    },
+    {
+      "name": "ticketing.purchase.accepted.to.claim",
+      "baseUnit": "seconds",
+      "measurements": [
+        {
+          "statistic": "COUNT",
+          "value": 352.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 2700.89486
+        },
+        {
+          "statistic": "MAX",
+          "value": 12.037896
+        }
+      ],
+      "availableTags": []
+    },
+    {
+      "selectedTags": {
+        "phi": "0.99"
+      },
+      "name": "ticketing.purchase.accepted.to.claim.percentile",
+      "baseUnit": "seconds",
+      "measurements": [
+        {
+          "statistic": "VALUE",
+          "value": 11.777605632
+        }
+      ],
+      "availableTags": []
+    },
+    {
+      "selectedTags": {
+        "phi": "0.95"
+      },
+      "name": "ticketing.purchase.accepted.to.claim.percentile",
+      "baseUnit": "seconds",
+      "measurements": [
+        {
+          "statistic": "VALUE",
+          "value": 11.24073472
+        }
+      ],
+      "availableTags": []
+    },
+    {
+      "name": "ticketing.trade.transaction.duration",
+      "baseUnit": "seconds",
+      "measurements": [
+        {
+          "statistic": "COUNT",
+          "value": 352.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 41.1377241
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.471912
+        }
+      ],
+      "availableTags": [
+        {
+          "tag": "outcome",
+          "values": [
+            "success"
+          ]
+        }
+      ]
+    },
+    {
+      "selectedTags": {
+        "phi": "0.95",
+        "outcome": "success"
+      },
+      "name": "ticketing.trade.transaction.duration.percentile",
+      "baseUnit": "seconds",
+      "measurements": [
+        {
+          "statistic": "VALUE",
+          "value": 0.232783872
+        }
+      ],
+      "availableTags": []
+    },
+    {
+      "selectedTags": {
+        "phi": "0.99",
+        "outcome": "success"
+      },
+      "name": "ticketing.trade.transaction.duration.percentile",
+      "baseUnit": "seconds",
+      "measurements": [
+        {
+          "statistic": "VALUE",
+          "value": 0.3670016
+        }
+      ],
+      "availableTags": []
+    }
+  ]
+}

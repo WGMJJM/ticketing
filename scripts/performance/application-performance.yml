@@ -21,6 +21,10 @@ server:
       cookie:
         secure: false
 management:
+  metrics:
+    distribution:
+      percentiles:
+        "ticketing.trade.transaction.duration": [0.95, 0.99]
   endpoints:
     web:
       # 沿用现有 ADMIN 授权及账号状态复查，不公开 JVM/连接池指标。

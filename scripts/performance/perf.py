@@ -37,6 +37,7 @@ OVERRIDES |= {'PURCHASE_CAPACITY', 'PURCHASE_QUEUE_SECONDS', 'PURCHASE_LEASE_SEC
 OVERRIDES |= {'CATALOG_CACHE_ENABLED', 'PURCHASE_ADMISSION_LIMIT_ENABLED', 'PURCHASE_ADMISSION_GLOBAL_RATE',
               'PURCHASE_ADMISSION_GLOBAL_BURST', 'PURCHASE_ADMISSION_TICKET_RATE', 'PURCHASE_ADMISSION_TICKET_BURST'}
 OVERRIDES.add('ORDER_QUOTA_MIGRATION_APPROVED')
+OVERRIDES.add('WAITLIST_OUTBOX_IN_FLIGHT_WINDOW')
 
 
 def save(path, value):
@@ -96,8 +97,8 @@ def execute(sql, args=None):
 
 
 class Client:
-    def __init__(self, account=None, register=False):
-        self.session = requests.Session()
+    def __init__(self, account=None, register=False, session=None):
+        self.session = session if session is not None else requests.Session()
         self.csrf()
         if register:
             self.request('POST', '/api/v1/auth/register', account)
@@ -477,6 +478,8 @@ METRICS = ['process.cpu.usage', 'jvm.memory.used', 'jvm.gc.pause', 'jvm.threads.
            'ticketing.catalog.loads.active', 'ticketing.catalog.local.entries',
            'ticketing.catalog.redis.duration', 'ticketing.purchase.admission.redis.duration']
 METRICS += ['ticketing.trade.transaction.duration', 'ticketing.trade.lock.duration', 'ticketing.trade.quota']
+METRICS += ['ticketing.outbox.confirm.duration', 'ticketing.outbox.publish', 'ticketing.outbox.claim']
+METRICS += ['ticketing.purchase.accepted.to.claim', 'ticketing.purchase.delivery']
 
 
 def mq_snapshot():
@@ -608,6 +611,8 @@ def run(args):
     save(output / 'environment.json', metadata)
     save(output / 'monitoring.json', samples)
     save(output / 'database.json', diagnostics())
+    from chain_metrics import snapshot
+    save(output / 'chain.json', snapshot(connect))
     # 进程诊断只保存在私有目录；共享报告不复制 k6 的潜在请求日志。
     (PRIVATE / 'last-k6.log').write_text(process.stdout + process.stderr, encoding='utf-8')
     if process.returncode:

@@ -32,8 +32,9 @@ const checked = new Counter('checked_tickets');
 const idem = new Rate('idempotency_correct');
 const serverErrors = new Counter('server_errors');
 const transportErrors = new Counter('transport_errors');
+const loginErrors = new Counter('login_errors');
 const routes = ['activities', 'activity', 'sessions', 'tickets', 'create', 'purchase_status', 'cancel', 'pay', 'waitlist', 'checkin'];
-const thresholds = { unexpected_error: ['rate==0'], all_unexpected_error: ['rate==0'], http_req_failed: ['rate==0'], server_errors: ['count==0'], transport_errors: ['count==0'] };
+const thresholds = { unexpected_error: ['rate==0'], all_unexpected_error: ['rate==0'], http_req_failed: ['rate==0'], server_errors: ['count==0'], transport_errors: ['count==0'], login_errors: ['count==0'] };
 for (const status of [0, 400, 401, 403, 404, 429, 500, 503]) {
   if (!(admissionRejections && status === 429)) thresholds[`all_http_outcomes{status:${status}}`] = ['count==0'];
 }
@@ -91,14 +92,25 @@ function call(method, path, body, name, extra = {}, measured = true) {
   return response;
 }
 function login(account) {
+  token = undefined;
+  loginErrors.add(0);
+  function fail(stage, status, message) {
+    loginErrors.add(1, { stage, kind: status === 0 ? 'transport' : status >= 500 ? 'server' : 'rejected' });
+    if (status === 0) transportErrors.add(1);
+    if (status >= 500) serverErrors.add(1);
+    allUnexpected.add(true);
+    throw new Error(message);
+  }
   let csrf = http.get(fixture.baseUrl + '/api/v1/auth/csrf', { tags: { name: 'csrf' } });
-  if (csrf.status !== 200) throw new Error('获取安全令牌失败');
-  token = csrf.json('data');
+  if (csrf.status !== 200) fail('csrf-before', csrf.status, '获取安全令牌失败');
+  const beforeLogin = csrf.json('data');
   const response = http.post(fixture.baseUrl + '/api/v1/auth/login', {
     username: account.username, password: account.password,
-  }, { headers: { [token.headerName]: token.token }, tags: { name: 'login' } });
-  if (response.status !== 200) throw new Error('测试账号登录失败');
-  token = http.get(fixture.baseUrl + '/api/v1/auth/csrf', { tags: { name: 'csrf' } }).json('data');
+  }, { headers: { [beforeLogin.headerName]: beforeLogin.token }, tags: { name: 'login' } });
+  if (response.status !== 200) fail('authenticate', response.status, '测试账号登录失败');
+  csrf = http.get(fixture.baseUrl + '/api/v1/auth/csrf', { tags: { name: 'csrf' } });
+  if (csrf.status !== 200) fail('csrf-after', csrf.status, '登录后获取安全令牌失败');
+  token = csrf.json('data');
 }
 export function setup() {
   login(fixture.admin);

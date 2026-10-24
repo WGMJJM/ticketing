@@ -1,0 +1,271 @@
+{
+  "passed": true,
+  "environment": "ticketing-perf-only",
+  "artifactSha256": "4d86020249e9e837248e4ff68c80215160818ddd33cadd19971e162da5a62610",
+  "uiCheckCount": 14,
+  "checks": [
+    {
+      "name": "真实Session登录并显示普通用户",
+      "passed": true
+    },
+    {
+      "name": "首次202响应延迟触发超时后本人GET自动找回同一正式订单",
+      "passed": true
+    },
+    {
+      "name": "取消200响应延迟超时后查询确认已取消且额度释放",
+      "passed": true
+    },
+    {
+      "name": "停售预检返回明确未受理提示且原申请保留",
+      "passed": true
+    },
+    {
+      "name": "停售恢复后原键首次成功受理建单",
+      "passed": true
+    },
+    {
+      "name": "真实429后GET404且保留原申请并提示稍后重试",
+      "passed": true
+    },
+    {
+      "name": "刷新后保留原申请且数量不被重建",
+      "passed": true
+    },
+    {
+      "name": "限流窗口结束后同一申请成功且未重复建单",
+      "passed": true
+    },
+    {
+      "name": "模拟支付成功并保留唯一支付流水",
+      "passed": true
+    },
+    {
+      "name": "支付后仅签发一张本人未使用票且未打开完整凭证",
+      "passed": true
+    },
+    {
+      "name": "退出与重新登录管理员后刷新会话身份",
+      "passed": true
+    },
+    {
+      "name": "管理员整单模拟退款成功并保留原支付流水及作废唯一票",
+      "passed": true
+    },
+    {
+      "name": "买家重新登录可见两单取消一单模拟退款且原支付记录保留",
+      "passed": true
+    },
+    {
+      "name": "两票档库存均恢复20且本人场次额度已占0可购4",
+      "passed": true
+    }
+  ],
+  "faultProxyEvents": [
+    {
+      "route": "create",
+      "method": "POST",
+      "status": 202,
+      "delayedAfterBackendResponse": true
+    },
+    {
+      "route": "lookup",
+      "method": "GET",
+      "status": 200,
+      "delayedAfterBackendResponse": false
+    },
+    {
+      "route": "cancel",
+      "method": "POST",
+      "status": 200,
+      "delayedAfterBackendResponse": true
+    },
+    {
+      "route": "create",
+      "method": "POST",
+      "status": 409,
+      "delayedAfterBackendResponse": false
+    },
+    {
+      "route": "lookup",
+      "method": "GET",
+      "status": 404,
+      "delayedAfterBackendResponse": false
+    },
+    {
+      "route": "create",
+      "method": "POST",
+      "status": 202,
+      "delayedAfterBackendResponse": false
+    },
+    {
+      "route": "cancel",
+      "method": "POST",
+      "status": 200,
+      "delayedAfterBackendResponse": false
+    },
+    {
+      "route": "create",
+      "method": "POST",
+      "status": 429,
+      "delayedAfterBackendResponse": false
+    },
+    {
+      "route": "lookup",
+      "method": "GET",
+      "status": 404,
+      "delayedAfterBackendResponse": false
+    },
+    {
+      "route": "lookup",
+      "method": "GET",
+      "status": 404,
+      "delayedAfterBackendResponse": false
+    },
+    {
+      "route": "create",
+      "method": "POST",
+      "status": 202,
+      "delayedAfterBackendResponse": false
+    }
+  ],
+  "databaseFacts": {
+    "ordersByStatus": [
+      {
+        "status": "CANCELLED",
+        "n": 2
+      },
+      {
+        "status": "REFUNDED",
+        "n": 1
+      }
+    ],
+    "requestsByStatus": [
+      {
+        "status": "SUCCEEDED",
+        "n": 3
+      }
+    ],
+    "occupiedQuota": 0,
+    "stockRows": [
+      {
+        "total_stock": 20,
+        "locked_stock": 0,
+        "sold_stock": 0
+      },
+      {
+        "total_stock": 20,
+        "locked_stock": 0,
+        "sold_stock": 0
+      }
+    ],
+    "counts": {
+      "paidFacts": 1,
+      "payments": 1,
+      "refunds": 1,
+      "voidTickets": 1
+    }
+  },
+  "audit": {
+    "passed": true,
+    "checks": [
+      {
+        "invariant": "stock_bounds",
+        "violation_count": 0
+      },
+      {
+        "invariant": "stock_order_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "payment_snapshot",
+        "violation_count": 0
+      },
+      {
+        "invariant": "order_snapshot",
+        "violation_count": 0
+      },
+      {
+        "invariant": "session_quota",
+        "violation_count": 0
+      },
+      {
+        "invariant": "waitlist_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "fifo_allocation_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "ticket_quantity",
+        "violation_count": 0
+      },
+      {
+        "invariant": "ticket_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "duplicate_payment_effect",
+        "violation_count": 0
+      },
+      {
+        "invariant": "duplicate_active_waitlist",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_capacity",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_order_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_no_unbound_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_no_late_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_reliable_command",
+        "violation_count": 0
+      },
+      {
+        "invariant": "quota_order_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "quota_extra_or_orphan",
+        "violation_count": 0
+      }
+    ],
+    "counts": {
+      "purchase_request": 3,
+      "order_aftercare": 1,
+      "refund_record": 1,
+      "electronic_ticket": 1,
+      "waitlist_entry": 0,
+      "payment_record": 1,
+      "ticket_order_item": 3,
+      "ticket_order": 3,
+      "outbox_event": 6,
+      "ticket_sku": 3,
+      "activity_session": 2,
+      "activity": 1001,
+      "user_account": 5,
+      "user_session_quota": 1
+    }
+  },
+  "screenshots": [
+    "postaudit-create-recovered.png",
+    "postaudit-cancel-recovered.png",
+    "postaudit-unavailable-retained.png",
+    "postaudit-rate-limit-retained.png",
+    "postaudit-refunded.png",
+    "postaudit-quota-released.png"
+  ],
+  "scope": "真实浏览器、Session/CSRF及后端业务；仅隔离代理延迟已完成响应7秒触发浏览器5秒超时，429来自服务端真实限流。未展示完整票券凭证。"
+}

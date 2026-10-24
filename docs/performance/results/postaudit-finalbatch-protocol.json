@@ -1,0 +1,22 @@
+{
+  "frozen": {
+    "scripts\\performance\\perf.py": "ca204856d201d5e586d207d02010a07ab4ee74830e19a91c6f3b1ff4bb419294",
+    "scripts\\performance\\scenarios.js": "771f9f614f3dfa6d1054d8e515643593b2fe5868ed3a1fecce27aa8258495304",
+    "scripts\\performance\\chain_metrics.py": "4863e83e9254f86cc51b98d66476847140320088b738ed36018032c18e0424a2",
+    "scripts\\performance\\trade_suite.py": "d19873bac05c4922a84390b0bdada30ec36e22ce75d48fca1bd8a535b3ba7146",
+    "scripts\\performance\\application-performance.yml": "6717690311ecbc415be1fe32e4b8d27d3ea60b9e4e6d1bfe202af44c64b4ca6a",
+    "scripts\\performance\\metric_quantiles.py": "1de58f7e9b3d2f6702b8b483a8aa86ab5a39fd1df3fd538726701f6708a9e44b",
+    ".local\\post-stage16\\final.jar": "4d86020249e9e837248e4ff68c80215160818ddd33cadd19971e162da5a62610",
+    ".local\\post-stage16\\final-batch.jar": "75d410981a56894c3f97aca9e946629b278f7337ef62bf9d00e7133de2d00f8a"
+  },
+  "controls": "单条确认落账与批量条件落账分别封存；新包窗口1/16顺序和反向；10秒预热、按完成时间截20秒。其余场景独立记录。",
+  "rounds": [
+    "postaudit-finalbatch-r1-before",
+    "postaudit-finalbatch-r1-w1",
+    "postaudit-finalbatch-r1-w16",
+    "postaudit-finalbatch-r2-w16",
+    "postaudit-finalbatch-r2-w1",
+    "postaudit-finalbatch-r2-before",
+    "postaudit-finalbatch-other"
+  ]
+}

@@ -1,0 +1,3948 @@
+{
+  "selectedArtifactSha256": "4d86020249e9e837248e4ff68c80215160818ddd33cadd19971e162da5a62610",
+  "selectedWindow": 16,
+  "batchSentExperimentRetainedInProduction": false,
+  "conclusion": "流水线窗口16同产物吞吐两轮提高；长尾不稳定。批量SENT两轮无整链路收益，回退为更简单的逐条令牌条件落账。容量分片缺少整链路收益证据，未引入。",
+  "rounds": [
+    {
+      "label": "postaudit-batch-r1-before",
+      "scenario": "hot-ample",
+      "artifactSha256": "4d86020249e9e837248e4ff68c80215160818ddd33cadd19971e162da5a62610",
+      "acceptedTps": 12.65,
+      "orderTps": 12.65,
+      "completionMs": {
+        "med": 8577,
+        "p(95)": 12154.399999999992,
+        "p(99)": 12798.68,
+        "max": 12937
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 12902,
+        "Com_rollback": 0,
+        "Com_select": 57300,
+        "Innodb_row_lock_time": 52011,
+        "Innodb_row_lock_waits": 1063,
+        "Questions": 131385,
+        "Slow_queries": 455,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-batch-r1-before/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 404,
+              "FAILED": 0
+            },
+            "retryEvents": 67,
+            "createdToConfirmedRecordMs": {
+              "count": 404,
+              "p50": 5341.53,
+              "p95": 12300.247299999997,
+              "p99": 13335.321719999998,
+              "max": 14616.618
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 404,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 404,
+              "p50": 733.4894999999999,
+              "p95": 1423.3134999999986,
+              "p99": 1916.619679999997,
+              "max": 2301.653
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 404,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 404,
+          "p50": 11.5785,
+          "p95": 124.231,
+          "p99": 165.27364999999963,
+          "max": 193.848
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 404,
+          "p50": 7012.948,
+          "p95": 10671.29595,
+          "p99": 11221.25497,
+          "max": 11263.772
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 404,
+          "p50": 7021.726500000001,
+          "p95": 10681.856249999999,
+          "p99": 11237.23749,
+          "max": 11288.142
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 404,
+          "p50": 2508.1935,
+          "p95": 4228.3049,
+          "p99": 4606.189049999998,
+          "max": 4696.439
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 26.0
+    },
+    {
+      "label": "postaudit-batch-r1-w1",
+      "scenario": "hot-ample",
+      "artifactSha256": "75d410981a56894c3f97aca9e946629b278f7337ef62bf9d00e7133de2d00f8a",
+      "acceptedTps": 7.05,
+      "orderTps": 7.0,
+      "completionMs": {
+        "med": 14041.5,
+        "p(95)": 19905.25,
+        "p(99)": 20384.139999999996,
+        "max": 20872
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 11918,
+        "Com_rollback": 0,
+        "Com_select": 48273,
+        "Innodb_row_lock_time": 21210,
+        "Innodb_row_lock_waits": 499,
+        "Questions": 114390,
+        "Slow_queries": 123,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-batch-r1-w1/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 253,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 253,
+              "p50": 11145.567,
+              "p95": 16601.4934,
+              "p99": 17108.246199999998,
+              "max": 17667.012
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 253,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 253,
+              "p50": 234.665,
+              "p95": 1217.1458,
+              "p99": 1322.1331599999999,
+              "max": 1348.22
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 253,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 253,
+          "p50": 18.185,
+          "p95": 209.96019999999996,
+          "p99": 493.62695999999966,
+          "max": 534.48
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 253,
+          "p50": 11285.527,
+          "p95": 16716.0614,
+          "p99": 17179.94976,
+          "max": 17704.114
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 253,
+          "p50": 11291.122,
+          "p95": 16724.773400000002,
+          "p99": 17184.851,
+          "max": 17709.83
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 253,
+          "p50": 54.077,
+          "p95": 156.33879999999954,
+          "p99": 292.0157199999991,
+          "max": 983.844
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 58.0
+    },
+    {
+      "label": "postaudit-before",
+      "scenario": "hot-ample",
+      "artifactSha256": "0ba7f9c70119dcb84be57b3431afe18f19f8d4fc8e75d879cc91be7cf4e09c16",
+      "acceptedTps": 7.0,
+      "orderTps": 6.95,
+      "completionMs": {
+        "med": 14701,
+        "p(95)": 19309.7,
+        "p(99)": 20011.64,
+        "max": 21245
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 11523,
+        "Com_rollback": 0,
+        "Com_select": 47247,
+        "Innodb_row_lock_time": 22448,
+        "Innodb_row_lock_waits": 490,
+        "Questions": 110870,
+        "Slow_queries": 121,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-before/comparison.json",
+      "poolPendingPeak": 48.0
+    },
+    {
+      "label": "postaudit-before",
+      "scenario": "mixed",
+      "artifactSha256": "0ba7f9c70119dcb84be57b3431afe18f19f8d4fc8e75d879cc91be7cf4e09c16",
+      "acceptedTps": 11.1,
+      "orderTps": 11.25,
+      "completionMs": {
+        "med": 2367,
+        "p(95)": 3836.5999999999995,
+        "p(99)": 4012.56,
+        "max": 4058
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 5050,
+        "Com_rollback": 0,
+        "Com_select": 29953,
+        "Innodb_row_lock_time": 24775,
+        "Innodb_row_lock_waits": 695,
+        "Questions": 62119,
+        "Slow_queries": 162,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-before/comparison.json",
+      "poolPendingPeak": 0.0
+    },
+    {
+      "label": "postaudit-final-before",
+      "scenario": "hot-ample",
+      "artifactSha256": "0ba7f9c70119dcb84be57b3431afe18f19f8d4fc8e75d879cc91be7cf4e09c16",
+      "acceptedTps": 10.3,
+      "orderTps": 10.3,
+      "completionMs": {
+        "med": 9852.5,
+        "p(95)": 10512,
+        "p(99)": 10817,
+        "max": 10958
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 15696,
+        "Com_rollback": 0,
+        "Com_select": 66066,
+        "Innodb_row_lock_time": 24768,
+        "Innodb_row_lock_waits": 788,
+        "Questions": 153487,
+        "Slow_queries": 150,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-final-before/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 385,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 385,
+              "p50": 9408.292,
+              "p95": 10013.457999999999,
+              "p99": 10296.8604,
+              "max": 10367.001
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 385,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 385,
+              "p50": 445.318,
+              "p95": 1442.7575999999997,
+              "p99": 1521.60784,
+              "max": 1581.966
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 385,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 385,
+          "p50": 13.364,
+          "p95": 126.04359999999998,
+          "p99": 195.20647999999952,
+          "max": 250.794
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 385,
+          "p50": 9461.901,
+          "p95": 10079.669999999998,
+          "p99": 10360.054759999999,
+          "max": 10431.345
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 385,
+          "p50": 9468.88,
+          "p95": 10086.359599999998,
+          "p99": 10369.9866,
+          "max": 10451.441
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 385,
+          "p50": 41.351,
+          "p95": 102.762,
+          "p99": 182.3712799999999,
+          "max": 1018.521
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 0.0
+    },
+    {
+      "label": "postaudit-final-before",
+      "scenario": "mixed",
+      "artifactSha256": "0ba7f9c70119dcb84be57b3431afe18f19f8d4fc8e75d879cc91be7cf4e09c16",
+      "acceptedTps": 11.5,
+      "orderTps": 11.55,
+      "completionMs": {
+        "med": 1872,
+        "p(95)": 2911.5,
+        "p(99)": 3133.4,
+        "max": 3149
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 5778,
+        "Com_rollback": 0,
+        "Com_select": 35079,
+        "Innodb_row_lock_time": 25693,
+        "Innodb_row_lock_waits": 847,
+        "Questions": 72286,
+        "Slow_queries": 169,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-final-before/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 375,
+              "FAILED": 0
+            },
+            "retryEvents": 30,
+            "createdToConfirmedRecordMs": {
+              "count": 375,
+              "p50": 1788.368,
+              "p95": 2986.0937,
+              "p99": 3205.21726,
+              "max": 3557.463
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 246,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 246,
+              "p50": 248.459,
+              "p95": 1267.26975,
+              "p99": 1357.44205,
+              "max": 1414.764
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 375,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 375,
+          "p50": 12.121,
+          "p95": 89.54200000000016,
+          "p99": 144.98249999999987,
+          "max": 184.294
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 375,
+          "p50": 1626.794,
+          "p95": 2960.792,
+          "p99": 3180.1187999999997,
+          "max": 3262.922
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 375,
+          "p50": 1633.966,
+          "p95": 2966.7894,
+          "p99": 3186.7433399999995,
+          "max": 3268.684
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 375,
+          "p50": 44.66,
+          "p95": 314.30800000000005,
+          "p99": 452.3979999999999,
+          "max": 497.666
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 0.0
+    },
+    {
+      "label": "postaudit-final-other",
+      "scenario": "hot-scarce",
+      "artifactSha256": "4d86020249e9e837248e4ff68c80215160818ddd33cadd19971e162da5a62610",
+      "acceptedTps": 12.7,
+      "orderTps": 11.65,
+      "completionMs": {
+        "med": 8165,
+        "p(95)": 14193.5,
+        "p(99)": 14889,
+        "max": 15179
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 11088,
+        "Com_rollback": 32,
+        "Com_select": 49701,
+        "Innodb_row_lock_time": 41695,
+        "Innodb_row_lock_waits": 934,
+        "Questions": 113746,
+        "Slow_queries": 334,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-final-other/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 372,
+              "FAILED": 0
+            },
+            "retryEvents": 16,
+            "createdToConfirmedRecordMs": {
+              "count": 372,
+              "p50": 3396.7855,
+              "p95": 9072.23765,
+              "p99": 9313.78057,
+              "max": 9399.182
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 340,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 340,
+              "p50": 704.1814999999999,
+              "p95": 1435.8440500000006,
+              "p99": 1735.8881400000014,
+              "max": 2005.549
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 340,
+          "FAILED": 32,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 372,
+          "p50": 14.8855,
+          "p95": 162.6815,
+          "p99": 186.07358000000002,
+          "max": 199.912
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 340,
+          "p50": 7190.9845000000005,
+          "p95": 11449.7448,
+          "p99": 11915.177010000001,
+          "max": 12002.296
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 372,
+          "p50": 7167.4645,
+          "p95": 11392.28445,
+          "p99": 11919.764220000001,
+          "max": 12014.845
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 340,
+          "p50": 3057.319,
+          "p95": 4210.927250000001,
+          "p99": 4511.424150000001,
+          "max": 4646.553
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 36.0
+    },
+    {
+      "label": "postaudit-final-other",
+      "scenario": "mixed",
+      "artifactSha256": "4d86020249e9e837248e4ff68c80215160818ddd33cadd19971e162da5a62610",
+      "acceptedTps": 16.0,
+      "orderTps": 16.0,
+      "completionMs": {
+        "med": 1397.5,
+        "p(95)": 1890.05,
+        "p(99)": 1953.67,
+        "max": 2127
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 6038,
+        "Com_rollback": 0,
+        "Com_select": 37384,
+        "Innodb_row_lock_time": 37510,
+        "Innodb_row_lock_waits": 1078,
+        "Questions": 77583,
+        "Slow_queries": 271,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-final-other/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 435,
+              "FAILED": 0
+            },
+            "retryEvents": 199,
+            "createdToConfirmedRecordMs": {
+              "count": 435,
+              "p50": 1257.763,
+              "p95": 2104.1628,
+              "p99": 2483.4503399999994,
+              "max": 2621.784
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 284,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 284,
+              "p50": 537.5065,
+              "p95": 1208.1436499999993,
+              "p99": 1299.6010800000004,
+              "max": 1435.815
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 435,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 435,
+          "p50": 11.474,
+          "p95": 101.9709999999999,
+          "p99": 175.69,
+          "max": 246.921
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 435,
+          "p50": 1321.309,
+          "p95": 2171.1928999999986,
+          "p99": 2636.5442799999996,
+          "max": 2861.95
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 435,
+          "p50": 1332.09,
+          "p95": 2183.969999999999,
+          "p99": 2644.1096599999996,
+          "max": 2870.32
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 435,
+          "p50": 120.541,
+          "p95": 850.4799,
+          "p99": 1143.1570199999994,
+          "max": 2035.366
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 2.0
+    },
+    {
+      "label": "postaudit-final-other",
+      "scenario": "same-user-cross-session",
+      "artifactSha256": "4d86020249e9e837248e4ff68c80215160818ddd33cadd19971e162da5a62610",
+      "acceptedTps": 15.8,
+      "orderTps": 11.4,
+      "completionMs": {
+        "med": 1486,
+        "p(95)": 1900.599999999999,
+        "p(99)": 2509.04,
+        "max": 2586
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 5321,
+        "Com_rollback": 100,
+        "Com_select": 31784,
+        "Innodb_row_lock_time": 82358,
+        "Innodb_row_lock_waits": 1496,
+        "Questions": 66828,
+        "Slow_queries": 637,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-final-other/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 423,
+              "FAILED": 0
+            },
+            "retryEvents": 26,
+            "createdToConfirmedRecordMs": {
+              "count": 423,
+              "p50": 507.258,
+              "p95": 1273.520899999999,
+              "p99": 2263.9690599999994,
+              "max": 2467.478
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 199,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 199,
+              "p50": 385.583,
+              "p95": 1032.7441999999999,
+              "p99": 1125.3419399999998,
+              "max": 1156.057
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 323,
+          "FAILED": 100,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 423,
+          "p50": 4.48,
+          "p95": 17.415399999999998,
+          "p99": 36.40401999999995,
+          "max": 86.544
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 323,
+          "p50": 1304.011,
+          "p95": 2189.5089000000003,
+          "p99": 2332.1525199999987,
+          "max": 2629.542
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 423,
+          "p50": 1290.346,
+          "p95": 2176.5523999999996,
+          "p99": 2308.5778,
+          "max": 2640.72
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 323,
+          "p50": 907.87,
+          "p95": 1766.7214999999994,
+          "p99": 2017.3457799999994,
+          "max": 2265.488
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 1.0
+    },
+    {
+      "label": "postaudit-final-r1-w1",
+      "scenario": "hot-ample",
+      "artifactSha256": "4d86020249e9e837248e4ff68c80215160818ddd33cadd19971e162da5a62610",
+      "acceptedTps": 8.8,
+      "orderTps": 8.7,
+      "completionMs": {
+        "med": 12082.5,
+        "p(95)": 12401.4,
+        "p(99)": 12499.7,
+        "max": 13264
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 15477,
+        "Com_rollback": 0,
+        "Com_select": 63592,
+        "Innodb_row_lock_time": 22819,
+        "Innodb_row_lock_waits": 781,
+        "Questions": 149981,
+        "Slow_queries": 139,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-final-r1-w1/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 352,
+              "FAILED": 0
+            },
+            "retryEvents": 1,
+            "createdToConfirmedRecordMs": {
+              "count": 352,
+              "p50": 10123.444500000001,
+              "p95": 12059.701149999999,
+              "p99": 12117.20912,
+              "max": 13061.913
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 352,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 352,
+              "p50": 227.05599999999998,
+              "p95": 1220.2651999999998,
+              "p99": 1344.9715500000004,
+              "max": 1791.542
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 352,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 352,
+          "p50": 11.656500000000001,
+          "p95": 120.48244999999999,
+          "p99": 129.19713000000002,
+          "max": 136.253
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 352,
+          "p50": 10179.795,
+          "p95": 12134.694950000001,
+          "p99": 12182.48586,
+          "max": 13106.715
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 352,
+          "p50": 10188.1725,
+          "p95": 12146.04995,
+          "p99": 12190.90695,
+          "max": 13115.604
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 352,
+          "p50": 48.6715,
+          "p95": 102.4435,
+          "p99": 131.16961000000006,
+          "max": 163.899
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 14.0
+    },
+    {
+      "label": "postaudit-final-r1-w16",
+      "scenario": "hot-ample",
+      "artifactSha256": "4d86020249e9e837248e4ff68c80215160818ddd33cadd19971e162da5a62610",
+      "acceptedTps": 10.6,
+      "orderTps": 10.55,
+      "completionMs": {
+        "med": 9666,
+        "p(95)": 15360.5,
+        "p(99)": 16591.9,
+        "max": 18067
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 10500,
+        "Com_rollback": 0,
+        "Com_select": 46657,
+        "Innodb_row_lock_time": 47227,
+        "Innodb_row_lock_waits": 857,
+        "Questions": 106900,
+        "Slow_queries": 378,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-final-r1-w16/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 328,
+              "FAILED": 0
+            },
+            "retryEvents": 29,
+            "createdToConfirmedRecordMs": {
+              "count": 328,
+              "p50": 4602.0125,
+              "p95": 10602.9979,
+              "p99": 13101.53557,
+              "max": 14294.316
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 328,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 328,
+              "p50": 722.966,
+              "p95": 1592.3206499999978,
+              "p99": 2435.84639,
+              "max": 2657.954
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 328,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 328,
+          "p50": 15.513,
+          "p95": 201.76484999999988,
+          "p99": 305.55980000000017,
+          "max": 413.841
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 328,
+          "p50": 8552.067,
+          "p95": 12278.256449999999,
+          "p99": 12928.862990000001,
+          "max": 13025.586
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 328,
+          "p50": 8567.718,
+          "p95": 12301.616699999999,
+          "p99": 12941.10653,
+          "max": 13033.63
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 328,
+          "p50": 3362.6185,
+          "p95": 4277.230849999999,
+          "p99": 4487.24587,
+          "max": 4620.247
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 40.0
+    },
+    {
+      "label": "postaudit-final-r1-w32",
+      "scenario": "hot-ample",
+      "artifactSha256": "4d86020249e9e837248e4ff68c80215160818ddd33cadd19971e162da5a62610",
+      "acceptedTps": 9.25,
+      "orderTps": 9.15,
+      "completionMs": {
+        "med": 11738,
+        "p(95)": 16762.9,
+        "p(99)": 17689.52,
+        "max": 18276
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 10065,
+        "Com_rollback": 0,
+        "Com_select": 44176,
+        "Innodb_row_lock_time": 42540,
+        "Innodb_row_lock_waits": 731,
+        "Questions": 101680,
+        "Slow_queries": 350,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-final-r1-w32/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 302,
+              "FAILED": 0
+            },
+            "retryEvents": 60,
+            "createdToConfirmedRecordMs": {
+              "count": 302,
+              "p50": 6050.271,
+              "p95": 16351.41645,
+              "p99": 17194.08298,
+              "max": 18409.561
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 302,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 302,
+              "p50": 1034.7765,
+              "p95": 2893.778749999999,
+              "p99": 3391.67135,
+              "max": 3667.698
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 302,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 302,
+          "p50": 19.597,
+          "p95": 217.59869999999995,
+          "p99": 266.50268,
+          "max": 300.789
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 302,
+          "p50": 9272.663,
+          "p95": 13717.7081,
+          "p99": 14084.175460000002,
+          "max": 14150.96
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 302,
+          "p50": 9282.8335,
+          "p95": 13727.054149999998,
+          "p99": 14091.06715,
+          "max": 14157.756
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 302,
+          "p50": 3460.209,
+          "p95": 4811.17105,
+          "p99": 5059.53414,
+          "max": 5122.296
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 58.0
+    },
+    {
+      "label": "postaudit-final-r1-w64",
+      "scenario": "hot-ample",
+      "artifactSha256": "4d86020249e9e837248e4ff68c80215160818ddd33cadd19971e162da5a62610",
+      "acceptedTps": 10.55,
+      "orderTps": 10.4,
+      "completionMs": {
+        "med": 10329,
+        "p(95)": 15095.95,
+        "p(99)": 15816.800000000001,
+        "max": 15836
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 10593,
+        "Com_rollback": 0,
+        "Com_select": 46893,
+        "Innodb_row_lock_time": 43649,
+        "Innodb_row_lock_waits": 822,
+        "Questions": 107668,
+        "Slow_queries": 372,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-final-r1-w64/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 327,
+              "FAILED": 0
+            },
+            "retryEvents": 90,
+            "createdToConfirmedRecordMs": {
+              "count": 327,
+              "p50": 5751.955,
+              "p95": 14060.1933,
+              "p99": 14510.142880000001,
+              "max": 14691.913
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 327,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 327,
+              "p50": 1334.84,
+              "p95": 4172.1356000000005,
+              "p99": 5967.5559600000015,
+              "max": 6206.185
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 327,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 327,
+          "p50": 15.934,
+          "p95": 202.04129999999998,
+          "p99": 253.16348000000002,
+          "max": 271.874
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 327,
+          "p50": 8752.381,
+          "p95": 11698.11,
+          "p99": 12384.30686,
+          "max": 12484.84
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 327,
+          "p50": 8766.164,
+          "p95": 11708.082999999999,
+          "p99": 12397.95972,
+          "max": 12503.573
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 327,
+          "p50": 2937.855,
+          "p95": 3948.9592999999995,
+          "p99": 4192.88238,
+          "max": 4280.876
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 49.0
+    },
+    {
+      "label": "postaudit-final-r2-w1",
+      "scenario": "hot-ample",
+      "artifactSha256": "4d86020249e9e837248e4ff68c80215160818ddd33cadd19971e162da5a62610",
+      "acceptedTps": 7.05,
+      "orderTps": 6.95,
+      "completionMs": {
+        "med": 13918,
+        "p(95)": 19278,
+        "p(99)": 19852.760000000002,
+        "max": 20356
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 11908,
+        "Com_rollback": 0,
+        "Com_select": 48319,
+        "Innodb_row_lock_time": 20602,
+        "Innodb_row_lock_waits": 501,
+        "Questions": 114446,
+        "Slow_queries": 119,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-final-r2-w1/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 255,
+              "FAILED": 0
+            },
+            "retryEvents": 1,
+            "createdToConfirmedRecordMs": {
+              "count": 255,
+              "p50": 11612.489,
+              "p95": 16179.231699999998,
+              "p99": 16902.72792,
+              "max": 18380.702
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 255,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 255,
+              "p50": 314.94,
+              "p95": 1276.6249,
+              "p99": 1623.040060000001,
+              "max": 1774.265
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 255,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 255,
+          "p50": 19.19,
+          "p95": 220.68099999999995,
+          "p99": 253.6080600000001,
+          "max": 297.374
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 255,
+          "p50": 11552.884,
+          "p95": 16154.346399999997,
+          "p99": 16920.56172,
+          "max": 17110.905
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 255,
+          "p50": 11556.883,
+          "p95": 16170.249299999996,
+          "p99": 16929.9297,
+          "max": 17117.028
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 255,
+          "p50": 54.62,
+          "p95": 166.3685999999998,
+          "p99": 273.44422000000037,
+          "max": 464.78
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 25.0
+    },
+    {
+      "label": "postaudit-final-r2-w16",
+      "scenario": "hot-ample",
+      "artifactSha256": "4d86020249e9e837248e4ff68c80215160818ddd33cadd19971e162da5a62610",
+      "acceptedTps": 11.35,
+      "orderTps": 11.15,
+      "completionMs": {
+        "med": 9005,
+        "p(95)": 14691.9,
+        "p(99)": 16303.62,
+        "max": 16910
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 10874,
+        "Com_rollback": 0,
+        "Com_select": 48520,
+        "Innodb_row_lock_time": 47721,
+        "Innodb_row_lock_waits": 906,
+        "Questions": 111013,
+        "Slow_queries": 406,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-final-r2-w16/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 344,
+              "FAILED": 0
+            },
+            "retryEvents": 31,
+            "createdToConfirmedRecordMs": {
+              "count": 344,
+              "p50": 4385.4884999999995,
+              "p95": 9208.6332,
+              "p99": 12007.849699999999,
+              "max": 12091.657
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 344,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 344,
+              "p50": 733.9739999999999,
+              "p95": 1667.2671499999994,
+              "p99": 1900.06082,
+              "max": 1968.315
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 344,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 344,
+          "p50": 14.6645,
+          "p95": 198.18519999999992,
+          "p99": 265.60804999999993,
+          "max": 310.763
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 344,
+          "p50": 7831.9455,
+          "p95": 11369.8771,
+          "p99": 11823.63126,
+          "max": 11864.687
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 344,
+          "p50": 7838.9130000000005,
+          "p95": 11387.181999999999,
+          "p99": 11840.461679999999,
+          "max": 11872.809
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 344,
+          "p50": 3287.6335,
+          "p95": 4342.434149999998,
+          "p99": 4702.17713,
+          "max": 4874.239
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 33.0
+    },
+    {
+      "label": "postaudit-final-r2-w32",
+      "scenario": "hot-ample",
+      "artifactSha256": "4d86020249e9e837248e4ff68c80215160818ddd33cadd19971e162da5a62610",
+      "acceptedTps": 12.95,
+      "orderTps": 13.0,
+      "completionMs": {
+        "med": 7193.5,
+        "p(95)": 9606.25,
+        "p(99)": 9664.25,
+        "max": 9714
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 14411,
+        "Com_rollback": 0,
+        "Com_select": 64470,
+        "Innodb_row_lock_time": 58864,
+        "Innodb_row_lock_waits": 1264,
+        "Questions": 147490,
+        "Slow_queries": 515,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-final-r2-w32/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 462,
+              "FAILED": 0
+            },
+            "retryEvents": 98,
+            "createdToConfirmedRecordMs": {
+              "count": 462,
+              "p50": 5544.0075,
+              "p95": 11129.01305,
+              "p99": 12659.520849999999,
+              "max": 13537.241
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 462,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 462,
+              "p50": 975.0205,
+              "p95": 1593.3821500000001,
+              "p99": 1747.8585599999992,
+              "max": 1990.885
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 462,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 462,
+          "p50": 9.2725,
+          "p95": 128.51585,
+          "p99": 149.0719299999999,
+          "max": 166.308
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 462,
+          "p50": 6242.114,
+          "p95": 9261.6587,
+          "p99": 9461.89963,
+          "max": 9610.524
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 462,
+          "p50": 6251.261,
+          "p95": 9270.9298,
+          "p99": 9478.41153,
+          "max": 9621.934
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 462,
+          "p50": 1519.6645,
+          "p95": 3274.90715,
+          "p99": 3650.6700899999996,
+          "max": 3721.467
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 7.0
+    },
+    {
+      "label": "postaudit-final-r2-w64",
+      "scenario": "hot-ample",
+      "artifactSha256": "4d86020249e9e837248e4ff68c80215160818ddd33cadd19971e162da5a62610",
+      "acceptedTps": 10.75,
+      "orderTps": 10.7,
+      "completionMs": {
+        "med": 9795,
+        "p(95)": 15367.25,
+        "p(99)": 16479.84,
+        "max": 16677
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 10752,
+        "Com_rollback": 0,
+        "Com_select": 47607,
+        "Innodb_row_lock_time": 42599,
+        "Innodb_row_lock_waits": 838,
+        "Questions": 109283,
+        "Slow_queries": 369,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-final-r2-w64/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 332,
+              "FAILED": 0
+            },
+            "retryEvents": 86,
+            "createdToConfirmedRecordMs": {
+              "count": 332,
+              "p50": 6982.348,
+              "p95": 16070.10175,
+              "p99": 16173.719500000001,
+              "max": 16202.594
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 332,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 332,
+              "p50": 1298.1285,
+              "p95": 3483.8322999999973,
+              "p99": 5123.565599999999,
+              "max": 5406.539
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 332,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 332,
+          "p50": 16.516,
+          "p95": 178.2147,
+          "p99": 234.41060999999993,
+          "max": 323.736
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 332,
+          "p50": 8319.1955,
+          "p95": 11956.444,
+          "p99": 12453.56999,
+          "max": 12775.681
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 332,
+          "p50": 8326.8795,
+          "p95": 11966.26475,
+          "p99": 12466.95027,
+          "max": 12790.963
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 332,
+          "p50": 2166.5575,
+          "p95": 3576.11745,
+          "p99": 3641.94969,
+          "max": 4094.353
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 40.0
+    },
+    {
+      "label": "postaudit-finalbatch-other",
+      "scenario": "hot-scarce",
+      "artifactSha256": "75d410981a56894c3f97aca9e946629b278f7337ef62bf9d00e7133de2d00f8a",
+      "acceptedTps": 10.95,
+      "orderTps": 10.45,
+      "completionMs": {
+        "med": 10136,
+        "p(95)": 14536.55,
+        "p(99)": 15568.520000000004,
+        "max": 16242
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 11657,
+        "Com_rollback": 25,
+        "Com_select": 49778,
+        "Innodb_row_lock_time": 33974,
+        "Innodb_row_lock_waits": 755,
+        "Questions": 115963,
+        "Slow_queries": 262,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-finalbatch-other/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 339,
+              "FAILED": 0
+            },
+            "retryEvents": 331,
+            "createdToConfirmedRecordMs": {
+              "count": 339,
+              "p50": 3494.462,
+              "p95": 8512.7235,
+              "p99": 8653.29388,
+              "max": 8809.779
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 314,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 314,
+              "p50": 406.6225,
+              "p95": 1073.1961,
+              "p99": 1259.3108600000003,
+              "max": 1393.375
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 314,
+          "FAILED": 25,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 339,
+          "p50": 14.161,
+          "p95": 166.758,
+          "p99": 242.6788400000001,
+          "max": 339.851
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 314,
+          "p50": 8559.853,
+          "p95": 11615.274199999998,
+          "p99": 12321.90869,
+          "max": 12510.602
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 339,
+          "p50": 8425.449,
+          "p95": 11568.293899999999,
+          "p99": 12344.4813,
+          "max": 12530.075
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 314,
+          "p50": 4007.3689999999997,
+          "p95": 6322.530849999999,
+          "p99": 6653.92777,
+          "max": 6844.119
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 22.0
+    },
+    {
+      "label": "postaudit-finalbatch-other",
+      "scenario": "mixed",
+      "artifactSha256": "75d410981a56894c3f97aca9e946629b278f7337ef62bf9d00e7133de2d00f8a",
+      "acceptedTps": 16.75,
+      "orderTps": 16.7,
+      "completionMs": {
+        "med": 1370.5,
+        "p(95)": 1925.7499999999998,
+        "p(99)": 2054.03,
+        "max": 2414
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 6133,
+        "Com_rollback": 0,
+        "Com_select": 37130,
+        "Innodb_row_lock_time": 41094,
+        "Innodb_row_lock_waits": 1058,
+        "Questions": 77294,
+        "Slow_queries": 309,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-finalbatch-other/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 435,
+              "FAILED": 0
+            },
+            "retryEvents": 224,
+            "createdToConfirmedRecordMs": {
+              "count": 435,
+              "p50": 956.916,
+              "p95": 1928.7387999999996,
+              "p99": 2279.112879999999,
+              "max": 2404.011
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 284,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 284,
+              "p50": 407.331,
+              "p95": 1016.3537499999999,
+              "p99": 1093.4220000000005,
+              "max": 1160.58
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 435,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 435,
+          "p50": 9.449,
+          "p95": 93.84749999999926,
+          "p99": 144.44275999999977,
+          "max": 162.206
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 435,
+          "p50": 1243.785,
+          "p95": 2394.5076999999997,
+          "p99": 3098.6775799999987,
+          "max": 3220.966
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 435,
+          "p50": 1254.292,
+          "p95": 2410.2797999999993,
+          "p99": 3105.431779999999,
+          "max": 3229.645
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 435,
+          "p50": 389.018,
+          "p95": 1219.0650999999993,
+          "p99": 1572.954879999998,
+          "max": 1784.852
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 3.0
+    },
+    {
+      "label": "postaudit-finalbatch-other",
+      "scenario": "same-user-cross-session",
+      "artifactSha256": "75d410981a56894c3f97aca9e946629b278f7337ef62bf9d00e7133de2d00f8a",
+      "acceptedTps": 16.95,
+      "orderTps": 12.4,
+      "completionMs": {
+        "med": 1364.5,
+        "p(95)": 2098.75,
+        "p(99)": 2459.2999999999984,
+        "max": 3023
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 5431,
+        "Com_rollback": 101,
+        "Com_select": 32128,
+        "Innodb_row_lock_time": 78495,
+        "Innodb_row_lock_waits": 1504,
+        "Questions": 67589,
+        "Slow_queries": 528,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-finalbatch-other/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 432,
+              "FAILED": 0
+            },
+            "retryEvents": 59,
+            "createdToConfirmedRecordMs": {
+              "count": 432,
+              "p50": 577.6624999999999,
+              "p95": 1786.2100500000001,
+              "p99": 1957.29792,
+              "max": 2538.022
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 208,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 208,
+              "p50": 411.0715,
+              "p95": 1025.72005,
+              "p99": 1075.45793,
+              "max": 1179.355
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 331,
+          "FAILED": 101,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 432,
+          "p50": 4.142,
+          "p95": 18.448449999999987,
+          "p99": 42.414919999999995,
+          "max": 71.215
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 331,
+          "p50": 1294.792,
+          "p95": 2465.9785,
+          "p99": 3137.5493999999994,
+          "max": 3253.745
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 432,
+          "p50": 1167.6305000000002,
+          "p95": 2367.7193999999995,
+          "p99": 3120.3734600000003,
+          "max": 3278.647
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 331,
+          "p50": 842.18,
+          "p95": 2068.841,
+          "p99": 2812.4818999999998,
+          "max": 2871.524
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 4.0
+    },
+    {
+      "label": "postaudit-finalbatch-r1-before",
+      "scenario": "hot-ample",
+      "artifactSha256": "4d86020249e9e837248e4ff68c80215160818ddd33cadd19971e162da5a62610",
+      "acceptedTps": 11.55,
+      "orderTps": 11.45,
+      "completionMs": {
+        "med": 8919,
+        "p(95)": 14134.4,
+        "p(99)": 14850.28,
+        "max": 15004
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 11209,
+        "Com_rollback": 0,
+        "Com_select": 49891,
+        "Innodb_row_lock_time": 47736,
+        "Innodb_row_lock_waits": 930,
+        "Questions": 114273,
+        "Slow_queries": 413,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-finalbatch-r1-before/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 352,
+              "FAILED": 0
+            },
+            "retryEvents": 43,
+            "createdToConfirmedRecordMs": {
+              "count": 352,
+              "p50": 3469.0654999999997,
+              "p95": 9257.8743,
+              "p99": 9462.01114,
+              "max": 9483.895
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 352,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 352,
+              "p50": 713.2115,
+              "p95": 1494.11245,
+              "p99": 1788.27034,
+              "max": 2249.357
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 352,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 352,
+          "p50": 13.881,
+          "p95": 172.4585,
+          "p99": 267.66025000000025,
+          "max": 308.67
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 352,
+          "p50": 7666.034,
+          "p95": 11318.257899999999,
+          "p99": 11917.77663,
+          "max": 12109.337
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 352,
+          "p50": 7678.0645,
+          "p95": 11328.3969,
+          "p99": 11933.778760000001,
+          "max": 12115.464
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 352,
+          "p50": 3868.9714999999997,
+          "p95": 5219.417299999999,
+          "p99": 5558.94602,
+          "max": 5742.898
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 66.0
+    },
+    {
+      "label": "postaudit-finalbatch-r1-w1",
+      "scenario": "hot-ample",
+      "artifactSha256": "75d410981a56894c3f97aca9e946629b278f7337ef62bf9d00e7133de2d00f8a",
+      "acceptedTps": 10.15,
+      "orderTps": 10.2,
+      "completionMs": {
+        "med": 9876,
+        "p(95)": 10480.55,
+        "p(99)": 10930.97,
+        "max": 11039
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 16008,
+        "Com_rollback": 0,
+        "Com_select": 66342,
+        "Innodb_row_lock_time": 24260,
+        "Innodb_row_lock_waits": 823,
+        "Questions": 155983,
+        "Slow_queries": 155,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-finalbatch-r1-w1/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 380,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 380,
+              "p50": 9521.2265,
+              "p95": 10179.39405,
+              "p99": 10300.13932,
+              "max": 10395.558
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 380,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 380,
+              "p50": 283.578,
+              "p95": 1298.16485,
+              "p99": 1375.5211099999997,
+              "max": 1434.929
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 380,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 380,
+          "p50": 8.775500000000001,
+          "p95": 134.14149999999998,
+          "p99": 154.24754,
+          "max": 162.57
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 380,
+          "p50": 9569.8915,
+          "p95": 10247.7479,
+          "p99": 10355.33125,
+          "max": 10437.653
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 380,
+          "p50": 9576.6965,
+          "p95": 10254.70085,
+          "p99": 10361.49656,
+          "max": 10443.162
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 380,
+          "p50": 42.875,
+          "p95": 85.61950000000002,
+          "p99": 132.8292299999999,
+          "max": 725.406
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 3.0
+    },
+    {
+      "label": "postaudit-finalbatch-r1-w16",
+      "scenario": "hot-ample",
+      "artifactSha256": "75d410981a56894c3f97aca9e946629b278f7337ef62bf9d00e7133de2d00f8a",
+      "acceptedTps": 11.1,
+      "orderTps": 11.1,
+      "completionMs": {
+        "med": 9319,
+        "p(95)": 14942.3,
+        "p(99)": 15786.66,
+        "max": 16332
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 11516,
+        "Com_rollback": 0,
+        "Com_select": 49685,
+        "Innodb_row_lock_time": 41460,
+        "Innodb_row_lock_waits": 795,
+        "Questions": 115100,
+        "Slow_queries": 314,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-finalbatch-r1-w16/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 335,
+              "FAILED": 0
+            },
+            "retryEvents": 313,
+            "createdToConfirmedRecordMs": {
+              "count": 335,
+              "p50": 2463.951,
+              "p95": 7354.3656,
+              "p99": 7480.05098,
+              "max": 7546.324
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 335,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 335,
+              "p50": 440.228,
+              "p95": 1036.4445000000003,
+              "p99": 1211.681140000001,
+              "max": 1635.788
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 335,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 335,
+          "p50": 14.015,
+          "p95": 200.0372,
+          "p99": 495.7073800000002,
+          "max": 534.674
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 335,
+          "p50": 8243.705,
+          "p95": 11327.2817,
+          "p99": 12040.38464,
+          "max": 12187.995
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 335,
+          "p50": 8250.804,
+          "p95": 11342.0098,
+          "p99": 12054.84402,
+          "max": 12199.91
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 335,
+          "p50": 4654.126,
+          "p95": 6517.4506,
+          "p99": 6733.2876400000005,
+          "max": 6803.705
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 80.0
+    },
+    {
+      "label": "postaudit-finalbatch-r2-before",
+      "scenario": "hot-ample",
+      "artifactSha256": "4d86020249e9e837248e4ff68c80215160818ddd33cadd19971e162da5a62610",
+      "acceptedTps": 10.9,
+      "orderTps": 10.85,
+      "completionMs": {
+        "med": 9022,
+        "p(95)": 15303.199999999999,
+        "p(99)": 16092.84,
+        "max": 17015
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 10443,
+        "Com_rollback": 0,
+        "Com_select": 46713,
+        "Innodb_row_lock_time": 47943,
+        "Innodb_row_lock_waits": 885,
+        "Questions": 106750,
+        "Slow_queries": 388,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-finalbatch-r2-before/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 334,
+              "FAILED": 0
+            },
+            "retryEvents": 3,
+            "createdToConfirmedRecordMs": {
+              "count": 334,
+              "p50": 5410.5385,
+              "p95": 10271.279249999998,
+              "p99": 10823.37918,
+              "max": 13610.937
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 334,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 334,
+              "p50": 816.8785,
+              "p95": 1506.7992499999998,
+              "p99": 2001.028630000001,
+              "max": 2047.602
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 334,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 334,
+          "p50": 16.497500000000002,
+          "p95": 214.9643999999999,
+          "p99": 354.3535900000001,
+          "max": 371.915
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 334,
+          "p50": 7988.5325,
+          "p95": 11963.6544,
+          "p99": 12545.50312,
+          "max": 12675.974
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 334,
+          "p50": 7999.308,
+          "p95": 11979.428399999997,
+          "p99": 12562.95729,
+          "max": 12684.128
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 334,
+          "p50": 2262.322,
+          "p95": 3334.882649999999,
+          "p99": 3790.1232000000005,
+          "max": 3867.121
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 56.0
+    },
+    {
+      "label": "postaudit-finalbatch-r2-w1",
+      "scenario": "hot-ample",
+      "artifactSha256": "75d410981a56894c3f97aca9e946629b278f7337ef62bf9d00e7133de2d00f8a",
+      "acceptedTps": 7.35,
+      "orderTps": 7.4,
+      "completionMs": {
+        "med": 13209.5,
+        "p(95)": 18753.25,
+        "p(99)": 19219.36,
+        "max": 19492
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 12039,
+        "Com_rollback": 0,
+        "Com_select": 49028,
+        "Innodb_row_lock_time": 22208,
+        "Innodb_row_lock_waits": 545,
+        "Questions": 115956,
+        "Slow_queries": 125,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-finalbatch-r2-w1/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 262,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 262,
+              "p50": 11193.924500000001,
+              "p95": 15536.8486,
+              "p99": 15865.36666,
+              "max": 16308.497
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 262,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 262,
+              "p50": 426.178,
+              "p95": 1498.21905,
+              "p99": 2206.086539999999,
+              "max": 2349.775
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 262,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 262,
+          "p50": 18.248,
+          "p95": 190.14834999999997,
+          "p99": 325.16391999999985,
+          "max": 356.932
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 262,
+          "p50": 11244.7485,
+          "p95": 15664.61595,
+          "p99": 16005.80525,
+          "max": 16391.983
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 262,
+          "p50": 11251.86,
+          "p95": 15689.86255,
+          "p99": 16013.89145,
+          "max": 16404.902
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 262,
+          "p50": 54.707,
+          "p95": 175.66369999999995,
+          "p99": 340.4357799999996,
+          "max": 462.345
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 33.0
+    },
+    {
+      "label": "postaudit-finalbatch-r2-w16",
+      "scenario": "hot-ample",
+      "artifactSha256": "75d410981a56894c3f97aca9e946629b278f7337ef62bf9d00e7133de2d00f8a",
+      "acceptedTps": 10.5,
+      "orderTps": 10.35,
+      "completionMs": {
+        "med": 9954,
+        "p(95)": 14867.799999999997,
+        "p(99)": 15922.24,
+        "max": 16573
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 11347,
+        "Com_rollback": 0,
+        "Com_select": 48776,
+        "Innodb_row_lock_time": 39152,
+        "Innodb_row_lock_waits": 786,
+        "Questions": 113138,
+        "Slow_queries": 302,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-finalbatch-r2-w16/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 326,
+              "FAILED": 0
+            },
+            "retryEvents": 312,
+            "createdToConfirmedRecordMs": {
+              "count": 326,
+              "p50": 3595.5495,
+              "p95": 8250.234,
+              "p99": 8334.63825,
+              "max": 8442.971
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 326,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 326,
+              "p50": 470.904,
+              "p95": 1088.586,
+              "p99": 1426.7855,
+              "max": 1668.83
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 326,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 326,
+          "p50": 14.479,
+          "p95": 203.47675,
+          "p99": 312.18975,
+          "max": 364.681
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 326,
+          "p50": 8733.61,
+          "p95": 11613.08425,
+          "p99": 12145.7315,
+          "max": 12217.183
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 326,
+          "p50": 8741.248500000002,
+          "p95": 11623.98475,
+          "p99": 12155.73625,
+          "max": 12223.854
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 326,
+          "p50": 4386.064,
+          "p95": 6614.0335,
+          "p99": 7134.178,
+          "max": 7229.019
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 77.0
+    },
+    {
+      "label": "postaudit-pub-r1-w1",
+      "scenario": "hot-ample",
+      "artifactSha256": "3d47f62ffbdd66f91962f7d636fad32ccd989c439b267b9b897ae86f405a3018",
+      "acceptedTps": 7.0,
+      "orderTps": 6.95,
+      "completionMs": {
+        "med": 13976,
+        "p(95)": 19945.8,
+        "p(99)": 20767.26,
+        "max": 20807
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 11530,
+        "Com_rollback": 0,
+        "Com_select": 47281,
+        "Innodb_row_lock_time": 23037,
+        "Innodb_row_lock_waits": 526,
+        "Questions": 110930,
+        "Slow_queries": 133,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-pub-r1-w1/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 253,
+              "FAILED": 0
+            },
+            "retryEvents": 1,
+            "createdToConfirmedRecordMs": {
+              "count": 253,
+              "p50": 11168.773,
+              "p95": 16839.465399999997,
+              "p99": 17585.30228,
+              "max": 21395.493
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 253,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 253,
+              "p50": 306.036,
+              "p95": 1348.9279999999999,
+              "p99": 1488.39752,
+              "max": 2061.472
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 253,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 253,
+          "p50": 18.732,
+          "p95": 223.3866,
+          "p99": 358.72684,
+          "max": 369.821
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 253,
+          "p50": 11305.482,
+          "p95": 16939.606399999997,
+          "p99": 17635.90136,
+          "max": 17736.207
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 253,
+          "p50": 11313.131,
+          "p95": 16949.6802,
+          "p99": 17644.59348,
+          "max": 17740.901
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 253,
+          "p50": 53.183,
+          "p95": 145.68919999999991,
+          "p99": 195.36235999999994,
+          "max": 428.978
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 47.0
+    },
+    {
+      "label": "postaudit-pub-r1-w16",
+      "scenario": "hot-ample",
+      "artifactSha256": "3d47f62ffbdd66f91962f7d636fad32ccd989c439b267b9b897ae86f405a3018",
+      "acceptedTps": 11.75,
+      "orderTps": 11.65,
+      "completionMs": {
+        "med": 8790,
+        "p(95)": 14543.8,
+        "p(99)": 15397.16,
+        "max": 15610
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 10846,
+        "Com_rollback": 0,
+        "Com_select": 49109,
+        "Innodb_row_lock_time": 50358,
+        "Innodb_row_lock_waits": 970,
+        "Questions": 110928,
+        "Slow_queries": 401,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-pub-r1-w16/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 353,
+              "FAILED": 0
+            },
+            "retryEvents": 13,
+            "createdToConfirmedRecordMs": {
+              "count": 353,
+              "p50": 3668.858,
+              "p95": 8331.0886,
+              "p99": 9107.364720000001,
+              "max": 11589.512
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 353,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 353,
+              "p50": 767.683,
+              "p95": 1656.0007999999987,
+              "p99": 1829.05992,
+              "max": 1974.225
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 353,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 353,
+          "p50": 15.914,
+          "p95": 201.0394,
+          "p99": 305.4044000000003,
+          "max": 398.561
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 353,
+          "p50": 7689.926,
+          "p95": 11631.4476,
+          "p99": 12100.128200000001,
+          "max": 12260.884
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 353,
+          "p50": 7698.605,
+          "p95": 11645.224799999998,
+          "p99": 12107.30916,
+          "max": 12270.845
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 353,
+          "p50": 3855.513,
+          "p95": 4818.9424,
+          "p99": 4962.8056000000015,
+          "max": 5259.865
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 45.0
+    },
+    {
+      "label": "postaudit-pub-r1-w32",
+      "scenario": "hot-ample",
+      "artifactSha256": "3d47f62ffbdd66f91962f7d636fad32ccd989c439b267b9b897ae86f405a3018",
+      "acceptedTps": 11.0,
+      "orderTps": 11.05,
+      "completionMs": {
+        "med": 9073,
+        "p(95)": 14819,
+        "p(99)": 15700.400000000001,
+        "max": 17120
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 10532,
+        "Com_rollback": 0,
+        "Com_select": 47576,
+        "Innodb_row_lock_time": 49528,
+        "Innodb_row_lock_waits": 888,
+        "Questions": 107641,
+        "Slow_queries": 395,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-pub-r1-w32/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 341,
+              "FAILED": 0
+            },
+            "retryEvents": 60,
+            "createdToConfirmedRecordMs": {
+              "count": 341,
+              "p50": 3243.268,
+              "p95": 7830.076,
+              "p99": 8482.356800000001,
+              "max": 10359.985
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 341,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 341,
+              "p50": 1073.668,
+              "p95": 1932.574,
+              "p99": 2376.389600000005,
+              "max": 2866.592
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 341,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 341,
+          "p50": 15.54,
+          "p95": 245.057,
+          "p99": 372.62100000000004,
+          "max": 431.196
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 341,
+          "p50": 7745.083,
+          "p95": 11819.685,
+          "p99": 12555.8238,
+          "max": 12767.474
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 341,
+          "p50": 7752.014,
+          "p95": 11829.095,
+          "p99": 12568.027,
+          "max": 12777.069
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 341,
+          "p50": 3927.112,
+          "p95": 5415.158,
+          "p99": 6061.136200000003,
+          "max": 6223.857
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 37.0
+    },
+    {
+      "label": "postaudit-pub-r1-w64",
+      "scenario": "hot-ample",
+      "artifactSha256": "3d47f62ffbdd66f91962f7d636fad32ccd989c439b267b9b897ae86f405a3018",
+      "acceptedTps": 11.9,
+      "orderTps": 11.85,
+      "completionMs": {
+        "med": 8834,
+        "p(95)": 13543.8,
+        "p(99)": 14169.519999999999,
+        "max": 15253
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 11144,
+        "Com_rollback": 0,
+        "Com_select": 50434,
+        "Innodb_row_lock_time": 48072,
+        "Innodb_row_lock_waits": 929,
+        "Questions": 114100,
+        "Slow_queries": 385,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-pub-r1-w64/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 364,
+              "FAILED": 0
+            },
+            "retryEvents": 95,
+            "createdToConfirmedRecordMs": {
+              "count": 364,
+              "p50": 6027.4985,
+              "p95": 14372.903449999993,
+              "p99": 15134.95713,
+              "max": 15237.123
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 364,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 364,
+              "p50": 1384.196,
+              "p95": 2832.5729499999993,
+              "p99": 3133.85802,
+              "max": 3538.08
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 364,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 364,
+          "p50": 15.299,
+          "p95": 164.40649999999994,
+          "p99": 271.6594800000002,
+          "max": 358.845
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 364,
+          "p50": 7842.7935,
+          "p95": 10976.326599999999,
+          "p99": 11689.2342,
+          "max": 11919.897
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 364,
+          "p50": 7850.5205000000005,
+          "p95": 10983.918399999999,
+          "p99": 11702.896680000002,
+          "max": 11929.451
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 364,
+          "p50": 2258.432,
+          "p95": 3680.8519999999994,
+          "p99": 3813.1708300000005,
+          "max": 3922.542
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 49.0
+    },
+    {
+      "label": "postaudit-pub-r2-w1",
+      "scenario": "hot-ample",
+      "artifactSha256": "3d47f62ffbdd66f91962f7d636fad32ccd989c439b267b9b897ae86f405a3018",
+      "acceptedTps": 7.7,
+      "orderTps": 7.8,
+      "completionMs": {
+        "med": 12618,
+        "p(95)": 17663.75,
+        "p(99)": 18304.7,
+        "max": 18373
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 12326,
+        "Com_rollback": 0,
+        "Com_select": 50632,
+        "Innodb_row_lock_time": 21680,
+        "Innodb_row_lock_waits": 539,
+        "Questions": 118691,
+        "Slow_queries": 125,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-pub-r2-w1/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 272,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 272,
+              "p50": 10833.2805,
+              "p95": 15291.203,
+              "p99": 16019.40538,
+              "max": 16075.203
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 272,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 272,
+              "p50": 263.8145,
+              "p95": 1257.43455,
+              "p99": 1402.3832700000007,
+              "max": 1566.406
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 272,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 272,
+          "p50": 16.674,
+          "p95": 196.0172,
+          "p99": 224.93323000000004,
+          "max": 233.522
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 272,
+          "p50": 10903.8495,
+          "p95": 15497.329,
+          "p99": 16064.99964,
+          "max": 16119.561
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 272,
+          "p50": 10909.753499999999,
+          "p95": 15504.342849999999,
+          "p99": 16095.752980000001,
+          "max": 16126.115
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 272,
+          "p50": 54.337999999999994,
+          "p95": 152.1272999999999,
+          "p99": 317.60346000000226,
+          "max": 818.795
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 23.0
+    },
+    {
+      "label": "postaudit-pub-r2-w16",
+      "scenario": "hot-ample",
+      "artifactSha256": "3d47f62ffbdd66f91962f7d636fad32ccd989c439b267b9b897ae86f405a3018",
+      "acceptedTps": 12.2,
+      "orderTps": 12.25,
+      "completionMs": {
+        "med": 8454,
+        "p(95)": 13446.199999999999,
+        "p(99)": 14020.48,
+        "max": 14723
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 11257,
+        "Com_rollback": 0,
+        "Com_select": 51080,
+        "Innodb_row_lock_time": 48953,
+        "Innodb_row_lock_waits": 1004,
+        "Questions": 115453,
+        "Slow_queries": 394,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-pub-r2-w16/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 369,
+              "FAILED": 0
+            },
+            "retryEvents": 94,
+            "createdToConfirmedRecordMs": {
+              "count": 369,
+              "p50": 6708.39,
+              "p95": 14985.833,
+              "p99": 15333.36496,
+              "max": 15358.825
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 369,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 369,
+              "p50": 734.861,
+              "p95": 1334.7202,
+              "p99": 1559.7118,
+              "max": 1909.495
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 369,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 369,
+          "p50": 17.03,
+          "p95": 168.62419999999997,
+          "p99": 239.61451999999994,
+          "max": 274.707
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 369,
+          "p50": 7605.245,
+          "p95": 10820.939599999998,
+          "p99": 11505.771279999999,
+          "max": 11745.056
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 369,
+          "p50": 7615.515,
+          "p95": 10832.840999999999,
+          "p99": 11517.24252,
+          "max": 11756.333
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 369,
+          "p50": 1721.217,
+          "p95": 2708.443399999999,
+          "p99": 3756.7518,
+          "max": 3848.0
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 40.0
+    },
+    {
+      "label": "postaudit-pub-r2-w32",
+      "scenario": "hot-ample",
+      "artifactSha256": "3d47f62ffbdd66f91962f7d636fad32ccd989c439b267b9b897ae86f405a3018",
+      "acceptedTps": 11.65,
+      "orderTps": 11.55,
+      "completionMs": {
+        "med": 9038,
+        "p(95)": 13842.5,
+        "p(99)": 14595,
+        "max": 14910
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 11150,
+        "Com_rollback": 0,
+        "Com_select": 50134,
+        "Innodb_row_lock_time": 47598,
+        "Innodb_row_lock_waits": 943,
+        "Questions": 113691,
+        "Slow_queries": 382,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-pub-r2-w32/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 355,
+              "FAILED": 0
+            },
+            "retryEvents": 110,
+            "createdToConfirmedRecordMs": {
+              "count": 355,
+              "p50": 4187.12,
+              "p95": 11954.0637,
+              "p99": 12670.097759999999,
+              "max": 12871.103
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 355,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 355,
+              "p50": 958.549,
+              "p95": 1708.4813000000001,
+              "p99": 1876.9505799999988,
+              "max": 1992.867
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 355,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 355,
+          "p50": 16.222,
+          "p95": 202.395,
+          "p99": 257.7320199999997,
+          "max": 284.874
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 355,
+          "p50": 7908.878,
+          "p95": 10953.0203,
+          "p99": 11751.42972,
+          "max": 11801.365
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 355,
+          "p50": 7918.743,
+          "p95": 10962.9197,
+          "p99": 11766.860779999999,
+          "max": 11807.811
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 355,
+          "p50": 3427.488,
+          "p95": 5133.2267,
+          "p99": 5578.56604,
+          "max": 5744.116
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 32.0
+    },
+    {
+      "label": "postaudit-pub-r2-w64",
+      "scenario": "hot-ample",
+      "artifactSha256": "3d47f62ffbdd66f91962f7d636fad32ccd989c439b267b9b897ae86f405a3018",
+      "acceptedTps": 7.1,
+      "orderTps": 7.05,
+      "completionMs": {
+        "med": 14792,
+        "p(95)": 20660,
+        "p(99)": 21707.2,
+        "max": 22226
+      },
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "mysqlDelta": {
+        "Com_commit": 8366,
+        "Com_rollback": 0,
+        "Com_select": 36911,
+        "Innodb_row_lock_time": 44081,
+        "Innodb_row_lock_waits": 613,
+        "Questions": 84235,
+        "Slow_queries": 318,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "comparisonPassed": true,
+      "evidence": "docs/performance/results/postaudit-pub-r2-w64/comparison.json",
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 250,
+              "FAILED": 0
+            },
+            "retryEvents": 69,
+            "createdToConfirmedRecordMs": {
+              "count": 250,
+              "p50": 4986.734,
+              "p95": 17868.1098,
+              "p99": 18083.3724,
+              "max": 18102.707
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 250,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 250,
+              "p50": 1198.173,
+              "p95": 4313.150149999999,
+              "p99": 5440.912699999999,
+              "max": 5712.557
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 250,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 250,
+          "p50": 24.6645,
+          "p95": 350.1984999999999,
+          "p99": 401.01766,
+          "max": 445.692
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 250,
+          "p50": 10037.798999999999,
+          "p95": 18027.6947,
+          "p99": 18556.04504,
+          "max": 18713.327
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 250,
+          "p50": 10051.4285,
+          "p95": 18039.756699999998,
+          "p99": 18571.13914,
+          "max": 18725.818
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 250,
+          "p50": 4612.6185000000005,
+          "p95": 6351.911949999998,
+          "p99": 6859.32234,
+          "max": 7014.708
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      },
+      "poolPendingPeak": 55.0
+    }
+  ]
+}

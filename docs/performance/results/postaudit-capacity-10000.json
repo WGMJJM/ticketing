@@ -1,0 +1,22 @@
+{
+  "passed" : true,
+  "environment" : "ticketing-perf-only",
+  "distinctAccounts" : 10000,
+  "concurrency" : 64,
+  "persistentCapacity" : 10000,
+  "accepted" : 10000,
+  "seconds" : 131.2445322,
+  "finiteBatchAcceptanceTps" : 76.19365037441156,
+  "acceptedMs" : {
+    "p95" : 1484.0475,
+    "p99" : 1637.6674,
+    "p50" : 823.3881
+  },
+  "mysqlRowLockWaitMs" : 1100250,
+  "sampledWaitingTables" : {
+    "purchase_capacity" : 23984
+  },
+  "maximumPoolWaiting" : 54,
+  "repeatedExpiryReleasedExactlyOnce" : true,
+  "scope" : "一万个随机非实名隔离账号，调用真实PurchaseAdmission持久事务；跳过HTTP/BCrypt登录/预检/Redis/Outbox发布/消费者，正式订单为零。有限批次不是稳定HTTP或成交TPS，也不能用总锁等待单独归因容量行。"
+}
