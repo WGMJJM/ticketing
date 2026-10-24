@@ -90,6 +90,9 @@ ticketing:
     load-wait-ms: ${CATALOG_CACHE_LOAD_WAIT_MS:100}
     namespace: ${CATALOG_CACHE_NAMESPACE:catalog}
   purchase:
+    consumer:
+      concurrency: ${PURCHASE_CONSUMER_CONCURRENCY:2}
+      prefetch: ${PURCHASE_CONSUMER_PREFETCH:1}
     admission-limit:
       enabled: ${PURCHASE_ADMISSION_LIMIT_ENABLED:false}
       global-rate: ${PURCHASE_ADMISSION_GLOBAL_RATE:20}

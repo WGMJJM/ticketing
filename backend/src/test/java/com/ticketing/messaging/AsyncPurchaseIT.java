@@ -31,10 +31,13 @@ import static org.mockito.ArgumentMatchers.*;
 @SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,properties={
     "server.servlet.session.cookie.secure=false","ticketing.admin-bootstrap.enabled=false",
     "ticketing.purchase.capacity=200","ticketing.purchase.queue-seconds=120","ticketing.purchase.lease-seconds=2",
+    "ticketing.purchase.consumer.concurrency=4","ticketing.purchase.consumer.prefetch=3",
     "ticketing.purchase.recovery-seconds=1","ticketing.purchase.messaging-enabled=true",
     "ticketing.purchase.exchange=ticketing.purchase.stage14.it","ticketing.purchase.queue=ticketing.purchase.stage14.it.orders",
     "ticketing.waitlist.messaging.enabled=true","ticketing.waitlist.exchange=ticketing.waitlist.stage14.it",
     "ticketing.waitlist.queue=ticketing.waitlist.stage14.it.dispatch",
+    "spring.rabbitmq.listener.simple.concurrency=2","spring.rabbitmq.listener.simple.max-concurrency=2",
+    "spring.rabbitmq.listener.simple.prefetch=1",
     "spring.rabbitmq.listener.simple.auto-startup=false","spring.rabbitmq.listener.simple.retry.max-attempts=2",
     "spring.rabbitmq.listener.simple.retry.initial-interval=100ms","spring.rabbitmq.listener.simple.retry.max-interval=100ms"})
 class AsyncPurchaseIT {
@@ -81,6 +84,21 @@ class AsyncPurchaseIT {
         db.update("INSERT INTO activity_session(activity_id,title,starts_at,ends_at,sale_starts_at) VALUES(?,'异步场次',TIMESTAMPADD(DAY,1,UTC_TIMESTAMP(6)),TIMESTAMPADD(DAY,2,UTC_TIMESTAMP(6)),TIMESTAMPADD(DAY,-1,UTC_TIMESTAMP(6)))",activity);
         session=db.queryForObject("SELECT id FROM activity_session WHERE activity_id=?",Long.class,activity);
         sku=sku(200);
+    }
+
+    @Test void purchaseConsumerConcurrencyAndPrefetchDoNotChangeWaitlistConsumer() {
+        var purchase = registry.getListenerContainer("purchaseOrders");
+        var waitlist = registry.getListenerContainer("waitlistDispatch");
+        assertThat(purchase).isInstanceOf(org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer.class);
+        assertThat(waitlist).isInstanceOf(org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer.class);
+        var purchaseContainer = (org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer) purchase;
+        var waitlistContainer = (org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer) waitlist;
+        assertThat(org.springframework.test.util.ReflectionTestUtils.getField(purchaseContainer,"concurrentConsumers")).isEqualTo(4);
+        assertThat(org.springframework.test.util.ReflectionTestUtils.getField(purchaseContainer,"maxConcurrentConsumers")).isEqualTo(4);
+        assertThat(org.springframework.test.util.ReflectionTestUtils.getField(purchaseContainer,"prefetchCount")).isEqualTo(3);
+        assertThat(org.springframework.test.util.ReflectionTestUtils.getField(waitlistContainer,"concurrentConsumers")).isEqualTo(2);
+        assertThat(org.springframework.test.util.ReflectionTestUtils.getField(waitlistContainer,"maxConcurrentConsumers")).isEqualTo(2);
+        assertThat(org.springframework.test.util.ReflectionTestUtils.getField(waitlistContainer,"prefetchCount")).isEqualTo(1);
     }
     @AfterEach void cleanup() {
         registry.stop();reset(publisher,eventOutbox,orders,consumer);

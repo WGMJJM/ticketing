@@ -6,10 +6,27 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.amqp.rabbit.connection.ConnectionFactory;
+import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
+import org.springframework.boot.autoconfigure.amqp.SimpleRabbitListenerContainerFactoryConfigurer;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 
 @Configuration(proxyBeanMethods=false)
+@EnableConfigurationProperties(PurchaseConsumerProperties.class)
 @ConditionalOnProperty(name="ticketing.purchase.messaging-enabled",matchIfMissing=true)
 public class PurchaseRabbitConfig {
+    @Bean
+    SimpleRabbitListenerContainerFactory purchaseListenerFactory(
+            SimpleRabbitListenerContainerFactoryConfigurer configurer, ConnectionFactory connection,
+            PurchaseConsumerProperties properties) {
+        var factory = new SimpleRabbitListenerContainerFactory();
+        configurer.configure(factory, connection);
+        factory.setConcurrentConsumers(properties.concurrency());
+        factory.setMaxConcurrentConsumers(properties.concurrency());
+        factory.setPrefetchCount(properties.prefetch());
+        return factory;
+    }
+
     @Bean
     Declarables purchaseTopology(@Value("${ticketing.purchase.exchange:ticketing.purchase}") String name,
             @Value("${ticketing.purchase.queue:ticketing.purchase.orders}") String queueName) {

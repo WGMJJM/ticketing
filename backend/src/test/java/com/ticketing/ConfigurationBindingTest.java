@@ -2,6 +2,7 @@ package com.ticketing;
 
 import com.ticketing.checkin.CheckinProperties;
 import com.ticketing.messaging.OutboxProperties;
+import com.ticketing.messaging.PurchaseConsumerProperties;
 import com.ticketing.trade.OrderProperties;
 import com.ticketing.trade.AftercareProperties;
 import com.ticketing.waitlist.WaitlistProperties;
@@ -25,6 +26,8 @@ class ConfigurationBindingTest {
             assertThat(context.getBean(AftercareProperties.class).batchSize()).isEqualTo(100);
             assertThat(context.getBean(OutboxProperties.class).batchSize()).isEqualTo(100);
             assertThat(context.getBean(OutboxProperties.class).inFlightWindow()).isEqualTo(16);
+            assertThat(context.getBean(PurchaseConsumerProperties.class).concurrency()).isEqualTo(2);
+            assertThat(context.getBean(PurchaseConsumerProperties.class).prefetch()).isEqualTo(1);
             assertThat(context.getBean(CheckinProperties.class).opensBeforeMinutes()).isEqualTo(60);
             assertThat(context.getBean(WaitlistProperties.class).dispatchMaxSteps()).isEqualTo(50);
             assertThat(context.getBean(PurchaseProperties.class).capacity()).isEqualTo(200);
@@ -47,6 +50,8 @@ class ConfigurationBindingTest {
                 "ticketing.waitlist.outbox.retry-max-seconds=1", "ticketing.checkin.opens-before-minutes=1441",
                 "ticketing.waitlist.compensation-batch-size=0", "ticketing.order.aftercare.batch-size=501",
                 "ticketing.order.aftercare.max-attempts=1", "ticketing.order.aftercare.retry-delay-seconds=0",
+                "ticketing.purchase.consumer.concurrency=17", "ticketing.purchase.consumer.prefetch=0",
+                "ticketing.purchase.consumer.prefetch=65", "ticketing.purchase.consumer.concurrency=0",
                 "ticketing.purchase.capacity=0", "ticketing.purchase.queue-seconds=4", "ticketing.purchase.lease-seconds=0",
                 "ticketing.waitlist.outbox.in-flight-window=65", "ticketing.waitlist.outbox.lease-seconds=5",
                 "ticketing.catalog-cache.maximum-entries=0", "ticketing.catalog-cache.local-seconds=31",
@@ -58,6 +63,6 @@ class ConfigurationBindingTest {
     }
 
     @TestConfiguration(proxyBeanMethods = false)
-    @EnableConfigurationProperties({OrderProperties.class, AftercareProperties.class, OutboxProperties.class, CheckinProperties.class, WaitlistProperties.class, PurchaseProperties.class, CatalogCacheProperties.class, AdmissionLimitProperties.class})
+    @EnableConfigurationProperties({OrderProperties.class, AftercareProperties.class, OutboxProperties.class, CheckinProperties.class, WaitlistProperties.class, PurchaseProperties.class, CatalogCacheProperties.class, AdmissionLimitProperties.class, PurchaseConsumerProperties.class})
     static class Properties { }
 }

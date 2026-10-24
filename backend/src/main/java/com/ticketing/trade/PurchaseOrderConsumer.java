@@ -17,7 +17,8 @@ public class PurchaseOrderConsumer {
     private final PurchaseCommands commands;
     private final PurchaseOrderWorker worker;
     public PurchaseOrderConsumer(ObjectMapper json,PurchaseCommands commands,PurchaseOrderWorker worker) { this.json=json;this.commands=commands;this.worker=worker; }
-    @RabbitListener(id="purchaseOrders",queues="${ticketing.purchase.queue:ticketing.purchase.orders}")
+    @RabbitListener(id="purchaseOrders",queues="${ticketing.purchase.queue:ticketing.purchase.orders}",
+            containerFactory="purchaseListenerFactory")
     public void consume(Message message) {
         PurchaseCommand command;
         try { command=json.readValue(message.getBody(),PurchaseCommand.class); }
