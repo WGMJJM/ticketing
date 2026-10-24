@@ -65,9 +65,11 @@ async function cancel(order: Order) {
     await load()
   } catch (failure) {
     const message =
-      failure instanceof Error ? failure.message : '取消失败，请刷新后重试'
+      failure instanceof Error ? failure.message : '取消结果暂未确认'
     await load()
-    error.value = message
+    if (rows.value.some(current => current.id === order.id && current.status === 'CANCELLED')) {
+      notice.value = '已查询确认订单取消，库存与限购额度已释放'
+    } else error.value = message + '。取消可能已经生效，请查询最新订单状态；仍待支付时可安全重试取消。'
   } finally {
     busy.value = false
   }

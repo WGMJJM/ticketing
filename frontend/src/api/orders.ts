@@ -22,6 +22,9 @@ export const purchaseStatusText = {
   FAILED: '购票未成功', EXPIRED: '排队已超时',
 }
 export const purchaseApi = {
+  lookup: (key: string) => useAuthStore().request<PurchaseRequest>({
+    url: '/purchase-requests/lookup', headers: { 'Idempotency-Key': key }, timeout: 10000,
+  }),
   detail: (id: string, signal?: AbortSignal) => useAuthStore().request<PurchaseRequest>({
     url: '/purchase-requests/' + id, timeout: 10000, signal,
   }),

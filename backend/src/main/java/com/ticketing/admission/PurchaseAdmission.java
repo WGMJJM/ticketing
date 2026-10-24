@@ -53,6 +53,13 @@ public class PurchaseAdmission {
     }
     @Transactional(readOnly=true)
     public List<PurchaseRequestView> active(long userId) { return requests.active(userId).stream().map(this::view).toList(); }
+    /** 同一可信用户的只读恢复入口，不改变请求、容量或Outbox，也不放行新的写请求。 */
+    @Transactional(readOnly=true)
+    public PurchaseRequestView lookup(long userId, String key) {
+        PurchaseRequest existing=requests.byKey(userId,key);
+        if(existing==null) throw new BusinessException(HttpStatus.NOT_FOUND,"PURCHASE_REQUEST_NOT_FOUND","购票请求不存在");
+        return view(existing);
+    }
     /** 安全过滤器已校验可信用户，按用户和操作域只读查重；事务内仍做最终复核。 */
     @Transactional(readOnly=true)
     public PurchaseRequestView replay(long userId,long skuId,int quantity,String key) {

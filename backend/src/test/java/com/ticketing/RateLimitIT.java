@@ -235,6 +235,26 @@ class RateLimitIT {
     }
 
     @Test
+    void acceptedRequestLookupSurvivesWrite429AndRedisOutageWithoutCreatingAnotherRequest() throws Exception {
+        fixture(20);
+        Browser buyer=loggedIn();
+        var request=Map.of("skuId",Long.toString(skuId),"quantity",1);
+        String id=body(buyer.post("/orders",request,"lost-response",202)).path("data").path("requestId").asText();
+        buyer.post("/orders",request,"lost-response",202);
+        rejection(buyer.post("/orders",request,"lost-response",429),429);
+        var lookup=buyer.send("GET","/purchase-requests/lookup",null,null,"lost-response",200,null);
+        assertThat(body(lookup).path("data").path("requestId").asText()).isEqualTo(id);
+        assertThat(lookup.headers().firstValue("Cache-Control").orElse("")).contains("no-store");
+        doThrow(new DataAccessResourceFailureException("test-only")).when(redis)
+                .execute(any(org.springframework.data.redis.core.script.RedisScript.class),anyList(),any(Object[].class));
+        rejection(buyer.post("/orders",request,"lost-response",503),503);
+        assertThat(body(buyer.send("GET","/purchase-requests/lookup",null,null,"lost-response",200,null))
+                .path("data").path("requestId").asText()).isEqualTo(id);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM purchase_request WHERE id=?",Integer.class,Long.parseLong(id))).isEqualTo(1);
+        assertFacts(0,0,0);
+    }
+
+    @Test
     void waitlistRejectsBeforeWritesAndOtherUserHasIndependentBudget() throws Exception {
         fixture(0);
         Browser first = loggedIn(), second = loggedIn();

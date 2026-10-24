@@ -39,6 +39,7 @@ class UserSessionQuotaIT {
     @Autowired com.ticketing.inventory.TicketService ticketManagement;
     @Autowired com.ticketing.auth.AccountUserDetailsService identities;
     @Autowired org.mybatis.spring.SqlSessionTemplate mybatis;
+    @Autowired javax.sql.DataSource dataSource;
     @MockitoSpyBean OrderMapper orderMapper;
     static final String HASH=new BCryptPasswordEncoder().encode(UUID.randomUUID().toString());
     long user,admin,activity,session,sku;
@@ -142,6 +143,20 @@ class UserSessionQuotaIT {
         assertThat(refunds.refund(admin,used,RefundReason.CUSTOMER_REQUEST).status()).isEqualTo("MANUAL_REQUIRED");
         assertThat(quotas.occupied(user,session)).isEqualTo(1);consistent();
     }
+    @Test void cancelledCommitSurvivesProjectionReadFailureAndRetryDoesNotReleaseAgain() {
+        long id=order(user,sku,2);
+        doThrow(new org.springframework.dao.DataAccessResourceFailureException("验收提交后读取故障"))
+                .when(orderMapper).owned(id,user);
+        assertThatThrownBy(()->orders.cancel(user,id)).isInstanceOf(org.springframework.dao.DataAccessResourceFailureException.class);
+        assertThat(db.queryForObject("SELECT status FROM ticket_order WHERE id=?",String.class,id)).isEqualTo("CANCELLED");
+        assertThat(quotas.occupied(user,session)).isZero();
+        long events=db.queryForObject("SELECT COUNT(*) FROM outbox_event WHERE aggregate_type='TICKET_SKU' AND aggregate_id=?",Long.class,sku);
+        reset(orderMapper);
+        assertThat(orders.cancel(user,id).status()).isEqualTo("CANCELLED");
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM outbox_event WHERE aggregate_type='TICKET_SKU' AND aggregate_id=?",Long.class,sku)).isEqualTo(events);
+        assertThat(quotas.occupied(user,session)).isZero();consistent();
+    }
+
     @Test void cancelledSessionAftercareClosesAndRefundsDisabledBuyerWithoutDoubleRelease() {
         long pending=order(user,sku,1),paid=order(user,sku,2);orders.pay(user,paid);
         db.update("UPDATE user_account SET status='DISABLED' WHERE id=?",user);
@@ -199,6 +214,64 @@ class UserSessionQuotaIT {
             assertThat(quotas.occupied(user,session)).isEqualTo(1);consistent();
         } finally {blockerReady.countDown();blockerTrying.countDown();workerEntered.countDown();pool.shutdownNow();}
     }
+    @Test void realMysqlLockTimeoutRollsBackAndTheSameClaimCanRecover()throws Exception {
+        requireFaultGuard();
+        long request=accept(user,sku,1,"lock-timeout");var claim=processing.claim(request);
+        tx().executeWithoutResult(s->resources.lockReservation(user,sku,true));
+        var ready=new CountDownLatch(1);var release=new CountDownLatch(1);
+        try(var pool=Executors.newSingleThreadExecutor()) {
+            var blocker=pool.submit(()->tx().executeWithoutResult(s->{resources.lockReservation(user,sku,true);ready.countDown();await(release);}));
+            try {
+                assertThat(ready.await(5,TimeUnit.SECONDS)).isTrue();
+                assertThatThrownBy(()->tx().executeWithoutResult(s->{
+                    int original=db.queryForObject("SELECT @@session.innodb_lock_wait_timeout",Integer.class);
+                    db.execute("SET SESSION innodb_lock_wait_timeout=1");
+                    try {worker.complete(claim);}
+                    finally {db.execute("SET SESSION innodb_lock_wait_timeout="+original);}
+                })).isInstanceOf(org.springframework.dao.ConcurrencyFailureException.class);
+            } finally {release.countDown();blocker.get(10,TimeUnit.SECONDS);}
+        }
+        assertThat(processing.find(request).status()).isEqualTo("PROCESSING");
+        assertThat(quotas.occupied(user,session)).isZero();
+        assertThat(db.queryForObject("SELECT locked_stock FROM ticket_sku WHERE id=?",Integer.class,sku)).isZero();
+        worker.complete(claim);worker.process(request);
+        assertThat(processing.find(request).status()).isEqualTo("SUCCEEDED");
+        assertThat(quotas.occupied(user,session)).isEqualTo(1);consistent();
+    }
+
+    @Test void realPoolExhaustionCreatesNoPartialOrderAndRecoveryCommitsExactlyOnce()throws Exception {
+        requireFaultGuard();
+        long request=accept(user,sku,1,"pool-exhaustion");var claim=processing.claim(request);
+        var pool=dataSource.unwrap(com.zaxxer.hikari.HikariDataSource.class);
+        int originalMaximum=pool.getMaximumPoolSize(),originalMinimum=pool.getMinimumIdle();
+        // 整轮回归缓存多个上下文；只耗尽当前已建连接，避免夹具本身抢占MySQL全局连接名额。
+        int existing=pool.getHikariPoolMXBean().getTotalConnections();
+        var held=new ArrayList<java.sql.Connection>();
+        try {
+            pool.setMinimumIdle(0);
+            pool.setMaximumPoolSize(existing);
+            for(int index=0;index<existing;index++)held.add(pool.getConnection());
+            assertThatThrownBy(()->worker.complete(claim)).isInstanceOf(org.springframework.transaction.CannotCreateTransactionException.class);
+        } finally {
+            for(var connection:held)connection.close();
+            pool.setMaximumPoolSize(originalMaximum);
+            pool.setMinimumIdle(originalMinimum);
+        }
+        assertThat(processing.find(request).status()).isEqualTo("PROCESSING");
+        assertThat(quotas.occupied(user,session)).isZero();
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM ticket_order WHERE user_id=?",Integer.class,user)).isZero();
+        worker.complete(claim);worker.process(request);worker.process(request);
+        assertThat(processing.find(request).status()).isEqualTo("SUCCEEDED");
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM ticket_order WHERE user_id=?",Integer.class,user)).isEqualTo(1);
+        assertThat(quotas.occupied(user,session)).isEqualTo(1);consistent();
+    }
+
+    private void requireFaultGuard() {
+        assertThat(System.getenv("MYSQL_HOST")).isEqualTo("127.0.0.1");
+        assertThat(System.getenv("MYSQL_PORT")).isEqualTo("13307");
+        assertThat(db.queryForObject("SELECT token FROM performance_control.environment_guard",String.class)).isEqualTo(System.getenv("RECOVERY_TEST_GUARD"));
+    }
+
     @Test void payAndCancelRaceHasOneTerminalAndOneQuotaEffect()throws Exception {
         long id=order(user,sku,1);
         parallel(2,index->{try{if(index==0)orders.pay(user,id);else orders.cancel(user,id);}catch(BusinessException failure){assertThat(failure.getStatus().value()).isEqualTo(409);}return true;});

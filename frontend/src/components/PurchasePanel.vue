@@ -5,7 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import 'element-plus/es/components/message-box/style/css'
 import { useAuthStore } from '../stores/auth'
-import { orderApi, type PurchaseLimit } from '../api/orders'
+import { orderApi, purchaseApi, type PurchaseLimit, type PurchaseRequest } from '../api/orders'
 import { readAttempt, saveAttempt, clearAttempt, type PurchaseAttempt } from '../utils/purchaseAttempts'
 import type { TicketSku } from '../api/tickets'
 import { formatCents } from '../utils/money'
@@ -57,6 +57,7 @@ async function purchase() {
   }
   const active = generation
   const skuId = props.ticket.id
+  let freshAttempt = false
   busy.value = true
   error.value = ''
   try {
@@ -71,10 +72,29 @@ async function purchase() {
       const created = { quantity: quantity.value, key: crypto.randomUUID() }
       saveAttempt(userId, skuId, created)
       attempt.value = created
+      freshAttempt = true
     }
     const current = attempt.value
     if (!current || active !== generation) return
-    const result = await orderApi.create(skuId, current.quantity, current.key)
+    let result: PurchaseRequest
+    let existing: PurchaseRequest | undefined
+    if (!freshAttempt) {
+      try {
+        // 刷新或首次响应丢失后先只读找回，确定未受理才提交原键。
+        existing = await purchaseApi.lookup(current.key)
+      } catch (failure) {
+        if (!isAxiosError(failure) || failure.response?.status !== 404) throw failure
+      }
+    }
+    if (existing) result = existing
+    else try {
+      result = await orderApi.create(skuId, current.quantity, current.key)
+    } catch (writeFailure) {
+      if (isAxiosError(writeFailure) && (!writeFailure.response || writeFailure.response.status === 429 || writeFailure.response.status >= 500)) {
+        // 只恢复已提交事实；原安全限流不变，不循环重发写入。
+        try { result = await purchaseApi.lookup(current.key) } catch { throw writeFailure }
+      } else throw writeFailure
+    }
     saveAttempt(userId, skuId, { ...current, requestId: result.requestId })
     if (active !== generation) return
     attempt.value = { ...current, requestId: result.requestId }
@@ -84,11 +104,13 @@ async function purchase() {
       await router.push('/orders/' + result.orderId)
     } else await router.push('/purchase-requests/' + result.requestId)
   } catch (failure) {
+    const notAdmitted = isAxiosError(failure) && ['TICKET_NOT_FOUND', 'TICKET_UNAVAILABLE']
+      .includes(String(failure.response?.data?.code))
     const rejected = isAxiosError(failure) && [429, 503].includes(failure.response?.status ?? 0) &&
       ['TOO_MANY_REQUESTS', 'RATE_LIMIT_UNAVAILABLE', 'PURCHASE_QUEUE_FULL', 'PURCHASE_GLOBAL_BUSY',
         'PURCHASE_TICKET_BUSY', 'PURCHASE_ADMISSION_UNAVAILABLE'].includes(String(failure.response?.data?.code))
     if (active === generation) error.value = (failure instanceof Error ? failure.message : '购票申请提交失败') +
-      (attempt.value ? rejected ? '。本次提交暂未通过，原申请仍保留，请稍后重试确认。' : '。结果尚未确认，请用同一申请重试；刷新页面后也会保留原申请。' : '。请确认浏览器允许本站会话存储后重试。')
+      (attempt.value ? notAdmitted ? '。本次提交未获受理，原申请参数仍保留；票档恢复可售后可用原申请重试。' : rejected ? '。本次提交暂未通过，原申请仍保留，请稍后重试确认。' : '。结果尚未确认，请用同一申请重试；刷新页面后也会保留原申请。' : '。请确认浏览器允许本站会话存储后重试。')
   } finally { if (active === generation) busy.value = false }
 }
 </script>

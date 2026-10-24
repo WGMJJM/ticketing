@@ -6,6 +6,9 @@ import com.ticketing.auth.UserAccountMapper;
 import com.ticketing.messaging.PurchaseCommands;
 import java.time.LocalDateTime;
 import java.util.Set;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
+import java.time.Duration;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.*;
 
@@ -17,15 +20,25 @@ public class PurchaseProcessing {
     private final UserAccountMapper users;
     private final PurchaseCommands commands;
     private final PurchaseProperties properties;
-    public PurchaseProcessing(PurchaseRequestMapper requests,UserAccountMapper users,PurchaseCommands commands,PurchaseProperties properties) {
+    private final MeterRegistry meters;
+    public PurchaseProcessing(PurchaseRequestMapper requests,UserAccountMapper users,PurchaseCommands commands,PurchaseProperties properties,MeterRegistry meters) {
         this.requests=requests; this.users=users; this.commands=commands; this.properties=properties;
+        this.meters=meters;
     }
     public PurchaseRequest find(long id) { return requests.find(id); }
 
     @Transactional(isolation=Isolation.READ_COMMITTED)
     public PurchaseRequest claim(long id) {
-        if(requests.claim(id,properties.leaseSeconds())!=1) return null;
-        return requests.find(id);
+        if(requests.claim(id,properties.leaseSeconds())!=1) {
+            PurchaseRequest current=requests.find(id);
+            meters.counter("ticketing.purchase.delivery","outcome",current!=null && current.terminal()?"terminal-replay":"not-claimable").increment();
+            return null;
+        }
+        PurchaseRequest claimed=requests.find(id);
+        // 两个时刻均来自MySQL；租约截止减配置时长等于本次认领SQL的数据库时间。
+        Duration delay=Duration.between(claimed.acceptedAt(),claimed.processingLeaseUntil().minusSeconds(properties.leaseSeconds()));
+        Timer.builder("ticketing.purchase.accepted.to.claim").publishPercentiles(.95,.99).register(meters).record(delay);
+        return claimed;
     }
 
     /** 调用方先获取用户和交易父资源；持请求行直到交易提交，最终CAS再次核验数据库时间。 */

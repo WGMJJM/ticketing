@@ -121,6 +121,42 @@ class AsyncPurchaseIT {
         assertThat(buyer.call("GET","/purchase-requests",null,null,200).path("data")).isEmpty();
     }
 
+    @Test void invalidNewApplicationsAreRejectedBeforeCapacityAndOutboxButCommittedReplaySurvivesOffSale() throws Exception {
+        var original=accept(buyer,sku,1,"precheck-replay");
+        db.update("UPDATE ticket_sku SET status='OFF_SALE' WHERE id=?",sku);
+        assertThat(accept(buyer,sku,1,"precheck-replay").path("requestId")).isEqualTo(original.path("requestId"));
+        buyer.call("POST","/orders",Map.of("skuId",Long.toString(sku),"quantity",1),"off-sale",409);
+        buyer.call("POST","/orders",Map.of("skuId",Long.toString(Long.MAX_VALUE),"quantity",1),"missing",404);
+        db.update("UPDATE ticket_sku SET status='ON_SALE' WHERE id=?",sku);
+        db.update("UPDATE activity SET status='OFFLINE' WHERE id=?",activity);
+        buyer.call("POST","/orders",Map.of("skuId",Long.toString(sku),"quantity",1),"offline",409);
+        db.update("UPDATE activity SET status='PUBLISHED' WHERE id=?",activity);
+        db.update("UPDATE activity_session SET status='CANCELLED' WHERE id=?",session);
+        buyer.call("POST","/orders",Map.of("skuId",Long.toString(sku),"quantity",1),"cancelled",409);
+        db.update("UPDATE activity_session SET status='SCHEDULED' WHERE id=?",session);
+        db.update("UPDATE ticket_sku SET sale_starts_at=TIMESTAMPADD(HOUR,-2,UTC_TIMESTAMP(6)),sale_ends_at=TIMESTAMPADD(HOUR,-1,UTC_TIMESTAMP(6)) WHERE id=?",sku);
+        buyer.call("POST","/orders",Map.of("skuId",Long.toString(sku),"quantity",1),"ended",409);
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM purchase_request WHERE user_id=?",Integer.class,buyer.id)).isEqualTo(1);
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM outbox_event WHERE event_id=?",Integer.class,PurchaseCommand.eventId(original.path("requestId").asLong()))).isEqualTo(1);
+        capacity(1);stock(0);
+        db.update("UPDATE ticket_sku SET sale_ends_at=TIMESTAMPADD(HOUR,1,UTC_TIMESTAMP(6)) WHERE id=?",sku);
+        accept(buyer,sku,1,"ended");capacity(2); // 预检拒绝未持久化失败键，恢复开售后原键可首次受理。
+    }
+
+    @Test void readOnlyKeyLookupIsOwnedNoStoreAndRechecksDisabledAccount() throws Exception {
+        var accepted=accept(buyer,sku,1,"lost-response");
+        var response=buyer.send("GET","/purchase-requests/lookup",null,"lost-response");
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.headers().firstValue("Cache-Control").orElse("")).contains("no-store");
+        assertThat(json.readTree(response.body()).path("data").path("requestId")).isEqualTo(accepted.path("requestId"));
+        other.call("GET","/purchase-requests/lookup",null,"lost-response",404);
+        buyer.call("GET","/purchase-requests/lookup",null,"absent",404);
+        new Client().call("GET","/purchase-requests/lookup",null,"lost-response",401);
+        db.update("UPDATE user_account SET status='DISABLED' WHERE id=?",buyer.id);
+        buyer.call("GET","/purchase-requests/lookup",null,"lost-response",401);
+        capacity(1);stock(0);
+    }
+
     @Test void concurrentSameKeyHasOneBudgetOneCommandOneOrderAndNoDeadlineRefresh() throws Exception {
         var responses=parallel(20,i->accept(buyer,sku,1,"same"));
         Set<String> ids=new HashSet<>();responses.forEach(v->ids.add(v.path("requestId").asText()));assertThat(ids).hasSize(1);
