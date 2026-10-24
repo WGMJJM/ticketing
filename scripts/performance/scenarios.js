@@ -115,7 +115,8 @@ export function setup() {
 export default function (data) {
   const index = exec.vu.idInTest - 1;
   if (!token) login(mode === 'checkin' ? fixture.admins[index] : fixture.users[index]);
-  const target = mode === 'mixed' ? fixture.mixed[exec.vu.iterationInScenario % fixture.mixed.length] : fixture.target;
+  const target = mode === 'mixed' ? fixture.mixed[(exec.vu.iterationInScenario +
+    (fixture.sharedUserScenario === true ? index : 0)) % fixture.mixed.length] : fixture.target;
   if (mode === 'query') {
     call('GET', '/activities?page=1&size=20', null, 'activities');
     call('GET', `/activities/${target.activityId}`, null, 'activity');

@@ -9,8 +9,11 @@ SELECT 'stock_order_totals' AS invariant, COUNT(*) AS violation_count FROM ticke
  WHERE t.locked_stock<>COALESCE(q.locked_qty,0) OR t.sold_stock<>COALESCE(q.sold_qty,0);
 SELECT 'payment_snapshot' AS invariant, COUNT(*) AS violation_count FROM ticket_order o
  LEFT JOIN payment_record p ON p.order_id=o.id
- WHERE (o.status='PAID' AND (p.id IS NULL OR p.status<>'SUCCEEDED' OR p.amount_cents<>o.total_amount_cents OR p.paid_at<>o.paid_at))
- OR (o.status<>'PAID' AND p.status='SUCCEEDED');
+ LEFT JOIN refund_record r ON r.order_id=o.id
+ WHERE (o.status IN ('PAID','REFUNDED') AND (p.id IS NULL OR p.status<>'SUCCEEDED' OR p.amount_cents<>o.total_amount_cents OR NOT (p.paid_at<=>o.paid_at)))
+ OR (o.status NOT IN ('PAID','REFUNDED') AND p.status='SUCCEEDED')
+ OR (o.status='REFUNDED' AND (r.id IS NULL OR r.status<>'SUCCEEDED' OR r.payment_id<>p.id OR r.amount_cents<>o.total_amount_cents))
+ OR (o.status<>'REFUNDED' AND r.id IS NOT NULL);
 SELECT 'order_snapshot' AS invariant, COUNT(*) AS violation_count FROM ticket_order o
  LEFT JOIN ticket_order_item i ON i.order_id=o.id
  WHERE i.id IS NULL OR i.session_id<>o.session_id OR o.total_amount_cents<>i.unit_price_cents*i.quantity;
@@ -25,7 +28,7 @@ SELECT 'waitlist_relation' AS invariant, COUNT(*) AS violation_count FROM waitli
  OR (w.reserved_order_id IS NOT NULL AND (o.id IS NULL OR o.user_id<>w.user_id OR o.session_id<>t.session_id
  OR i.sku_id<>w.sku_id OR i.quantity<>w.quantity OR o.idempotency_operation<>'WAITLIST_CONFIRM'
  OR o.idempotency_key<>CONCAT('waitlist-',w.id)
- OR (w.status='ALLOCATED' AND o.status<>'PENDING') OR (w.status='COMPLETED' AND o.status<>'PAID')
+ OR (w.status='ALLOCATED' AND o.status<>'PENDING') OR (w.status='COMPLETED' AND o.status NOT IN ('PAID','REFUNDED'))
  OR (w.status='EXPIRED' AND o.status NOT IN ('CANCELLED','EXPIRED'))));
 SELECT 'fifo_allocation_order' AS invariant, COUNT(*) AS violation_count FROM waitlist_entry a
  JOIN waitlist_entry b ON b.sku_id=a.sku_id AND b.id>a.id
@@ -34,11 +37,12 @@ SELECT 'fifo_allocation_order' AS invariant, COUNT(*) AS violation_count FROM wa
 SELECT 'ticket_quantity' AS invariant, COUNT(*) AS violation_count FROM ticket_order_item i
  JOIN ticket_order o ON o.id=i.order_id LEFT JOIN
  (SELECT order_item_id,COUNT(*) n,MIN(sequence_no) lo,MAX(sequence_no) hi FROM electronic_ticket GROUP BY order_item_id) t ON t.order_item_id=i.id
- WHERE (o.status='PAID' AND (COALESCE(t.n,0)<>i.quantity OR t.lo<>1 OR t.hi<>i.quantity))
- OR (o.status<>'PAID' AND COALESCE(t.n,0)<>0);
+ WHERE (o.status IN ('PAID','REFUNDED') AND (COALESCE(t.n,0)<>i.quantity OR t.lo<>1 OR t.hi<>i.quantity))
+ OR (o.status NOT IN ('PAID','REFUNDED') AND COALESCE(t.n,0)<>0);
 SELECT 'ticket_relation' AS invariant, COUNT(*) AS violation_count FROM electronic_ticket t
  JOIN ticket_order o ON o.id=t.order_id JOIN ticket_order_item i ON i.id=t.order_item_id
  WHERE t.owner_id<>o.user_id OR t.order_id<>i.order_id OR t.sku_id<>i.sku_id
+ OR (o.status='REFUNDED' AND t.status<>'VOID') OR (o.status='PAID' AND t.status='VOID')
  OR (t.status='USED' AND (t.used_at IS NULL OR t.checked_by IS NULL))
  OR (t.status<>'USED' AND (t.used_at IS NOT NULL OR t.checked_by IS NOT NULL));
 SELECT 'duplicate_payment_effect' AS invariant, COUNT(*) AS violation_count FROM

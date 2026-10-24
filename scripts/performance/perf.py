@@ -36,6 +36,7 @@ OVERRIDES |= {'PURCHASE_CAPACITY', 'PURCHASE_QUEUE_SECONDS', 'PURCHASE_LEASE_SEC
               'PURCHASE_JOBS_ENABLED', 'PURCHASE_MESSAGING_ENABLED', 'OUTBOX_JOBS_ENABLED'}
 OVERRIDES |= {'CATALOG_CACHE_ENABLED', 'PURCHASE_ADMISSION_LIMIT_ENABLED', 'PURCHASE_ADMISSION_GLOBAL_RATE',
               'PURCHASE_ADMISSION_GLOBAL_BURST', 'PURCHASE_ADMISSION_TICKET_RATE', 'PURCHASE_ADMISSION_TICKET_BURST'}
+OVERRIDES.add('ORDER_QUOTA_MIGRATION_APPROVED')
 
 
 def save(path, value):
@@ -288,10 +289,12 @@ def prepare(mode, count, staff_checkin=False):
         if response.status_code not in (204,404):
             raise RuntimeError('专用RabbitMQ队列清理失败')
     with connect() as db, db.cursor() as cur:
-        cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('staff_session_permission','admin_audit_log')")
+        cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name IN ('staff_session_permission','admin_audit_log','user_session_quota')")
         extra_tables = {row['TABLE_NAME'] if 'TABLE_NAME' in row else row['table_name'] for row in cur.fetchall()}
         if 'staff_session_permission' in extra_tables:
             cur.execute('DELETE FROM staff_session_permission')
+        if 'user_session_quota' in extra_tables:
+            cur.execute('DELETE FROM user_session_quota')
         for table in TABLES:
             # 历史基线JAR仍可运行，旧schema尚无V8请求表。
             if table == 'purchase_request':
@@ -379,6 +382,11 @@ def audit():
         if async_schema:
             sql += '\n' + '\n'.join(line for line in (HERE / 'audit-purchase.sql').read_text(encoding='utf-8').splitlines()
                                      if not line.lstrip().startswith('--'))
+        cur.execute("SELECT COUNT(*) n FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='user_session_quota'")
+        quota_schema = bool(cur.fetchone()['n'])
+        if quota_schema:
+            sql += '\n' + '\n'.join(line for line in (HERE / 'audit-quota.sql').read_text(encoding='utf-8').splitlines()
+                                     if not line.lstrip().startswith('--'))
         for statement in sql.split(';'):
             if statement.strip():
                 cur.execute(statement)
@@ -389,6 +397,9 @@ def audit():
                 continue
             cur.execute(f'SELECT COUNT(*) n FROM {table}')
             counts[table] = cur.fetchone()['n']
+        if quota_schema:
+            cur.execute('SELECT COUNT(*) n FROM user_session_quota')
+            counts['user_session_quota'] = cur.fetchone()['n']
         db.commit()
     result = {'passed': all(r['violation_count'] == 0 for r in checks), 'checks': checks, 'counts': counts}
     if not result['passed']:
@@ -400,6 +411,8 @@ def db_snapshot():
     with connect() as db, db.cursor() as cur:
         cur.execute("SHOW GLOBAL STATUS WHERE Variable_name IN ('Threads_connected','Threads_running','Innodb_row_lock_waits','Innodb_row_lock_time','Innodb_deadlocks','Slow_queries','Questions','Com_select','Com_commit','Com_rollback')")
         status = {r['Variable_name']: int(r['Value']) for r in cur.fetchall()}
+        cur.execute("SELECT NAME,COUNT FROM information_schema.innodb_metrics WHERE NAME IN('lock_deadlocks','lock_timeouts') AND STATUS='enabled'")
+        status.update({r['NAME']:int(r['COUNT']) for r in cur.fetchall()})
         cur.execute("SELECT COUNT(*) n FROM performance_schema.data_lock_waits")
         status['current_lock_waits'] = cur.fetchone()['n']
         cur.execute("SELECT status,COUNT(*) n,MAX(retry_count) attempts FROM outbox_event GROUP BY status")
@@ -463,6 +476,7 @@ METRICS = ['process.cpu.usage', 'jvm.memory.used', 'jvm.gc.pause', 'jvm.threads.
            'hikaricp.connections.usage', 'spring.rabbitmq.listener',
            'ticketing.catalog.loads.active', 'ticketing.catalog.local.entries',
            'ticketing.catalog.redis.duration', 'ticketing.purchase.admission.redis.duration']
+METRICS += ['ticketing.trade.transaction.duration', 'ticketing.trade.lock.duration', 'ticketing.trade.quota']
 
 
 def mq_snapshot():

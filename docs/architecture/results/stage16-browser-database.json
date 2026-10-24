@@ -1,0 +1,189 @@
+{
+  "passed": true,
+  "environment": "ticketing-perf-only",
+  "orders": [
+    {
+      "id": 2002,
+      "status": "REFUNDED",
+      "session_id": 135,
+      "total_amount_cents": 300,
+      "paid_at": "2026-10-24 03:42:16.425877"
+    },
+    {
+      "id": 2003,
+      "status": "CANCELLED",
+      "session_id": 135,
+      "total_amount_cents": 100,
+      "paid_at": null
+    },
+    {
+      "id": 2004,
+      "status": "CANCELLED",
+      "session_id": 136,
+      "total_amount_cents": 400,
+      "paid_at": null
+    }
+  ],
+  "quota": [
+    {
+      "user_id": 1121,
+      "session_id": 135,
+      "occupied_quantity": 0
+    },
+    {
+      "user_id": 1121,
+      "session_id": 136,
+      "occupied_quantity": 0
+    }
+  ],
+  "requests": [
+    {
+      "id": 2028,
+      "sku_id": 135,
+      "quantity": 3,
+      "status": "SUCCEEDED",
+      "order_id": 2002
+    },
+    {
+      "id": 2029,
+      "sku_id": 136,
+      "quantity": 1,
+      "status": "SUCCEEDED",
+      "order_id": 2003
+    },
+    {
+      "id": 2030,
+      "sku_id": 137,
+      "quantity": 4,
+      "status": "SUCCEEDED",
+      "order_id": 2004
+    }
+  ],
+  "stocks": [
+    {
+      "id": 135,
+      "total_stock": 20,
+      "locked_stock": 0,
+      "sold_stock": 0
+    },
+    {
+      "id": 136,
+      "total_stock": 20,
+      "locked_stock": 0,
+      "sold_stock": 0
+    },
+    {
+      "id": 137,
+      "total_stock": 20,
+      "locked_stock": 0,
+      "sold_stock": 0
+    }
+  ],
+  "payment": {
+    "n": 1,
+    "amount": 300
+  },
+  "refund": {
+    "n": 1,
+    "amount": 300
+  },
+  "tickets": [
+    {
+      "status": "VOID",
+      "n": 3
+    }
+  ],
+  "audit": {
+    "passed": true,
+    "checks": [
+      {
+        "invariant": "stock_bounds",
+        "violation_count": 0
+      },
+      {
+        "invariant": "stock_order_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "payment_snapshot",
+        "violation_count": 0
+      },
+      {
+        "invariant": "order_snapshot",
+        "violation_count": 0
+      },
+      {
+        "invariant": "session_quota",
+        "violation_count": 0
+      },
+      {
+        "invariant": "waitlist_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "fifo_allocation_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "ticket_quantity",
+        "violation_count": 0
+      },
+      {
+        "invariant": "ticket_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "duplicate_payment_effect",
+        "violation_count": 0
+      },
+      {
+        "invariant": "duplicate_active_waitlist",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_capacity",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_order_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_no_unbound_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_no_late_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_reliable_command",
+        "violation_count": 0
+      },
+      {
+        "invariant": "quota_order_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "quota_extra_or_orphan",
+        "violation_count": 0
+      }
+    ],
+    "counts": {
+      "purchase_request": 3,
+      "order_aftercare": 1,
+      "refund_record": 1,
+      "electronic_ticket": 3,
+      "waitlist_entry": 0,
+      "payment_record": 1,
+      "ticket_order_item": 3,
+      "ticket_order": 3,
+      "outbox_event": 6,
+      "ticket_sku": 4,
+      "activity_session": 3,
+      "activity": 1001,
+      "user_account": 13,
+      "user_session_quota": 2
+    }
+  }
+}

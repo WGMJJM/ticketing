@@ -1,0 +1,59 @@
+{
+  "passed": true,
+  "environment": "ticketing-perf-only",
+  "checkedAt": "2026-10-24T04:15:05.278941+00:00",
+  "browser": "Codex内置桌面浏览器",
+  "httpMock": false,
+  "frontend": "npm run build生产产物，127.0.0.1:5173代理固定18080隔离后端",
+  "checks": {
+    "真实普通账号注册": true,
+    "Session登录并获取写入CSRF": true,
+    "公开活动与两场次加载": true,
+    "三张票申请真实排队且未建单": true,
+    "排队未占库存或额度": true,
+    "刷新仍为申请2028": true,
+    "消费者恢复后同一申请绑定唯一订单": true,
+    "模拟支付成功且未额外占额": true,
+    "三张明细签发三张未用票且未打开完整凭证": true,
+    "同场另一票档共享已占3及剩余1": true,
+    "另一票档建单后两票档均满额禁购": true,
+    "另一场次仍有独立4张额度": true,
+    "两场次同时分别占4张并有数据库事实": true,
+    "取消独立场次四张订单并提示释放": true,
+    "取消另一票档一张订单后本场恢复剩余1": true,
+    "普通账号访问运营页面拒绝": true,
+    "隔离管理员真实登录并重新获取CSRF": true,
+    "运营整单模拟退款确认并成功": true,
+    "退款保留原模拟支付流水及支付时间": true,
+    "三张票全部作废": true,
+    "买家重新登录后两票档库存及本场额度全部恢复": true,
+    "买家订单仍可查看模拟退款历史": true,
+    "普通账号直接访问管理API返回ACCESS_DENIED": true,
+    "退出后私有票券页面重定向登录": true,
+    "最终受理容量为零且库存额度18项审计通过": true
+  },
+  "checkCount": 25,
+  "fixtures": [
+    "虚构演示活动与随机普通账号，现有隔离初始化管理员",
+    "第一笔受理暂停发布器，随后只重启同一应用恢复发布，不重置业务数据",
+    "缓存开启，新票档准入关闭；原安全限流开启且使用regression测试阈值",
+    "仅模拟支付退款，未连接任何真实资金渠道"
+  ],
+  "evidence": [
+    "stage16-browser-queued.json",
+    "stage16-browser-two-session-quota.json",
+    "stage16-browser-database.json"
+  ],
+  "screenshots": [
+    "stage16-queued.png",
+    "stage16-electronic-tickets.png",
+    "stage16-shared-quota.png",
+    "stage16-quota-full.png",
+    "stage16-refunded.png",
+    "stage16-quota-released.png"
+  ],
+  "limitations": [
+    "仅内置桌面浏览器，未验证真实手机或摄像头",
+    "未展示/保存完整电子票入场凭证"
+  ]
+}

@@ -40,13 +40,18 @@ def main():
     if completed.returncode:
         raise RuntimeError('测试失败，保留本轮数据库现场 ' + schema)
     # 测试中的迁移验证会创建多个独立schema，仅在整轮成功后删除新增且名称匹配者。
-    allowed = re.compile(r'ticketing_(?:' + re.escape(args.label) + r'_[a-f0-9]+_it|s14_migration_[a-f0-9]+_it|v7_guard_[a-f0-9]+|stage11_upgrade_[a-f0-9]+|stage10_(?:upgrade|failure)_[a-f0-9]+)\Z')
+    allowed = re.compile(r'ticketing_(?:' + re.escape(args.label) + r'_[a-f0-9]+_it|s1[46]_migration_[a-f0-9]+_it|v7_guard_[a-f0-9]+|stage11_upgrade_[a-f0-9]+|stage10_(?:upgrade|failure)_[a-f0-9]+)\Z')
     with perf.connect() as db, db.cursor() as cur:
         cur.execute('SHOW DATABASES')
         created = {next(iter(row.values())) for row in cur.fetchall()} - original
         cleaned = []
         for name in sorted(created):
             if allowed.fullmatch(name):
+                cur.execute("SELECT COUNT(*) n FROM information_schema.tables WHERE table_schema=%s AND table_name='flyway_schema_history'", (name,))
+                if cur.fetchone()['n']:
+                    cur.execute('SELECT COUNT(*) n FROM `' + name + '`.flyway_schema_history WHERE success=0')
+                    if cur.fetchone()['n']:
+                        continue  # 即使预期故障测试通过，也保留其DDL失败现场，最终导出备份再回收专用卷。
                 cur.execute('DROP DATABASE `' + name + '`')
                 cleaned.append(name)
     print('验证通过，已清理本轮隔离schema ' + str(len(cleaned)), flush=True)

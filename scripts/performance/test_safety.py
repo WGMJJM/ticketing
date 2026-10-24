@@ -22,6 +22,7 @@ class SafetyTests(unittest.TestCase):
                     patch.dict(perf.os.environ, {'RATE_LIMIT_ENABLED': 'false', 'RATE_LIMIT_KEY_SECRET': 'inherited',
                                                  'PERF_RATE_LIMIT_ENABLED': 'false', 'PERF_RATE_LIMIT_ORDER_USER': '1',
                                                  'CATALOG_CACHE_ENABLED': 'false', 'CATALOG_CACHE_CONCURRENT_LOADS': '32',
+                                                 'ORDER_QUOTA_MIGRATION_APPROVED': 'true',
                                                  'CLIENT_ADDRESS_MODE': 'TRUSTED_PROXY', 'CLIENT_ADDRESS_TRUSTED_PROXIES': '10.0.0.0/8'}), \
                     patch.object(perf.subprocess, 'Popen', return_value=process) as start, \
                     patch.object(perf.requests, 'get') as get, patch.object(perf, 'admin') as admin:
@@ -35,6 +36,7 @@ class SafetyTests(unittest.TestCase):
                 self.assertNotIn('PERF_RATE_LIMIT_ORDER_USER', child)
                 self.assertNotIn('CATALOG_CACHE_ENABLED', child)
                 self.assertNotIn('CATALOG_CACHE_CONCURRENT_LOADS', child)
+                self.assertNotIn('ORDER_QUOTA_MIGRATION_APPROVED', child)
                 self.assertNotIn('CLIENT_ADDRESS_MODE', child)
                 self.assertNotIn('CLIENT_ADDRESS_TRUSTED_PROXIES', child)
                 report = (directory / 'app.json').read_text(encoding='utf-8')
