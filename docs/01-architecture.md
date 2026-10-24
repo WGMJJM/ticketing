@@ -12,7 +12,7 @@ backend/src/main/java/com/ticketing/
 ├── activity/    活动、场次及SessionWindowGuard
 ├── inventory/   票档销售规则与权威库存条件SQL
 ├── auth/        账号、Session、限流与可信身份
-├── admission/   可靠受理、状态、容量预算与恢复
+├── admission/   新请求速率准入、可靠受理、状态、容量预算与恢复
 ├── trade/       订单消费者、预占、支付、退款和售后
 ├── waitlist/    缺票候补FIFO与同步订单联动
 ├── checkin/     出票、凭证及核销
@@ -165,3 +165,8 @@ AdminOrdersView负责筛选与稳定分页，AdminOrderDetail负责明细、受�
 `RequestRateLimitFilter`的认证实例在CSRF后、formLogin前保护登录/注册，业务实例在最新数据库身份复核及AuthorizationFilter后保护下单/候补。两个实例使用不同的重复执行标记，且不作为Servlet Filter Bean自动注册。过滤器不启动MySQL事务，不改动交易锁序或同步生命周期协作。数据库库存、场次限购、订单幂等、候补唯一约束及ADMIN/STAFF权限仍由原有服务执行。
 
 故障默认拒绝四类提交并返回有界503，公开活动读取及其他交易和补偿链路维持原有依赖。生产默认开启；普通测试显式关闭，真实Redis验收显式开启，专用性能环境分别记录关闭对照、开启放宽阈值及默认阈值三种配置。实现、窗口边界、部署与验收记录见[阶段十二说明](22-redis-security-rate-limits-verification.md)。
+## 第十五阶段公开目录缓存与新请求准入
+
+公开活动详情、场次列表和有限列表组合通过activity包内`CatalogCache`读取Caffeine/Redis；票档动态库存、销售状态、serverTime及交易权威读继续查MySQL。活动、场次和票档管理提交后本地换代，旧加载只能回填旧代，不使用KEYS。单实例有界加载和短TTL限制Redis故障时的回源压力。
+
+普通HTTP下单改经`PurchaseEntryService`非事务编排：原有安全过滤器→数据库只读幂等→新键Lua双桶速率→原`PurchaseAdmission`事务。全局及SKU桶一起判定扣减，Redis只筛选流量，不维护门票或排队占位；交易消费者、MySQL容量、库存及限购仍为原协议。回放不消耗新增票档预算，原用户安全限流依然更早执行。完整时序、默认值及证据见[第十五阶段验收](26-redis-catalog-and-ticket-admission-verification.md)。

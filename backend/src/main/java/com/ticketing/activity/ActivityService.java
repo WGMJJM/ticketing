@@ -1,6 +1,7 @@
 package com.ticketing.activity;
 
 import com.ticketing.audit.AuditWriter;
+import com.fasterxml.jackson.core.type.TypeReference;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -21,10 +22,20 @@ import org.springframework.util.StringUtils;
 public class ActivityService {
     private final ActivityMapper mapper;
     private final AuditWriter audit;
+    private final CatalogCache cache;
 
-    public ActivityService(ActivityMapper mapper, AuditWriter audit) { this.mapper = mapper; this.audit = audit; }
+    public ActivityService(ActivityMapper mapper, AuditWriter audit, CatalogCache cache) { this.mapper = mapper; this.audit = audit; this.cache = cache; }
 
     public PageResponse<ActivityView> list(ActivityQuery query, boolean publicOnly) {
+        if (publicOnly && cache.cacheList(query)) {
+            String city = query.city() == null ? "" : query.city().trim();
+            String key = (query.category() == null ? "ALL" : query.category().name()) + ":" + city + ":" + query.page() + ":" + query.size();
+            return cache.read(CatalogCache.Kind.LIST, key, new TypeReference<PageResponse<ActivityView>>() {}, () -> queryList(query, true));
+        }
+        return queryList(query, publicOnly);
+    }
+
+    private PageResponse<ActivityView> queryList(ActivityQuery query, boolean publicOnly) {
         var wrapper = new LambdaQueryWrapper<Activity>();
         if (publicOnly) wrapper.eq(Activity::getStatus, ActivityStatus.PUBLISHED.name());
         else if (query.status() != null) wrapper.eq(Activity::getStatus, query.status().name());
@@ -45,6 +56,8 @@ public class ActivityService {
     }
 
     public ActivityView detail(long id, boolean publicOnly) {
+        if (publicOnly) return cache.read(CatalogCache.Kind.DETAIL, Long.toString(id), new TypeReference<ActivityView>() {},
+                () -> ActivityView.from(requireActivity(id, true)));
         return ActivityView.from(requireActivity(id, publicOnly));
     }
 
@@ -79,6 +92,7 @@ public class ActivityService {
         activity.setUpdatedAt(now);
         mapper.insert(activity);
         audit.record(operatorId, AuditAction.ACTIVITY_CREATE, "ACTIVITY", activity.getId(), Map.of(), snapshot(activity));
+        cache.invalidateAfterCommit();
         return ActivityView.from(activity);
     }
 
@@ -98,6 +112,7 @@ public class ActivityService {
                 .set(Activity::getVersion, activity.getVersion() + 1).set(Activity::getUpdatedAt, LocalDateTime.now(ZoneOffset.UTC));
         if (mapper.update(null, wrapper) != 1) throw conflict("活动已被其他操作修改，请刷新后重试");
         audit.record(operatorId, AuditAction.ACTIVITY_UPDATE, "ACTIVITY", id, snapshot(activity), snapshot(mapper.selectById(id)));
+        cache.invalidateAfterCommit();
         return detail(id, false);
     }
 
@@ -130,6 +145,7 @@ public class ActivityService {
         if (mapper.update(null, wrapper) != 1) throw conflict("活动状态已变化，请刷新后重试");
         audit.record(operatorId, next == ActivityStatus.PUBLISHED ? AuditAction.ACTIVITY_PUBLISH : AuditAction.ACTIVITY_OFFLINE,
                 "ACTIVITY", activity.getId(), snapshot(activity), snapshot(mapper.selectById(activity.getId())));
+        cache.invalidateAfterCommit();
         return detail(activity.getId(), false);
     }
 

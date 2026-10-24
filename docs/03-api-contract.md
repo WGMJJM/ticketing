@@ -1,6 +1,6 @@
 # 当前 API 契约
 
-后端目录已统一为扁平技术分层，控制器位于`com.ticketing.controller`，服务位于`com.ticketing.service`，Mapper位于`com.ticketing.mapper`。前序目录整理保留了HTTP路径、权限与CSRF协议；第十二阶段新增的429/503响应见本文末尾。历史验收文档中的旧源码路径以当时提交为准，当前结构见[架构说明](01-architecture.md)。
+后端保持单Maven模块，控制器、服务及Mapper按业务包组织，根包为`com.ticketing`。普通购票沿用第十四阶段异步受理协议；第十五阶段新增的票档/全局429及准入503见本文末尾，原权限、CSRF及用户安全限流保持。历史验收文档中的旧源码路径以当时提交为准，当前结构见[架构说明](01-architecture.md)。
 
 ## 第十阶段订单运营与模拟退款
 
@@ -261,3 +261,17 @@ HTTP路径、请求字段、Session与CSRF、HTTP状态码及响应字符串状�
 无有效Session的`GET /api/v1/auth/csrf`及所有需要CSRF校验的写请求，在CsrfFilter前使用客户端IP的新会话预算，默认120次/60秒。无效、过期或伪造JSESSIONID不能绕过；429/503响应沿用上表，拒绝时不创建Session、不返回Set-Cookie、不调用Controller。这些匿名请求可能先得到429/503，再进入原CSRF或身份校验。HEAD csrf仍为403且不生成令牌。已有有效Session获取令牌不消耗新会话预算，Redis故障时仍可复用；登录和退出后仍须重新获取令牌。前端沿用统一中文错误和Retry-After提示，不自动重放写请求。
 
 默认DIRECT模式只使用连接IP。TRUSTED_PROXY须显式配置受信代理IP/CIDR，并从连接端向外剥离受信节点，遇到最近的不可信节点即停止；只读取X-Forwarded-For。非受信连接忽略所有转发头，受信连接缺失、重复、过长、跳数过多或格式错误的头返回400 `INVALID_CLIENT_ADDRESS`，不创建新Session。X-Real-IP、Forwarded不作为身份来源。Spring自动转发头处理须保持none。部署前提和复现见[阶段十三验收](23-session-proxy-migration-verification.md)。
+## 第十五阶段目录缓存与购票入口拒绝
+
+公开活动详情、场次及有限活动列表组合可使用服务器Caffeine/Redis缓存，返回类型和状态不变；票档库存、销售状态和serverTime保持实时。管理员及交易权威查询绕过展示缓存。缓存降级加载繁忙时503 `CATALOG_BUSY`，不返回伪造空列表。
+
+`POST /orders`仍仅可靠受理，成功为202或既有终态回放200。原安全链路之后先读MySQL幂等事实；显式开启新增准入时，只有新键执行额外的全局和票档Lua速率限制。准入因本机对照未获性能收益而默认关闭：
+
+| HTTP | 业务码 | 含义 |
+| --- | --- | --- |
+| 429 | `PURCHASE_GLOBAL_BUSY` | 新购票全局速率预算不足 |
+| 429 | `PURCHASE_TICKET_BUSY` | 本票档的新购票速率预算不足 |
+| 503 | `PURCHASE_ADMISSION_UNAVAILABLE` | 新准入服务故障或协议异常 |
+| 503 | `PURCHASE_QUEUE_FULL` | 原MySQL持久待处理容量已满 |
+
+上述响应均为no-store，购票拒绝携带Retry-After，不生成新的受理记录/Outbox或占用数据库容量。速率成本不等于库存，不作反向补令牌。旧安全过滤器仍可先返回429 `TOO_MANY_REQUESTS`或503 `RATE_LIMIT_UNAVAILABLE`，包括对已有键的提交；新增准入本身不阻止已有同参键回放，同键异参仍409。前端保留原幂等键，等待后重试确认，不把入口拒绝显示成已排队。

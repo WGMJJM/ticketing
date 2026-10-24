@@ -1,6 +1,6 @@
 # 本地开发与验收
 
-Java源码按技术层扁平放置在`backend/src/main/java/com/ticketing`：控制器直接放入`controller`、服务直接放入`service`、数据访问直接放入`mapper`，不再创建业务子目录。新生产类须同步登记`backend/src/test/resources/architecture-modules.properties`中的逻辑业务归属；测试会检查目录、归属完整性、公开协作边界及循环依赖。详细结构见[架构说明](01-architecture.md)。
+Java源码按业务包放置在`backend/src/main/java/com/ticketing`，保留单Maven模块及唯一Spring Boot应用。新生产类须同步登记`backend/src/test/resources/architecture-modules.properties`中的业务归属；测试检查业务包匹配、归属完整性、公开协作边界及循环依赖。详细结构见[架构说明](01-architecture.md)。
 
 环境：Java 21、Maven 3.9+、满足 Vite 的 Node（20.19+ 或 22.12+）、Docker Desktop 或 Docker Engine + Compose；Windows 推荐 PowerShell。`mvn -version` 显示的 Java 版本才是 Maven 实际使用版本。
 
@@ -199,3 +199,10 @@ try {
 普通后端回归在测试资源中显式关闭限流，不连接Redis；`mysql-it`中的`RateLimitIT`、`CsrfSessionIT`和`TrustedProxyIT`显式开启，默认使用本机16379，`RATE_LIMIT_TEST_REDIS_PORT`可指定隔离Redis，只清理各自随机命名空间，不执行FLUSHDB/FLUSHALL。真实MySQL测试须使用独立验收库。原开发库已在第十三阶段按单次明确授权完成受控V7恢复；历史证据保留，部署仍须先只读执行三个审计脚本，STOP时禁止自动repair或继续部署。恢复工具和权限探针的使用条件见[阶段十三验收](23-session-proxy-migration-verification.md)。
 
 性能工具新增`--rate-limit-mode baseline|regression|production`，仅固定ticketing-perf环境有效。baseline显式关闭用于旧口径对照；regression开启Lua、阈值统一放宽为10000以保持既有场景；production使用默认阈值，并运行`verify_rate_limits.py`验证保护与真实Redis故障。测试密钥由工具随机生成，仅传入子进程，不进入共享报告。完整复现见[阶段十二验收](22-redis-security-rate-limits-verification.md)。
+## 第十五阶段目录缓存及票档准入
+
+公开活动/场次缓存由`CATALOG_CACHE_ENABLED`控制，默认开启；L1最多2000项/15秒，L2为120秒加至多约10%抖动，负缓存5秒。有界列表为无关键词、常用城市、前3页、12/20条，其他组合直接查库。票档库存、销售窗口和serverTime保持实时。管理提交后换代失效，Redis故障受控回源；相关阈值见`.env.example`及`ticketing.catalog-cache`。
+
+新购票前置速率由`PURCHASE_ADMISSION_LIMIT_ENABLED`控制，默认关闭；本机初次A/B中开启后热点订单TPS下降、终态P95上升，因此只提供显式启用的保护能力，不将其作为默认性能优化。开启时`PURCHASE_ADMISSION_GLOBAL_RATE/GLOBAL_BURST`默认20/40，`PURCHASE_ADMISSION_TICKET_RATE/TICKET_BURST`默认10/20，须按负载目标验证。只控制新受理速率，不代表库存；同键只读查重先于新增Lua，原安全限流仍在更前面。429携带具体全局/票档繁忙码，Redis故障503。数据库排队容量200和其他原配置含义不变。不能关闭原安全限流作为故障兜底。
+
+本阶段不新增Flyway迁移；开发库仍须完成V8部署预检再升级。详细协议及验证见[第十五阶段记录](26-redis-catalog-and-ticket-admission-verification.md)。

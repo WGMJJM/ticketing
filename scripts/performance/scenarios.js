@@ -12,6 +12,7 @@ const mode = __ENV.PERF_SCENARIO || 'query';
 const vus = Number(__ENV.PERF_VUS || 10);
 const warmup = Number(__ENV.PERF_WARMUP || 10);
 const duration = Number(__ENV.PERF_DURATION || 20);
+const admissionRejections = __ENV.PERF_ADMISSION_EXPECTED_REJECTION === 'true';
 if (vus < 1 || vus > fixture.users.length || duration < 1 || warmup < 1) throw new Error('压测参数无效');
 const latency = new Trend('steady_latency', true);
 const requests = new Counter('steady_requests');
@@ -25,6 +26,7 @@ const acceptanceLatency = new Trend('steady_acceptance_latency', true);
 const completionLatency = new Trend('steady_purchase_completion_latency', true);
 const purchaseFailures = new Counter('purchase_business_failures');
 const admissionRejected = new Counter('admission_rejected');
+const rateLimited = new Counter('admission_rate_limited');
 const paid = new Counter('paid_orders');
 const checked = new Counter('checked_tickets');
 const idem = new Rate('idempotency_correct');
@@ -32,7 +34,10 @@ const serverErrors = new Counter('server_errors');
 const transportErrors = new Counter('transport_errors');
 const routes = ['activities', 'activity', 'sessions', 'tickets', 'create', 'purchase_status', 'cancel', 'pay', 'waitlist', 'checkin'];
 const thresholds = { unexpected_error: ['rate==0'], all_unexpected_error: ['rate==0'], http_req_failed: ['rate==0'], server_errors: ['count==0'], transport_errors: ['count==0'] };
-for (const status of [0, 400, 401, 403, 404, 429, 500, 503]) thresholds[`all_http_outcomes{status:${status}}`] = ['count==0'];
+for (const status of [0, 400, 401, 403, 404, 429, 500, 503]) {
+  if (!(admissionRejections && status === 429)) thresholds[`all_http_outcomes{status:${status}}`] = ['count==0'];
+}
+for (const code of ['PURCHASE_GLOBAL_BUSY', 'PURCHASE_TICKET_BUSY']) thresholds[`admission_rate_limited{code:${code}}`] = ['count>=0'];
 if (['mixed', 'hot-ample', 'hot-scarce'].includes(mode)) thresholds.idempotency_correct = ['rate==1'];
 for (const name of routes) thresholds[`steady_latency{name:${name}}`] = ['p(95)<30000'];
 export const options = {
@@ -55,7 +60,7 @@ function call(method, path, body, name, extra = {}, measured = true) {
   const response = http.request(method, fixture.baseUrl + '/api/v1' + path,
     body === null ? null : JSON.stringify(body), {
       headers: { 'Content-Type': 'application/json', ...(token ? { [token.headerName]: token.token } : {}), ...extra },
-      tags: { name }, timeout: '20s', responseCallback: http.expectedStatuses(200, 202, 409),
+      tags: { name }, timeout: '20s', responseCallback: admissionRejections ? http.expectedStatuses(200, 202, 409, 429) : http.expectedStatuses(200, 202, 409),
     });
   const stable = measured && isSteady();
   let expected = false;
@@ -64,7 +69,14 @@ function call(method, path, body, name, extra = {}, measured = true) {
   }
   let backpressure = false;
   try { backpressure = response.status === 503 && response.json('code') === 'PURCHASE_QUEUE_FULL'; } catch (_) { /* 未知503仍失败 */ }
-  const invalid = ![200, 202].includes(response.status) && !expected && !backpressure;
+  let admissionCode = '';
+  if (admissionRejections && response.status === 429) {
+    try {
+      const code = response.json('code');
+      if (['PURCHASE_GLOBAL_BUSY', 'PURCHASE_TICKET_BUSY'].includes(code)) admissionCode = code;
+    } catch (_) { /* 未知限流仍失败 */ }
+  }
+  const invalid = ![200, 202].includes(response.status) && !expected && !backpressure && !admissionCode;
   outcomes.add(1, { status: String(response.status) });
   allUnexpected.add(invalid);
   serverErrors.add(response.status >= 500 ? 1 : 0);
@@ -73,6 +85,7 @@ function call(method, path, body, name, extra = {}, measured = true) {
     requests.add(1); latency.add(response.timings.duration, { name });
     unexpected.add(invalid);
     if (backpressure) admissionRejected.add(1);
+    if (admissionCode) rateLimited.add(1, { code: admissionCode });
     if (expected) conflicts.add(1);
   }
   return response;

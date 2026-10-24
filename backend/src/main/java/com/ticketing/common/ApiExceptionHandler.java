@@ -23,6 +23,7 @@ public class ApiExceptionHandler {
     ResponseEntity<ApiResponse<Void>> business(BusinessException exception) {
         var response = ResponseEntity.status(exception.getStatus()).header("Cache-Control", "no-store");
         if ("PURCHASE_QUEUE_FULL".equals(exception.getCode())) response.header("Retry-After", "2");
+        if (exception.getRetryAfterSeconds() != null) response.header("Retry-After", exception.getRetryAfterSeconds().toString());
         return response.body(ApiResponse.failure(exception.getCode(), exception.getMessage()));
     }
 

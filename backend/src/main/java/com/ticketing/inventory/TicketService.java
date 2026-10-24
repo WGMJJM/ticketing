@@ -1,6 +1,7 @@
 package com.ticketing.inventory;
 
 import com.ticketing.audit.AuditWriter;
+import com.ticketing.activity.CatalogCache;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -37,17 +38,19 @@ public class TicketService implements SessionWindowGuard {
     private final ActivityMapper activities;
     private final InventoryEvents events;
     private final AuditWriter audit;
+    private final CatalogCache cache;
 
     public TicketService(
             TicketSkuMapper tickets,
             ActivitySessionMapper sessions,
             ActivityMapper activities,
-            InventoryEvents events, AuditWriter audit) {
+            InventoryEvents events, AuditWriter audit, CatalogCache cache) {
         this.tickets = tickets;
         this.sessions = sessions;
         this.activities = activities;
         this.events = events;
         this.audit = audit;
+        this.cache = cache;
     }
 
     @Transactional(readOnly = true)
@@ -117,6 +120,7 @@ public class TicketService implements SessionWindowGuard {
             throw duplicateName();
         }
         audit.record(operatorId, AuditAction.TICKET_CREATE, "TICKET_SKU", sku.getId(), Map.of(), snapshot(sku));
+        cache.invalidateAfterCommit();
         return view(sku, session);
     }
 
@@ -161,6 +165,7 @@ public class TicketService implements SessionWindowGuard {
         }
         audit.record(operatorId, !sku.getTotalStock().equals(request.totalStock()) ? AuditAction.STOCK_ADJUST : AuditAction.TICKET_UPDATE,
                 "TICKET_SKU", id, snapshot(sku), snapshot(requireTicket(id)));
+        cache.invalidateAfterCommit();
         return view(requireTicket(id), session);
     }
 
@@ -188,6 +193,7 @@ public class TicketService implements SessionWindowGuard {
             throw conflict("票档状态已变化，请刷新后重试");
         }
         audit.record(operatorId, AuditAction.TICKET_PUBLISH, "TICKET_SKU", id, snapshot(sku), snapshot(requireTicket(id)));
+        cache.invalidateAfterCommit();
         return view(requireTicket(id), session);
     }
 
@@ -207,6 +213,7 @@ public class TicketService implements SessionWindowGuard {
             throw conflict("票档状态已变化，请刷新后重试");
         }
         audit.record(operatorId, AuditAction.TICKET_OFFLINE, "TICKET_SKU", id, snapshot(sku), snapshot(requireTicket(id)));
+        cache.invalidateAfterCommit();
         return view(requireTicket(id), session);
     }
 

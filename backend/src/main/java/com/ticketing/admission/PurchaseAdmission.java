@@ -28,15 +28,13 @@ public class PurchaseAdmission {
 
     @Transactional(isolation=Isolation.READ_COMMITTED)
     public PurchaseRequestView accept(long userId,String sku,int quantity,String key) {
-        long skuId;
-        try { skuId=Long.parseLong(sku); }
-        catch(NumberFormatException exception) { throw new BusinessException(HttpStatus.BAD_REQUEST,"INVALID_SKU_ID","票档编号超出允许范围"); }
+        long skuId=skuId(sku);
         UserAccount user=users.selectOne(new LambdaQueryWrapper<UserAccount>().eq(UserAccount::getId,userId).last("FOR UPDATE"));
         if(user==null || !"ACTIVE".equals(user.getStatus())) throw new BusinessException(HttpStatus.UNAUTHORIZED,"ACCOUNT_UNAVAILABLE","账号已停用或不存在，请重新登录");
         byte[] hash=hash(skuId,quantity);
         PurchaseRequest existing=requests.byKey(userId,key);
         if(existing!=null) {
-            if(!MessageDigest.isEqual(existing.requestHash(),hash)) throw new BusinessException(HttpStatus.CONFLICT,"IDEMPOTENCY_CONFLICT","同一幂等键不能用于不同票档或数量");
+            requireSame(existing,hash);
             return view(existing);
         }
         requests.insert(userId,skuId,quantity,key,hash,properties.queueSeconds());
@@ -55,6 +53,24 @@ public class PurchaseAdmission {
     }
     @Transactional(readOnly=true)
     public List<PurchaseRequestView> active(long userId) { return requests.active(userId).stream().map(this::view).toList(); }
+    /** 安全过滤器已校验可信用户，按用户和操作域只读查重；事务内仍做最终复核。 */
+    @Transactional(readOnly=true)
+    public PurchaseRequestView replay(long userId,long skuId,int quantity,String key) {
+        PurchaseRequest existing=requests.byKey(userId,key);
+        if(existing==null) return null;
+        requireSame(existing,hash(skuId,quantity));
+        return view(existing);
+    }
+    public long skuId(String sku) {
+        try {
+            long id=Long.parseLong(sku);
+            if(id<=0) throw new NumberFormatException();
+            return id;
+        } catch(NumberFormatException exception) { throw new BusinessException(HttpStatus.BAD_REQUEST,"INVALID_SKU_ID","票档编号超出允许范围"); }
+    }
+    private void requireSame(PurchaseRequest existing,byte[] hash) {
+        if(!MessageDigest.isEqual(existing.requestHash(),hash)) throw new BusinessException(HttpStatus.CONFLICT,"IDEMPOTENCY_CONFLICT","同一幂等键不能用于不同票档或数量");
+    }
     private PurchaseRequestView view(PurchaseRequest request) { return PurchaseRequestView.from(request,requests.now().toInstant(ZoneOffset.UTC)); }
     private byte[] hash(long sku,int quantity) {
         try { return MessageDigest.getInstance("SHA-256").digest((sku+":"+quantity).getBytes(StandardCharsets.UTF_8)); }

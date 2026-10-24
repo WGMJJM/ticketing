@@ -27,7 +27,8 @@ def main():
     def restart(**overrides):
         perf.app_stop()
         perf.app_start(args.jar,rate_limit_mode='regression',PURCHASE_CAPACITY='3',PURCHASE_QUEUE_SECONDS='30',
-                       PURCHASE_LEASE_SECONDS='2',PURCHASE_RECOVERY_SECONDS='1',**overrides)
+                       PURCHASE_LEASE_SECONDS='2',PURCHASE_RECOVERY_SECONDS='1',
+                       CATALOG_CACHE_ENABLED='true',PURCHASE_ADMISSION_LIMIT_ENABLED='true',**overrides)
 
     def check(name,condition,**details):
         if not condition:raise RuntimeError('故障验收未通过 '+name)

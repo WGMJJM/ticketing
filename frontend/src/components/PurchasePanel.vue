@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { isAxiosError } from 'axios'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import 'element-plus/es/components/message-box/style/css'
@@ -83,8 +84,11 @@ async function purchase() {
       await router.push('/orders/' + result.orderId)
     } else await router.push('/purchase-requests/' + result.requestId)
   } catch (failure) {
+    const rejected = isAxiosError(failure) && [429, 503].includes(failure.response?.status ?? 0) &&
+      ['TOO_MANY_REQUESTS', 'RATE_LIMIT_UNAVAILABLE', 'PURCHASE_QUEUE_FULL', 'PURCHASE_GLOBAL_BUSY',
+        'PURCHASE_TICKET_BUSY', 'PURCHASE_ADMISSION_UNAVAILABLE'].includes(String(failure.response?.data?.code))
     if (active === generation) error.value = (failure instanceof Error ? failure.message : '购票申请提交失败') +
-      (attempt.value ? '。结果尚未确认，请用同一申请重试；刷新页面后也会保留原申请。' : '。请确认浏览器允许本站会话存储后重试。')
+      (attempt.value ? rejected ? '。本次提交暂未通过，原申请仍保留，请稍后重试确认。' : '。结果尚未确认，请用同一申请重试；刷新页面后也会保留原申请。' : '。请确认浏览器允许本站会话存储后重试。')
   } finally { if (active === generation) busy.value = false }
 }
 </script>

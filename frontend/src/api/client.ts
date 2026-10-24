@@ -13,11 +13,15 @@ client.interceptors.response.use(
     if (axios.isAxiosError(error)) {
       const message: unknown = error.response?.data?.message
       const retryAfter = Number(error.response?.headers['retry-after'])
+      const admissionRejection = ['PURCHASE_GLOBAL_BUSY', 'PURCHASE_TICKET_BUSY', 'PURCHASE_ADMISSION_UNAVAILABLE']
+        .includes(String(error.response?.data?.code))
       const protectedRejection =
         error.response?.status === 429 ||
         (error.response?.status === 503 && error.response?.data?.code === 'RATE_LIMIT_UNAVAILABLE')
       error.message =
-        protectedRejection
+        admissionRejection && typeof message === 'string' && message.length < 200
+          ? `${message}${Number.isInteger(retryAfter) && retryAfter > 0 && retryAfter <= 3600 ? `，请在${retryAfter}秒后重试` : ''}`
+          : protectedRejection
           ? `${error.response?.status === 429 ? '操作过于频繁' : '安全校验服务暂不可用'}，${Number.isInteger(retryAfter) && retryAfter > 0 && retryAfter <= 3600 ? `请在${retryAfter}秒后重试` : '请稍后重试'}`
           : typeof message === 'string' && message.length < 200
           ? message

@@ -34,6 +34,8 @@ OVERRIDES = {'WAITLIST_COMPENSATION_POLL_MS', 'WAITLIST_JOBS_ENABLED', 'WAITLIST
              'TICKETING_WAITLIST_OUTBOX_BATCH_SIZE'}
 OVERRIDES |= {'PURCHASE_CAPACITY', 'PURCHASE_QUEUE_SECONDS', 'PURCHASE_LEASE_SECONDS', 'PURCHASE_RECOVERY_SECONDS',
               'PURCHASE_JOBS_ENABLED', 'PURCHASE_MESSAGING_ENABLED', 'OUTBOX_JOBS_ENABLED'}
+OVERRIDES |= {'CATALOG_CACHE_ENABLED', 'PURCHASE_ADMISSION_LIMIT_ENABLED', 'PURCHASE_ADMISSION_GLOBAL_RATE',
+              'PURCHASE_ADMISSION_GLOBAL_BURST', 'PURCHASE_ADMISSION_TICKET_RATE', 'PURCHASE_ADMISSION_TICKET_BURST'}
 
 
 def save(path, value):
@@ -160,7 +162,7 @@ def app_start(jar, rate_limit_mode='regression', **overrides):
         raise RuntimeError('先运行 stop，避免两个压测进程共用端口')
     # 不继承可能重定向数据源/端口或注入JVM参数的开发环境；只在子进程中隔离。
     prefixes = ('SPRING_','MANAGEMENT_','TICKETING_','MYSQL_','RABBITMQ_','REDIS_','SERVER_',
-                'ORDER_','WAITLIST_','PURCHASE_','OUTBOX_','ADMIN_','SESSION_','TICKET_','CHECKIN_','LOGGING_','RATE_LIMIT_','PERF_','CLIENT_ADDRESS_')
+                'ORDER_','WAITLIST_','PURCHASE_','OUTBOX_','CATALOG_','ADMIN_','SESSION_','TICKET_','CHECKIN_','LOGGING_','RATE_LIMIT_','PERF_','CLIENT_ADDRESS_')
     env = {key:value for key,value in os.environ.items()
            if not key.upper().replace('.','_').replace('-','_').startswith(prefixes)
            and key.upper() not in ('JAVA_TOOL_OPTIONS','JDK_JAVA_OPTIONS','_JAVA_OPTIONS')}
@@ -245,7 +247,9 @@ def initialize():
         if not guard:
             cur.execute('INSERT INTO performance_control.environment_guard(token) VALUES(%s)', (cfg['guardToken'],))
     print('独立环境已就绪，未触及 ticketing 开发库')
-    environment_snapshot()
+    # 初始化基础设施不覆盖已经归档的历史机器/镜像基线；每轮套件独立保存环境。
+    if not (RESULTS / 'hardware.json').exists():
+        environment_snapshot()
 
 
 def environment_snapshot():
@@ -394,7 +398,7 @@ def audit():
 
 def db_snapshot():
     with connect() as db, db.cursor() as cur:
-        cur.execute("SHOW GLOBAL STATUS WHERE Variable_name IN ('Threads_connected','Threads_running','Innodb_row_lock_waits','Innodb_row_lock_time','Innodb_deadlocks','Slow_queries','Questions','Com_commit','Com_rollback')")
+        cur.execute("SHOW GLOBAL STATUS WHERE Variable_name IN ('Threads_connected','Threads_running','Innodb_row_lock_waits','Innodb_row_lock_time','Innodb_deadlocks','Slow_queries','Questions','Com_select','Com_commit','Com_rollback')")
         status = {r['Variable_name']: int(r['Value']) for r in cur.fetchall()}
         cur.execute("SELECT COUNT(*) n FROM performance_schema.data_lock_waits")
         status['current_lock_waits'] = cur.fetchone()['n']
@@ -456,7 +460,9 @@ def diagnostics():
 METRICS = ['process.cpu.usage', 'jvm.memory.used', 'jvm.gc.pause', 'jvm.threads.live',
            'hikaricp.connections.active', 'hikaricp.connections.pending', 'hikaricp.connections.max',
            'hikaricp.connections.acquire', 'hikaricp.connections.timeout',
-           'hikaricp.connections.usage', 'spring.rabbitmq.listener']
+           'hikaricp.connections.usage', 'spring.rabbitmq.listener',
+           'ticketing.catalog.loads.active', 'ticketing.catalog.local.entries',
+           'ticketing.catalog.redis.duration', 'ticketing.purchase.admission.redis.duration']
 
 
 def mq_snapshot():
@@ -548,6 +554,7 @@ def run(args):
     env.update(PERF_INPUT=str(PRIVATE / 'run-input.json'), PERF_SCENARIO=args.scenario,
                PERF_VUS=str(args.vus), PERF_DURATION=str(args.duration), PERF_WARMUP=str(args.warmup),
                PERF_SUMMARY=str(output / 'k6-summary.json'))
+    env['PERF_ADMISSION_EXPECTED_REJECTION'] = 'true' if getattr(args, 'admission_rejections', False) else 'false'
     binary = args.k6 or shutil.which('k6') or next(PRIVATE.glob('tools/**/k6.exe'), None)
     if not binary:
         raise RuntimeError('未发现k6，请用 --k6 指定本机可执行文件')

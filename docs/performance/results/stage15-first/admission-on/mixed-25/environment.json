@@ -1,0 +1,208 @@
+{
+  "environment": "ticketing-perf-only",
+  "baseCommit": "d25c6784a30e03111b3ca66a948dd01c8ce5a264",
+  "scenario": "mixed",
+  "vus": 25,
+  "warmupSeconds": 10,
+  "steadySeconds": 20,
+  "gracefulStopSeconds": 150,
+  "outboxDrainMaxSeconds": 30,
+  "data": {
+    "activities": 1000,
+    "sessions": 64,
+    "users": 25
+  },
+  "app": {
+    "jar": "D:\\ticketing\\backend\\target\\ticketing-backend-0.1.0-SNAPSHOT.jar",
+    "sha256": "1eaafa7f39884c3f75ee788e3e8eca23ce151e50bb11a40551e09376a7e1988d",
+    "overrides": {
+      "CATALOG_CACHE_ENABLED": "true",
+      "PURCHASE_ADMISSION_LIMIT_ENABLED": "true"
+    },
+    "rateLimitMode": "regression",
+    "startedAt": "2026-10-23T17:59:06.625359+00:00"
+  },
+  "k6ExitCode": 0,
+  "initial": {
+    "mysql": {
+      "Com_commit": 240296,
+      "Com_rollback": 270,
+      "Com_select": 1169682,
+      "Innodb_row_lock_time": 120183,
+      "Innodb_row_lock_waits": 3634,
+      "Questions": 2432942,
+      "Slow_queries": 1024,
+      "Threads_connected": 11,
+      "Threads_running": 2,
+      "current_lock_waits": 0
+    },
+    "outbox": [],
+    "outboxLag": {
+      "n": 0,
+      "avg_ms": null,
+      "max_ms": null
+    },
+    "outboxChannels": [],
+    "outboxChannelLag": [],
+    "outboxBacklogAge": [],
+    "purchaseRequests": []
+  },
+  "final": {
+    "mysql": {
+      "Com_commit": 246147,
+      "Com_rollback": 270,
+      "Com_select": 1203991,
+      "Innodb_row_lock_time": 147846,
+      "Innodb_row_lock_waits": 4488,
+      "Questions": 2503607,
+      "Slow_queries": 1222,
+      "Threads_connected": 11,
+      "Threads_running": 2,
+      "current_lock_waits": 0
+    },
+    "outbox": [
+      {
+        "status": "SENT",
+        "n": 627,
+        "attempts": 2
+      }
+    ],
+    "outboxLag": {
+      "n": 627,
+      "avg_ms": "1253.09195534",
+      "max_ms": "3979.2720"
+    },
+    "outboxChannels": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "SENT",
+        "n": 377
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "status": "SENT",
+        "n": 250
+      }
+    ],
+    "outboxChannelLag": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 377,
+        "avg_ms": "1766.93038992",
+        "max_ms": "3979.2720"
+      },
+      {
+        "event_type": "WAITLIST_DISPATCH_REQUESTED",
+        "n": 250,
+        "avg_ms": "478.22359600",
+        "max_ms": "1866.4460"
+      }
+    ],
+    "outboxBacklogAge": [],
+    "purchaseRequests": [
+      {
+        "status": "SUCCEEDED",
+        "failure_code": "NONE",
+        "n": 377
+      }
+    ]
+  },
+  "mysqlDelta": {
+    "Com_commit": 5851,
+    "Com_rollback": 0,
+    "Com_select": 34309,
+    "Innodb_row_lock_time": 27663,
+    "Innodb_row_lock_waits": 854,
+    "Questions": 70665,
+    "Slow_queries": 198,
+    "Threads_connected": 0,
+    "Threads_running": 0,
+    "current_lock_waits": 0
+  },
+  "monitorFailures": [],
+  "release": {},
+  "audit": {
+    "passed": true,
+    "checks": [
+      {
+        "invariant": "stock_bounds",
+        "violation_count": 0
+      },
+      {
+        "invariant": "stock_order_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "payment_snapshot",
+        "violation_count": 0
+      },
+      {
+        "invariant": "order_snapshot",
+        "violation_count": 0
+      },
+      {
+        "invariant": "session_quota",
+        "violation_count": 0
+      },
+      {
+        "invariant": "waitlist_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "fifo_allocation_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "ticket_quantity",
+        "violation_count": 0
+      },
+      {
+        "invariant": "ticket_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "duplicate_payment_effect",
+        "violation_count": 0
+      },
+      {
+        "invariant": "duplicate_active_waitlist",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_capacity",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_order_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_no_unbound_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_no_late_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_reliable_command",
+        "violation_count": 0
+      }
+    ],
+    "counts": {
+      "purchase_request": 377,
+      "order_aftercare": 0,
+      "refund_record": 0,
+      "electronic_ticket": 127,
+      "waitlist_entry": 0,
+      "payment_record": 127,
+      "ticket_order_item": 377,
+      "ticket_order": 377,
+      "outbox_event": 627,
+      "ticket_sku": 64,
+      "activity_session": 64,
+      "activity": 1000,
+      "user_account": 52
+    }
+  }
+}

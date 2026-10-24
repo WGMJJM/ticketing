@@ -1,0 +1,82 @@
+{
+  "passed": true,
+  "environment": "ticketing-perf-only",
+  "removedVolumes": [
+    "ticketing-perf_perf_mysql",
+    "ticketing-perf_perf_rabbit"
+  ],
+  "failureSchemaBackup": {
+    "localPath": ".local/stage15-failure-backup/ticketing_stage15first_ed004a19ad0b_it.sql.gz",
+    "schema": "ticketing_stage15first_ed004a19ad0b_it",
+    "bytes": 53300,
+    "compressedBytes": 9631,
+    "sha256": "b958037b01ce547db745b8cadfcca35ccb0357abb6feaff4d8f45463c16f7c46",
+    "backupVerified": true
+  },
+  "temporaryApplicationStopped": true,
+  "previewStopped": true,
+  "developmentMysqlRestoredStopped": true,
+  "developmentDataChanged": false,
+  "dockerDfBefore": [
+    {
+      "Active": "3",
+      "Reclaimable": "1.373GB (29%)",
+      "Size": "4.657GB",
+      "TotalCount": "8",
+      "Type": "Images"
+    },
+    {
+      "Active": "4",
+      "Reclaimable": "8.192kB (10%)",
+      "Size": "81.92kB",
+      "TotalCount": "6",
+      "Type": "Containers"
+    },
+    {
+      "Active": "5",
+      "Reclaimable": "0B (0%)",
+      "Size": "542.7MB",
+      "TotalCount": "5",
+      "Type": "Local Volumes"
+    },
+    {
+      "Active": "0",
+      "Reclaimable": "1.309GB",
+      "Size": "2.29GB",
+      "TotalCount": "120",
+      "Type": "Build Cache"
+    }
+  ],
+  "dockerDfAfter": [
+    {
+      "Active": "3",
+      "Reclaimable": "1.373GB (29%)",
+      "Size": "4.657GB",
+      "TotalCount": "8",
+      "Type": "Images"
+    },
+    {
+      "Active": "1",
+      "Reclaimable": "8.192kB (20%)",
+      "Size": "40.96kB",
+      "TotalCount": "3",
+      "Type": "Containers"
+    },
+    {
+      "Active": "3",
+      "Reclaimable": "0B (0%)",
+      "Size": "244.2MB",
+      "TotalCount": "3",
+      "Type": "Local Volumes"
+    },
+    {
+      "Active": "0",
+      "Reclaimable": "1.309GB",
+      "Size": "2.29GB",
+      "TotalCount": "120",
+      "Type": "Build Cache"
+    }
+  ],
+  "hostDiskCompacted": false,
+  "note": "只回收专用Docker逻辑资源，未压缩WSL/VHD，不把卷回收量等同D盘新增空间"
+}

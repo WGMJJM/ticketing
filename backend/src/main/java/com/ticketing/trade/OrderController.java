@@ -1,7 +1,7 @@
 package com.ticketing.trade;
 
 import com.ticketing.auth.AccountPrincipal;
-import com.ticketing.admission.PurchaseAdmission;
+import com.ticketing.admission.PurchaseEntryService;
 import com.ticketing.admission.PurchaseRequestView;
 import com.ticketing.common.ApiResponse;
 import com.ticketing.common.BusinessException;
@@ -30,9 +30,9 @@ import java.util.Map;
 @RequestMapping("/api/v1/orders")
 public class OrderController {
     private final OrderService orders;
-    private final PurchaseAdmission admission;
+    private final PurchaseEntryService admission;
 
-    public OrderController(OrderService orders, PurchaseAdmission admission) {
+    public OrderController(OrderService orders, PurchaseEntryService admission) {
         this.orders = orders;
         this.admission = admission;
     }

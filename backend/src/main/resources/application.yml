@@ -78,7 +78,23 @@ mybatis-plus:
   global-config:
     banner: false
 ticketing:
+  catalog-cache:
+    enabled: ${CATALOG_CACHE_ENABLED:true}
+    maximum-entries: ${CATALOG_CACHE_MAXIMUM_ENTRIES:2000}
+    local-seconds: ${CATALOG_CACHE_LOCAL_SECONDS:15}
+    redis-seconds: ${CATALOG_CACHE_REDIS_SECONDS:120}
+    negative-seconds: ${CATALOG_CACHE_NEGATIVE_SECONDS:5}
+    concurrent-loads: ${CATALOG_CACHE_CONCURRENT_LOADS:8}
+    load-wait-ms: ${CATALOG_CACHE_LOAD_WAIT_MS:100}
+    namespace: ${CATALOG_CACHE_NAMESPACE:catalog}
   purchase:
+    admission-limit:
+      enabled: ${PURCHASE_ADMISSION_LIMIT_ENABLED:false}
+      global-rate: ${PURCHASE_ADMISSION_GLOBAL_RATE:20}
+      global-burst: ${PURCHASE_ADMISSION_GLOBAL_BURST:40}
+      ticket-rate: ${PURCHASE_ADMISSION_TICKET_RATE:10}
+      ticket-burst: ${PURCHASE_ADMISSION_TICKET_BURST:20}
+      namespace: ${PURCHASE_ADMISSION_NAMESPACE:purchase}
     capacity: ${PURCHASE_CAPACITY:200}
     queue-seconds: ${PURCHASE_QUEUE_SECONDS:120}
     lease-seconds: ${PURCHASE_LEASE_SECONDS:30}

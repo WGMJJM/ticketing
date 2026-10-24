@@ -1,0 +1,49 @@
+{
+  "environment": "ticketing-perf-only",
+  "passed": true,
+  "verifiedAt": "2026-10-23T18:32:58.981145+00:00",
+  "browser": "Codex内置浏览器",
+  "frontend": "npm run build产物经Vite preview 127.0.0.1:5173代理固定隔离后端18080",
+  "httpMock": false,
+  "checks": {
+    "真实注册及Session登录成功": true,
+    "公开活动详情与场次可见": true,
+    "实时票档与限额加载正确": true,
+    "跨标签退出重登录后前端重新获取CSRF并成功提交": true,
+    "全局预算耗尽显示真实429繁忙及1秒重试提示": true,
+    "429未产生新受理记录": true,
+    "Lua错误显示真实503暂不可用及2秒重试提示": true,
+    "503未产生新受理记录": true,
+    "拒绝后按钮保留原申请且数量不可改": true,
+    "刷新后恢复原申请并可继续提交": true,
+    "发布器暂停时显示真实排队且没有假订单": true,
+    "排队页面刷新后仍显示同一编号3805": true,
+    "进程恢复后重登录并以原受理编号找到唯一订单": true,
+    "确认模拟支付后订单显示已支付": true,
+    "电子票列表出现一张未使用票且未打开完整凭证": true,
+    "额外会话轮换订单取消并释放库存": true,
+    "普通账号访问管理API返回ACCESS_DENIED": true,
+    "普通账号访问管理页面显示无运营权限": true,
+    "退出后私有电子票页面回到登录": true,
+    "数据库审计全部通过且无重复支付出票": true
+  },
+  "fixtures": [
+    "虚构活动和随机普通账号，全部位于固定ticketing-perf隔离数据库",
+    "429使用独立新准入global键tokens=0和未来时间戳，短TTL；未修改原安全限流",
+    "503使用同一独立global键短时错误类型触发真实Lua错误，随后删除该精确键恢复",
+    "首次排队暂停Outbox发布器，之后只重启同一应用启用发布器，不重置业务数据",
+    "跨标签重新登录时前端会主动重取CSRF，未人为伪造403；CSRF拒绝由真实HTTP集成用例覆盖",
+    "浏览器403检查为普通账号直接访问管理API的ACCESS_DENIED，并核对前端角色提示"
+  ],
+  "databaseEvidence": "stage15-browser-database.json",
+  "screenshots": [
+    "../../images/stage15-admission-429.png",
+    "../../images/stage15-admission-503.png",
+    "../../images/stage15-queued.png",
+    "../../images/stage15-electronic-ticket.png"
+  ],
+  "limitations": [
+    "仅内置桌面浏览器，未验证真实手机和摄像头",
+    "未展示或导出完整电子票凭证"
+  ]
+}
