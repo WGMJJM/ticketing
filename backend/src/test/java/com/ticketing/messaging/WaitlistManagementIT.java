@@ -322,7 +322,7 @@ class WaitlistManagementIT {
         CachingConnectionFactory unavailable=new CachingConnectionFactory("127.0.0.1",1);
         try {
             unavailable.setConnectionTimeout(200);
-            new OutboxPublisher(outbox,new RabbitTemplate(unavailable),"ticketing.waitlist.it","ticketing.purchase.it",120,new OutboxProperties(1,100,30,3,2,300)).publishBatch();
+            new OutboxPublisher(outbox,new RabbitTemplate(unavailable),"ticketing.waitlist.it","ticketing.purchase.it",120,new OutboxProperties(1,100,30,3,2,300, 1), new io.micrometer.core.instrument.simple.SimpleMeterRegistry()).publishBatch();
         } finally { unavailable.destroy(); }
         assertThat(eventStatus()).isEqualTo("PENDING"); assertThat(event().getRetryCount()).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT next_retry_at>UTC_TIMESTAMP(6) FROM outbox_event WHERE id=?",Boolean.class,event().getId())).isTrue();
@@ -348,7 +348,7 @@ class WaitlistManagementIT {
         dueEvent(); OutboxEvent newer=outbox.claimNext(); assertThat(newer.getRetryCount()).isEqualTo(2);
         assertThat(outbox.sent(old)).isFalse(); outbox.failed(old);
         assertThat(eventStatus()).isEqualTo("PROCESSING");
-        dueEvent(); new OutboxPublisher(outbox,rabbit,"ticketing.waitlist.it","ticketing.purchase.it",120,new OutboxProperties(1,5000,30,3,2,300)).publishBatch();
+        dueEvent(); new OutboxPublisher(outbox,rabbit,"ticketing.waitlist.it","ticketing.purchase.it",120,new OutboxProperties(1,5000,30,3,2,300, 1), new io.micrometer.core.instrument.simple.SimpleMeterRegistry()).publishBatch();
         assertThat(eventStatus()).isEqualTo("SENT"); assertThat(event().getRetryCount()).isEqualTo(3);
         registry.start(); await(()->"ALLOCATED".equals(state(entry))); invariant(1,0); assertThat(orderCount()).isEqualTo(1);
     }
@@ -365,7 +365,7 @@ class WaitlistManagementIT {
         CachingConnectionFactory unavailable=new CachingConnectionFactory("127.0.0.1",1);
         try {
             unavailable.setConnectionTimeout(200);
-            OutboxPublisher failed=new OutboxPublisher(outbox,new RabbitTemplate(unavailable),"ticketing.waitlist.it","ticketing.purchase.it",120,new OutboxProperties(1,100,30,3,2,300));
+            OutboxPublisher failed=new OutboxPublisher(outbox,new RabbitTemplate(unavailable),"ticketing.waitlist.it","ticketing.purchase.it",120,new OutboxProperties(1,100,30,3,2,300, 1), new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
             for (int count=0;count<3;count++) { dueEvent(); failed.publishBatch(); }
         } finally { unavailable.destroy(); }
         assertThat(eventStatus()).isEqualTo("FAILED"); assertThat(event().getRetryCount()).isEqualTo(3);

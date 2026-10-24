@@ -272,7 +272,7 @@ class AsyncPurchaseIT {
     @Test void expiredBrokerCopyIsDeadLetteredAndDatabaseRecoveryReusesTheSameRequest() throws Exception {
         long id=accept(buyer,sku,1,"broker-ttl").path("requestId").asLong();
         new OutboxPublisher(publisherState,rabbit,"ticketing.waitlist.stage14.it","ticketing.purchase.stage14.it",5,
-                new OutboxProperties(100,5000,30,10,2,300)).publishBatch();
+                new OutboxProperties(100,5000,30,10,2,300, 1), new io.micrometer.core.instrument.simple.SimpleMeterRegistry()).publishBatch();
         long end=System.nanoTime()+Duration.ofSeconds(12).toNanos();
         while(System.nanoTime()<end && ((Number)broker.getQueueProperties(QUEUE+".dead").get("QUEUE_MESSAGE_COUNT")).intValue()<1)Thread.sleep(100);
         assertThat(((Number)broker.getQueueProperties(QUEUE+".dead").get("QUEUE_MESSAGE_COUNT")).intValue()).isEqualTo(1);

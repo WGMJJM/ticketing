@@ -5,6 +5,9 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.ArrayList;
+import java.util.List;
+import io.micrometer.core.instrument.MeterRegistry;
 
 @Service
 public class OutboxService {
@@ -13,10 +16,12 @@ public class OutboxService {
     private final int maxAttempts;
     private final int baseSeconds;
     private final int maxSeconds;
+    private final MeterRegistry meters;
     private final java.util.concurrent.atomic.AtomicInteger channelTurn = new java.util.concurrent.atomic.AtomicInteger();
 
-    public OutboxService(OutboxMapper outbox, OutboxProperties properties) {
+    public OutboxService(OutboxMapper outbox, OutboxProperties properties, MeterRegistry meters) {
         this.outbox = outbox;
+        this.meters = meters;
         this.leaseSeconds = properties.leaseSeconds();
         this.maxAttempts = properties.maxAttempts();
         this.baseSeconds = properties.retryBaseSeconds();
@@ -25,44 +30,68 @@ public class OutboxService {
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public OutboxEvent claimNext() {
+        List<OutboxEvent> events = claim(1);
+        return events.isEmpty() ? null : events.getFirst();
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public List<OutboxEvent> claimBatch(int size) {
+        if (size < 1 || size > 100) throw new IllegalArgumentException("Outbox认领数量须为1至100");
+        return claim(size);
+    }
+
+    private List<OutboxEvent> claim(int size) {
         boolean purchase = (channelTurn.getAndIncrement() & 1) == 1;
         String first = purchase ? PurchaseCommand.TYPE : InventoryEvent.TYPE;
         String second = purchase ? InventoryEvent.TYPE : PurchaseCommand.TYPE;
-        OutboxEvent event = outbox.claimCandidate(first);
-        if (event == null) event = outbox.claimCandidate(second);
-        if (event == null) {
-            return null;
+        List<OutboxEvent> a = outbox.claimCandidates(first, size);
+        List<OutboxEvent> b = outbox.claimCandidates(second, size);
+        List<OutboxEvent> selected = new ArrayList<>(size);
+        // 两通道轮转，空通道份额交给另一通道；最多锁2*size行，不在事务内发送消息。
+        for (int index = 0; selected.size() < size && (index < a.size() || index < b.size()); index++) {
+            if (index < a.size()) selected.add(a.get(index));
+            if (selected.size() < size && index < b.size()) selected.add(b.get(index));
         }
-        if (event.getRetryCount() >= maxAttempts) {
-            outbox.update(
-                    null,
-                    new LambdaUpdateWrapper<OutboxEvent>()
-                            .eq(OutboxEvent::getId, event.getId())
-                            .set(OutboxEvent::getStatus, OutboxStatus.FAILED.name())
-                            .set(OutboxEvent::getLastError, "投递次数已达上限，请检查消息链路"));
-            event.setStatus(OutboxStatus.FAILED.name());
-            return event;
+        List<Long> ids = new ArrayList<>(selected.size());
+        for (OutboxEvent event : selected) {
+            meters.counter("ticketing.outbox.claim", "channel", PurchaseCommand.TYPE.equals(event.getEventType()) ? "purchase" : "inventory",
+                    "outcome", OutboxStatus.PROCESSING.name().equals(event.getStatus()) ? "lease-expired" : "pending").increment();
+            if (event.getRetryCount() >= maxAttempts) {
+                outbox.update(
+                        null,
+                        new LambdaUpdateWrapper<OutboxEvent>()
+                                .eq(OutboxEvent::getId, event.getId())
+                                .set(OutboxEvent::getStatus, OutboxStatus.FAILED.name())
+                                .set(OutboxEvent::getLastError, "投递次数已达上限，请检查消息链路"));
+                event.setStatus(OutboxStatus.FAILED.name());
+            } else {
+                ids.add(event.getId());
+                event.setRetryCount(event.getRetryCount() + 1);
+                event.setStatus(OutboxStatus.PROCESSING.name());
+            }
         }
-        outbox.claim(event.getId(), leaseSeconds);
-        return outbox.selectById(event.getId());
+        if (!ids.isEmpty() && outbox.claimBatch(ids, leaseSeconds) != ids.size()) {
+            throw new IllegalStateException("Outbox批量认领数量不一致，回滚认领");
+        }
+        return selected;
     }
 
     public boolean sent(OutboxEvent event) {
         return outbox.sent(event.getId(), event.getRetryCount()) == 1;
     }
 
-    public void failed(OutboxEvent event) {
+    public boolean failed(OutboxEvent event) {
         long delay = baseSeconds;
         for (int index = 1; index < event.getRetryCount() && delay < maxSeconds; index++) {
             delay = Math.min((long) maxSeconds, delay * 2);
         }
-        outbox.failed(
+        return outbox.failed(
                 event.getId(),
                 event.getRetryCount(),
                 event.getRetryCount() >= maxAttempts
                         ? OutboxStatus.FAILED.name()
                         : OutboxStatus.PENDING.name(),
                 (int) delay,
-                "消息未确认或路由失败，请检查消息链路");
+                "消息未确认或路由失败，请检查消息链路") == 1;
     }
 }

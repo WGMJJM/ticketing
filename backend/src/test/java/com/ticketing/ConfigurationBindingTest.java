@@ -24,6 +24,7 @@ class ConfigurationBindingTest {
             assertThat(context.getBean(OrderProperties.class).maxPerUserSession()).isEqualTo(4);
             assertThat(context.getBean(AftercareProperties.class).batchSize()).isEqualTo(100);
             assertThat(context.getBean(OutboxProperties.class).batchSize()).isEqualTo(100);
+            assertThat(context.getBean(OutboxProperties.class).inFlightWindow()).isEqualTo(16);
             assertThat(context.getBean(CheckinProperties.class).opensBeforeMinutes()).isEqualTo(60);
             assertThat(context.getBean(WaitlistProperties.class).dispatchMaxSteps()).isEqualTo(50);
             assertThat(context.getBean(PurchaseProperties.class).capacity()).isEqualTo(200);
@@ -47,6 +48,7 @@ class ConfigurationBindingTest {
                 "ticketing.waitlist.compensation-batch-size=0", "ticketing.order.aftercare.batch-size=501",
                 "ticketing.order.aftercare.max-attempts=1", "ticketing.order.aftercare.retry-delay-seconds=0",
                 "ticketing.purchase.capacity=0", "ticketing.purchase.queue-seconds=4", "ticketing.purchase.lease-seconds=0",
+                "ticketing.waitlist.outbox.in-flight-window=65", "ticketing.waitlist.outbox.lease-seconds=5",
                 "ticketing.catalog-cache.maximum-entries=0", "ticketing.catalog-cache.local-seconds=31",
                 "ticketing.catalog-cache.redis-seconds=301", "ticketing.catalog-cache.concurrent-loads=0",
                 "ticketing.catalog-cache.namespace=invalid key", "ticketing.purchase.admission-limit.global-rate=0",
