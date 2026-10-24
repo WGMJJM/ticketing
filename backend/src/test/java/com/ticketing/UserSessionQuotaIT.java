@@ -7,6 +7,7 @@ import com.ticketing.waitlist.*;
 import com.ticketing.checkin.ElectronicTicketService;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntFunction;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -184,12 +185,13 @@ class UserSessionQuotaIT {
         assertThat(db.queryForObject("SELECT locked_stock FROM ticket_sku WHERE id=?",Integer.class,sku)).isEqualTo(1);
         assertThat(quotas.occupied(user,session)).isZero(); // 人造损坏原样保留到隔离测试库回收，不修正为假成功。
     }
-    @Test void realMysqlDeadlockRollsBackWholeReservationAndLeaseRecoveryDoesNotDoubleOccupy()throws Exception {
+    @Test void realMysqlDeadlockRetriesReservationWithoutDoubleOccupancy()throws Exception {
         // 仅测试Spy故意反向锁第二票档，制造数据库1213；生产协议没有这条反向锁路径。
         var fillers=new ArrayList<Long>();for(int i=0;i<20;i++)fillers.add(sku(session,100));long other=fillers.getFirst();
         long request=accept(user,sku,1,"real-deadlock");var claim=processing.claim(request);
+        var itemInsertAttempts=new AtomicInteger();
         var blockerReady=new CountDownLatch(1);var workerEntered=new CountDownLatch(1);var blockerTrying=new CountDownLatch(1);
-        doAnswer(call->{workerEntered.countDown();await(blockerReady);await(blockerTrying);
+        doAnswer(call->{itemInsertAttempts.incrementAndGet();workerEntered.countDown();await(blockerReady);await(blockerTrying);
             db.queryForObject("SELECT id FROM ticket_sku WHERE id=? FOR UPDATE",Long.class,other);
             return mybatis.getMapper(OrderMapper.class).insertItem(call.getArgument(0),call.getArgument(1),call.getArgument(2));}).when(orderMapper).insertItem(any(),any(),anyInt());
         var pool=Executors.newFixedThreadPool(2);
@@ -202,15 +204,12 @@ class UserSessionQuotaIT {
             }));
             assertThat(blockerReady.await(5,TimeUnit.SECONDS)).isTrue();
             var purchase=pool.submit(()->worker.complete(claim));
-            assertThatThrownBy(()->purchase.get(10,TimeUnit.SECONDS)).isInstanceOf(ExecutionException.class)
-                    .hasCauseInstanceOf(org.springframework.dao.ConcurrencyFailureException.class);
+            purchase.get(10,TimeUnit.SECONDS);
             blocker.get(10,TimeUnit.SECONDS);reset(orderMapper);
-            assertThat(processing.find(request).status()).isEqualTo("PROCESSING");
-            assertThat(db.queryForObject("SELECT COUNT(*) FROM ticket_order WHERE user_id=?",Integer.class,user)).isZero();
-            assertThat(db.queryForObject("SELECT locked_stock FROM ticket_sku WHERE id=?",Integer.class,sku)).isZero();
-            assertThat(quotas.occupied(user,session)).isZero();
-            db.update("UPDATE purchase_request SET processing_lease_until=TIMESTAMPADD(SECOND,-1,UTC_TIMESTAMP(6)) WHERE id=?",request);
-            worker.process(request);assertThat(processing.find(request).status()).isEqualTo("SUCCEEDED");
+            assertThat(itemInsertAttempts.get()).isGreaterThanOrEqualTo(2); // 首次真实死锁回滚后，在新事务内重试。
+            assertThat(processing.find(request).status()).isEqualTo("SUCCEEDED");
+            assertThat(db.queryForObject("SELECT COUNT(*) FROM ticket_order WHERE user_id=?",Integer.class,user)).isEqualTo(1);
+            assertThat(db.queryForObject("SELECT locked_stock FROM ticket_sku WHERE id=?",Integer.class,sku)).isEqualTo(1);
             assertThat(quotas.occupied(user,session)).isEqualTo(1);consistent();
         } finally {blockerReady.countDown();blockerTrying.countDown();workerEntered.countDown();pool.shutdownNow();}
     }

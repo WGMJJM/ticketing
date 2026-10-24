@@ -46,7 +46,7 @@ public class WaitlistService {
         } catch (NumberFormatException exception) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_ARGUMENT", "票档编号超出允许范围");
         }
-        TradeContext context = resources.lockPurchase(userId, skuId, true);
+        TradeContext context = resources.lockWaitlistPurchase(userId, skuId, true);
         LocalDateTime now = waitlists.databaseNow();
         WaitlistEntry active =
                 waitlists.selectOne(
@@ -97,7 +97,7 @@ public class WaitlistService {
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public WaitlistView cancel(long userId, long id) {
         WaitlistEntry initial = requireOwned(userId, id);
-        resources.lockPurchase(userId, initial.getSkuId(), true);
+        resources.lockWaitlistPurchase(userId, initial.getSkuId(), true);
         WaitlistEntry entry =
                 waitlists.selectOne(
                         new LambdaQueryWrapper<WaitlistEntry>()
@@ -149,7 +149,7 @@ public class WaitlistService {
         if (initial == null || !initial.getSkuId().equals(skuId)) {
             return Allocation.RETRY;
         }
-        TradeContext context = resources.lockReservation(initial.getUserId(), skuId, false);
+        TradeContext context = resources.lockWaitlistReservation(initial.getUserId(), skuId, false);
         WaitlistEntry head = waitlists.head(skuId);
         // 等待SKU锁期间队首可能已经改变，不能拿着旧用户锁替下一位分配。
         if (head == null || !head.getId().equals(candidateId)) {

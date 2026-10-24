@@ -22,6 +22,10 @@ public class TicketSku {
 
     private Integer soldStock;
 
+    private String inventoryStrategy = "SINGLE";
+
+    private Integer bucketCount = 0;
+
     private LocalDateTime saleStartsAt;
 
     private LocalDateTime saleEndsAt;
@@ -56,6 +60,12 @@ public class TicketSku {
 
     public Integer getSoldStock() { return soldStock; }
     public void setSoldStock(Integer soldStock) { this.soldStock = soldStock; }
+
+    public String getInventoryStrategy() { return inventoryStrategy; }
+    public void setInventoryStrategy(String inventoryStrategy) { this.inventoryStrategy = inventoryStrategy; }
+    public Integer getBucketCount() { return bucketCount; }
+    public void setBucketCount(Integer bucketCount) { this.bucketCount = bucketCount; }
+    public boolean bucketed() { return "BUCKETED".equals(inventoryStrategy); }
 
     public LocalDateTime getSaleStartsAt() { return saleStartsAt; }
     public void setSaleStartsAt(LocalDateTime saleStartsAt) { this.saleStartsAt = saleStartsAt; }

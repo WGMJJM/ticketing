@@ -132,7 +132,7 @@ public class OrderRefundService {
         if (orders.markRefunded(order.getId()) != 1) {
             throw conflict("订单状态已变化，请刷新后重试");
         }
-        inventory.refund(order.getSkuId(), order.getQuantity());
+        inventory.refund(locked.sale(), order.getQuantity(), order.getId());
         quotas.release(order.getUserId(), order.getSessionId(), order.getQuantity());
         for (OrderLifecycle participant : participants) {
             participant.onTransition(transition);
@@ -174,6 +174,9 @@ public class OrderRefundService {
             return new Locked(orders.selectById(orderId), null, status, session);
         }
         TicketSale sale = resources.lockSaleForQuota(initial.getUserId(), detail.getSkuId());
+        if ("PENDING".equals(detail.getStatus()) || "PAID".equals(detail.getStatus())) {
+            inventory.lockAllocation(sale, orderId, detail.getQuantity());
+        }
         OrderStatus status = resources.lockOrder(orderId, initial.getUserId());
         return new Locked(orders.snapshot(orderId), sale, status, sale.sessionStatus());
     }

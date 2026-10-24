@@ -25,7 +25,7 @@ class QuotaMigrationIT {
     Flyway migration(String target,int limit) {
         var config=Flyway.configure().dataSource(url,System.getenv("MYSQL_USER"),System.getenv("MYSQL_PASSWORD"))
                 .locations("classpath:db/migration").cleanDisabled(true).placeholders(Map.of("quotaLimit",Integer.toString(limit)));
-        if(target!=null)config.target(target);return config.load();
+        config.target(target==null?"9":target);return config.load(); // 本类只验证V9，不把后续结构迁移混入额度回填断言。
     }
     void history() {
         migration("8",4).migrate();

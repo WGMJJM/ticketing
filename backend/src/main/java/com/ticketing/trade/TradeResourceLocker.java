@@ -12,6 +12,7 @@ import com.ticketing.activity.SessionStatus;
 import com.ticketing.inventory.TicketSale;
 import com.ticketing.inventory.TicketSku;
 import com.ticketing.inventory.TicketSkuMapper;
+import com.ticketing.inventory.TicketInventory;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -31,13 +32,14 @@ public class TradeResourceLocker {
     private final OrderMapper orders;
     private final UserSessionQuotaService quotas;
     private final MeterRegistry meters;
+    private final TicketInventory inventory;
 
     public TradeResourceLocker(
             UserAccountMapper users,
             ActivityMapper activities,
             ActivitySessionMapper sessions,
             TicketSkuMapper tickets,
-            OrderMapper orders, UserSessionQuotaService quotas, MeterRegistry meters) {
+            OrderMapper orders, UserSessionQuotaService quotas, MeterRegistry meters, TicketInventory inventory) {
         this.users = users;
         this.activities = activities;
         this.sessions = sessions;
@@ -45,6 +47,7 @@ public class TradeResourceLocker {
         this.orders = orders;
         this.quotas = quotas;
         this.meters = meters;
+        this.inventory = inventory;
     }
 
     public void lockUser(long userId, boolean requireActive) {
@@ -81,6 +84,18 @@ public class TradeResourceLocker {
         UserAccount account = account(userId, requireActive);
         return new TradeContext(userId, "ACTIVE".equals(account.getStatus()), "ADMIN".equals(account.getRole()),
                 lockSaleForQuota(userId, skuId));
+    }
+
+    public TradeContext lockWaitlistPurchase(long userId, long skuId, boolean requireActive) {
+        return waitlist(lockPurchase(userId, skuId, requireActive));
+    }
+
+    public TradeContext lockWaitlistReservation(long userId, long skuId, boolean requireActive) {
+        return waitlist(lockReservation(userId, skuId, requireActive));
+    }
+
+    private TradeContext waitlist(TradeContext context) {
+        return new TradeContext(context.userId(), context.active(), context.admin(), inventory.lockWaitlist(context.sale()));
     }
 
     public TicketSale lockSaleForQuota(long userId, long skuId) {
@@ -129,18 +144,20 @@ public class TradeResourceLocker {
             throw new BusinessException(HttpStatus.CONFLICT, "TICKET_UNAVAILABLE", "票档所属活动或场次不存在");
         }
         if (quotaUser != null) quotas.lock(quotaUser, session.getId());
+        // 父场次锁稳定策略切换；选择锁类型前重新读取元信息，避免等待管理事务后的陈旧策略。
+        TicketSku policy = tickets.selectById(skuId);
         long started = System.nanoTime();
         TicketSku sku;
         try { sku =
                 tickets.selectOne(
                         new LambdaQueryWrapper<TicketSku>()
                                 .eq(TicketSku::getId, skuId)
-                                .last("FOR UPDATE"));
+                                .last(policy.bucketed() ? "FOR SHARE" : "FOR UPDATE"));
         } finally { meters.timer("ticketing.trade.lock.duration","resource","stock").record(System.nanoTime()-started,TimeUnit.NANOSECONDS); }
         if (sku == null || !sku.getSessionId().equals(session.getId()) || !session.getActivityId().equals(activity.getId())) {
             throw new BusinessException(HttpStatus.CONFLICT, "TICKET_UNAVAILABLE", "票档所属活动或场次不存在");
         }
-        return TicketSale.from(activity, session, sku);
+        return TicketSale.from(activity, session, inventory.balance(sku));
     }
 
     /** 必须在SKU锁之后调用；核销使用持票人归属，最前面的用户锁仍属于工作人员。 */

@@ -39,18 +39,20 @@ public class TicketService implements SessionWindowGuard {
     private final InventoryEvents events;
     private final AuditWriter audit;
     private final CatalogCache cache;
+    private final TicketInventory inventory;
 
     public TicketService(
             TicketSkuMapper tickets,
             ActivitySessionMapper sessions,
             ActivityMapper activities,
-            InventoryEvents events, AuditWriter audit, CatalogCache cache) {
+            InventoryEvents events, AuditWriter audit, CatalogCache cache, TicketInventory inventory) {
         this.tickets = tickets;
         this.sessions = sessions;
         this.activities = activities;
         this.events = events;
         this.audit = audit;
         this.cache = cache;
+        this.inventory = inventory;
     }
 
     @Transactional(readOnly = true)
@@ -84,6 +86,7 @@ public class TicketService implements SessionWindowGuard {
         Instant now = Instant.now();
         LocalDateTime utcNow = LocalDateTime.ofInstant(now, ZoneOffset.UTC);
         return tickets.selectList(query).stream()
+                .map(inventory::balance)
                 .map(sku -> TicketView.from(sku, saleStatus(activity, session, sku, utcNow), now))
                 .toList();
     }
@@ -129,7 +132,7 @@ public class TicketService implements SessionWindowGuard {
         long operatorId = audit.begin();
         TicketSku existing = requireTicket(id);
         ActivitySession session = requireSession(existing.getSessionId(), true);
-        TicketSku sku = requireTicket(id);
+        TicketSku sku = inventory.balance(requireTicket(id));
         requireVersion(sku, request.version());
         validateSession(session);
         validateWindow(session, request);
@@ -142,6 +145,7 @@ public class TicketService implements SessionWindowGuard {
             throw conflict("总库存不能小于已锁定库存与已售库存之和");
         }
         requireUniqueName(session.getId(), request.name().trim(), id);
+        inventory.resize(sku, request.totalStock());
         var update =
                 mutation(sku)
                         .set(TicketSku::getName, request.name().trim())
@@ -332,6 +336,7 @@ public class TicketService implements SessionWindowGuard {
     }
 
     private TicketView view(TicketSku sku, ActivitySession session) {
+        inventory.balance(sku);
         Instant now = Instant.now();
         return TicketView.from(
                 sku,

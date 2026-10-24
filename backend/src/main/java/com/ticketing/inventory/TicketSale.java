@@ -23,7 +23,9 @@ public record TicketSale(
         LocalDateTime saleEndsAt,
         LocalDateTime sessionSaleStartsAt,
         LocalDateTime sessionStartsAt,
-        LocalDateTime sessionEndsAt) {
+        LocalDateTime sessionEndsAt,
+        String inventoryStrategy,
+        int bucketCount) {
 
     public static TicketSale from(Activity activity, ActivitySession session, TicketSku sku) {
         return new TicketSale(
@@ -40,7 +42,15 @@ public record TicketSale(
                 sku.getSaleEndsAt(),
                 session.getSaleStartsAt(),
                 session.getStartsAt(),
-                session.getEndsAt());
+                session.getEndsAt(), sku.getInventoryStrategy(), sku.getBucketCount());
+    }
+
+    public boolean bucketed() { return "BUCKETED".equals(inventoryStrategy); }
+
+    public TicketSale withAvailableStock(int available) {
+        return new TicketSale(skuId,sessionId,name,priceCents,available,maxQuantityPerOrder,status,
+                activityStatus,sessionStatus,saleStartsAt,saleEndsAt,sessionSaleStartsAt,
+                sessionStartsAt,sessionEndsAt,inventoryStrategy,bucketCount);
     }
 
     public SaleStatus statusAt(LocalDateTime now) {

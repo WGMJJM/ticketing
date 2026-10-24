@@ -135,7 +135,7 @@ public class OrderReservation {
                     HttpStatus.BAD_REQUEST, "ORDER_AMOUNT_INVALID", "订单金额超出允许范围");
         }
         quotas.occupy(userId, sale.sessionId(), quantity);
-        inventory.reserve(sale.skuId(), quantity);
+        var stock = inventory.reserve(sale, quantity, userId ^ (long) key.hashCode());
         TicketOrder order = new TicketOrder();
         order.setOrderNo(UUID.randomUUID().toString().replace("-", ""));
         order.setUserId(userId);
@@ -151,6 +151,7 @@ public class OrderReservation {
         order.setExpiresAt(created.plusMinutes(properties.paymentWindowMinutes()));
         orders.insert(order);
         orders.insertItem(order, sale, quantity);
+        inventory.attach(order.getId(), sale.skuId(), stock);
         return order.getId();
     }
 

@@ -405,7 +405,7 @@ class ElectronicTicketIT {
                 .isInstanceOf(IllegalTransactionStateException.class);
         assertThatThrownBy(() -> reservation.reservePurchase(null, 1, "outside-transaction"))
                 .isInstanceOf(IllegalTransactionStateException.class);
-        assertThatThrownBy(() -> inventoryApi.reserve(skuId, 1))
+        assertThatThrownBy(() -> inventoryApi.reserve(null, 1, 0))
                 .isInstanceOf(IllegalTransactionStateException.class);
         assertThat(lifecycle.stream().map(bean -> AopProxyUtils.ultimateTargetClass(bean).getSimpleName()).toList())
                 .containsExactly("WaitlistOrderLifecycle", "TicketIssuer");

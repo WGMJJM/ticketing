@@ -57,7 +57,7 @@ public class OrderStateService {
         if (orders.markCancelled(orderId, userId) != 1) {
             throw conflict("ORDER_STATE_CONFLICT", "订单状态已变化，请刷新后重试");
         }
-        inventory.release(locked.sale().skuId(), locked.order().getQuantity());
+        inventory.release(locked.sale(), locked.order().getQuantity(), orderId);
         quotas.release(userId, locked.sale().sessionId(), locked.order().getQuantity());
         complete(locked.order(), OrderStatus.CANCELLED);
         events.append(locked.sale().skuId(), InventoryChangeReason.ORDER_CANCELLED);
@@ -76,7 +76,7 @@ public class OrderStateService {
         if (orders.markPaid(orderId, userId) != 1) {
             throw conflict("ORDER_EXPIRED", "支付已截止，请刷新查看订单状态");
         }
-        inventory.sell(locked.sale().skuId(), locked.order().getQuantity());
+        inventory.sell(locked.sale(), locked.order().getQuantity(), orderId);
         TicketOrder paid = orders.selectById(orderId);
         PaymentRecord payment = new PaymentRecord();
         payment.setOrderId(orderId);
@@ -97,7 +97,7 @@ public class OrderStateService {
                 || orders.markCancelled(order.getId(), order.getUserId()) != 1) {
             throw conflict("ORDER_STATE_CONFLICT", "场次或订单状态已变化");
         }
-        inventory.release(sale.skuId(), order.getQuantity());
+        inventory.release(sale, order.getQuantity(), order.getId());
         quotas.release(order.getUserId(), sale.sessionId(), order.getQuantity());
         complete(order, OrderStatus.CANCELLED);
         events.append(sale.skuId(), InventoryChangeReason.ORDER_CANCELLED);
@@ -109,7 +109,7 @@ public class OrderStateService {
                 || orders.markExpired(orderId, userId) != 1) {
             return false;
         }
-        inventory.release(locked.sale().skuId(), locked.order().getQuantity());
+        inventory.release(locked.sale(), locked.order().getQuantity(), orderId);
         quotas.release(userId, locked.sale().sessionId(), locked.order().getQuantity());
         complete(locked.order(), OrderStatus.EXPIRED);
         events.append(locked.sale().skuId(), InventoryChangeReason.ORDER_EXPIRED);
@@ -133,6 +133,9 @@ public class OrderStateService {
         resources.lockUser(userId, requireActive);
         TicketOrder order = requireOwned(userId, orderId);
         TicketSale sale = releasesQuota ? resources.lockSaleForQuota(userId, order.getSkuId()) : resources.lockSale(order.getSkuId());
+        if ("PENDING".equals(order.getStatus()) || "PAID".equals(order.getStatus())) {
+            inventory.lockAllocation(sale, orderId, order.getQuantity());
+        }
         return new LockedOrder(order, sale, resources.lockOrder(orderId, userId));
     }
 

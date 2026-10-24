@@ -28,7 +28,7 @@ class MigrationSafetyIT {
     }
     JdbcTemplate jdbc(String database,String user,String password){return new JdbcTemplate(new DriverManagerDataSource("jdbc:mysql://127.0.0.1:13307/"+database+"?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true",user,password));}
     void grant(boolean trigger){
-        String privileges=trigger?"ALL PRIVILEGES":"SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX,REFERENCES,DROP";
+        String privileges=trigger?"ALL PRIVILEGES":"SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX,REFERENCES,DROP,CREATE VIEW";
         root.execute("GRANT "+privileges+" ON `"+schema+"`.* TO 'ticketing_perf'@'%'");
     }
     Flyway migration(String target){
@@ -40,12 +40,12 @@ class MigrationSafetyIT {
     void guarded(Flyway flyway){new MigrationSafetyConfig().migrationSafetyStrategy().migrate(flyway);}
     @Test void schemaScopedOrdinaryAccountMigratesFreshDatabaseAndRepeatedStartupSafely(){
         grant(true);var flyway=migration(null);guarded(flyway);guarded(flyway);flyway.validate();
-        assertThat(db.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class)).isEqualTo(9);
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class)).isEqualTo(10);
         assertThat(db.queryForObject("SELECT COUNT(*) FROM information_schema.triggers WHERE trigger_schema=DATABASE()",Integer.class)).isEqualTo(2);
         var ordinary=jdbc(schema,"ticketing_perf",System.getenv("MIGRATION_TEST_PASSWORD"));
         assertThat(ordinary.queryForList("SHOW GRANTS",String.class)).noneMatch(value->value.contains("SUPER")||value.contains("ALL PRIVILEGES ON *.*"));
     }
-    @Test void absentTriggerPrivilegeStopsBeforeAnyDdlAndGrantingOnlyThatPrivilegeEnablesUpgrade(){
+    @Test void absentTriggerPrivilegeStopsBeforeAnyDdlAndGrantingItEnablesUpgrade(){
         grant(false);var flyway=migration(null);
         assertThatThrownBy(()->guarded(flyway)).hasMessageContaining("STOP_TRIGGER_PRIVILEGE");
         assertThat(db.queryForObject("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE()",Integer.class)).isZero();
@@ -56,7 +56,7 @@ class MigrationSafetyIT {
         grant(true);migration("6").migrate();var flyway=migration(null);guarded(flyway);flyway.validate();
         db.execute("DROP TRIGGER admin_audit_no_update");
         assertThatThrownBy(()->guarded(flyway)).hasMessageContaining("STOP_V7_STRUCTURE");
-        assertThat(db.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class)).isEqualTo(9);
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class)).isEqualTo(10);
     }
     @Test void existingBusinessRequiresExplicitStoppedBackupAuditedQuotaSwitchBeforeAnyV9Ddl(){
         grant(true);migration("8").migrate();
