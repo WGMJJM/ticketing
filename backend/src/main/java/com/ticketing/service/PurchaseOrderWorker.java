@@ -19,10 +19,13 @@ public class PurchaseOrderWorker {
     private final PurchaseProcessing processing;
     private final TradeResourceLocker resources;
     private final OrderReservation reservation;
+    private final RedisStockReservationService stocks;
     private final TransactionTemplate transaction;
     private final MeterRegistry meters;
-    public PurchaseOrderWorker(PurchaseProcessing processing,TradeResourceLocker resources,OrderReservation reservation,PlatformTransactionManager manager,MeterRegistry meters) {
+    public PurchaseOrderWorker(PurchaseProcessing processing,TradeResourceLocker resources,OrderReservation reservation,
+            RedisStockReservationService stocks,PlatformTransactionManager manager,MeterRegistry meters) {
         this.processing=processing; this.resources=resources; this.reservation=reservation;
+        this.stocks=stocks;
         transaction=new TransactionTemplate(manager);
         transaction.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
         this.meters=meters;
@@ -41,6 +44,7 @@ public class PurchaseOrderWorker {
         completeObserved(claim, null);
     }
     private void completeObserved(PurchaseRequest claim, String deliveryKey) {
+        stocks.requireBound(claim);
         Timer.Sample sample=Timer.start(meters);
         String outcome="technical-failure";
         try {
@@ -59,12 +63,13 @@ public class PurchaseOrderWorker {
                     meters.counter("ticketing.trade.retry", "reason", "lock-or-bucket-plan").increment();
                 }
             }
+            stocks.settle(claim.stockReservationToken(), "SUCCEEDED");
             outcome="success";
             DeliveryObservation.record(deliveryKey, "order-transaction-commit");
         } catch(BusinessException exception) {
             if(!processing.deterministic(exception.getCode())) throw exception;
-            // 预占尝试已完整回滚，失败结果在新事务复核令牌，避免rollback-only吞掉终态。
-            processing.fail(claim,exception.getCode());
+            // 订单事务已回滚；先提交数据库失败和库存事件，再结算Redis预扣。
+            if (processing.fail(claim,exception.getCode())) stocks.settle(claim.stockReservationToken(), "FAILED");
             outcome="business-failure";
             DeliveryObservation.record(deliveryKey, "business-failure-commit");
         } finally {

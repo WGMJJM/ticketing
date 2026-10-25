@@ -3,8 +3,10 @@ package com.ticketing.service;
 import com.ticketing.config.PurchaseProperties;
 import com.ticketing.entity.PurchaseRequest;
 import com.ticketing.entity.UserAccount;
+import com.ticketing.enums.InventoryChangeReason;
 import com.ticketing.mapper.PurchaseRequestMapper;
 import com.ticketing.mapper.UserAccountMapper;
+import com.ticketing.messaging.InventoryEvents;
 import com.ticketing.messaging.PurchaseCommands;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -24,10 +26,12 @@ public class PurchaseProcessing {
     private final UserAccountMapper users;
     private final PurchaseCommands commands;
     private final PurchaseProperties properties;
+    private final InventoryEvents inventoryEvents;
     private final MeterRegistry meters;
-    public PurchaseProcessing(PurchaseRequestMapper requests,UserAccountMapper users,PurchaseCommands commands,PurchaseProperties properties,MeterRegistry meters) {
+    public PurchaseProcessing(PurchaseRequestMapper requests,UserAccountMapper users,PurchaseCommands commands,
+            PurchaseProperties properties,InventoryEvents inventoryEvents,MeterRegistry meters) {
         this.requests=requests; this.users=users; this.commands=commands; this.properties=properties;
-        this.meters=meters;
+        this.inventoryEvents=inventoryEvents; this.meters=meters;
     }
     public PurchaseRequest find(long id) { return requests.find(id); }
 
@@ -57,16 +61,20 @@ public class PurchaseProcessing {
     @Transactional(propagation=Propagation.MANDATORY)
     public void succeed(PurchaseRequest claim,long orderId) {
         if(requests.finish(claim.id(),claim.processingToken(),"SUCCEEDED",orderId,null)!=1) throw new IllegalStateException("购票处理资格或截止时间已失效，回滚订单");
-        release();
     }
 
     @Transactional(isolation=Isolation.READ_COMMITTED)
-    public void fail(PurchaseRequest claim,String code) {
+    public boolean fail(PurchaseRequest claim,String code) {
         if(!BUSINESS_FAILURES.contains(code)) throw new IllegalArgumentException("不可将临时故障记为业务失败");
         lockUser(claim.userId());
-        if(!lockCurrent(claim)) return;
-        if(requests.expire(claim.id())==1) { release(); commands.close(claim.id()); return; }
-        if(requests.finish(claim.id(),claim.processingToken(),"FAILED",null,code)==1) release();
+        if(!lockCurrent(claim)) return false;
+        if(requests.expire(claim.id())==1) {
+            commands.close(claim.id()); appendRelease(claim.skuId()); return true;
+        }
+        if(requests.finish(claim.id(),claim.processingToken(),"FAILED",null,code)==1) {
+            appendRelease(claim.skuId()); return true;
+        }
+        return false;
     }
     public boolean deterministic(String code) { return BUSINESS_FAILURES.contains(code); }
 
@@ -77,14 +85,14 @@ public class PurchaseProcessing {
         lockUser(initial.userId());
         PurchaseRequest current=requests.lock(id);
         if(current==null || current.terminal()) return;
-        if(requests.expire(id)==1) { release(); commands.close(id); return; }
+        if(requests.expire(id)==1) { commands.close(id); appendRelease(current.skuId()); return; }
         if(commands.failed(id)) {
             if(requests.failDeliveryExhausted(id)==1) {
-                release();
+                appendRelease(current.skuId());
                 meters.counter("ticketing.purchase.recovery","outcome","delivery-exhausted").increment();
                 return;
             }
-            if(requests.expire(id)==1) { release(); commands.close(id); return; }
+            if(requests.expire(id)==1) { commands.close(id); appendRelease(current.skuId()); return; }
         }
         if(requests.scheduleRecovery(id,properties.recoverySeconds())==1) commands.recover(id);
     }
@@ -93,5 +101,5 @@ public class PurchaseProcessing {
         return current!=null && "PROCESSING".equals(current.status()) && current.processingToken()==claim.processingToken();
     }
     private void lockUser(long userId) { users.selectOne(new LambdaQueryWrapper<UserAccount>().eq(UserAccount::getId,userId).last("FOR UPDATE")); }
-    private void release() { if(requests.release()!=1) throw new IllegalStateException("购票受理预算不一致，回滚终态"); }
+    private void appendRelease(long skuId) { inventoryEvents.append(skuId, InventoryChangeReason.PURCHASE_RESERVATION_RELEASED); }
 }

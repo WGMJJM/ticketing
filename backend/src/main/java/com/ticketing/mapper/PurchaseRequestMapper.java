@@ -8,33 +8,44 @@ import org.apache.ibatis.annotations.*;
 
 @Mapper
 public interface PurchaseRequestMapper {
-    String COLUMNS = "id,user_id,sku_id,quantity,idempotency_key,request_hash,status,order_id,failure_code,"
+    String COLUMNS = "id,user_id,sku_id,quantity,idempotency_key,request_hash,stock_reservation_token,status,order_id,failure_code,"
             + "accepted_at,deadline_at,processing_lease_until,processing_token,retry_count,next_recovery_at,updated_at";
 
     @Select("SELECT " + COLUMNS + " FROM purchase_request WHERE user_id=#{userId} AND idempotency_operation='CREATE_ORDER' AND idempotency_key=#{key}")
     PurchaseRequest byKey(@Param("userId") long userId, @Param("key") String key);
     @Select("SELECT " + COLUMNS + " FROM purchase_request WHERE id=#{id}")
     PurchaseRequest find(long id);
+    @Select("SELECT " + COLUMNS + " FROM purchase_request WHERE stock_reservation_token=#{token}")
+    PurchaseRequest byReservationToken(@Param("token") byte[] token);
     @Select("SELECT " + COLUMNS + " FROM purchase_request WHERE id=#{id} FOR UPDATE")
     PurchaseRequest lock(long id);
     @Select("SELECT " + COLUMNS + " FROM purchase_request WHERE user_id=#{userId} AND status IN('QUEUED','PROCESSING') ORDER BY id DESC LIMIT 50")
     List<PurchaseRequest> active(long userId);
+    @Select("SELECT " + COLUMNS + " FROM purchase_request WHERE sku_id=#{skuId} AND status IN('QUEUED','PROCESSING') ORDER BY id")
+    List<PurchaseRequest> activeForSku(long skuId);
+    @Select("SELECT COUNT(*) FROM purchase_request WHERE status IN('QUEUED','PROCESSING')")
+    int activeCount();
     @Select("SELECT UTC_TIMESTAMP(6)") LocalDateTime now();
 
     @Insert("""
-        INSERT INTO purchase_request(user_id,sku_id,quantity,idempotency_key,request_hash,deadline_at,next_recovery_at)
-        VALUES(#{userId},#{skuId},#{quantity},#{key},#{hash},TIMESTAMPADD(SECOND,#{seconds},UTC_TIMESTAMP(6)),
+        INSERT INTO purchase_request(user_id,sku_id,quantity,idempotency_key,request_hash,stock_reservation_token,deadline_at,next_recovery_at)
+        VALUES(#{userId},#{skuId},#{quantity},#{key},#{hash},#{reservationToken},TIMESTAMPADD(SECOND,#{seconds},UTC_TIMESTAMP(6)),
           TIMESTAMPADD(SECOND,#{recovery},UTC_TIMESTAMP(6)))
         """)
     int insert(@Param("userId") long userId, @Param("skuId") long skuId, @Param("quantity") int quantity,
-            @Param("key") String key, @Param("hash") byte[] hash, @Param("seconds") int seconds,
+            @Param("key") String key, @Param("hash") byte[] hash, @Param("reservationToken") byte[] reservationToken,
+            @Param("seconds") int seconds,
             @Param("recovery") int recoverySeconds);
+    @Insert("""
+        INSERT INTO purchase_request(user_id,sku_id,quantity,idempotency_key,request_hash,stock_reservation_token,
+          status,failure_code,accepted_at,deadline_at,next_recovery_at,updated_at)
+        VALUES(#{userId},#{skuId},#{quantity},#{key},#{hash},#{reservationToken},'FAILED',#{failure},
+          UTC_TIMESTAMP(6),TIMESTAMPADD(SECOND,1,UTC_TIMESTAMP(6)),UTC_TIMESTAMP(6),UTC_TIMESTAMP(6))
+        """)
+    int insertTerminal(@Param("userId") long userId, @Param("skuId") long skuId, @Param("quantity") int quantity,
+            @Param("key") String key, @Param("hash") byte[] hash, @Param("reservationToken") byte[] reservationToken,
+            @Param("failure") String failure);
     @Select("SELECT LAST_INSERT_ID()") long insertedId();
-    @Update("UPDATE purchase_capacity SET pending_count=pending_count+1 WHERE id=1 AND pending_count<#{capacity}")
-    int acquire(int capacity);
-    @Update("UPDATE purchase_capacity SET pending_count=pending_count-1 WHERE id=1 AND pending_count>0")
-    int release();
-
     @Update("""
         UPDATE purchase_request SET status='PROCESSING',processing_token=processing_token+1,retry_count=retry_count+1,
           processing_lease_until=TIMESTAMPADD(SECOND,#{lease},UTC_TIMESTAMP(6)),

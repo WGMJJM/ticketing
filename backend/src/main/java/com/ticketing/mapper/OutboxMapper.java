@@ -5,6 +5,7 @@ import com.ticketing.entity.OutboxEvent;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
@@ -12,6 +13,13 @@ import java.util.List;
 
 @Mapper
 public interface OutboxMapper extends BaseMapper<OutboxEvent> {
+    @Insert("""
+        INSERT INTO outbox_event(event_id,aggregate_type,aggregate_id,event_type,payload,status,retry_count)
+        VALUES(#{eventId},#{aggregateType},#{aggregateId},#{eventType},#{payload},#{status},#{retryCount})
+        ON DUPLICATE KEY UPDATE event_id=VALUES(event_id)
+        """)
+    int insertIdempotent(OutboxEvent event);
+
     @Select("""
             SELECT *,UTC_TIMESTAMP(6) AS claim_observed_at FROM outbox_event WHERE event_type=#{type}
               AND status IN ('PENDING','PROCESSING') AND next_retry_at<=UTC_TIMESTAMP(6)

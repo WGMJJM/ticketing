@@ -32,7 +32,7 @@ public class TicketInventory {
 
     /** 独立短读事务及时释放连接；不锁库存，消费者在统一锁序中最终复核。 */
     @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED, readOnly = true)
-    public void requirePurchaseEligible(long skuId) {
+    public int requirePurchaseEligible(long skuId) {
         Integer eligible = tickets.purchaseEligibility(skuId);
         if (eligible == null) {
             throw new BusinessException(HttpStatus.NOT_FOUND, "TICKET_NOT_FOUND", "票档不存在，请刷新活动页面");
@@ -40,6 +40,11 @@ public class TicketInventory {
         if (eligible != 1) {
             throw new BusinessException(HttpStatus.CONFLICT, "TICKET_UNAVAILABLE", "票档当前不在销售中，请刷新活动页面");
         }
+        Integer version = tickets.purchaseVersion(skuId);
+        if (version == null) {
+            throw new BusinessException(HttpStatus.NOT_FOUND, "TICKET_NOT_FOUND", "票档不存在，请刷新活动页面");
+        }
+        return version;
     }
 
     /** 元信息已锁定；先形成计划，再按桶号升序加锁，绝不持有高号桶回锁低号桶。 */

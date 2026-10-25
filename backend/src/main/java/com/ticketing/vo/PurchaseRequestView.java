@@ -15,6 +15,7 @@ public record PurchaseRequestView(String requestId, String skuId, int quantity, 
             case "ACCOUNT_UNAVAILABLE" -> "账号当前不可购票，请重新登录后查看";
             case "ORDER_AMOUNT_INVALID" -> "该票档金额异常，请选择其他票档";
             case "PURCHASE_COMMAND_DELIVERY_EXHAUSTED" -> "购票消息多次投递失败，本次未创建订单，请重新选择购票";
+            case "STOCK_RESERVATION_EXPIRED" -> "购票预扣已安全释放，本次未创建订单，请重新提交购票申请";
             case "QUEUE_EXPIRED" -> "排队已超时，本次没有创建订单，可重新选择购票";
             default -> request.failureCode() == null ? null : "本次购票未完成，请刷新查看";
         };

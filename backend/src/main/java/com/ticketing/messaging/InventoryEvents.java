@@ -28,8 +28,22 @@ public class InventoryEvents {
 
     @Transactional(propagation = Propagation.MANDATORY)
     public void append(long skuId, InventoryChangeReason reason) {
+        append(skuId, reason, UUID.randomUUID().toString());
+    }
+
+    /** 稳定事件ID使Redis预扣恢复可重复写入同一Outbox事实。 */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void appendOnce(long skuId, InventoryChangeReason reason, String eventId) {
+        append(skuId, reason, eventId, true);
+    }
+
+    private void append(long skuId, InventoryChangeReason reason, String eventId) {
+        append(skuId, reason, eventId, false);
+    }
+
+    private void append(long skuId, InventoryChangeReason reason, String eventId, boolean idempotent) {
         OutboxEvent event = new OutboxEvent();
-        event.setEventId(UUID.randomUUID().toString());
+        event.setEventId(eventId);
         event.setAggregateType(InventoryEvent.AGGREGATE);
         event.setAggregateId(skuId);
         event.setEventType(InventoryEvent.TYPE);
@@ -42,7 +56,8 @@ public class InventoryEvents {
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("库存事件序列化失败", exception);
         }
-        outbox.insert(event);
+        if (idempotent) outbox.insertIdempotent(event);
+        else outbox.insert(event);
     }
 
     /** 消费者只接受已提交的库存事件，避免将Outbox实体与Mapper泄漏给业务模块。 */

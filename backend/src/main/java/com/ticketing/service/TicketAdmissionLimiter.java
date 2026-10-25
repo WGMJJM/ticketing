@@ -10,11 +10,9 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /** 双桶同一Lua内先判定后扣减；令牌只表示请求速率，不表示库存或排队容量。 */
-@Component
 public class TicketAdmissionLimiter {
     private static final DefaultRedisScript<List> SCRIPT = new DefaultRedisScript<>();
     static {

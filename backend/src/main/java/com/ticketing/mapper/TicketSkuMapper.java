@@ -15,11 +15,15 @@ public interface TicketSkuMapper extends BaseMapper<TicketSku> {
     @Select("""
             SELECT IF(t.status='ON_SALE' AND a.status='PUBLISHED' AND s.status='SCHEDULED'
                 AND t.sale_starts_at<=UTC_TIMESTAMP(6) AND t.sale_ends_at>UTC_TIMESTAMP(6)
+                AND t.sale_starts_at>=s.sale_starts_at AND t.sale_ends_at<=s.starts_at
                 AND s.ends_at>UTC_TIMESTAMP(6),1,0)
             FROM ticket_sku t JOIN activity_session s ON s.id=t.session_id
             JOIN activity a ON a.id=s.activity_id WHERE t.id=#{skuId}
             """)
     Integer purchaseEligibility(long skuId);
+
+    @Select("SELECT version FROM ticket_sku WHERE id=#{skuId}")
+    Integer purchaseVersion(long skuId);
 
     @Update("""
             UPDATE ticket_sku SET sold_stock=sold_stock-#{quantity},version=version+1,updated_at=UTC_TIMESTAMP(6)

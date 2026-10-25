@@ -26,7 +26,7 @@ services:
   redis:
     image: ${REDIS_IMAGE:-redis:7-alpine}
     pull_policy: ${IMAGE_PULL_POLICY:-missing}
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "always", "--maxmemory-policy", "noeviction"]
     ports:
       - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
