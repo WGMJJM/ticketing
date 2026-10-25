@@ -1,0 +1,295 @@
+{
+  "passed": true,
+  "baselineCommit": "9c3a877314642ef2fadab525bce8108be5778450",
+  "jarSha256": "f455abb6e1020979639c2d3e3aacaabe4e1eb2b152aa6ea8e7e7b7f179eff48f",
+  "runnerSha256": "9bb2d3c17fb92e77a05361db235c93f42f1362cc59ccbd1af2672998b6dff1e2",
+  "config": {
+    "PURCHASE_CONSUMER_CONCURRENCY": "4",
+    "PURCHASE_CONSUMER_PREFETCH": "1",
+    "SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE": "10",
+    "PURCHASE_CAPACITY": "200",
+    "PURCHASE_QUEUE_SECONDS": "120",
+    "WAITLIST_OUTBOX_IN_FLIGHT_WINDOW": "16",
+    "WAITLIST_OUTBOX_POLL_MS": "1000",
+    "ORDER_PAYMENT_WINDOW_MINUTES": "15",
+    "CATALOG_CACHE_ENABLED": "true",
+    "PURCHASE_ADMISSION_LIMIT_ENABLED": "false"
+  },
+  "rateLimitMode": "regression",
+  "warmupSeconds": 15,
+  "steadySeconds": 60,
+  "rounds": [
+    {
+      "vus": 64,
+      "successfulOrderTps": 20.816666666666666,
+      "acceptedTps": 20.816666666666666,
+      "httpRps": 258.0,
+      "successCompletionMs": {
+        "med": 2853,
+        "p(95)": 3577.2,
+        "p(99)": 3849.1599999999985,
+        "max": 4079
+      },
+      "acceptanceMs": {
+        "med": 64.0921,
+        "p(95)": 124.74392,
+        "p(99)": 169.81524,
+        "max": 340.1581
+      },
+      "createHttpMs": {
+        "med": 60.6472,
+        "p(95)": 121.84473999999997,
+        "p(99)": 168.574712,
+        "max": 340.1581
+      },
+      "ordersInSteadyWindow": 1249,
+      "businessFailures": 0,
+      "capacityRejections": 0,
+      "serverErrors": 0,
+      "transportErrors": 0,
+      "poolActivePeak": 10.0,
+      "poolPendingPeak": 19.0,
+      "poolTimeouts": 0.0,
+      "cpuPeak": 0.41250469036142545,
+      "mysqlDelta": {
+        "Com_commit": 25526,
+        "Com_rollback": 0,
+        "Com_select": 143361,
+        "Innodb_row_lock_time": 283681,
+        "Innodb_row_lock_waits": 3642,
+        "Questions": 302470,
+        "Slow_queries": 2813,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "k6ExitCode": 0,
+      "monitorFailures": [],
+      "chain": {
+        "channels": {
+          "PURCHASE_REQUEST_ACCEPTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 1537,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 1537,
+              "p50": 2229.098,
+              "p95": 3162.8304,
+              "p99": 3521.09312,
+              "max": 3677.648
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          },
+          "WAITLIST_DISPATCH_REQUESTED": {
+            "states": {
+              "PENDING": 0,
+              "PROCESSING": 0,
+              "SENT": 1537,
+              "FAILED": 0
+            },
+            "retryEvents": 0,
+            "createdToConfirmedRecordMs": {
+              "count": 1537,
+              "p50": 1454.585,
+              "p95": 2019.9605999999999,
+              "p99": 2313.546159999995,
+              "max": 2448.533
+            },
+            "pendingAgeMs": {
+              "count": 0,
+              "p50": null,
+              "p95": null,
+              "p99": null,
+              "max": null
+            }
+          }
+        },
+        "purchaseStates": {
+          "QUEUED": 0,
+          "PROCESSING": 0,
+          "SUCCEEDED": 1537,
+          "FAILED": 0,
+          "EXPIRED": 0
+        },
+        "acceptedToOutboxMs": {
+          "count": 1537,
+          "p50": 5.645,
+          "p95": 18.00859999999992,
+          "p99": 88.27607999999996,
+          "max": 122.377
+        },
+        "acceptedToOrderWriteMs": {
+          "count": 1537,
+          "p50": 2687.871,
+          "p95": 3463.3911999999996,
+          "p99": 3718.1049999999977,
+          "max": 3844.65
+        },
+        "acceptedToTerminalWriteMs": {
+          "count": 1537,
+          "p50": 2696.052,
+          "p95": 3476.8558,
+          "p99": 3729.5831999999973,
+          "max": 3868.595
+        },
+        "confirmedRecordToOrderWriteSignedMs": {
+          "count": 1537,
+          "p50": 395.515,
+          "p95": 998.0538,
+          "p99": 1552.2141199999987,
+          "max": 1868.585
+        },
+        "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+        "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+      }
+    }
+  ],
+  "excludedIntegrationQueues": [
+    {
+      "name": "ticketing.audit.pipeline.it.queue",
+      "messages_ready": 0,
+      "messages_unacknowledged": 0,
+      "consumers": 0,
+      "message_stats": {
+        "publish": 2,
+        "publish_details": {
+          "rate": 0.0
+        }
+      }
+    },
+    {
+      "name": "ticketing.purchase.stage14.it.orders",
+      "messages_ready": 0,
+      "messages_unacknowledged": 0,
+      "consumers": 0,
+      "message_stats": {
+        "ack": 119,
+        "ack_details": {
+          "rate": 0.0
+        },
+        "deliver": 120,
+        "deliver_details": {
+          "rate": 0.0
+        },
+        "deliver_get": 120,
+        "deliver_get_details": {
+          "rate": 0.0
+        },
+        "deliver_no_ack": 0,
+        "deliver_no_ack_details": {
+          "rate": 0.0
+        },
+        "get": 0,
+        "get_details": {
+          "rate": 0.0
+        },
+        "get_empty": 0,
+        "get_empty_details": {
+          "rate": 0.0
+        },
+        "get_no_ack": 0,
+        "get_no_ack_details": {
+          "rate": 0.0
+        },
+        "publish": 220,
+        "publish_details": {
+          "rate": 0.0
+        },
+        "redeliver": 0,
+        "redeliver_details": {
+          "rate": 0.0
+        }
+      }
+    },
+    {
+      "name": "ticketing.purchase.stage14.it.orders.dead",
+      "messages_ready": 99,
+      "messages_unacknowledged": 0,
+      "consumers": 0,
+      "message_stats": null
+    },
+    {
+      "name": "ticketing.waitlist.it.dispatch",
+      "messages_ready": 0,
+      "messages_unacknowledged": 0,
+      "consumers": 0,
+      "message_stats": {
+        "ack": 32,
+        "ack_details": {
+          "rate": 0.0
+        },
+        "deliver": 33,
+        "deliver_details": {
+          "rate": 0.0
+        },
+        "deliver_get": 33,
+        "deliver_get_details": {
+          "rate": 0.0
+        },
+        "deliver_no_ack": 0,
+        "deliver_no_ack_details": {
+          "rate": 0.0
+        },
+        "get": 0,
+        "get_details": {
+          "rate": 0.0
+        },
+        "get_empty": 0,
+        "get_empty_details": {
+          "rate": 0.0
+        },
+        "get_no_ack": 0,
+        "get_no_ack_details": {
+          "rate": 0.0
+        },
+        "publish": 33,
+        "publish_details": {
+          "rate": 0.0
+        },
+        "redeliver": 0,
+        "redeliver_details": {
+          "rate": 0.0
+        }
+      }
+    },
+    {
+      "name": "ticketing.waitlist.it.dispatch.dead",
+      "messages_ready": 0,
+      "messages_unacknowledged": 0,
+      "consumers": 0,
+      "message_stats": null
+    },
+    {
+      "name": "ticketing.waitlist.stage14.it.dispatch",
+      "messages_ready": 1,
+      "messages_unacknowledged": 0,
+      "consumers": 0,
+      "message_stats": {
+        "publish": 2,
+        "publish_details": {
+          "rate": 0.0
+        }
+      }
+    },
+    {
+      "name": "ticketing.waitlist.stage14.it.dispatch.dead",
+      "messages_ready": 0,
+      "messages_unacknowledged": 0,
+      "consumers": 0,
+      "message_stats": null
+    }
+  ]
+}

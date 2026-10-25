@@ -1,0 +1,87 @@
+{
+  "channels": {
+    "PURCHASE_REQUEST_ACCEPTED": {
+      "states": {
+        "PENDING": 0,
+        "PROCESSING": 0,
+        "SENT": 1689,
+        "FAILED": 0
+      },
+      "retryEvents": 3,
+      "createdToConfirmedRecordMs": {
+        "count": 1689,
+        "p50": 4713.94,
+        "p95": 8360.840399999997,
+        "p99": 10234.024919999998,
+        "max": 17567.004
+      },
+      "pendingAgeMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      }
+    },
+    "WAITLIST_DISPATCH_REQUESTED": {
+      "states": {
+        "PENDING": 0,
+        "PROCESSING": 0,
+        "SENT": 1689,
+        "FAILED": 0
+      },
+      "retryEvents": 0,
+      "createdToConfirmedRecordMs": {
+        "count": 1689,
+        "p50": 1030.274,
+        "p95": 1763.2635999999993,
+        "p99": 2407.578799999999,
+        "max": 2799.941
+      },
+      "pendingAgeMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      }
+    }
+  },
+  "purchaseStates": {
+    "QUEUED": 0,
+    "PROCESSING": 0,
+    "SUCCEEDED": 1689,
+    "FAILED": 0,
+    "EXPIRED": 0
+  },
+  "acceptedToOutboxMs": {
+    "count": 1689,
+    "p50": 4.614,
+    "p95": 56.389599999999966,
+    "p99": 75.81403999999982,
+    "max": 101.89
+  },
+  "acceptedToOrderWriteMs": {
+    "count": 1689,
+    "p50": 5143.325,
+    "p95": 8982.553799999994,
+    "p99": 10611.916879999999,
+    "max": 11169.34
+  },
+  "acceptedToTerminalWriteMs": {
+    "count": 1689,
+    "p50": 5149.51,
+    "p95": 8990.625999999997,
+    "p99": 10620.129719999999,
+    "max": 11180.344
+  },
+  "confirmedRecordToOrderWriteSignedMs": {
+    "count": 1689,
+    "p50": 468.401,
+    "p95": 952.5649999999996,
+    "p99": 1628.6318799999765,
+    "max": 2792.477
+  },
+  "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+  "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+}
