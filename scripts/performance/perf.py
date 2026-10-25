@@ -496,6 +496,8 @@ METRICS = ['process.cpu.usage', 'jvm.memory.used', 'jvm.gc.pause', 'jvm.threads.
 METRICS += ['ticketing.trade.transaction.duration', 'ticketing.trade.lock.duration', 'ticketing.trade.quota']
 METRICS += ['ticketing.outbox.confirm.duration', 'ticketing.outbox.publish', 'ticketing.outbox.claim']
 METRICS += ['ticketing.purchase.accepted.to.claim', 'ticketing.purchase.delivery']
+METRICS += ['ticketing.outbox.created.to.claim', 'ticketing.purchase.admission.lock.duration',
+            'ticketing.waitlist.continuation', 'hikaricp.connections.idle', 'ticketing.catalog.requests']
 
 
 def mq_snapshot():
@@ -516,6 +518,24 @@ def sample(client):
             result['jvm'][name] = response.json().get('measurements')
         elif response.status_code != 404:
             response.raise_for_status()
+    # 仅固定低基数系列；公开输出不含业务ID或原始请求。用于区分受理预算锁与账号锁。
+    result['metricSeries'] = {}
+    for name, resource in [('ticketing.purchase.admission.lock.duration', 'account'),
+                           ('ticketing.purchase.admission.lock.duration', 'capacity'),
+                           ('ticketing.trade.lock.duration', 'account'),
+                           ('ticketing.trade.lock.duration', 'stock')]:
+        response = client.session.get(BASE + MONITOR + '/metrics/' + name,
+                                      params={'tag': 'resource:' + resource}, timeout=10)
+        if response.status_code == 200:
+            result['metricSeries'][name + ':' + resource] = response.json().get('measurements')
+        elif response.status_code != 404:
+            response.raise_for_status()
+    has_capacity = rows("SELECT COUNT(*) n FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='purchase_capacity'")[0]['n']
+    result['purchaseCapacity'] = rows('SELECT pending_count FROM purchase_capacity WHERE id=1') if has_capacity else []
+    result['lockWaitResources'] = rows("""SELECT requested.OBJECT_NAME resource,COUNT(*) waits
+        FROM performance_schema.data_lock_waits w JOIN performance_schema.data_locks requested
+          ON requested.ENGINE_LOCK_ID=w.REQUESTING_ENGINE_LOCK_ID AND requested.ENGINE=w.ENGINE
+        WHERE requested.OBJECT_SCHEMA='ticketing_perf' GROUP BY requested.OBJECT_NAME""")
     try:
         result['rabbitmq'] = mq_snapshot()
     except requests.RequestException:
@@ -553,11 +573,16 @@ def run(args):
     stop = threading.Event()
     samples = []
     failures = []
+    monitor_started = time.monotonic()
     def monitor():
         client = admin()
         while not stop.is_set():
             try:
                 samples.append(sample(client))
+                if getattr(args, 'live_monitor', False):
+                    save(PRIVATE / 'live-stage19.json', {'scenario': args.scenario, 'vus': args.vus,
+                         'steadySeconds': args.duration, 'observedSeconds': time.monotonic() - monitor_started,
+                         'latest': samples[-1]})
             except Exception as error:
                 failures.append(type(error).__name__)
             stop.wait(2)
@@ -588,6 +613,7 @@ def run(args):
                PERF_VUS=str(args.vus), PERF_DURATION=str(args.duration), PERF_WARMUP=str(args.warmup),
                PERF_SUMMARY=str(output / 'k6-summary.json'))
     env['PERF_ADMISSION_EXPECTED_REJECTION'] = 'true' if getattr(args, 'admission_rejections', False) else 'false'
+    env['PERF_PREAUTHENTICATE'] = 'true' if getattr(args, 'preauthenticate', False) else 'false'
     binary = args.k6 or shutil.which('k6') or next(PRIVATE.glob('tools/**/k6.exe'), None)
     if not binary:
         raise RuntimeError('未发现k6，请用 --k6 指定本机可执行文件')
@@ -620,6 +646,7 @@ def run(args):
     metadata = {'environment': 'ticketing-perf-only', 'baseCommit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
                 'scenario': args.scenario, 'vus': args.vus, 'warmupSeconds': args.warmup, 'steadySeconds': args.duration,
                 'gracefulStopSeconds': 150, 'outboxDrainMaxSeconds': 30,
+                'sequentialRealLoginBeforeScenario': getattr(args, 'preauthenticate', False),
                 'data': {'activities': 1000, 'sessions': 64 if args.scenario=='mixed' else 1, 'users': args.vus},
                 'app': json.loads((PRIVATE / 'app.json').read_text(encoding='utf-8')), 'k6ExitCode': process.returncode,
                 'initial': initial, 'final': final, 'mysqlDelta': {k: final['mysql'][k]-v for k,v in initial['mysql'].items()},

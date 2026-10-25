@@ -5,7 +5,7 @@ from itertools import product
 def snapshot(client, base, monitor):
     names = client.request('GET', monitor + '/metrics')['names']
     prefixes = ('ticketing.outbox.confirm.duration', 'ticketing.purchase.accepted.to.claim',
-                'ticketing.trade.transaction.duration')
+                'ticketing.trade.transaction.duration', 'ticketing.outbox.created.to.claim')
     result = {'scope': '场景收尾的应用分位估计；保持原单位，不将重叠阶段直接相加。', 'metrics': []}
     for name in sorted(n for n in names if n.startswith(prefixes)):
         detail = client.request('GET', monitor + '/metrics/' + name)
@@ -13,7 +13,7 @@ def snapshot(client, base, monitor):
             result['metrics'].append(detail)
             continue
         available = detail.get('availableTags', [])
-        assert all(tag['tag'] in ('channel', 'outcome', 'phi') for tag in available), '分位指标不得出现业务标识标签'
+        assert all(tag['tag'] in ('channel', 'outcome', 'phi', 'attempt') for tag in available), '分位指标不得出现业务标识标签'
         combinations = list(product(*(tag['values'] for tag in available)))
         assert len(combinations) <= 64, '分位指标标签必须有界'
         for values in combinations:
