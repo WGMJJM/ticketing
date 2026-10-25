@@ -1,0 +1,20 @@
+# 显式生产装配示例：唯一JAR通过additional-location加载，管理路径仍由实时ADMIN+Session授权。
+server:
+  address: 127.0.0.1
+  servlet:
+    session:
+      cookie:
+        secure: true
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 10
+management:
+  endpoints:
+    web:
+      base-path: /api/v1/admin/monitoring
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: never
