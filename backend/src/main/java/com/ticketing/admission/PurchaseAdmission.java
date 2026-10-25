@@ -5,11 +5,16 @@ import com.ticketing.auth.UserAccount;
 import com.ticketing.auth.UserAccountMapper;
 import com.ticketing.common.BusinessException;
 import com.ticketing.messaging.PurchaseCommands;
+import com.ticketing.messaging.DeliveryObservation;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.ZoneOffset;
 import java.util.List;
+import io.micrometer.core.instrument.MeterRegistry;
+import java.util.concurrent.TimeUnit;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
@@ -22,14 +27,19 @@ public class PurchaseAdmission {
     private final UserAccountMapper users;
     private final PurchaseCommands commands;
     private final PurchaseProperties properties;
-    public PurchaseAdmission(PurchaseRequestMapper requests,UserAccountMapper users,PurchaseCommands commands,PurchaseProperties properties) {
+    private final MeterRegistry meters;
+    public PurchaseAdmission(PurchaseRequestMapper requests,UserAccountMapper users,PurchaseCommands commands,PurchaseProperties properties,MeterRegistry meters) {
         this.requests=requests; this.users=users; this.commands=commands; this.properties=properties;
+        this.meters=meters;
     }
 
     @Transactional(isolation=Isolation.READ_COMMITTED)
     public PurchaseRequestView accept(long userId,String sku,int quantity,String key) {
         long skuId=skuId(sku);
-        UserAccount user=users.selectOne(new LambdaQueryWrapper<UserAccount>().eq(UserAccount::getId,userId).last("FOR UPDATE"));
+        long started=System.nanoTime();
+        UserAccount user;
+        try { user=users.selectOne(new LambdaQueryWrapper<UserAccount>().eq(UserAccount::getId,userId).last("FOR UPDATE")); }
+        finally { meters.timer("ticketing.purchase.admission.lock.duration","resource","account").record(System.nanoTime()-started,TimeUnit.NANOSECONDS); }
         if(user==null || !"ACTIVE".equals(user.getStatus())) throw new BusinessException(HttpStatus.UNAUTHORIZED,"ACCOUNT_UNAVAILABLE","账号已停用或不存在，请重新登录");
         byte[] hash=hash(skuId,quantity);
         PurchaseRequest existing=requests.byKey(userId,key);
@@ -40,8 +50,16 @@ public class PurchaseAdmission {
         requests.insert(userId,skuId,quantity,key,hash,properties.queueSeconds());
         long id=requests.insertedId();
         // 无SKU外键写锁，避免受理持预算后等待交易库存；用户外键在用户锁内写入。
-        if(requests.acquire(properties.capacity())!=1) throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE,"PURCHASE_QUEUE_FULL","购票排队人数已达上限，请稍后重试");
+        started=System.nanoTime();
+        int acquired;
+        try { acquired=requests.acquire(properties.capacity()); }
+        finally { meters.timer("ticketing.purchase.admission.lock.duration","resource","capacity").record(System.nanoTime()-started,TimeUnit.NANOSECONDS); }
+        if(acquired!=1) throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE,"PURCHASE_QUEUE_FULL","购票排队人数已达上限，请稍后重试");
         commands.append(id);
+        // 只记录提交完成时刻；此回调不承担订单、库存或Outbox的任何业务联动。
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCommit() { DeliveryObservation.record("purchase-"+id+":1", "accepted-commit"); }
+        });
         return view(requests.find(id));
     }
 

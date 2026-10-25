@@ -3,6 +3,7 @@ package com.ticketing.trade;
 import com.ticketing.admission.PurchaseProcessing;
 import com.ticketing.admission.PurchaseRequest;
 import com.ticketing.common.BusinessException;
+import com.ticketing.messaging.DeliveryObservation;
 import org.springframework.stereotype.Service;
 import org.springframework.dao.ConcurrencyFailureException;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -26,12 +27,19 @@ public class PurchaseOrderWorker {
         this.meters=meters;
     }
     public void process(long id) {
+        process(id, null);
+    }
+    public void process(long id, String deliveryKey) {
         PurchaseRequest claim=processing.claim(id);
         if(claim==null) { processing.recover(id); return; }
-        complete(claim);
+        DeliveryObservation.record(deliveryKey, "consumer-claim-commit");
+        completeObserved(claim, deliveryKey);
     }
     /** 与认领分离，旧令牌执行也必须经过最终请求行CAS，失败使所有库存和订单写入回滚。 */
     public void complete(PurchaseRequest claim) {
+        completeObserved(claim, null);
+    }
+    private void completeObserved(PurchaseRequest claim, String deliveryKey) {
         Timer.Sample sample=Timer.start(meters);
         String outcome="technical-failure";
         try {
@@ -51,11 +59,13 @@ public class PurchaseOrderWorker {
                 }
             }
             outcome="success";
+            DeliveryObservation.record(deliveryKey, "order-transaction-commit");
         } catch(BusinessException exception) {
             if(!processing.deterministic(exception.getCode())) throw exception;
             // 预占尝试已完整回滚，失败结果在新事务复核令牌，避免rollback-only吞掉终态。
             processing.fail(claim,exception.getCode());
             outcome="business-failure";
+            DeliveryObservation.record(deliveryKey, "business-failure-commit");
         } finally {
             sample.stop(meters.timer("ticketing.trade.transaction.duration","outcome",outcome));
         }

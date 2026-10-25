@@ -54,6 +54,14 @@ public class OutboxService {
         }
         List<Long> ids = new ArrayList<>(selected.size());
         for (OutboxEvent event : selected) {
+            // 两个时刻都来自MySQL；重试延迟单独标记，避免将退避混入首次投递分布。
+            if (event.getClaimObservedAt() != null && event.getCreatedAt() != null) {
+                io.micrometer.core.instrument.Timer.builder("ticketing.outbox.created.to.claim")
+                        .tags("channel", PurchaseCommand.TYPE.equals(event.getEventType()) ? "purchase" : "inventory",
+                                "attempt", event.getRetryCount() == 0 ? "first" : "retry")
+                        .publishPercentiles(.5,.95,.99).register(meters)
+                        .record(java.time.Duration.between(event.getCreatedAt(), event.getClaimObservedAt()));
+            }
             meters.counter("ticketing.outbox.claim", "channel", PurchaseCommand.TYPE.equals(event.getEventType()) ? "purchase" : "inventory",
                     "outcome", OutboxStatus.PROCESSING.name().equals(event.getStatus()) ? "lease-expired" : "pending").increment();
             if (event.getRetryCount() >= maxAttempts) {

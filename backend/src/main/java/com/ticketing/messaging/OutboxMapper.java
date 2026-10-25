@@ -11,7 +11,7 @@ import java.util.List;
 @Mapper
 public interface OutboxMapper extends BaseMapper<OutboxEvent> {
     @Select("""
-            SELECT * FROM outbox_event WHERE event_type=#{type}
+            SELECT *,UTC_TIMESTAMP(6) AS claim_observed_at FROM outbox_event WHERE event_type=#{type}
               AND status IN ('PENDING','PROCESSING') AND next_retry_at<=UTC_TIMESTAMP(6)
             ORDER BY next_retry_at,id LIMIT #{size} FOR UPDATE SKIP LOCKED
             """)

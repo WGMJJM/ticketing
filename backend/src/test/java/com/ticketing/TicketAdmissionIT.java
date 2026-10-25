@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -114,6 +115,18 @@ class TicketAdmissionIT {
         var buyer = client();
         var first = buyer.order("first", 1, 202);
         buyer.order("second", 1, 202);
+        // 本例验证耗尽时的HTTP幂等协议，不能假定三次HTTP一定在1秒内完成。
+        // 仅冻结本例随机命名空间的票档桶；真实TIME补充/TTL由上面的并发Lua测试覆盖。
+        redis.delete(PREFIX + "global");
+        var freeze = new DefaultRedisScript<Long>("""
+                local clock=redis.call('TIME')
+                local untilAt=tonumber(clock[1])*1000+math.floor(tonumber(clock[2])/1000)+tonumber(ARGV[1])
+                redis.call('HSET',KEYS[1],'tokens',0,'time',untilAt)
+                redis.call('PEXPIRE',KEYS[1],ARGV[1])
+                return 1
+                """, Long.class);
+        assertThat(redis.execute(freeze, List.of(PREFIX + "sku:" + sku),
+                Long.toString(Duration.ofMinutes(1).toMillis()))).isEqualTo(1L);
         int requests = requestCount(buyer.id);
         long capacity = capacity();
         var rejected = buyer.send("POST", "/orders", body(1), "third", true);

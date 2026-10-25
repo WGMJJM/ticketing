@@ -3,6 +3,7 @@ package com.ticketing.messaging;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableField;
 
 import java.time.LocalDateTime;
 
@@ -23,6 +24,11 @@ public class OutboxEvent {
     private LocalDateTime sentAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    @TableField(exist = false)
+    private LocalDateTime claimObservedAt;
+
+    public LocalDateTime getClaimObservedAt() { return claimObservedAt; }
+    public void setClaimObservedAt(LocalDateTime value) { claimObservedAt = value; }
 
     public Long getId() {
         return id;

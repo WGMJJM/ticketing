@@ -57,6 +57,10 @@ public class OutboxPublisher {
         while (!stopping && !Thread.currentThread().isInterrupted() && claimed < batchSize) {
             List<OutboxEvent> events = service.claimBatch(Math.min(window, batchSize - claimed));
             if (events.isEmpty()) return;
+            for (OutboxEvent event : events) {
+                if (OutboxStatus.PROCESSING.name().equals(event.getStatus()))
+                    DeliveryObservation.record(event.getEventId()+":"+event.getRetryCount(), "outbox-claim-commit");
+            }
             claimed += events.size();
             if (!publishWindow(events)) return; // 故障不再认领新窗口，已在途的健康消息独立完成。
         }
@@ -83,6 +87,7 @@ public class OutboxPublisher {
                 properties.setContentType(MessageProperties.CONTENT_TYPE_JSON);
                 properties.setDeliveryMode(MessageDeliveryMode.PERSISTENT);
                 properties.setMessageId(event.getEventId());
+                properties.setCorrelationId(event.getEventId() + ":" + event.getRetryCount());
                 boolean purchase = PurchaseCommand.TYPE.equals(event.getEventType());
                 if (purchase) properties.setExpiration(purchaseMessageTtl);
                 rabbit.send(purchase ? purchaseExchange : exchange,
@@ -128,6 +133,7 @@ public class OutboxPublisher {
             if (confirmation.failure() != null) throw new IllegalStateException("代理确认失败");
             if (confirmation.completed() - delivery.started() >= confirmNanos) throw new TimeoutException("代理确认超时");
             awaitConfirm(delivery.correlation());
+            DeliveryObservation.record(delivery.correlation().getId(), "broker-confirm", confirmation.completed());
             boolean applied = service.sent(delivery.event());
             count(delivery.event(), applied ? "sent" : "stale-confirm");
             return true;

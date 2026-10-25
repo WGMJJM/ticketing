@@ -25,7 +25,12 @@ public class PurchaseOrderConsumer {
         catch(IOException exception) { throw new AmqpRejectAndDontRequeueException("购票命令格式不正确"); }
         if(command==null || !commands.committed(command) || !command.eventId().equals(message.getMessageProperties().getMessageId()))
             throw new AmqpRejectAndDontRequeueException("购票命令与已提交事实不一致");
-        worker.process(Long.parseLong(command.requestId()));
+        String deliveryKey = message.getMessageProperties().getCorrelationId();
+        String expectedPrefix = command.eventId() + ":";
+        // 关联头只供本机诊断；不把任意外来头（可能含秘密）写入JFR，也不作为业务授权事实。
+        if (deliveryKey == null || !deliveryKey.startsWith(expectedPrefix)
+                || !deliveryKey.substring(expectedPrefix.length()).matches("[1-9][0-9]{0,9}")) deliveryKey = null;
+        worker.process(Long.parseLong(command.requestId()), deliveryKey);
         // AUTO在方法正常返回后ACK；worker的本地事务此前已提交，ACK丢失由数据库终态幂等。
     }
 }

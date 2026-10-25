@@ -76,4 +76,19 @@ class StockBucketMigrationIT {
         assertThat(db.queryForObject("SELECT COUNT(*) FROM ticket_order",Integer.class)).isEqualTo(2);
         assertThatThrownBy(()->migration(null).validate()).isInstanceOf(org.flywaydb.core.api.FlywayException.class);
     }
+
+    @Test void missingCreateViewPrivilegePreservesPartialV10AndStopsRepeatedMigration() {
+        migration("9").migrate();
+        String schema = db.queryForObject("SELECT DATABASE()", String.class);
+        db.execute("GRANT SELECT,INSERT,UPDATE,DELETE,CREATE,ALTER,INDEX,REFERENCES,DROP,TRIGGER ON `"
+                + schema + "`.* TO 'ticketing_perf'@'%'");
+        var restricted = Flyway.configure().dataSource(url, "ticketing_perf", System.getenv("MIGRATION_TEST_PASSWORD"))
+                .locations("classpath:db/migration").cleanDisabled(true).placeholders(Map.of("quotaLimit", "4")).load();
+        assertThatThrownBy(restricted::migrate).isInstanceOf(org.flywaydb.core.api.FlywayException.class)
+                .hasStackTraceContaining("1142");
+        assertThat(db.queryForObject("SELECT success FROM flyway_schema_history WHERE version='10'", Boolean.class)).isFalse();
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='ticket_stock_bucket'", Integer.class)).isEqualTo(1);
+        assertThatThrownBy(restricted::migrate).isInstanceOf(org.flywaydb.core.api.FlywayException.class);
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE version='10'", Integer.class)).isEqualTo(1);
+    }
 }
