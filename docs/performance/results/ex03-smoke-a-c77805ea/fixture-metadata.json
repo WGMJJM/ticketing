@@ -1,0 +1,211 @@
+{
+  "accounts": 50,
+  "totalUserAccounts": 50,
+  "distinctUserIds": 50,
+  "userIdsSha256": "035c0a58941dbfcad49c56ec53bd9eab07e5466be1520b9daf720f91a6e59e5a",
+  "target": {
+    "activityId": "2001",
+    "sessionId": "3",
+    "skuId": "3"
+  },
+  "publicTicket": {
+    "id": "3",
+    "sessionId": "3",
+    "name": "压测票档",
+    "priceCents": "12800",
+    "totalStock": 100,
+    "lockedStock": 0,
+    "soldStock": 0,
+    "availableStock": 100,
+    "saleStartsAt": "2026-10-25T07:27:45.469709Z",
+    "saleEndsAt": "2026-10-25T08:32:45.469709Z",
+    "maxQuantityPerOrder": 4,
+    "status": "ON_SALE",
+    "saleStatus": "SELLING",
+    "serverTime": "2026-10-25T07:57:47.310718700Z",
+    "version": 2
+  },
+  "label": "ex03-smoke-a-c77805ea",
+  "loginWorkers": 8,
+  "loginFailures": 0,
+  "loginSeconds": 0.6735566999996081,
+  "submitWorkers": 16,
+  "maximumSharedConnections": 64,
+  "quantityPerBuyer": 1,
+  "rateLimitMode": "regression",
+  "rateLimitEffectiveLimits": {
+    "PERF_RATE_LIMIT_ENABLED": "true",
+    "PERF_RATE_LIMIT_LOGIN_IP": "10000",
+    "PERF_RATE_LIMIT_LOGIN_ACCOUNT_IP": "10000",
+    "PERF_RATE_LIMIT_REGISTER_IP": "10000",
+    "PERF_RATE_LIMIT_ORDER_USER": "10000",
+    "PERF_RATE_LIMIT_WAITLIST_USER": "10000",
+    "PERF_RATE_LIMIT_CSRF_SESSION_IP": "10000"
+  },
+  "overrides": {
+    "PURCHASE_CAPACITY": "200",
+    "PURCHASE_QUEUE_SECONDS": "120",
+    "PURCHASE_MESSAGING_ENABLED": "false",
+    "OUTBOX_JOBS_ENABLED": "false",
+    "PURCHASE_JOBS_ENABLED": "true",
+    "PURCHASE_ADMISSION_LIMIT_ENABLED": "false",
+    "ORDER_PAYMENT_WINDOW_MINUTES": "15",
+    "WAITLIST_OUTBOX_IN_FLIGHT_WINDOW": "16",
+    "PURCHASE_CONSUMER_CONCURRENCY": "2",
+    "PURCHASE_CONSUMER_PREFETCH": "1",
+    "SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE": "10"
+  },
+  "initialAudit": {
+    "passed": true,
+    "checks": [
+      {
+        "invariant": "stock_bounds",
+        "violation_count": 0
+      },
+      {
+        "invariant": "stock_order_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "payment_snapshot",
+        "violation_count": 0
+      },
+      {
+        "invariant": "order_snapshot",
+        "violation_count": 0
+      },
+      {
+        "invariant": "session_quota",
+        "violation_count": 0
+      },
+      {
+        "invariant": "waitlist_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "fifo_allocation_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "ticket_quantity",
+        "violation_count": 0
+      },
+      {
+        "invariant": "ticket_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "duplicate_payment_effect",
+        "violation_count": 0
+      },
+      {
+        "invariant": "duplicate_active_waitlist",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_capacity",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_order_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_no_unbound_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_no_late_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_reliable_command",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_exhausted_command_active",
+        "violation_count": 0
+      },
+      {
+        "invariant": "quota_order_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "quota_extra_or_orphan",
+        "violation_count": 0
+      },
+      {
+        "invariant": "bucket_strategy_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "bucket_bounds",
+        "violation_count": 0
+      },
+      {
+        "invariant": "allocation_quantity",
+        "violation_count": 0
+      },
+      {
+        "invariant": "bucket_order_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "allocation_relations",
+        "violation_count": 0
+      },
+      {
+        "invariant": "bucket_switch_receipt",
+        "violation_count": 0
+      },
+      {
+        "invariant": "limited_supply_bounds",
+        "violation_count": 0
+      },
+      {
+        "invariant": "limited_active_units",
+        "violation_count": "0"
+      },
+      {
+        "invariant": "limited_one_request_per_buyer",
+        "violation_count": 0
+      },
+      {
+        "invariant": "limited_one_order_per_buyer",
+        "violation_count": 0
+      },
+      {
+        "invariant": "limited_order_binding",
+        "violation_count": 0
+      },
+      {
+        "invariant": "limited_failed_no_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "limited_account_state",
+        "violation_count": 0
+      },
+      {
+        "invariant": "limited_no_payment_or_ticket",
+        "violation_count": 0
+      },
+      {
+        "invariant": "limited_no_waitlist",
+        "violation_count": 0
+      }
+    ],
+    "frozenAtUtc": "2026-10-25 07:57:49.810542",
+    "stock": {
+      "total_stock": 100,
+      "locked_stock": "0",
+      "sold_stock": "0",
+      "inventory_strategy": "SINGLE"
+    },
+    "orders": [],
+    "requests": [],
+    "pendingBudget": 0,
+    "quotaUnits": "0",
+    "outbox": []
+  }
+}

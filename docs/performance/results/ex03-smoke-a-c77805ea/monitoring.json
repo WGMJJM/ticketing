@@ -1,0 +1,641 @@
+[
+  {
+    "elapsedUtc": "2026-10-25T07:57:49.923403+00:00",
+    "mysql": {
+      "Com_commit": 816,
+      "Com_rollback": 1,
+      "Com_select": 6285,
+      "Innodb_row_lock_time": 2219,
+      "Innodb_row_lock_waits": 54,
+      "Questions": 15508,
+      "Slow_queries": 27,
+      "Threads_connected": 11,
+      "Threads_running": 2,
+      "lock_deadlocks": 0,
+      "lock_timeouts": 0,
+      "current_lock_waits": 0
+    },
+    "outbox": [],
+    "outboxLag": {
+      "n": 0,
+      "avg_ms": null,
+      "max_ms": null
+    },
+    "outboxChannels": [],
+    "outboxChannelLag": [],
+    "outboxBacklogAge": [],
+    "purchaseRequests": [],
+    "jvm": {
+      "process.cpu.usage": [
+        {
+          "statistic": "VALUE",
+          "value": 0.14464244387873176
+        }
+      ],
+      "jvm.memory.used": [
+        {
+          "statistic": "VALUE",
+          "value": 237033952.0
+        }
+      ],
+      "jvm.gc.pause": [
+        {
+          "statistic": "COUNT",
+          "value": 1.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.014
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.014
+        }
+      ],
+      "jvm.threads.live": [
+        {
+          "statistic": "VALUE",
+          "value": 44.0
+        }
+      ],
+      "hikaricp.connections.active": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.pending": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.max": [
+        {
+          "statistic": "VALUE",
+          "value": 10.0
+        }
+      ],
+      "hikaricp.connections.acquire": [
+        {
+          "statistic": "COUNT",
+          "value": 321.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 3.8442957
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.0799015
+        }
+      ],
+      "hikaricp.connections.timeout": [
+        {
+          "statistic": "COUNT",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.usage": [
+        {
+          "statistic": "COUNT",
+          "value": 323.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 7.718
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.14
+        }
+      ],
+      "ticketing.catalog.loads.active": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.catalog.local.entries": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.purchase.admission.lock.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 100.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 3.8567717
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.1129399
+        }
+      ],
+      "hikaricp.connections.idle": [
+        {
+          "statistic": "VALUE",
+          "value": 10.0
+        }
+      ]
+    },
+    "metricSeries": {
+      "ticketing.purchase.admission.lock.duration:account": [
+        {
+          "statistic": "COUNT",
+          "value": 50.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.1654995
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.0061221
+        }
+      ],
+      "ticketing.purchase.admission.lock.duration:capacity": [
+        {
+          "statistic": "COUNT",
+          "value": 50.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 3.6912722
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.1129399
+        }
+      ]
+    },
+    "purchaseCapacity": [
+      {
+        "pending_count": 50
+      }
+    ],
+    "lockWaitResources": [],
+    "rabbitmq": [
+      {
+        "name": "ticketing.purchase.orders",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": {
+          "ack": 58,
+          "ack_details": {
+            "rate": 0.0
+          },
+          "deliver": 58,
+          "deliver_details": {
+            "rate": 0.0
+          },
+          "deliver_get": 58,
+          "deliver_get_details": {
+            "rate": 0.0
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 58,
+          "publish_details": {
+            "rate": 0.0
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.purchase.orders.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 2,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      }
+    ],
+    "batchSeconds": 1.3164262999925995,
+    "phase": "submission"
+  },
+  {
+    "elapsedUtc": "2026-10-25T07:58:03.166884+00:00",
+    "mysql": {
+      "Com_commit": 1108,
+      "Com_rollback": 1,
+      "Com_select": 8525,
+      "Innodb_row_lock_time": 5860,
+      "Innodb_row_lock_waits": 118,
+      "Questions": 20056,
+      "Slow_queries": 73,
+      "Threads_connected": 11,
+      "Threads_running": 2,
+      "lock_deadlocks": 0,
+      "lock_timeouts": 0,
+      "current_lock_waits": 0
+    },
+    "outbox": [
+      {
+        "status": "PENDING",
+        "n": 2,
+        "attempts": 1
+      },
+      {
+        "status": "SENT",
+        "n": 48,
+        "attempts": 2
+      }
+    ],
+    "outboxLag": {
+      "n": 48,
+      "avg_ms": "11697.24512500",
+      "max_ms": "12153.2920"
+    },
+    "outboxChannels": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "PENDING",
+        "n": 2
+      },
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "status": "SENT",
+        "n": 48
+      }
+    ],
+    "outboxChannelLag": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 48,
+        "avg_ms": "11697.24512500",
+        "max_ms": "12153.2920"
+      }
+    ],
+    "outboxBacklogAge": [
+      {
+        "event_type": "PURCHASE_REQUEST_ACCEPTED",
+        "n": 2,
+        "oldest_ms": "12756.2280"
+      }
+    ],
+    "purchaseRequests": [
+      {
+        "status": "SUCCEEDED",
+        "failure_code": "NONE",
+        "n": 31
+      },
+      {
+        "status": "PROCESSING",
+        "failure_code": "NONE",
+        "n": 2
+      },
+      {
+        "status": "QUEUED",
+        "failure_code": "NONE",
+        "n": 17
+      }
+    ],
+    "jvm": {
+      "process.cpu.usage": [
+        {
+          "statistic": "VALUE",
+          "value": 0.6494090947865762
+        }
+      ],
+      "jvm.memory.used": [
+        {
+          "statistic": "VALUE",
+          "value": 283046232.0
+        }
+      ],
+      "jvm.gc.pause": [
+        {
+          "statistic": "COUNT",
+          "value": 1.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.016
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.016
+        }
+      ],
+      "jvm.threads.live": [
+        {
+          "statistic": "VALUE",
+          "value": 59.0
+        }
+      ],
+      "hikaricp.connections.active": [
+        {
+          "statistic": "VALUE",
+          "value": 7.0
+        }
+      ],
+      "hikaricp.connections.pending": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.max": [
+        {
+          "statistic": "VALUE",
+          "value": 10.0
+        }
+      ],
+      "hikaricp.connections.acquire": [
+        {
+          "statistic": "COUNT",
+          "value": 513.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.2303956
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.0551913
+        }
+      ],
+      "hikaricp.connections.timeout": [
+        {
+          "statistic": "COUNT",
+          "value": 0.0
+        }
+      ],
+      "hikaricp.connections.usage": [
+        {
+          "statistic": "COUNT",
+          "value": 512.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 11.226
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.22
+        }
+      ],
+      "spring.rabbitmq.listener": [
+        {
+          "statistic": "COUNT",
+          "value": 44.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 5.3132642
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.2914905
+        }
+      ],
+      "ticketing.catalog.loads.active": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.catalog.local.entries": [
+        {
+          "statistic": "VALUE",
+          "value": 0.0
+        }
+      ],
+      "ticketing.trade.transaction.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 45.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 4.1077014
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.2202874
+        }
+      ],
+      "ticketing.trade.lock.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 138.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.6983333
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.0745417
+        }
+      ],
+      "ticketing.trade.quota": [
+        {
+          "statistic": "COUNT",
+          "value": 46.0
+        }
+      ],
+      "ticketing.outbox.confirm.duration": [
+        {
+          "statistic": "COUNT",
+          "value": 77.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.3710056
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.0204146
+        }
+      ],
+      "ticketing.outbox.publish": [
+        {
+          "statistic": "COUNT",
+          "value": 154.0
+        }
+      ],
+      "ticketing.outbox.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 77.0
+        }
+      ],
+      "ticketing.purchase.accepted.to.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 48.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 609.055977
+        },
+        {
+          "statistic": "MAX",
+          "value": 14.046842
+        }
+      ],
+      "ticketing.outbox.created.to.claim": [
+        {
+          "statistic": "COUNT",
+          "value": 77.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 920.905485
+        },
+        {
+          "statistic": "MAX",
+          "value": 13.794437
+        }
+      ],
+      "hikaricp.connections.idle": [
+        {
+          "statistic": "VALUE",
+          "value": 3.0
+        }
+      ]
+    },
+    "metricSeries": {
+      "ticketing.trade.lock.duration:account": [
+        {
+          "statistic": "COUNT",
+          "value": 49.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.1878577
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.0245752
+        }
+      ],
+      "ticketing.trade.lock.duration:stock": [
+        {
+          "statistic": "COUNT",
+          "value": 49.0
+        },
+        {
+          "statistic": "TOTAL_TIME",
+          "value": 0.3303792
+        },
+        {
+          "statistic": "MAX",
+          "value": 0.0745417
+        }
+      ]
+    },
+    "purchaseCapacity": [
+      {
+        "pending_count": 1
+      }
+    ],
+    "lockWaitResources": [],
+    "rabbitmq": [
+      {
+        "name": "ticketing.purchase.orders",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": {
+          "ack": 105,
+          "ack_details": {
+            "rate": 9.4
+          },
+          "deliver": 107,
+          "deliver_details": {
+            "rate": 9.8
+          },
+          "deliver_get": 107,
+          "deliver_get_details": {
+            "rate": 9.8
+          },
+          "deliver_no_ack": 0,
+          "deliver_no_ack_details": {
+            "rate": 0.0
+          },
+          "get": 0,
+          "get_details": {
+            "rate": 0.0
+          },
+          "get_empty": 0,
+          "get_empty_details": {
+            "rate": 0.0
+          },
+          "get_no_ack": 0,
+          "get_no_ack_details": {
+            "rate": 0.0
+          },
+          "publish": 135,
+          "publish_details": {
+            "rate": 15.4
+          },
+          "redeliver": 0,
+          "redeliver_details": {
+            "rate": 0.0
+          }
+        }
+      },
+      {
+        "name": "ticketing.purchase.orders.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.dispatch",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      },
+      {
+        "name": "ticketing.waitlist.dispatch.dead",
+        "messages_ready": 0,
+        "messages_unacknowledged": 0,
+        "consumers": 0,
+        "message_stats": null
+      }
+    ],
+    "batchSeconds": 14.978020099995774,
+    "phase": "recovery"
+  }
+]

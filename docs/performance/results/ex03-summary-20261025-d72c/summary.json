@@ -1,0 +1,279 @@
+{
+  "runs": [
+    {
+      "label": "ex03-a-3fa9a423",
+      "scenario": "A",
+      "passed": true,
+      "attempted": 1000,
+      "accepted202": 200,
+      "categories": {
+        "accepted202": 200,
+        "admissionRejected": 800
+      },
+      "terminalStates": {
+        "SUCCEEDED": 100,
+        "FAILED": 100
+      },
+      "terminalFailureCodes": {
+        "TICKET_UNAVAILABLE": 100
+      },
+      "httpMs": {
+        "count": 1000,
+        "p50": 469.25580000242917,
+        "p95": 831.4637349969415,
+        "p99": 1037.502473992208,
+        "max": 1284.782400005497
+      },
+      "acceptedMs": {
+        "count": 200,
+        "p50": 686.9157499968424,
+        "p95": 1038.2075699926643,
+        "p99": 1215.756698006007,
+        "max": 1284.782400005497
+      },
+      "capacityRejectedMs": {
+        "count": 800,
+        "p50": 432.9528499947628,
+        "p95": 719.5088849955937,
+        "p99": 831.7059959965985,
+        "max": 1000.5098999972688
+      },
+      "successfulTerminalObservedMs": {
+        "count": 100,
+        "p50": 23136.138750007376,
+        "p95": 26862.537205005356,
+        "p99": 26869.09184600212,
+        "max": 26876.34319999779
+      },
+      "allTerminalObservedMs": {
+        "count": 200,
+        "p50": 26676.397750001343,
+        "p95": 28177.33452500106,
+        "p99": 28258.89141499967,
+        "max": 28366.75109999487
+      },
+      "submissionSeconds": 7.8576291000063065,
+      "batchHttpRps": 127.26485142944675,
+      "batchAcceptedRps": 25.45297028588935,
+      "wholeBatchAndDrainSeconds": 36.76826589999837,
+      "batchSuccessfulOrderRpsIncludingDrain": 2.7197366411562105,
+      "restartAndDrainSeconds": 28.40235129999928,
+      "sampledPeakPending": 200,
+      "sampledPeakOutboxPending": 200,
+      "mysqlDelta": {
+        "Com_commit": 4007,
+        "Com_rollback": 901,
+        "Com_select": 22346,
+        "Innodb_row_lock_time": 13735,
+        "Innodb_row_lock_waits": 269,
+        "Questions": 54281,
+        "Slow_queries": 167,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "sampledJvmPeaks": {
+        "hikaricp.connections.active": 10.0,
+        "hikaricp.connections.pending": 54.0,
+        "hikaricp.connections.max": 10.0,
+        "hikaricp.connections.timeout": 0.0,
+        "hikaricp.connections.acquire": 0.6499877,
+        "process.cpu.usage": 0.7160176345877287,
+        "jvm.memory.used": 326907976.0,
+        "jvm.gc.pause": 0.018,
+        "jvm.threads.live": 92.0
+      },
+      "sampledPeakOutboxOldestMs": 26205.942,
+      "sampledRabbitPeaks": {
+        "messages_ready": 124,
+        "messages_unacknowledged": 2
+      },
+      "scope": "Peaks are sampled every >=2s; restart gaps have no JVM measurements. Counter maxima are not sums across process restarts."
+    },
+    {
+      "label": "ex03-b-c7084df8",
+      "scenario": "B",
+      "passed": true,
+      "attempted": 1000,
+      "accepted202": 1000,
+      "categories": {
+        "accepted202": 1000
+      },
+      "terminalStates": {
+        "SUCCEEDED": 100,
+        "FAILED": 900
+      },
+      "terminalFailureCodes": {
+        "TICKET_UNAVAILABLE": 900
+      },
+      "httpMs": {
+        "count": 1000,
+        "p50": 646.2690999978804,
+        "p95": 1170.848384999408,
+        "p99": 1434.40066900308,
+        "max": 1797.0418000040809
+      },
+      "acceptedMs": {
+        "count": 1000,
+        "p50": 646.2690999978804,
+        "p95": 1170.848384999408,
+        "p99": 1434.40066900308,
+        "max": 1797.0418000040809
+      },
+      "capacityRejectedMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      },
+      "successfulTerminalObservedMs": {
+        "count": 100,
+        "p50": 26625.598999999056,
+        "p95": 43511.12005501127,
+        "p99": 43952.25656600436,
+        "max": 43956.282500003
+      },
+      "allTerminalObservedMs": {
+        "count": 1000,
+        "p50": 42711.7464000039,
+        "p95": 50347.451760000695,
+        "p99": 51059.17878100503,
+        "max": 51219.67140000197
+      },
+      "submissionSeconds": 11.242905299994163,
+      "batchHttpRps": 88.94498115184864,
+      "batchAcceptedRps": 88.94498115184864,
+      "wholeBatchAndDrainSeconds": 74.44387330001337,
+      "batchSuccessfulOrderRpsIncludingDrain": 1.3432938879603145,
+      "restartAndDrainSeconds": 62.71341860000393,
+      "sampledPeakPending": 1000,
+      "sampledPeakOutboxPending": 930,
+      "mysqlDelta": {
+        "Com_commit": 13994,
+        "Com_rollback": 901,
+        "Com_select": 71015,
+        "Innodb_row_lock_time": 62590,
+        "Innodb_row_lock_waits": 1082,
+        "Questions": 162444,
+        "Slow_queries": 750,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "sampledJvmPeaks": {
+        "hikaricp.connections.active": 10.0,
+        "hikaricp.connections.pending": 55.0,
+        "hikaricp.connections.max": 10.0,
+        "hikaricp.connections.timeout": 0.0,
+        "hikaricp.connections.acquire": 1.0516784,
+        "process.cpu.usage": 0.5830238334514465,
+        "jvm.memory.used": 333271072.0,
+        "jvm.gc.pause": 0.022,
+        "jvm.threads.live": 92.0
+      },
+      "sampledPeakOutboxOldestMs": 51138.333,
+      "sampledRabbitPeaks": {
+        "messages_ready": 765,
+        "messages_unacknowledged": 2
+      },
+      "scope": "Peaks are sampled every >=2s; restart gaps have no JVM measurements. Counter maxima are not sums across process restarts."
+    },
+    {
+      "label": "ex03-c-fa0be20a",
+      "scenario": "C",
+      "passed": true,
+      "attempted": 1000,
+      "accepted202": 235,
+      "categories": {
+        "accepted202": 235,
+        "admissionRejected": 765
+      },
+      "terminalStates": {
+        "SUCCEEDED": 100,
+        "FAILED": 135
+      },
+      "terminalFailureCodes": {
+        "TICKET_UNAVAILABLE": 135
+      },
+      "httpMs": {
+        "count": 1000,
+        "p50": 513.845150002453,
+        "p95": 882.5218300014967,
+        "p99": 1070.189201002795,
+        "max": 1181.2152000056813
+      },
+      "acceptedMs": {
+        "count": 235,
+        "p50": 665.7934999966528,
+        "p95": 908.2206800041595,
+        "p99": 1071.5765739991912,
+        "max": 1181.2152000056813
+      },
+      "capacityRejectedMs": {
+        "count": 765,
+        "p50": 482.26650001015514,
+        "p95": 840.5858800018904,
+        "p99": 1043.4249400015694,
+        "max": 1168.9775999984704
+      },
+      "successfulTerminalObservedMs": {
+        "count": 100,
+        "p50": 9732.437500009837,
+        "p95": 10889.852649995737,
+        "p99": 10929.998388994281,
+        "max": 10956.31150000554
+      },
+      "allTerminalObservedMs": {
+        "count": 235,
+        "p50": 10879.092800008948,
+        "p95": 12643.784730003972,
+        "p99": 12935.668652003515,
+        "max": 13021.370800008299
+      },
+      "submissionSeconds": 8.622428100003162,
+      "batchHttpRps": 115.9766122027313,
+      "batchAcceptedRps": 27.254503867641855,
+      "wholeBatchAndDrainSeconds": 20.770490800001426,
+      "batchSuccessfulOrderRpsIncludingDrain": 4.814522726636442,
+      "restartAndDrainSeconds": null,
+      "sampledPeakPending": 200,
+      "sampledPeakOutboxPending": 191,
+      "mysqlDelta": {
+        "Com_commit": 4363,
+        "Com_rollback": 901,
+        "Com_select": 22871,
+        "Innodb_row_lock_time": 14657,
+        "Innodb_row_lock_waits": 428,
+        "Questions": 56269,
+        "Slow_queries": 160,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "sampledJvmPeaks": {
+        "hikaricp.connections.active": 10.0,
+        "hikaricp.connections.pending": 55.0,
+        "hikaricp.connections.max": 10.0,
+        "hikaricp.connections.timeout": 0.0,
+        "hikaricp.connections.acquire": 0.6489795,
+        "process.cpu.usage": 0.4336880554676614,
+        "jvm.memory.used": 331507160.0,
+        "jvm.gc.pause": 0.016,
+        "jvm.threads.live": 123.0
+      },
+      "sampledPeakOutboxOldestMs": 11633.827,
+      "sampledRabbitPeaks": {
+        "messages_ready": 94,
+        "messages_unacknowledged": 2
+      },
+      "scope": "Peaks are sampled every >=2s; restart gaps have no JVM measurements. Counter maxima are not sums across process restarts."
+    }
+  ]
+}

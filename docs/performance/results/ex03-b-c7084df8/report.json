@@ -1,0 +1,583 @@
+{
+  "passed": true,
+  "scenario": "B",
+  "label": "ex03-b-c7084df8",
+  "gitHead": "1ff6a4b79a700c1b02a46a18a32c77415174cbaf",
+  "jarSha256": "be5f19d130b751ff92706e920208662b353af20f75ad56a97c14bc17005ce288",
+  "startedAtUtc": "2026-10-25T08:00:26.787391+00:00",
+  "environment": "ticketing-perf-only",
+  "runnerSourcesSha256": {
+    "limited_stock_1000.py": "62f447a2b405b509382aa3df7f60eb8e252e602e25eb92c90d03dcd340bfd7fe",
+    "limited_stock_audit.sql": "3d936d8a2f4c410af28527171e067985649286727ec73f0add443741cf50ef67",
+    "perf.py": "104551978d81f0d6477db5c3080f142a4e505b956740ba614b9710a36816bdf7"
+  },
+  "attempted": 1000,
+  "categories": {
+    "accepted202": 1000
+  },
+  "accepted202": 1000,
+  "outcomes": [
+    {
+      "status": 202,
+      "code": "OK",
+      "count": 1000
+    }
+  ],
+  "terminalStates": {
+    "SUCCEEDED": 100,
+    "FAILED": 900
+  },
+  "terminalFailureCodes": {
+    "TICKET_UNAVAILABLE": 900
+  },
+  "terminalSucceeded": 100,
+  "terminalBusinessFailed": 900,
+  "terminalExpired": 0,
+  "terminalDeliveryExhausted": 0,
+  "stillNonterminal": 0,
+  "httpDatabaseDifferences": 0,
+  "firstEquationDifference": 0,
+  "secondEquationDifference": 0,
+  "submissionSeconds": 11.242905299994163,
+  "batchHttpRps": 88.94498115184864,
+  "batchAcceptedRps": 88.94498115184864,
+  "httpMs": {
+    "count": 1000,
+    "p50": 646.2690999978804,
+    "p95": 1170.848384999408,
+    "p99": 1434.40066900308,
+    "max": 1797.0418000040809
+  },
+  "acceptedMs": {
+    "count": 1000,
+    "p50": 646.2690999978804,
+    "p95": 1170.848384999408,
+    "p99": 1434.40066900308,
+    "max": 1797.0418000040809
+  },
+  "capacityRejectedMs": {
+    "count": 0,
+    "p50": null,
+    "p95": null,
+    "p99": null,
+    "max": null
+  },
+  "successfulTerminalObservedMs": {
+    "count": 100,
+    "p50": 26625.598999999056,
+    "p95": 43511.12005501127,
+    "p99": 43952.25656600436,
+    "max": 43956.282500003
+  },
+  "allTerminalObservedMs": {
+    "count": 1000,
+    "p50": 42711.7464000039,
+    "p95": 50347.451760000695,
+    "p99": 51059.17878100503,
+    "max": 51219.67140000197
+  },
+  "restartAndDrainSeconds": 62.71341860000393,
+  "finalDrainAfterHttpPollingSeconds": 62.71341860000393,
+  "wholeBatchAndDrainSeconds": 74.44387330001337,
+  "replayChecks": {
+    "separateFromPrimaryBatch": true,
+    "sameKeySameRequest": true,
+    "differentQuantityConflict": true,
+    "factsUnchanged": true
+  },
+  "preparation": {
+    "accounts": 1000,
+    "totalUserAccounts": 1000,
+    "distinctUserIds": 1000,
+    "userIdsSha256": "ed9aa5b13a54b81728135a39aa9bbcbff8af8e03d421985b109bec2a7ab476b3",
+    "target": {
+      "activityId": "4001",
+      "sessionId": "5",
+      "skuId": "5"
+    },
+    "publicTicket": {
+      "id": "5",
+      "sessionId": "5",
+      "name": "压测票档",
+      "priceCents": "12800",
+      "totalStock": 100,
+      "lockedStock": 0,
+      "soldStock": 0,
+      "availableStock": 100,
+      "saleStartsAt": "2026-10-25T07:30:59.300647Z",
+      "saleEndsAt": "2026-10-25T08:35:59.300647Z",
+      "maxQuantityPerOrder": 4,
+      "status": "ON_SALE",
+      "saleStatus": "SELLING",
+      "serverTime": "2026-10-25T08:01:01.868992700Z",
+      "version": 2
+    },
+    "label": "ex03-b-c7084df8",
+    "loginWorkers": 8,
+    "loginFailures": 0,
+    "loginSeconds": 11.8819652999955,
+    "submitWorkers": 64,
+    "maximumSharedConnections": 64,
+    "quantityPerBuyer": 1,
+    "rateLimitMode": "regression",
+    "rateLimitEffectiveLimits": {
+      "PERF_RATE_LIMIT_ENABLED": "true",
+      "PERF_RATE_LIMIT_LOGIN_IP": "10000",
+      "PERF_RATE_LIMIT_LOGIN_ACCOUNT_IP": "10000",
+      "PERF_RATE_LIMIT_REGISTER_IP": "10000",
+      "PERF_RATE_LIMIT_ORDER_USER": "10000",
+      "PERF_RATE_LIMIT_WAITLIST_USER": "10000",
+      "PERF_RATE_LIMIT_CSRF_SESSION_IP": "10000"
+    },
+    "overrides": {
+      "PURCHASE_CAPACITY": "1000",
+      "PURCHASE_QUEUE_SECONDS": "900",
+      "PURCHASE_MESSAGING_ENABLED": "false",
+      "OUTBOX_JOBS_ENABLED": "false",
+      "PURCHASE_JOBS_ENABLED": "true",
+      "PURCHASE_ADMISSION_LIMIT_ENABLED": "false",
+      "ORDER_PAYMENT_WINDOW_MINUTES": "15",
+      "WAITLIST_OUTBOX_IN_FLIGHT_WINDOW": "16",
+      "PURCHASE_CONSUMER_CONCURRENCY": "2",
+      "PURCHASE_CONSUMER_PREFETCH": "1",
+      "SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE": "10"
+    },
+    "initialAudit": {
+      "passed": true,
+      "checks": [
+        {
+          "invariant": "stock_bounds",
+          "violation_count": 0
+        },
+        {
+          "invariant": "stock_order_totals",
+          "violation_count": 0
+        },
+        {
+          "invariant": "payment_snapshot",
+          "violation_count": 0
+        },
+        {
+          "invariant": "order_snapshot",
+          "violation_count": 0
+        },
+        {
+          "invariant": "session_quota",
+          "violation_count": 0
+        },
+        {
+          "invariant": "waitlist_relation",
+          "violation_count": 0
+        },
+        {
+          "invariant": "fifo_allocation_order",
+          "violation_count": 0
+        },
+        {
+          "invariant": "ticket_quantity",
+          "violation_count": 0
+        },
+        {
+          "invariant": "ticket_relation",
+          "violation_count": 0
+        },
+        {
+          "invariant": "duplicate_payment_effect",
+          "violation_count": 0
+        },
+        {
+          "invariant": "duplicate_active_waitlist",
+          "violation_count": 0
+        },
+        {
+          "invariant": "purchase_capacity",
+          "violation_count": 0
+        },
+        {
+          "invariant": "purchase_order_relation",
+          "violation_count": 0
+        },
+        {
+          "invariant": "purchase_no_unbound_order",
+          "violation_count": 0
+        },
+        {
+          "invariant": "purchase_no_late_order",
+          "violation_count": 0
+        },
+        {
+          "invariant": "purchase_reliable_command",
+          "violation_count": 0
+        },
+        {
+          "invariant": "purchase_exhausted_command_active",
+          "violation_count": 0
+        },
+        {
+          "invariant": "quota_order_totals",
+          "violation_count": 0
+        },
+        {
+          "invariant": "quota_extra_or_orphan",
+          "violation_count": 0
+        },
+        {
+          "invariant": "bucket_strategy_totals",
+          "violation_count": 0
+        },
+        {
+          "invariant": "bucket_bounds",
+          "violation_count": 0
+        },
+        {
+          "invariant": "allocation_quantity",
+          "violation_count": 0
+        },
+        {
+          "invariant": "bucket_order_totals",
+          "violation_count": 0
+        },
+        {
+          "invariant": "allocation_relations",
+          "violation_count": 0
+        },
+        {
+          "invariant": "bucket_switch_receipt",
+          "violation_count": 0
+        },
+        {
+          "invariant": "limited_supply_bounds",
+          "violation_count": 0
+        },
+        {
+          "invariant": "limited_active_units",
+          "violation_count": "0"
+        },
+        {
+          "invariant": "limited_one_request_per_buyer",
+          "violation_count": 0
+        },
+        {
+          "invariant": "limited_one_order_per_buyer",
+          "violation_count": 0
+        },
+        {
+          "invariant": "limited_order_binding",
+          "violation_count": 0
+        },
+        {
+          "invariant": "limited_failed_no_order",
+          "violation_count": 0
+        },
+        {
+          "invariant": "limited_account_state",
+          "violation_count": 0
+        },
+        {
+          "invariant": "limited_no_payment_or_ticket",
+          "violation_count": 0
+        },
+        {
+          "invariant": "limited_no_waitlist",
+          "violation_count": 0
+        }
+      ],
+      "frozenAtUtc": "2026-10-25 08:01:16.187052",
+      "stock": {
+        "total_stock": 100,
+        "locked_stock": "0",
+        "sold_stock": "0",
+        "inventory_strategy": "SINGLE"
+      },
+      "orders": [],
+      "requests": [],
+      "pendingBudget": 0,
+      "quotaUnits": "0",
+      "outbox": []
+    }
+  },
+  "finalAudit": {
+    "passed": true,
+    "checks": [
+      {
+        "invariant": "stock_bounds",
+        "violation_count": 0
+      },
+      {
+        "invariant": "stock_order_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "payment_snapshot",
+        "violation_count": 0
+      },
+      {
+        "invariant": "order_snapshot",
+        "violation_count": 0
+      },
+      {
+        "invariant": "session_quota",
+        "violation_count": 0
+      },
+      {
+        "invariant": "waitlist_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "fifo_allocation_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "ticket_quantity",
+        "violation_count": 0
+      },
+      {
+        "invariant": "ticket_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "duplicate_payment_effect",
+        "violation_count": 0
+      },
+      {
+        "invariant": "duplicate_active_waitlist",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_capacity",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_order_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_no_unbound_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_no_late_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_reliable_command",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_exhausted_command_active",
+        "violation_count": 0
+      },
+      {
+        "invariant": "quota_order_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "quota_extra_or_orphan",
+        "violation_count": 0
+      },
+      {
+        "invariant": "bucket_strategy_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "bucket_bounds",
+        "violation_count": 0
+      },
+      {
+        "invariant": "allocation_quantity",
+        "violation_count": 0
+      },
+      {
+        "invariant": "bucket_order_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "allocation_relations",
+        "violation_count": 0
+      },
+      {
+        "invariant": "bucket_switch_receipt",
+        "violation_count": 0
+      },
+      {
+        "invariant": "limited_supply_bounds",
+        "violation_count": 0
+      },
+      {
+        "invariant": "limited_active_units",
+        "violation_count": "0"
+      },
+      {
+        "invariant": "limited_one_request_per_buyer",
+        "violation_count": 0
+      },
+      {
+        "invariant": "limited_one_order_per_buyer",
+        "violation_count": 0
+      },
+      {
+        "invariant": "limited_order_binding",
+        "violation_count": 0
+      },
+      {
+        "invariant": "limited_failed_no_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "limited_account_state",
+        "violation_count": 0
+      },
+      {
+        "invariant": "limited_no_payment_or_ticket",
+        "violation_count": 0
+      },
+      {
+        "invariant": "limited_no_waitlist",
+        "violation_count": 0
+      }
+    ],
+    "frozenAtUtc": "2026-10-25 08:02:30.612512",
+    "stock": {
+      "total_stock": 100,
+      "locked_stock": "100",
+      "sold_stock": "0",
+      "inventory_strategy": "SINGLE"
+    },
+    "orders": [
+      {
+        "status": "PENDING",
+        "orders": 100,
+        "units": "100"
+      }
+    ],
+    "requests": [
+      {
+        "status": "SUCCEEDED",
+        "failure_code": "NONE",
+        "n": 100
+      },
+      {
+        "status": "FAILED",
+        "failure_code": "TICKET_UNAVAILABLE",
+        "n": 900
+      }
+    ],
+    "pendingBudget": 0,
+    "quotaUnits": "100",
+    "outbox": [
+      {
+        "status": "SENT",
+        "n": 1000
+      }
+    ]
+  },
+  "pollErrors": [],
+  "monitoringFailures": [],
+  "mysqlDelta": {
+    "Com_commit": 13994,
+    "Com_rollback": 901,
+    "Com_select": 71015,
+    "Innodb_row_lock_time": 62590,
+    "Innodb_row_lock_waits": 1082,
+    "Questions": 162444,
+    "Slow_queries": 750,
+    "Threads_connected": 0,
+    "Threads_running": 0,
+    "lock_deadlocks": 0,
+    "lock_timeouts": 0,
+    "current_lock_waits": 0
+  },
+  "chain": {
+    "channels": {
+      "PURCHASE_REQUEST_ACCEPTED": {
+        "states": {
+          "PENDING": 0,
+          "PROCESSING": 0,
+          "SENT": 1000,
+          "FAILED": 0
+        },
+        "retryEvents": 909,
+        "createdToConfirmedRecordMs": {
+          "count": 1000,
+          "p50": 48236.975,
+          "p95": 51470.33475,
+          "p99": 51570.47739,
+          "max": 52468.415
+        },
+        "pendingAgeMs": {
+          "count": 0,
+          "p50": null,
+          "p95": null,
+          "p99": null,
+          "max": null
+        }
+      },
+      "WAITLIST_DISPATCH_REQUESTED": {
+        "states": {
+          "PENDING": 0,
+          "PROCESSING": 0,
+          "SENT": 0,
+          "FAILED": 0
+        },
+        "retryEvents": 0,
+        "createdToConfirmedRecordMs": {
+          "count": 0,
+          "p50": null,
+          "p95": null,
+          "p99": null,
+          "max": null
+        },
+        "pendingAgeMs": {
+          "count": 0,
+          "p50": null,
+          "p95": null,
+          "p99": null,
+          "max": null
+        }
+      }
+    },
+    "purchaseStates": {
+      "QUEUED": 0,
+      "PROCESSING": 0,
+      "SUCCEEDED": 100,
+      "FAILED": 900,
+      "EXPIRED": 0
+    },
+    "acceptedToOutboxMs": {
+      "count": 1000,
+      "p50": 63.043000000000006,
+      "p95": 117.94335,
+      "p99": 156.41168999999996,
+      "max": 176.396
+    },
+    "acceptedToOrderWriteMs": {
+      "count": 100,
+      "p50": 23657.127500000002,
+      "p95": 26579.078149999998,
+      "p99": 26909.49011,
+      "max": 27054.239
+    },
+    "acceptedToTerminalWriteMs": {
+      "count": 1000,
+      "p50": 40377.3035,
+      "p95": 49553.22395,
+      "p99": 50254.09214,
+      "max": 50421.896
+    },
+    "confirmedRecordToOrderWriteSignedMs": {
+      "count": 100,
+      "p50": -23025.255,
+      "p95": 4702.1227,
+      "p99": 5058.678220000001,
+      "max": 5206.606
+    },
+    "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+    "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+  },
+  "timingScope": "Finite batch, no steady TPS. HTTP-observed terminal latency includes polling, restart and reauthentication where applicable. DB updated_at is a write timestamp, not transaction commit.",
+  "smoke": false,
+  "batchSuccessfulOrderRpsIncludingDrain": 1.3432938879603145,
+  "orderWriteSpanSeconds": 6.046356,
+  "sampledPeakPending": 1000,
+  "sampledPeakOutboxPending": 930
+}
