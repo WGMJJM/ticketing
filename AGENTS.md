@@ -3,7 +3,7 @@
 - 项目中文名称为「票务交易平台」，英文技术名为 `ticketing`，Java 根包统一为 `com.ticketing`。源码位于 `backend/src/main/java/com/ticketing`，测试位于 `backend/src/test/java/com/ticketing`，后续新增代码保持一致。
 - Java 21，遵循《阿里巴巴Java开发手册》；使用明确命名与必要的中文注释，DTO 优先使用 record。
 - 保持前后端分离、模块化单体架构，后端只有 `backend/pom.xml` 一个 Maven 模块。不得擅自引入微服务或额外基础设施。
-- 第十四阶段按用户已确认的执行文档改为业务包组织，仍保留一个Maven模块和唯一Spring Boot应用。业务包为`activity`、`inventory`、`auth`、`admission`、`trade`、`waitlist`、`checkin`、`staff`、`audit`；共用响应归`common`，通用消息设施归`messaging`，装配配置归`appconfig`。保留既有职责，不创建空模块或第二个可启动服务。
+- 按用户最新要求采用黑马点评风格的技术分层包，仍保留一个Maven模块和唯一Spring Boot应用。顶层包为`controller`、`service`、`mapper`、`entity`、`dto`、`vo`、`config`、`enums`、`security`、`task`、`messaging`、`cache`、`exception`、`common`。请求及查询参数归`dto`，响应视图归`vo`，数据库模型归`entity`，定时任务归`task`；已有服务保留具体实现，不为目录形式增加空接口。业务归属作为架构测试中的逻辑边界保留，不再作为物理包目录。
 - 不创建空接口、空 Store、多余工具类、无意义抽象、魔法值、硬编码凭据或虚假业务。不泛滥使用无依据的防御分支。
 - Flyway 已应用的迁移不可修改；V1至V7保持不变，第十四阶段仅新增V8及更高版本。不得迁移旧 `rrs` 项目代码和数据。
 - 第十阶段已授权整单模拟退款和场次取消善后，旧阶段“不开发退款”的边界不阻止本阶段实现；不接入真实支付或真实退款。V6增加REFUNDED、refund_record及order_aftercare，部署前只读执行scripts/audit-refund-readiness.sql和候补关联审计，异常只报告并停止，DDL失败保留现场，不自动repair或清库。
@@ -33,7 +33,7 @@
 - Outbox健康批量默认100，可通过WAITLIST_OUTBOX_BATCH_SIZE配置1至100；消息投递故障后结束本轮，按既有退避/租约恢复，不连续认领大批故障事件。发布确认、递增认领令牌、至少一次与数据库幂等语义不变。后续工程调整必须保留第八阶段测量口径与原始结果，不自动开发真实支付或退款。
 - 第十六阶段后审查已明确授权有界批量认领和流水线Confirm；WAITLIST_OUTBOX_IN_FLIGHT_WINDOW默认16，可配置1至64且实际不超过健康批量。Rabbit回调只递交有界完成通知，落账由调度线程完成，禁止数据库事务内等待确认。单条失败不妨碍已在途健康消息，本轮不再认领新窗口；超时/关闭后的记录仍由持久租约及递增令牌恢复。普通新受理先读既有幂等事实，再做独立短只读事务销售预检；不得让非事务同步范围保留预检连接直到受理写事务。本人GET购票申请按键查询只恢复事实，不绕过POST安全限流。V1至V9均不可修改，开发库仍未授权升级。
 - 第十四阶段普通HTTP下单只负责可靠受理，请求与Outbox及容量预算同事务，返回202；普通建单仅由购票命令消费者驱动。TradeResourceLocker维护交易锁序，OrderReservation共用预占/限购/幂等，OrderStateService编排订单终态。候补与电子票实现OrderLifecycle，在当前事务中先候补后出票；不得改成提交后异步联动，异常必须回滚。
-- 业务包保留逻辑协作边界：候补与核销只使用交易公开契约、DTO、模型及OrderReservation/TradeResourceLocker，不访问交易内部服务、Mapper或实体；交易不依赖候补和核销实现。受理不依赖交易实现，交易通过受理协作边界原子写入最终状态。库存条件SQL由TicketSkuMapper/TicketInventory负责。所有生产类须在测试资源architecture-modules.properties登记业务归属，ArchitectureRulesTest检查业务包匹配、归属完整、依赖无环及协作边界，不得关闭规则或用错误归属掩盖依赖。
+- 技术分层下保留逻辑协作边界：候补与核销只使用交易公开契约、DTO、模型及OrderReservation/TradeResourceLocker，不访问交易内部服务、Mapper或实体；交易不依赖候补和核销实现。受理不依赖交易实现，交易通过受理协作边界原子写入最终状态。库存条件SQL由TicketSkuMapper/TicketInventory负责。所有生产类须在测试资源architecture-modules.properties登记业务归属，ArchitectureRulesTest分别检查技术包位置、分层依赖、归属完整、业务依赖无环及协作边界，不得关闭规则或用错误归属掩盖依赖。
 - V5增加候补预留订单与SKU的复合外键及必需索引，保留原用户外键。部署前只读执行scripts/audit-waitlist-relations.sql，异常只报告并停止，不自动删除、覆盖或repair。数量及幂等关系继续由事务协作核对。第九阶段完成整体回归、迁移、性能复测及联调后停止。
 - 数据库 DATETIME(6) 统一为 UTC；外部日期带明确时区，用户界面使用 `zh-CN` 和 `Asia/Shanghai`。金额为人民币分整数，展示为 `¥` 与两位小数；BIGINT ID 通过字符串传输。
 - 用户可见文案统一简体中文；技术状态映射为中文，不泄漏内部异常或凭据。

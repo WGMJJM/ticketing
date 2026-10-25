@@ -1,9 +1,13 @@
 package com.ticketing;
 
-import com.ticketing.auth.RegisterRequest;
-import com.ticketing.auth.AccountService;
-import com.ticketing.trade.CreateOrderRequest;
-import com.ticketing.trade.OrderService;
+import com.ticketing.dto.CreateOrderRequest;
+import com.ticketing.dto.RegisterRequest;
+import com.ticketing.mapper.PurchaseRequestMapper;
+import com.ticketing.service.AccountService;
+import com.ticketing.service.OrderService;
+import com.ticketing.service.PurchaseAdmission;
+import com.ticketing.service.PurchaseOrderWorker;
+
 import java.time.Duration;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -40,9 +44,9 @@ class OrderExpiryRecoveryIT {
                 sessionId = jdbc.queryForObject("SELECT id FROM activity_session WHERE activity_id=?", Long.class, activityId);
                 jdbc.update("INSERT INTO ticket_sku(session_id,name,price_cents,total_stock,sale_starts_at,sale_ends_at,status) VALUES(?,'重启补偿票',100,5,DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 HOUR),DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 1 HOUR),'ON_SALE')", sessionId);
                 skuId = jdbc.queryForObject("SELECT id FROM ticket_sku WHERE session_id=?", Long.class, sessionId);
-                var accepted = first.getBean(com.ticketing.admission.PurchaseAdmission.class).accept(userId,Long.toString(skuId),2,"restart-"+suffix);
-                orderId = PurchaseTestSupport.order(first.getBean(com.ticketing.trade.PurchaseOrderWorker.class),
-                        first.getBean(com.ticketing.admission.PurchaseRequestMapper.class),jdbc,Long.parseLong(accepted.requestId()));
+                var accepted = first.getBean(com.ticketing.service.PurchaseAdmission.class).accept(userId,Long.toString(skuId),2,"restart-"+suffix);
+                orderId = PurchaseTestSupport.order(first.getBean(com.ticketing.service.PurchaseOrderWorker.class),
+                        first.getBean(com.ticketing.mapper.PurchaseRequestMapper.class),jdbc,Long.parseLong(accepted.requestId()));
                 jdbc.update("UPDATE ticket_order SET created_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 MINUTE),expires_at=DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 2 SECOND) WHERE id=?", Long.parseLong(orderId));
                 jdbc.update("UPDATE user_account SET status='DISABLED' WHERE id=?", userId);
                 assertThat(jdbc.queryForObject("SELECT status FROM ticket_order WHERE id=?", String.class, Long.parseLong(orderId))).isEqualTo("PENDING");

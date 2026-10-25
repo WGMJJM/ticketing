@@ -1,6 +1,7 @@
 package com.ticketing;
 
-import com.ticketing.auth.RateLimitProperties;
+import com.ticketing.config.RateLimitProperties;
+
 import java.security.SecureRandom;
 import java.util.Base64;
 import org.junit.jupiter.api.Test;

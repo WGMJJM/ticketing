@@ -1,15 +1,18 @@
 package com.ticketing;
 
+import com.ticketing.dto.RegisterRequest;
+import com.ticketing.mapper.AuditMapper;
+import com.ticketing.mapper.PurchaseRequestMapper;
+import com.ticketing.service.AccountService;
+import com.ticketing.service.PurchaseOrderWorker;
+import com.ticketing.service.StaffService;
+
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ticketing.auth.RegisterRequest;
-import com.ticketing.audit.AuditMapper;
-import com.ticketing.auth.AccountService;
-import com.ticketing.staff.StaffService;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -73,8 +76,8 @@ class StaffAuditIT {
     @Autowired ObjectMapper json;
     @Autowired JdbcTemplate jdbc;
     @Autowired AccountService accounts;
-    @Autowired com.ticketing.trade.PurchaseOrderWorker purchaseWorker;
-    @Autowired com.ticketing.admission.PurchaseRequestMapper purchaseRequests;
+    @Autowired com.ticketing.service.PurchaseOrderWorker purchaseWorker;
+    @Autowired com.ticketing.mapper.PurchaseRequestMapper purchaseRequests;
     @Autowired StaffService staffService;
     @Autowired PlatformTransactionManager transactions;
     @MockitoSpyBean AuditMapper audit;

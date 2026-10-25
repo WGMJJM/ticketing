@@ -1,5 +1,10 @@
 package com.ticketing.messaging;
 
+import com.ticketing.config.OutboxProperties;
+import com.ticketing.entity.OutboxEvent;
+import com.ticketing.enums.OutboxStatus;
+import com.ticketing.service.OutboxService;
+
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import jakarta.annotation.PreDestroy;

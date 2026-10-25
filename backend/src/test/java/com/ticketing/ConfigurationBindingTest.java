@@ -1,14 +1,15 @@
 package com.ticketing;
 
-import com.ticketing.checkin.CheckinProperties;
-import com.ticketing.messaging.OutboxProperties;
-import com.ticketing.messaging.PurchaseConsumerProperties;
-import com.ticketing.trade.OrderProperties;
-import com.ticketing.trade.AftercareProperties;
-import com.ticketing.waitlist.WaitlistProperties;
-import com.ticketing.admission.PurchaseProperties;
-import com.ticketing.admission.AdmissionLimitProperties;
-import com.ticketing.activity.CatalogCacheProperties;
+import com.ticketing.config.AdmissionLimitProperties;
+import com.ticketing.config.AftercareProperties;
+import com.ticketing.config.CatalogCacheProperties;
+import com.ticketing.config.CheckinProperties;
+import com.ticketing.config.OrderProperties;
+import com.ticketing.config.OutboxProperties;
+import com.ticketing.config.PurchaseConsumerProperties;
+import com.ticketing.config.PurchaseProperties;
+import com.ticketing.config.WaitlistProperties;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;

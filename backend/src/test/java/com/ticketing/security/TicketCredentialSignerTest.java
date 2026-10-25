@@ -1,9 +1,8 @@
 package com.ticketing.security;
 
-import com.ticketing.checkin.TicketCredentialSigner;
+import com.ticketing.exception.BusinessException;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ticketing.common.BusinessException;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Base64;

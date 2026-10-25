@@ -1,9 +1,9 @@
 package com.ticketing.messaging;
 
-import com.ticketing.messaging.OutboxProperties;
-import com.ticketing.messaging.OutboxService;
+import com.ticketing.config.OutboxProperties;
+import com.ticketing.entity.OutboxEvent;
+import com.ticketing.service.OutboxService;
 
-import com.ticketing.messaging.OutboxEvent;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.core.Message;

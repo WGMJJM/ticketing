@@ -1,17 +1,23 @@
 package com.ticketing;
 
-import com.ticketing.admission.PurchaseAdmission;
-import com.ticketing.admission.PurchaseProcessing;
-import com.ticketing.admission.PurchaseRequest;
-import com.ticketing.auth.AccountUserDetailsService;
-import com.ticketing.checkin.ElectronicTicketService;
-import com.ticketing.checkin.TicketCredentialSigner;
-import com.ticketing.inventory.TicketService;
-import com.ticketing.inventory.TicketWriteRequest;
-import com.ticketing.trade.*;
-import com.ticketing.waitlist.JoinWaitlistRequest;
-import com.ticketing.waitlist.WaitlistDispatcher;
-import com.ticketing.waitlist.WaitlistService;
+import com.ticketing.dto.JoinWaitlistRequest;
+import com.ticketing.dto.TicketWriteRequest;
+import com.ticketing.entity.PurchaseRequest;
+import com.ticketing.enums.RefundReason;
+import com.ticketing.exception.BusinessException;
+import com.ticketing.security.TicketCredentialSigner;
+import com.ticketing.service.AccountUserDetailsService;
+import com.ticketing.service.ElectronicTicketService;
+import com.ticketing.service.OrderRefundService;
+import com.ticketing.service.OrderService;
+import com.ticketing.service.PurchaseAdmission;
+import com.ticketing.service.PurchaseOrderWorker;
+import com.ticketing.service.PurchaseProcessing;
+import com.ticketing.service.TicketService;
+import com.ticketing.service.TradeResourceLocker;
+import com.ticketing.service.WaitlistDispatcher;
+import com.ticketing.service.WaitlistService;
+
 import java.time.ZoneOffset;
 import java.util.*;
 import java.util.concurrent.*;
@@ -199,7 +205,7 @@ class StockBucketIT {
         assertThat(allocated).hasSize(19).isSorted();consistent();
     }
     @Test void managementReadsLiveTotalsAndCannotShrinkBelowOccupiedStock() {
-        order(buyer,sku,3);assertThatThrownBy(()->resize(sku,2)).isInstanceOf(com.ticketing.common.BusinessException.class);stock(sku,3,0);
+        order(buyer,sku,3);assertThatThrownBy(()->resize(sku,2)).isInstanceOf(com.ticketing.exception.BusinessException.class);stock(sku,3,0);
         resize(sku,8);var view=management.publicList(activity,session).stream().filter(t->t.id().equals(Long.toString(sku))).findFirst().orElseThrow();
         assertThat(view.lockedStock()).isEqualTo(3);assertThat(view.availableStock()).isEqualTo(5);
         assertThat(db.queryForObject("SELECT SUM(total_stock) FROM ticket_stock_bucket WHERE sku_id=?",Integer.class,sku)).isEqualTo(8);consistent();
@@ -269,7 +275,7 @@ class StockBucketIT {
                 assertThat(processing.find(request.id()).status()).isEqualTo("SUCCEEDED");
                 var editor=pool.submit(()->resize(sku,0));awaitWaiter("activity_session");
                 release.countDown();blocker.get(5,TimeUnit.SECONDS);
-                assertThatThrownBy(()->editor.get(5,TimeUnit.SECONDS)).hasCauseInstanceOf(com.ticketing.common.BusinessException.class);
+                assertThatThrownBy(()->editor.get(5,TimeUnit.SECONDS)).hasCauseInstanceOf(com.ticketing.exception.BusinessException.class);
             } finally {release.countDown();}
         }
         stock(sku,1,0);consistent();

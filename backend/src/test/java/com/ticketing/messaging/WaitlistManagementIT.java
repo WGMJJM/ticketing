@@ -1,22 +1,26 @@
 package com.ticketing.messaging;
 
+import com.ticketing.config.OutboxProperties;
+import com.ticketing.config.WaitlistProperties;
+import com.ticketing.dto.JoinWaitlistRequest;
+import com.ticketing.dto.RegisterRequest;
+import com.ticketing.entity.OutboxEvent;
+import com.ticketing.entity.WaitlistEntry;
+import com.ticketing.enums.InventoryChangeReason;
+import com.ticketing.mapper.OutboxMapper;
+import com.ticketing.mapper.PurchaseRequestMapper;
+import com.ticketing.mapper.WaitlistMapper;
+import com.ticketing.service.AccountService;
+import com.ticketing.service.OrderService;
+import com.ticketing.service.OutboxService;
+import com.ticketing.service.PurchaseOrderWorker;
+import com.ticketing.service.WaitlistCompensation;
+import com.ticketing.service.WaitlistDispatcher;
+import com.ticketing.service.WaitlistService;
+import com.ticketing.task.WaitlistContinuationScheduler;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ticketing.auth.RegisterRequest;
-import com.ticketing.auth.AccountService;
-import com.ticketing.trade.OrderService;
-import com.ticketing.messaging.OutboxService;
-import com.ticketing.messaging.InventoryChangeReason;
-import com.ticketing.messaging.OutboxProperties;
-import com.ticketing.messaging.OutboxEvent;
-import com.ticketing.messaging.OutboxMapper;
-import com.ticketing.waitlist.WaitlistMapper;
-import com.ticketing.waitlist.WaitlistCompensation;
-import com.ticketing.waitlist.WaitlistDispatcher;
-import com.ticketing.waitlist.WaitlistEntry;
-import com.ticketing.waitlist.WaitlistProperties;
-import com.ticketing.waitlist.WaitlistService;
-import com.ticketing.waitlist.JoinWaitlistRequest;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
 import java.net.URI;
@@ -85,8 +89,8 @@ class WaitlistManagementIT {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private AccountService accounts;
     @Autowired private OrderService orders;
-    @Autowired private com.ticketing.trade.PurchaseOrderWorker purchaseWorker;
-    @Autowired private com.ticketing.admission.PurchaseRequestMapper purchaseRequests;
+    @Autowired private com.ticketing.service.PurchaseOrderWorker purchaseWorker;
+    @Autowired private com.ticketing.mapper.PurchaseRequestMapper purchaseRequests;
     @Autowired private WaitlistService waitlists;
     @Autowired private OutboxService outbox;
     @Autowired private InventoryEvents writer;
@@ -469,7 +473,7 @@ class WaitlistManagementIT {
         invariant(50,0);
 
         WaitlistProperties restartedProperties=new WaitlistProperties(60,50,100,64);
-        var restartedContinuations=new com.ticketing.waitlist.WaitlistContinuationScheduler(
+        var restartedContinuations=new com.ticketing.task.WaitlistContinuationScheduler(
                 restartedProperties,new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
         try {
             var restartedDispatcher=new WaitlistDispatcher(waitlistMapper,waitlists,restartedProperties,restartedContinuations);

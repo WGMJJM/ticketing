@@ -1,18 +1,21 @@
 package com.ticketing;
 
+import com.ticketing.config.AftercareProperties;
+import com.ticketing.dto.RegisterRequest;
+import com.ticketing.enums.RefundReason;
+import com.ticketing.mapper.AftercareMapper;
+import com.ticketing.mapper.ElectronicTicketMapper;
+import com.ticketing.mapper.PurchaseRequestMapper;
+import com.ticketing.mapper.RefundMapper;
+import com.ticketing.service.AccountService;
+import com.ticketing.service.OrderRefundService;
+import com.ticketing.service.OrderService;
+import com.ticketing.service.PurchaseOrderWorker;
+import com.ticketing.service.WaitlistDispatcher;
+import com.ticketing.task.SessionAftercareJob;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ticketing.auth.RegisterRequest;
-import com.ticketing.auth.AccountService;
-import com.ticketing.checkin.ElectronicTicketMapper;
-import com.ticketing.trade.AftercareProperties;
-import com.ticketing.trade.AftercareMapper;
-import com.ticketing.trade.RefundMapper;
-import com.ticketing.trade.RefundReason;
-import com.ticketing.trade.OrderRefundService;
-import com.ticketing.trade.OrderService;
-import com.ticketing.trade.SessionAftercareJob;
-import com.ticketing.waitlist.WaitlistDispatcher;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -39,8 +42,8 @@ class OrderAftercareIT {
     @Autowired AccountService accounts;
     @Autowired OrderRefundService service;
     @Autowired OrderService orders;
-    @Autowired com.ticketing.trade.PurchaseOrderWorker purchaseWorker;
-    @Autowired com.ticketing.admission.PurchaseRequestMapper purchaseRequests;
+    @Autowired com.ticketing.service.PurchaseOrderWorker purchaseWorker;
+    @Autowired com.ticketing.mapper.PurchaseRequestMapper purchaseRequests;
     @Autowired AftercareMapper aftercare;
     @Autowired WaitlistDispatcher dispatcher;
     @MockitoSpyBean RefundMapper refunds;

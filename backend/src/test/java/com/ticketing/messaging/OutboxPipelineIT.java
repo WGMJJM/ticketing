@@ -1,5 +1,9 @@
 package com.ticketing.messaging;
 
+import com.ticketing.config.OutboxProperties;
+import com.ticketing.entity.OutboxEvent;
+import com.ticketing.service.OutboxService;
+
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.ArrayList;
 import java.util.HashSet;

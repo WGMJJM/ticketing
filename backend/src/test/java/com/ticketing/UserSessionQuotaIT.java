@@ -1,10 +1,23 @@
 package com.ticketing;
 
-import com.ticketing.admission.*;
-import com.ticketing.common.BusinessException;
-import com.ticketing.trade.*;
-import com.ticketing.waitlist.*;
-import com.ticketing.checkin.ElectronicTicketService;
+import com.ticketing.dto.JoinWaitlistRequest;
+import com.ticketing.dto.TicketWriteRequest;
+import com.ticketing.dto.VersionRequest;
+import com.ticketing.enums.RefundReason;
+import com.ticketing.exception.BusinessException;
+import com.ticketing.mapper.OrderMapper;
+import com.ticketing.service.AccountUserDetailsService;
+import com.ticketing.service.ElectronicTicketService;
+import com.ticketing.service.OrderRefundService;
+import com.ticketing.service.OrderService;
+import com.ticketing.service.PurchaseAdmission;
+import com.ticketing.service.PurchaseOrderWorker;
+import com.ticketing.service.PurchaseProcessing;
+import com.ticketing.service.TicketService;
+import com.ticketing.service.TradeResourceLocker;
+import com.ticketing.service.UserSessionQuotaService;
+import com.ticketing.service.WaitlistService;
+
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -37,8 +50,8 @@ class UserSessionQuotaIT {
     @Autowired WaitlistService waitlist;
     @Autowired ElectronicTicketService tickets;
     @Autowired PlatformTransactionManager manager;
-    @Autowired com.ticketing.inventory.TicketService ticketManagement;
-    @Autowired com.ticketing.auth.AccountUserDetailsService identities;
+    @Autowired com.ticketing.service.TicketService ticketManagement;
+    @Autowired com.ticketing.service.AccountUserDetailsService identities;
     @Autowired org.mybatis.spring.SqlSessionTemplate mybatis;
     @Autowired javax.sql.DataSource dataSource;
     @MockitoSpyBean OrderMapper orderMapper;
@@ -290,16 +303,16 @@ class UserSessionQuotaIT {
                 try {
                     managing.countDown();int version=db.queryForObject("SELECT version FROM ticket_sku WHERE id=?",Integer.class,sku);
                     // 管理线程等待场次锁期间消费者会增加库存版本，先完成第一次阻塞调用再按最新版本重试。
-                    try { ticketManagement.offline(sku,new com.ticketing.activity.VersionRequest(version)); }
+                    try { ticketManagement.offline(sku,new com.ticketing.dto.VersionRequest(version)); }
                     catch(BusinessException conflict){assertThat(conflict.getStatus().value()).isEqualTo(409);}
                     version=db.queryForObject("SELECT version FROM ticket_sku WHERE id=?",Integer.class,sku);
                     if(db.queryForObject("SELECT status FROM ticket_sku WHERE id=?",String.class,sku).equals("ON_SALE"))
-                        ticketManagement.offline(sku,new com.ticketing.activity.VersionRequest(version));
+                        ticketManagement.offline(sku,new com.ticketing.dto.VersionRequest(version));
                     var values=db.queryForMap("SELECT name,sale_starts_at,sale_ends_at,version FROM ticket_sku WHERE id=?",sku);
                     var from=db.queryForObject("SELECT sale_starts_at FROM ticket_sku WHERE id=?",java.time.LocalDateTime.class,sku).atOffset(java.time.ZoneOffset.UTC);
                     var to=db.queryForObject("SELECT sale_ends_at FROM ticket_sku WHERE id=?",java.time.LocalDateTime.class,sku).atOffset(java.time.ZoneOffset.UTC);
-                    var updated=ticketManagement.update(sku,new com.ticketing.inventory.TicketWriteRequest(values.get("name").toString(),"250",100,from,to,4,((Number)values.get("version")).intValue()));
-                    ticketManagement.publish(sku,new com.ticketing.activity.VersionRequest(updated.version()));
+                    var updated=ticketManagement.update(sku,new com.ticketing.dto.TicketWriteRequest(values.get("name").toString(),"250",100,from,to,4,((Number)values.get("version")).intValue()));
+                    ticketManagement.publish(sku,new com.ticketing.dto.VersionRequest(updated.version()));
                 } finally {org.springframework.security.core.context.SecurityContextHolder.clearContext();}
             });
             assertThat(managing.await(1,TimeUnit.SECONDS)).isTrue();Thread.sleep(100);assertThat(change.isDone()).isFalse();

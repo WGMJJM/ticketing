@@ -1,11 +1,9 @@
 package com.ticketing.security;
 
-import com.ticketing.auth.AccountPrincipal;
-import com.ticketing.auth.CurrentAccountFilter;
+import com.ticketing.entity.UserAccount;
+import com.ticketing.mapper.UserAccountMapper;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ticketing.auth.UserAccount;
-import com.ticketing.auth.UserAccountMapper;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;

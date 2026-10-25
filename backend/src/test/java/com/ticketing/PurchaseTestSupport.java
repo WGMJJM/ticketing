@@ -1,8 +1,9 @@
 package com.ticketing;
 
-import com.ticketing.admission.PurchaseRequest;
-import com.ticketing.admission.PurchaseRequestMapper;
-import com.ticketing.trade.PurchaseOrderWorker;
+import com.ticketing.entity.PurchaseRequest;
+import com.ticketing.mapper.PurchaseRequestMapper;
+import com.ticketing.service.PurchaseOrderWorker;
+
 import java.time.Duration;
 import org.springframework.jdbc.core.JdbcTemplate;
 import static org.assertj.core.api.Assertions.assertThat;

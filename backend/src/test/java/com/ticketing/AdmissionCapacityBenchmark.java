@@ -1,8 +1,9 @@
 package com.ticketing;
 
+import com.ticketing.service.PurchaseAdmission;
+import com.ticketing.service.PurchaseProcessing;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ticketing.admission.PurchaseAdmission;
-import com.ticketing.admission.PurchaseProcessing;
 import com.zaxxer.hikari.HikariDataSource;
 import java.nio.file.Files;
 import java.nio.file.Path;

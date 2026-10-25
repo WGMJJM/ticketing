@@ -1,9 +1,13 @@
 package com.ticketing;
 
-import com.ticketing.auth.RegisterRequest;
-import com.ticketing.auth.AccountService;
-import com.ticketing.trade.CreateOrderRequest;
-import com.ticketing.trade.OrderService;
+import com.ticketing.dto.CreateOrderRequest;
+import com.ticketing.dto.RegisterRequest;
+import com.ticketing.mapper.PurchaseRequestMapper;
+import com.ticketing.service.AccountService;
+import com.ticketing.service.OrderService;
+import com.ticketing.service.PurchaseAdmission;
+import com.ticketing.service.PurchaseOrderWorker;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
@@ -40,9 +44,9 @@ class SessionAftercareRecoveryIT {
                 db.update("INSERT INTO ticket_sku(session_id,name,price_cents,total_stock,sale_starts_at,sale_ends_at,status) VALUES(?,'重启善后票',100,10,TIMESTAMPADD(HOUR,-1,UTC_TIMESTAMP(6)),TIMESTAMPADD(HOUR,1,UTC_TIMESTAMP(6)),'ON_SALE')",sessionId);
                 skuId = db.queryForObject("SELECT id FROM ticket_sku WHERE session_id=?",Long.class,sessionId);
                 OrderService orders = first.getBean(OrderService.class);
-                var admission=first.getBean(com.ticketing.admission.PurchaseAdmission.class);
-                var worker=first.getBean(com.ticketing.trade.PurchaseOrderWorker.class);
-                var requests=first.getBean(com.ticketing.admission.PurchaseRequestMapper.class);
+                var admission=first.getBean(com.ticketing.service.PurchaseAdmission.class);
+                var worker=first.getBean(com.ticketing.service.PurchaseOrderWorker.class);
+                var requests=first.getBean(com.ticketing.mapper.PurchaseRequestMapper.class);
                 paid = PurchaseTestSupport.order(worker,requests,db,Long.parseLong(admission.accept(userId,Long.toString(skuId),1,"paid-"+suffix).requestId()));
                 orders.pay(userId,Long.parseLong(paid));
                 pending = PurchaseTestSupport.order(worker,requests,db,Long.parseLong(admission.accept(userId,Long.toString(skuId),1,"pending-"+suffix).requestId()));

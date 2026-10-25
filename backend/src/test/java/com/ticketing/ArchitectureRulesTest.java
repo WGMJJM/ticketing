@@ -15,20 +15,22 @@ import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** 业务包与逻辑归属一致，继续验证无环及公开交易协作边界。 */
+/** 技术分层与业务归属分别校验，保留无环及公开交易协作边界。 */
 class ArchitectureRulesTest {
     private static final Path SOURCES = Path.of("src/main/java/com/ticketing");
     private static final Set<String> MODULES = Set.of("application", "auth", "checkin", "common",
             "appconfig", "activity", "messaging", "trade", "inventory", "waitlist", "audit", "staff", "admission");
+    private static final Set<String> LAYERS = Set.of("controller", "service", "mapper", "entity", "dto", "vo",
+            "config", "enums", "security", "task", "messaging", "cache", "exception", "common");
     private static final Set<String> ORDER_COLLABORATORS = Set.of(
-            "com.ticketing.trade.OrderReservation", "com.ticketing.trade.TradeResourceLocker");
+            "com.ticketing.service.OrderReservation", "com.ticketing.service.TradeResourceLocker");
     private static final Pattern PACKAGE = Pattern.compile("(?m)^package ([\\w.]+);");
     private static final Pattern REFERENCE = Pattern.compile("com\\.ticketing\\.[A-Za-z0-9_.]+");
     private static final Pattern NON_CODE = Pattern.compile(
             "\"\"\"[\\s\\S]*?\"\"\"|\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*'|/\\*[\\s\\S]*?\\*/|//[^\\r\\n]*");
 
     @Test
-    void everySourceHasAnExplicitBusinessOwnerAndMatchingBusinessPackage() throws IOException {
+    void everySourceHasAnExplicitBusinessOwnerAndMatchingLayerPackage() throws IOException {
         Map<String, String> modules = modules();
         Map<String, Path> sources = sources();
         assertThat(modules.keySet()).containsExactlyInAnyOrderElementsOf(sources.keySet());
@@ -40,10 +42,19 @@ class ArchitectureRulesTest {
                 continue;
             }
             assertThat(relative.getNameCount()).as(relative.toString()).isEqualTo(2);
-            String module = relative.getName(0).toString();
-            assertThat(module).isEqualTo(modules.get(source.getKey()));
-            assertThat(source.getKey()).isEqualTo("com.ticketing." + module + "."
+            String layer = relative.getName(0).toString();
+            assertThat(layer).as(source.getKey()).isIn(LAYERS);
+            assertThat(source.getKey()).isEqualTo("com.ticketing." + layer + "."
                     + relative.getFileName().toString().replace(".java", ""));
+            String name = source.getValue().getFileName().toString();
+            if (name.endsWith("Controller.java")) assertThat(layer).isEqualTo("controller");
+            if (name.endsWith("Mapper.java")) assertThat(layer).isEqualTo("mapper");
+            if (name.endsWith("Service.java")) assertThat(layer).isEqualTo("service");
+            if (name.endsWith("Properties.java") || name.endsWith("Config.java")) {
+                assertThat(layer).isEqualTo("config");
+            }
+            if (name.endsWith("View.java")) assertThat(layer).isEqualTo("vo");
+            if (name.endsWith("Job.java")) assertThat(layer).isEqualTo("task");
         }
     }
 
@@ -76,6 +87,7 @@ class ArchitectureRulesTest {
                 }
             }
             for (String reference : references) {
+                assertLayerDependency(source.getKey(), reference);
                 String target = modules.get(reference);
                 if (target.equals(module)) {
                     continue;
@@ -95,6 +107,26 @@ class ArchitectureRulesTest {
         assertThat(graph.get("trade")).contains("inventory", "auth");
         for (String module : graph.keySet()) {
             visit(module, graph, new HashSet<>());
+        }
+    }
+
+    private void assertLayerDependency(String source, String target) {
+        String fromLayer = source.substring("com.ticketing.".length()).split("\\.")[0];
+        String toLayer = target.substring("com.ticketing.".length()).split("\\.")[0];
+        if (fromLayer.equals("controller")) {
+            assertThat(toLayer).as("%s → %s", source, target).isNotIn("mapper", "entity");
+        }
+        if (fromLayer.equals("service")) {
+            assertThat(toLayer).as("%s → %s", source, target).isNotEqualTo("controller");
+        }
+        if (Set.of("mapper", "entity", "dto", "vo", "enums").contains(fromLayer)) {
+            assertThat(toLayer).as("%s → %s", source, target)
+                    .isNotIn("controller", "service", "task", "messaging", "cache");
+            if (toLayer.equals("security")) {
+                // 登录响应沿用可信会话身份投影，其余数据类型不依赖安全实现。
+                assertThat(source).isEqualTo("com.ticketing.vo.UserView");
+                assertThat(target).isEqualTo("com.ticketing.security.AccountPrincipal");
+            }
         }
     }
 

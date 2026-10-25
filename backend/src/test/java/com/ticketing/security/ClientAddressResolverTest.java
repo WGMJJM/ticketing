@@ -1,9 +1,8 @@
 package com.ticketing.security;
 
-import com.ticketing.auth.ClientAddressResolver;
+import com.ticketing.config.ClientAddressProperties;
+import com.ticketing.config.ClientAddressProperties.Mode;
 
-import com.ticketing.auth.ClientAddressProperties;
-import com.ticketing.auth.ClientAddressProperties.Mode;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;

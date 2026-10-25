@@ -1,13 +1,16 @@
 package com.ticketing;
 
+import com.ticketing.config.RateLimitProperties;
+import com.ticketing.config.RateLimitProperties.Policy;
+import com.ticketing.dto.RegisterRequest;
+import com.ticketing.mapper.PurchaseRequestMapper;
+import com.ticketing.security.RedisRateLimiter;
+import com.ticketing.security.RedisRateLimiter.Outcome;
+import com.ticketing.service.AccountService;
+import com.ticketing.service.PurchaseOrderWorker;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ticketing.auth.RateLimitProperties;
-import com.ticketing.auth.RateLimitProperties.Policy;
-import com.ticketing.auth.RegisterRequest;
-import com.ticketing.auth.RedisRateLimiter;
-import com.ticketing.auth.RedisRateLimiter.Outcome;
-import com.ticketing.auth.AccountService;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
@@ -75,8 +78,8 @@ class RateLimitIT {
     @Autowired ObjectMapper json;
     @Autowired JdbcTemplate jdbc;
     @Autowired AccountService accounts;
-    @Autowired com.ticketing.trade.PurchaseOrderWorker purchaseWorker;
-    @Autowired com.ticketing.admission.PurchaseRequestMapper purchaseRequests;
+    @Autowired com.ticketing.service.PurchaseOrderWorker purchaseWorker;
+    @Autowired com.ticketing.mapper.PurchaseRequestMapper purchaseRequests;
     @Autowired RedisRateLimiter limiter;
     @Autowired RateLimitProperties properties;
     @MockitoSpyBean StringRedisTemplate redis;

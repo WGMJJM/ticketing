@@ -1,25 +1,29 @@
 package com.ticketing;
 
+import com.ticketing.config.CheckinProperties;
+import com.ticketing.dto.RegisterRequest;
+import com.ticketing.entity.ElectronicTicket;
+import com.ticketing.exception.BusinessException;
+import com.ticketing.mapper.ElectronicTicketMapper;
+import com.ticketing.mapper.OrderMapper;
+import com.ticketing.mapper.PurchaseRequestMapper;
+import com.ticketing.mapper.TicketSkuMapper;
+import com.ticketing.security.TicketCredentialSigner;
+import com.ticketing.service.AccountService;
+import com.ticketing.service.ElectronicTicketService;
+import com.ticketing.service.OrderLifecycle;
+import com.ticketing.service.OrderReservation;
+import com.ticketing.service.OrderService;
+import com.ticketing.service.PurchaseOrderWorker;
+import com.ticketing.service.TicketInventory;
+import com.ticketing.service.TradeResourceLocker;
+import com.ticketing.service.WaitlistDispatcher;
+import com.ticketing.task.TicketBackfillJob;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ticketing.auth.RegisterRequest;
-import com.ticketing.auth.AccountService;
-import com.ticketing.checkin.ElectronicTicket;
-import com.ticketing.checkin.ElectronicTicketMapper;
-import com.ticketing.checkin.TicketCredentialSigner;
-import com.ticketing.checkin.ElectronicTicketService;
-import com.ticketing.checkin.TicketBackfillJob;
-import com.ticketing.trade.OrderMapper;
-import com.ticketing.trade.OrderService;
-import com.ticketing.checkin.CheckinProperties;
-import com.ticketing.trade.TradeResourceLocker;
-import com.ticketing.trade.OrderLifecycle;
-import com.ticketing.trade.OrderReservation;
-import com.ticketing.inventory.TicketInventory;
 import org.springframework.aop.framework.AopProxyUtils;
 import org.springframework.transaction.IllegalTransactionStateException;
-import com.ticketing.inventory.TicketSkuMapper;
-import com.ticketing.waitlist.WaitlistDispatcher;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
 import java.net.URI;
@@ -77,8 +81,8 @@ class ElectronicTicketIT {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private AccountService accounts;
     @Autowired private OrderService orders;
-    @Autowired private com.ticketing.trade.PurchaseOrderWorker purchaseWorker;
-    @Autowired private com.ticketing.admission.PurchaseRequestMapper purchaseRequests;
+    @Autowired private com.ticketing.service.PurchaseOrderWorker purchaseWorker;
+    @Autowired private com.ticketing.mapper.PurchaseRequestMapper purchaseRequests;
     @Autowired private TradeResourceLocker resources;
     @Autowired private OrderReservation reservation;
     @Autowired private TicketInventory inventoryApi;
@@ -169,7 +173,7 @@ class ElectronicTicketIT {
         jdbc.update("UPDATE ticket_order SET created_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 20 MINUTE),expires_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE id=?", expired);
         assertThat(orders.expire(buyer.id, expired)).isTrue();
         for (long order : List.of(pending, cancelled, expired)) {
-            assertThatThrownBy(() -> service.backfill(order)).isInstanceOf(com.ticketing.common.BusinessException.class);
+            assertThatThrownBy(() -> service.backfill(order)).isInstanceOf(com.ticketing.exception.BusinessException.class);
             assertThat(issued(order)).isEmpty();
         }
         stock(1, 0);
@@ -228,7 +232,7 @@ class ElectronicTicketIT {
     void anomalousLegacyQuantityIsRejectedWithoutDeletingOrAddingTickets() throws Exception {
         long order = historical(2);
         ElectronicTicket unexpected = legacyTicket(order, 3, 1);
-        assertThatThrownBy(() -> service.backfill(order)).isInstanceOf(com.ticketing.common.BusinessException.class);
+        assertThatThrownBy(() -> service.backfill(order)).isInstanceOf(com.ticketing.exception.BusinessException.class);
         assertThat(issued(order)).extracting(ElectronicTicket::getId).containsExactly(unexpected.getId()); stock(0, 2);
     }
     @Test

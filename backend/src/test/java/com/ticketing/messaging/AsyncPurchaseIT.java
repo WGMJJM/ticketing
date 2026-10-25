@@ -1,12 +1,20 @@
 package com.ticketing.messaging;
 
+import com.ticketing.config.OutboxProperties;
+import com.ticketing.dto.RegisterRequest;
+import com.ticketing.entity.OutboxEvent;
+import com.ticketing.entity.PurchaseRequest;
+import com.ticketing.enums.InventoryChangeReason;
+import com.ticketing.mapper.OrderMapper;
+import com.ticketing.mapper.OutboxMapper;
+import com.ticketing.mapper.PurchaseRequestMapper;
+import com.ticketing.service.AccountService;
+import com.ticketing.service.OutboxService;
+import com.ticketing.service.PurchaseOrderWorker;
+import com.ticketing.service.PurchaseProcessing;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ticketing.admission.*;
-import com.ticketing.auth.AccountService;
-import com.ticketing.auth.RegisterRequest;
-import com.ticketing.messaging.*;
-import com.ticketing.trade.PurchaseOrderWorker;
 import java.net.*;
 import java.net.http.*;
 import java.nio.charset.StandardCharsets;
@@ -62,8 +70,8 @@ class AsyncPurchaseIT {
     @Autowired io.micrometer.core.instrument.MeterRegistry meters;
     @MockitoSpyBean OutboxPublisher publisher;
     @MockitoSpyBean OutboxMapper eventOutbox;
-    @MockitoSpyBean com.ticketing.trade.OrderMapper orders;
-    @MockitoSpyBean com.ticketing.trade.PurchaseOrderConsumer consumer;
+    @MockitoSpyBean com.ticketing.mapper.OrderMapper orders;
+    @MockitoSpyBean com.ticketing.messaging.PurchaseOrderConsumer consumer;
     final List<Long> users=new ArrayList<>();
     long activity,session,sku;
     Client buyer,other;

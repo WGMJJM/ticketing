@@ -1,5 +1,8 @@
 package com.ticketing.messaging;
 
+import com.ticketing.entity.OutboxEvent;
+import com.ticketing.mapper.OutboxMapper;
+
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;

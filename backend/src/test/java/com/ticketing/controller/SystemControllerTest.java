@@ -1,8 +1,8 @@
 package com.ticketing.controller;
 
-import com.ticketing.common.SystemController;
+import com.ticketing.config.SecurityConfig;
+import com.ticketing.mapper.UserAccountMapper;
 
-import com.ticketing.appconfig.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -11,7 +11,6 @@ import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import com.ticketing.auth.UserAccountMapper;
 
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
