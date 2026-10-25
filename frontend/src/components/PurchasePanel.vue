@@ -64,7 +64,7 @@ async function purchase() {
     if (!attempt.value) {
       try {
         await ElMessageBox.confirm(
-          `确认申请“${props.ticket.name}”${quantity.value}张？预计${estimate.value}，金额以正式订单为准。提交后先排队，排队不占库存；订单创建成功后，请按正式订单显示的截止时间完成模拟支付。`,
+          `确认申请“${props.ticket.name}”${quantity.value}张？预计${estimate.value}，金额以正式订单为准。提交受理时会暂时预扣库存用于排队，但不代表购票成功；申请失败或超时会释放预扣。只有正式订单创建成功后，才能按订单截止时间完成模拟支付。`,
           '确认购票申请', { confirmButtonText: '确认加入抢票排队', cancelButtonText: '再想想', closeOnClickModal: false, type: 'warning' },
         )
       } catch { return }
@@ -127,7 +127,7 @@ async function purchase() {
       :max="attempt ? undefined : maximum" step="1" required :disabled="busy || !!attempt || maximum < 1"
       :aria-label="ticket.name + '购买数量'" />
     <span class="purchase-estimate"><small>预计金额</small><strong>{{ estimate }}</strong></span>
-    <p>抢票排队不保证有票，订单创建成功后才会预占库存。</p>
+    <p>申请受理后会暂时预扣库存，但不代表购票成功；只有正式订单创建成功后才能模拟支付。</p>
     <p v-if="attempt" role="status">已保留原购票申请，重复点击和刷新将查询同一结果。</p>
     <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
     <ElButton type="primary" native-type="submit" :loading="busy"

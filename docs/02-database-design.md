@@ -1,14 +1,20 @@
-# 数据库 V1 至 V8
+# 数据库设计与迁移历史
 
-V1～V7保持原文。第十四阶段新增`V8__async_purchase_admission.sql`，引入普通购票可靠受理及持久预算；第十一阶段V7的角色、场次工作人员权限和追加式管理审计继续保留。当前异步协议见[第十四阶段记录](25-async-purchase-refactor-verification.md)，下文旧阶段说明保留其历史上下文。
+V1～V10保持原文。第十四阶段V8引入普通购票可靠受理及持久预算；第十九阶段部署了V10分桶兼容结构。本轮只新增V11，将稳定Redis预扣token与MySQL申请关联；旧阶段段落保留其当时架构背景，当前行为以V11说明为准。
+
+## V11 Redis预扣与受理关联
+
+`V11__redis_stock_reservation_link.sql`只给`purchase_request`新增`stock_reservation_token BINARY(32)`，按可信user_id、固定`CREATE_ORDER`操作域、原幂等键和request_hash的SHA-256回填旧申请，再设为NOT NULL并建立唯一索引；`(sku_id,status,id)`支持有界SKU活动申请恢复。V1至V10不修改。迁移不写订单、库存、容量、Outbox或支付事实。
+
+MySQL申请行是token与申请ID的持久反向关联。Redis丢失token时，可从QUEUED/PROCESSING申请重建token与SKU索引；Redis全局容量计数丢失时，以活动申请数加未落库/待终态Redis token有界重建。Redis中找不到、MySQL也没有申请的孤儿预扣，恢复器在用户UPDATE锁下写终态幂等申请和唯一库存事件后才执行Lua幂等释放，迟到HTTP写事务会看到该终态。`purchase_capacity`表保留但V11应用路径停止读写，不再形成每次受理的MySQL热点。
 
 ## V8 购票受理与预算
 
 `purchase_request`独立于正式订单，状态为QUEUED、PROCESSING、SUCCEEDED、FAILED、EXPIRED。按用户、CREATE_ORDER操作域、区分大小写的可见ASCII幂等键唯一，SHA-256请求摘要按原skuId与quantity规则生成。成功关联订单唯一，复合外键保证订单属于同一用户；CHECK保证成功必须关联订单、失败/过期必须有失败码、处理中必须有租约，其他状态无租约。状态及截止时间/恢复时间、本人请求列表均有扫描索引。
 
-SKU编号是受理参数，不增加会在HTTP容量预算内隐式锁SKU的外键。消费者在数据库锁序内重新加载用户、活动、场次及SKU并验证，最终通过既有订单明细外键与条件库存更新保证真实交易关联。消息只传eventId/requestId/版本，不信任客户端或消息中的身份、价格和数量。
+SKU编号是受理参数，不增加会在HTTP受理事务内隐式锁SKU的外键。消费者在数据库锁序内重新加载用户、活动、场次及SKU并验证，最终通过既有订单明细外键与条件库存更新保证真实交易关联。消息只传eventId/requestId/版本，不信任客户端或消息中的身份、价格和数量。
 
-`purchase_capacity`单行保存pending_count。首次受理插入请求、条件递增容量和Outbox同事务；每个首次终态条件更新和递减预算同事务，崩溃不会留下只有预算而无请求的占位。上限来自已验证配置，不能用非原子COUNT后INSERT替代。处理令牌递增、租约及数据库时间条件阻止迟到消费者提交订单，恢复任务复用唯一Outbox，不追加无限副本。
+V8至V10期间，`purchase_capacity`单行保存pending_count，首次受理和终态同事务条件增减预算。自V11起，容量预算改由Redis Lua与稳定预扣token共用原子计数；MySQL表结构保留用于历史兼容，但应用不再读写它。MySQL活动申请和Redis恢复索引提供丢失计数后的有界重建事实。申请的处理令牌递增、租约及数据库时间条件仍阻止迟到消费者提交订单，恢复任务复用唯一Outbox，不追加无限副本。
 
 V8把已有CREATE_ORDER订单及原明细登记为SUCCEEDED请求，不改订单、支付时间、库存、候补或电子票，历史取消订单仍关联原单。部署须先停写并执行`scripts/audit-async-purchase-readiness.sql`；缺明细、摘要不匹配或多明细只报告并停止。已应用V1～V7不修改、无clean或自动repair。
 
@@ -28,7 +34,7 @@ order_aftercare按订单主键保存RETRY/MANUAL_REQUIRED/COMPLETED、受控中�
 
 部署前对目标V5库只读执行`scripts/audit-refund-readiness.sql`与`scripts/audit-waitlist-relations.sql`，检查原支付/票券数量/明细/库存和候补关联；异常停止升级并人工核对。V6后执行`scripts/audit-order-aftercare.sql`检查退款与支付、VOID、候补及库存，最后的人工/重试列表是运营待办，不代表可自动覆盖。MySQL各DDL可能已提交，文件中途失败后保留业务表、冲突表和Flyway失败记录，不自动repair、drop或重建。验收使用独立空库、含已付历史的V5随机schema与故意DDL冲突schema。
 
-迁移文件位于 `backend/src/main/resources/db/migration/`。使用 MySQL 8.4（最低需正确执行 CHECK 的 MySQL 8.0.16+）、InnoDB、utf8mb4、DATETIME(6)。Flyway校验已应用迁移，V1至V7禁止覆盖；后续结构变化新增V8及更高版本。无业务种子数据。
+迁移文件位于 `backend/src/main/resources/db/migration/`。使用 MySQL 8.4（最低需正确执行 CHECK 的 MySQL 8.0.16+）、InnoDB、utf8mb4、DATETIME(6)。Flyway校验已应用迁移，V1至V10禁止覆盖；后续结构变化只新增V11及更高版本。无业务种子数据。
 
 ## V7 场次工作人员与管理操作审计
 
@@ -79,7 +85,7 @@ V2 新增 `V2__activity_session_management.sql`，V1 保持不变。V2 复用 de
 
 ## 库存与交易一致性
 
-数据库强制 `total_stock >= 0`、`locked_stock >= 0`、`sold_stock >= 0`、`locked_stock + sold_stock <= total_stock`。可售量为 `total_stock - locked_stock - sold_stock`，不得独立维护另一份可售量。
+数据库强制 `total_stock >= 0`、`locked_stock >= 0`、`sold_stock >= 0`、`locked_stock + sold_stock <= total_stock`。MySQL可售量为`total_stock - locked_stock - sold_stock`，并且是唯一权威。Redis维护的是由该值减去未落入MySQL订单的有效预扣token得到的可预扣镜像；冻结重建时必须从MySQL和全部活动token重算，不能把Redis镜像当成交易库存事实。
 
 下单在READ_COMMITTED事务内依次锁用户、活动、场次、SKU，校验账号ACTIVE、父级状态、统一销售窗口和两层限购。库存通过 `UPDATE ticket_sku SET locked_stock=locked_stock+quantity,version=version+1 ... WHERE status='ON_SALE' AND sale_starts_at<=UTC_TIMESTAMP(6) AND sale_ends_at>UTC_TIMESTAMP(6) AND total_stock-locked_stock-sold_stock>=quantity` 条件更新，活动和场次状态在父级锁内核验并稳定至提交。随后插入PENDING订单和唯一明细，任何写入失败全部回滚。订单总额通过Math.multiplyExact计算，明细保存票档名、单价分和数量快照。库存释放与管理员增库存从第六阶段起同事务写Outbox。
 

@@ -1,6 +1,6 @@
 # 当前 API 契约
 
-后端保持单Maven模块，控制器、服务及Mapper按业务包组织，根包为`com.ticketing`。普通购票沿用第十四阶段异步受理协议；第十五阶段新增的票档/全局429及准入503见本文末尾，原权限、CSRF及用户安全限流保持。历史验收文档中的旧源码路径以当时提交为准，当前结构见[架构说明](01-architecture.md)。
+后端保持单Maven模块，按controller、service、mapper、entity、dto、vo等技术层分包，业务协作边界由架构规则登记，根包为`com.ticketing`。普通购票在原HTTP协议内增加Redis Lua真实库存预扣，保留202申请查询、原幂等键、用户身份、CSRF和独立安全频率限制；MySQL仍作最终库存与订单权威。当前时序和故障处理见[架构说明](01-architecture.md)。
 
 第十九阶段没有改变业务HTTP契约。可选运维配置将health/info/metrics置于`/api/v1/admin/monitoring`，继续要求实时ADMIN身份；其他敏感Actuator端点不暴露。该路径仅供本机或受控运维网络使用，部署检查见[运维手册](32-single-instance-operations.md)。所有BIGINT ID按字符串传输；时间使用带时区表示，人民币金额为整数分。
 
@@ -109,7 +109,7 @@ ON_SALE仅为管理状态。后端先判断活动发布、场次正常且未结�
 
 | 方法与路径（均在 /api/v1 下） | 语义 |
 | --- | --- |
-| POST `/orders` | JSON仅 `{ "skuId":"10001", "quantity":2 }`，必需请求头Idempotency-Key；持久受理成功202返回PurchaseRequestView，终态同键重放200；不在HTTP内预占或创建订单 |
+| POST `/orders` | JSON仅 `{ "skuId":"10001", "quantity":2 }`，必需请求头Idempotency-Key；Redis原子预扣后，MySQL持久申请与Outbox成功提交才返回202；终态同键重放200；不在HTTP内创建正式订单 |
 | GET `/purchase-requests/{requestId}` | 本人购票请求真实进度；不存在及非本人统一404，no-store |
 | GET `/purchase-requests` | 本人最近50笔进行中的抢票申请，供刷新与导航恢复；no-store |
 | GET `/purchase-requests/lookup` | 请求头Idempotency-Key（相同1至128位可见ASCII规则），只读查询当前用户该键的原申请；没有记录统一404 PURCHASE_REQUEST_NOT_FOUND，no-store；不提交新申请 |
@@ -120,17 +120,17 @@ ON_SALE仅为管理状态。后端先判断活动发布、场次正常且未结�
 | POST `/orders/{orderId}/pay` | 本人订单模拟支付；无业务请求体（允许空对象），不接收金额、用户ID等字段；成功200返回PaymentView |
 | GET `/orders/{orderId}/payment` | 本人订单成功模拟支付流水；没有成功记录404 PAYMENT_NOT_FOUND，非本人订单404 ORDER_NOT_FOUND |
 
-第十六阶段该限额改读MySQL用户场次独立额度，返回字段不变，仍跨该场次全部票档共享。PENDING与PAID占额，支付不重复占额，取消/过期/整单退款成功才同事务释放；WAITING及未建单请求不占额。交易账号SHARE与禁用/撤权UPDATE协调，限额写在精确额度行串行；HTTP受理仍保留原账号UPDATE、幂等键和容量事务。取消成功响应在写事务提交后读取公开详情，不暴露内部额度记录。迁移及完整锁协议见[第十六阶段说明](27-trade-quota-and-transaction-verification.md)。
+第十六阶段该限额改读MySQL用户场次独立额度，返回字段不变，仍跨该场次全部票档共享。PENDING与PAID占额，支付不重复占额，取消/过期/整单退款成功才同事务释放；WAITING及未建单请求不占额。交易账号SHARE与禁用/撤权UPDATE协调，限额写在精确额度行串行；HTTP受理仍保留原账号UPDATE与幂等事实事务。取消成功响应在写事务提交后读取公开详情，不暴露内部额度记录。迁移及完整锁协议见[第十六阶段说明](27-trade-quota-and-transaction-verification.md)。
 
-后审查增加实时销售预检：原申请查重优先；新键在写受理之前通过独立短只读事务按票档及父级主键检查。不存在票档404 TICKET_NOT_FOUND，明确未销售/下架/取消或窗口关闭409 TICKET_UNAVAILABLE，不写请求、预算或Outbox。预检不判断库存和场次剩余额度，消费者仍做最终锁内校验；预检通过不保证建单成功。恢复开售后原先未受理的键可以重试。此查询不用展示缓存或Redis负缓存。
+新键先经原只读幂等查重，再用MySQL短只读事务检查活动、场次、票档及版本；不存在票档404 TICKET_NOT_FOUND，明确未销售/下架/取消或窗口关闭409 TICKET_UNAVAILABLE，不写申请或Outbox。随后Redis Lua按该版本检查真实可售余额、SKU状态及受理容量并原子预扣。Redis不足409 TICKET_UNAVAILABLE；Redis不可用、SKU正冻结或状态无法证明时503 PURCHASE_ADMISSION_UNAVAILABLE。MySQL消费者仍执行库存和限购最终检查；预扣和预检均不保证正式建单成功。恢复开售后原先未受理的键可以用原键重试。
 
 POST原安全429/故障503仍可能先于业务查重，不因同键而放宽。丢失首次响应时可登录后用上述只读lookup恢复既有事实；404才表示当前读取时尚无已提交申请，重试写入仍须原键。客户端不自动循环重发写请求。取消响应超时或提交后详情读取失败也不代表取消未发生，应查询订单状态；CANCELLED可安全重试取消而不再次释放库存或额度。
 
 skuId为正十进制字符串且不能超过Java long，quantity为正INT整数，拒绝小数。未知创建字段（userId、价格、金额、状态、库存等）400；身份和价格只能来自服务端。幂等键为1至128位可见ASCII字符（不含空格），区分大小写；缺失或非法400。操作域固定CREATE_ORDER，同一用户同键同参返回同一个requestId及真实状态，不续期、不重复占预算或追加消息；同键异SKU/数量409 IDEMPOTENCY_CONFLICT，不同用户可共用键。V8将旧普通订单幂等事实登记为SUCCEEDED，旧订单已取消仍关联该原单，不重复预占。
 
-PurchaseRequestView为 `{requestId,skuId,quantity,status,orderId,failureCode,failureMessage,acceptedAt,deadlineAt,serverTime}`，ID按字符串传输。状态为QUEUED（抢票排队）、PROCESSING（确认中）、SUCCEEDED（订单已创建）、FAILED（业务失败）、EXPIRED（排队超时）。后面三种为终态；只有SUCCEEDED有真实orderId。202只证明受理事务已提交，不表示占库存或可支付。默认容量200、排队120秒，配置须通过校验；首次受理在同一MySQL事务中申请容量、保存请求和Outbox。满额503 PURCHASE_QUEUE_FULL，带Retry-After=2，不返回排队成功。
+PurchaseRequestView为 `{requestId,skuId,quantity,status,orderId,failureCode,failureMessage,acceptedAt,deadlineAt,serverTime}`，ID按字符串传输。状态为QUEUED（抢票排队）、PROCESSING（确认中）、SUCCEEDED（订单已创建）、FAILED（业务失败）、EXPIRED（排队超时）。后面三种为终态；只有SUCCEEDED有真实orderId。202证明Redis预扣和MySQL申请/Outbox已完成，不表示正式订单已创建或可支付。默认受理容量200、排队120秒；Redis计数与token原子更新，计数丢失时由有界恢复从MySQL活动申请及Redis索引重建。首次受理MySQL事务只写申请与Outbox，不再更新V8 `purchase_capacity`表。Redis受理容量已满时503 PURCHASE_QUEUE_FULL，带有界Retry-After，不创建申请或Outbox。
 
-购票命令消费者在MySQL事务内按账号SHARE→活动SHARE→场次SHARE→用户场次额度UPDATE→SKU UPDATE→订单→购票请求→容量预算加锁，校验活动PUBLISHED、场次SCHEDULED及销售窗口、SKU ON_SALE、可售量；区间为 `[saleStartsAt,saleEndsAt)`。数量受SKU单笔上限和跨SKU用户场次限额约束，默认每人每场4张，PENDING/PAID占额，CANCELLED/EXPIRED/REFUNDED不占额。库存或不可售、限购及金额异常表现为请求FAILED和有限业务码及中文说明；临时数据库异常回滚并保持可恢复状态。成功订单、明细、库存、额度及SUCCEEDED绑定必须一起提交。排队截止与订单15分钟支付截止独立，支付时间从正式订单创建开始计算。
+购票命令消费者先在MySQL事务外确认token仍为RESERVED并已绑定当前请求，再按账号SHARE→活动SHARE→场次SHARE→用户场次额度UPDATE→SKU UPDATE→订单→购票请求加锁，校验活动PUBLISHED、场次SCHEDULED及销售窗口、SKU ON_SALE、可售量；区间为 `[saleStartsAt,saleEndsAt)`。数量受SKU单笔上限和跨SKU用户场次限额约束，默认每人每场4张，PENDING/PAID占额，CANCELLED/EXPIRED/REFUNDED不占额。库存或不可售、限购及金额异常表现为请求FAILED和有限业务码及中文说明；临时数据库异常回滚并保持可恢复状态。成功订单、明细、库存、额度及SUCCEEDED绑定必须一起提交，提交后Redis token才结算为CONSUMED；确定失败先提交申请终态和库存Outbox，再由Lua幂等释放token。排队截止与订单15分钟支付截止独立，支付时间从正式订单创建开始计算。
 
 OrderView字段：id/orderNo/activityId/activityTitle/sessionId/sessionTitle/sessionStartsAt/skuId/skuName/quantity/unitPriceCents/totalAmountCents/status/createdAt/expiresAt/paymentDeadlinePassed/canCancel/canPay/payment/serverTime。ID和金额分为字符串，数量为整数，时间UTC带Z、页面北京时间。skuName、单价和数量来自下单明细快照，活动/场次名称及开始时间是当前关联资料。总额为服务端单价乘数量，不采用客户端预计金额。payment无成功流水时为null，否则为PaymentView，列表通过JOIN读取，不逐订单额外查询。
 
@@ -274,13 +274,12 @@ HTTP路径、请求字段、Session与CSRF、HTTP状态码及响应字符串状�
 
 公开活动详情、场次及有限活动列表组合可使用服务器Caffeine/Redis缓存，返回类型和状态不变；票档库存、销售状态和serverTime保持实时。管理员及交易权威查询绕过展示缓存。缓存降级加载繁忙时503 `CATALOG_BUSY`，不返回伪造空列表。
 
-`POST /orders`仍仅可靠受理，成功为202或既有终态回放200。原安全链路之后先读MySQL幂等事实；显式开启新增准入时，只有新键执行额外的全局和票档Lua速率限制。准入因本机对照未获性能收益而默认关闭：
+`POST /orders`仍沿用原请求和响应协议，成功为202或既有终态回放200。原安全链路之后先读MySQL幂等事实；仅新键执行Redis真实库存预扣，并随后将申请和既有Outbox写入短MySQL事务。独立用户安全限流仍在此前生效。
 
 | HTTP | 业务码 | 含义 |
 | --- | --- | --- |
-| 429 | `PURCHASE_GLOBAL_BUSY` | 新购票全局速率预算不足 |
-| 429 | `PURCHASE_TICKET_BUSY` | 本票档的新购票速率预算不足 |
-| 503 | `PURCHASE_ADMISSION_UNAVAILABLE` | 新准入服务故障或协议异常 |
-| 503 | `PURCHASE_QUEUE_FULL` | 原MySQL持久待处理容量已满 |
+| 409 | `TICKET_UNAVAILABLE` | MySQL销售资格无效或Redis可售余额不足，未写申请 |
+| 503 | `PURCHASE_ADMISSION_UNAVAILABLE` | Redis库存预扣不可用、SKU冻结或状态无法安全核对 |
+| 503 | `PURCHASE_QUEUE_FULL` | Redis原子受理容量已满，未写申请 |
 
-上述响应均为no-store，购票拒绝携带Retry-After，不生成新的受理记录/Outbox或占用数据库容量。速率成本不等于库存，不作反向补令牌。旧安全过滤器仍可先返回429 `TOO_MANY_REQUESTS`或503 `RATE_LIMIT_UNAVAILABLE`，包括对已有键的提交；新增准入本身不阻止已有同参键回放，同键异参仍409。前端保留原幂等键，等待后重试确认，不把入口拒绝显示成已排队。
+上述响应均为no-store，不生成新的受理记录或Outbox；已执行但未关联申请的Redis token由恢复扫描安全释放。旧安全过滤器仍可先返回429 `TOO_MANY_REQUESTS`或503 `RATE_LIMIT_UNAVAILABLE`，包括对已有键的提交；已有同参键只读回放，同键异参仍409。前端保留原幂等键，不把入口拒绝显示成已排队。

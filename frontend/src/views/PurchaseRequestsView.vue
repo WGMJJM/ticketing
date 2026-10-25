@@ -63,7 +63,7 @@ onBeforeUnmount(() => { disposed = true; stop(); document.removeEventListener('v
   <div class="orders-page">
     <div class="order-top"><div><span class="eyebrow"><span></span>我的购票申请</span><h1>抢票排队</h1></div>
       <ElButton :loading="loading" @click="load(true)">刷新排队状态</ElButton></div>
-    <p>这里是普通购票的抢票排队，与缺票候补分别处理。排队不占库存，只有正式订单创建成功后才能模拟支付。</p>
+    <p>这里是普通购票申请，与缺票候补分别处理。申请受理后会暂时预扣库存，但不代表购票成功；只有正式订单创建成功后才能模拟支付，失败或超时会释放预扣。</p>
     <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
     <p v-if="!auth.authenticated" class="stage-notice" role="status">登录状态已失效，请重新登录后查看原申请。<RouterLink :to="{path:'/login',query:{redirect:id ? '/purchase-requests/'+id : '/purchase-requests'}}">重新登录 →</RouterLink></p>
     <p v-if="paused" class="stage-notice" role="status">已暂停自动查询，页面不会因此改变服务端处理结果，可稍后手动刷新。</p>
