@@ -12,10 +12,8 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 
 /** 单实例候补续跑队列；队列溢出时由持久WAITING记录和补偿扫描恢复。 */
-@Component
 public class WaitlistContinuationScheduler {
     private static final Logger LOG = LoggerFactory.getLogger(WaitlistContinuationScheduler.class);
     private static final int WORKER_COUNT = 1;

@@ -169,9 +169,8 @@ public class TicketService implements SessionWindowGuard {
         } catch (DuplicateKeyException exception) {
             throw duplicateName();
         }
-        if (request.totalStock() > sku.getTotalStock()) {
-            events.append(id, InventoryChangeReason.STOCK_INCREASED);
-        }
+        events.append(id, request.totalStock() > sku.getTotalStock()
+                ? InventoryChangeReason.STOCK_INCREASED : InventoryChangeReason.SKU_CONFIGURATION_CHANGED);
         audit.record(operatorId, !sku.getTotalStock().equals(request.totalStock()) ? AuditAction.STOCK_ADJUST : AuditAction.TICKET_UPDATE,
                 "TICKET_SKU", id, snapshot(sku), snapshot(requireTicket(id)));
         cache.invalidateAfterCommit();
@@ -201,6 +200,7 @@ public class TicketService implements SessionWindowGuard {
                 != 1) {
             throw conflict("票档状态已变化，请刷新后重试");
         }
+        events.append(id, InventoryChangeReason.SKU_CONFIGURATION_CHANGED);
         audit.record(operatorId, AuditAction.TICKET_PUBLISH, "TICKET_SKU", id, snapshot(sku), snapshot(requireTicket(id)));
         cache.invalidateAfterCommit();
         return view(requireTicket(id), session);
@@ -221,6 +221,7 @@ public class TicketService implements SessionWindowGuard {
                 != 1) {
             throw conflict("票档状态已变化，请刷新后重试");
         }
+        events.append(id, InventoryChangeReason.SKU_CONFIGURATION_CHANGED);
         audit.record(operatorId, AuditAction.TICKET_OFFLINE, "TICKET_SKU", id, snapshot(sku), snapshot(requireTicket(id)));
         cache.invalidateAfterCommit();
         return view(requireTicket(id), session);
