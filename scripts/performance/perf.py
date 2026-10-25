@@ -255,7 +255,9 @@ def initialize():
         environment_snapshot()
 
 
-def environment_snapshot():
+def environment_snapshot(output_path=None):
+    if output_path is not None and output_path.exists():
+        raise RuntimeError('环境报告已存在，禁止覆盖')
     docker = json.loads(subprocess.check_output(['docker','info','--format','{{json .}}'], text=True))
     images = json.loads(subprocess.check_output(['docker','image','inspect','mysql:8.4','rabbitmq:4.1-management-alpine','redis:7-alpine'], text=True))
     host = {'platform':platform.platform(),'logicalProcessors':os.cpu_count()}
@@ -271,7 +273,7 @@ def environment_snapshot():
                 'jvmFlags':['-Xms512m','-Xmx1024m','-XX:+UseG1GC'],
                 'mysql':rows('SELECT @@version version,@@innodb_flush_log_at_trx_commit flush_at_commit,@@sync_binlog sync_binlog,@@transaction_isolation default_isolation,@@max_connections max_connections,@@innodb_buffer_pool_size buffer_pool_bytes,@@log_bin log_bin'),
                 'mysqlLockMetrics':rows("SELECT NAME,COUNT,STATUS FROM information_schema.innodb_metrics WHERE NAME IN ('lock_deadlocks','lock_timeouts')")}
-    save(RESULTS/'hardware.json',snapshot)
+    save(output_path if output_path is not None else RESULTS/'hardware.json', snapshot)
     return snapshot
 
 
