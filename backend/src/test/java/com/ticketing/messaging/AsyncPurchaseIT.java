@@ -274,8 +274,13 @@ class AsyncPurchaseIT {
 
     @Test void recoveryIsBoundedAndReusesOneOutboxRecord() throws Exception {
         long id=accept(buyer,sku,1,"recover").path("requestId").asLong();
+        PurchaseRequest accepted=requests.find(id);
+        assertThat(Duration.between(accepted.acceptedAt(),accepted.nextRecoveryAt())).isEqualTo(Duration.ofSeconds(1));
         publisher.publishBatch(); // 队列有消息但消费者停止，SENT不等于订单完成。
         assertThat(requests.find(id).status()).isEqualTo("QUEUED");
+        db.update("UPDATE purchase_request SET next_recovery_at=TIMESTAMPADD(SECOND,60,UTC_TIMESTAMP(6)) WHERE id=?",id);
+        processing.recover(id);
+        assertThat(db.queryForObject("SELECT status FROM outbox_event WHERE event_id=?",String.class,PurchaseCommand.eventId(id))).isEqualTo("SENT");
         db.update("UPDATE purchase_request SET next_recovery_at=UTC_TIMESTAMP(6) WHERE id=?",id);
         for(int i=0;i<20;i++)processing.recover(id);
         assertThat(db.queryForObject("SELECT COUNT(*) FROM outbox_event WHERE event_id=?",Integer.class,PurchaseCommand.eventId(id))).isEqualTo(1);

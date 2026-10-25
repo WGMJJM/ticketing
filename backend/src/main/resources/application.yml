@@ -11,6 +11,8 @@ spring:
     password: ${MYSQL_PASSWORD}
     hikari:
       connection-init-sql: SET time_zone = '+00:00'
+      data-source-properties:
+        useLocalSessionState: true
   flyway:
     enabled: true
     locations: classpath:db/migration

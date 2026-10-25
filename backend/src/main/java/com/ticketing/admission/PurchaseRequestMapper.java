@@ -20,11 +20,13 @@ public interface PurchaseRequestMapper {
     @Select("SELECT UTC_TIMESTAMP(6)") LocalDateTime now();
 
     @Insert("""
-        INSERT INTO purchase_request(user_id,sku_id,quantity,idempotency_key,request_hash,deadline_at)
-        VALUES(#{userId},#{skuId},#{quantity},#{key},#{hash},TIMESTAMPADD(SECOND,#{seconds},UTC_TIMESTAMP(6)))
+        INSERT INTO purchase_request(user_id,sku_id,quantity,idempotency_key,request_hash,deadline_at,next_recovery_at)
+        VALUES(#{userId},#{skuId},#{quantity},#{key},#{hash},TIMESTAMPADD(SECOND,#{seconds},UTC_TIMESTAMP(6)),
+          TIMESTAMPADD(SECOND,#{recovery},UTC_TIMESTAMP(6)))
         """)
     int insert(@Param("userId") long userId, @Param("skuId") long skuId, @Param("quantity") int quantity,
-            @Param("key") String key, @Param("hash") byte[] hash, @Param("seconds") int seconds);
+            @Param("key") String key, @Param("hash") byte[] hash, @Param("seconds") int seconds,
+            @Param("recovery") int recoverySeconds);
     @Select("SELECT LAST_INSERT_ID()") long insertedId();
     @Update("UPDATE purchase_capacity SET pending_count=pending_count+1 WHERE id=1 AND pending_count<#{capacity}")
     int acquire(int capacity);

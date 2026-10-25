@@ -47,7 +47,8 @@ public class PurchaseAdmission {
             requireSame(existing,hash);
             return view(existing);
         }
-        requests.insert(userId,skuId,quantity,key,hash,properties.queueSeconds());
+        // 首轮也遵守恢复间隔，避免正常排队中的已确认命令被立即重复发布。
+        requests.insert(userId,skuId,quantity,key,hash,properties.queueSeconds(),properties.recoverySeconds());
         long id=requests.insertedId();
         // 无SKU外键写锁，避免受理持预算后等待交易库存；用户外键在用户锁内写入。
         started=System.nanoTime();
