@@ -1,0 +1,87 @@
+{
+  "channels": {
+    "PURCHASE_REQUEST_ACCEPTED": {
+      "states": {
+        "PENDING": 0,
+        "PROCESSING": 0,
+        "SENT": 670,
+        "FAILED": 0
+      },
+      "retryEvents": 344,
+      "createdToConfirmedRecordMs": {
+        "count": 670,
+        "p50": 2265.7470000000003,
+        "p95": 4951.18235,
+        "p99": 7124.16136,
+        "max": 7359.418
+      },
+      "pendingAgeMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      }
+    },
+    "WAITLIST_DISPATCH_REQUESTED": {
+      "states": {
+        "PENDING": 0,
+        "PROCESSING": 0,
+        "SENT": 670,
+        "FAILED": 0
+      },
+      "retryEvents": 0,
+      "createdToConfirmedRecordMs": {
+        "count": 670,
+        "p50": 634.0799999999999,
+        "p95": 1266.38825,
+        "p99": 1388.6699099999994,
+        "max": 1743.511
+      },
+      "pendingAgeMs": {
+        "count": 0,
+        "p50": null,
+        "p95": null,
+        "p99": null,
+        "max": null
+      }
+    }
+  },
+  "purchaseStates": {
+    "QUEUED": 0,
+    "PROCESSING": 0,
+    "SUCCEEDED": 670,
+    "FAILED": 0,
+    "EXPIRED": 0
+  },
+  "acceptedToOutboxMs": {
+    "count": 670,
+    "p50": 8.044,
+    "p95": 157.32584999999972,
+    "p99": 399.0753599999983,
+    "max": 591.457
+  },
+  "acceptedToOrderWriteMs": {
+    "count": 670,
+    "p50": 3328.8959999999997,
+    "p95": 6332.675249999999,
+    "p99": 7846.76661,
+    "max": 8293.042
+  },
+  "acceptedToTerminalWriteMs": {
+    "count": 670,
+    "p50": 3337.2790000000005,
+    "p95": 6376.0440499999995,
+    "p99": 7857.886909999999,
+    "max": 8322.182
+  },
+  "confirmedRecordToOrderWriteSignedMs": {
+    "count": 670,
+    "p50": 1124.071,
+    "p95": 2289.4611499999996,
+    "p99": 3108.2683399999974,
+    "max": 3848.225
+  },
+  "scope": "全轮数据库时间汇总，另看k6按完成时间截取的稳定窗口；写入时刻不等于事务提交时刻。",
+  "overlap": "消费者可先于Publisher落账提交，确认落账到订单写入可为负数，不能当作独立顺序阶段或截断为零。发送到ACK及消费者事务分别看应用Timer，旧包没有该确认Timer。"
+}

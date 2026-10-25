@@ -1,0 +1,218 @@
+{
+  "passed": true,
+  "startedAt": "2026-10-25T03:37:12.395508+00:00",
+  "rounds": [
+    {
+      "scenario": "hot-ample",
+      "vus": 100,
+      "independentBuyerAccounts": 100,
+      "steadySeconds": 60,
+      "httpRps": 362.75,
+      "acceptedTps": 12.783333333333333,
+      "successfulOrderTps": 12.766666666666667,
+      "paidTps": 0.0,
+      "successCompletionMs": {
+        "med": 7124,
+        "p(95)": 15786.75,
+        "p(99)": 18601.2,
+        "max": 19004
+      },
+      "businessFailureCompletionMs": {
+        "med": null,
+        "p(95)": null,
+        "p(99)": null,
+        "max": null
+      },
+      "queueExpiredCompletionMs": {
+        "med": null,
+        "p(95)": null,
+        "p(99)": null,
+        "max": null
+      },
+      "legacyCompletionMs": {
+        "med": 7123.5,
+        "p(95)": 15786.75,
+        "p(99)": 18601.2,
+        "max": 19004
+      },
+      "k6ExitCode": 0,
+      "mysqlDelta": {
+        "Com_commit": 28862,
+        "Com_rollback": 0,
+        "Com_select": 130114,
+        "Innodb_row_lock_time": 112633,
+        "Innodb_row_lock_waits": 2372,
+        "Questions": 295536,
+        "Slow_queries": 940,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "raw": "docs/performance/results/stage19-baseline-r3/hot-ample-100/hot-ample-100"
+    },
+    {
+      "scenario": "hot-scarce",
+      "vus": 100,
+      "independentBuyerAccounts": 100,
+      "steadySeconds": 60,
+      "httpRps": 365.8333333333333,
+      "acceptedTps": 13.366666666666667,
+      "successfulOrderTps": 12.533333333333333,
+      "paidTps": 0.0,
+      "successCompletionMs": {
+        "med": 6775.5,
+        "p(95)": 14672.8,
+        "p(99)": 18150.94,
+        "max": 18939
+      },
+      "businessFailureCompletionMs": {
+        "med": 6522,
+        "p(95)": 13292.099999999986,
+        "p(99)": 17696.539999999997,
+        "max": 18341
+      },
+      "queueExpiredCompletionMs": {
+        "med": null,
+        "p(95)": null,
+        "p(99)": null,
+        "max": null
+      },
+      "legacyCompletionMs": {
+        "med": 6766,
+        "p(95)": 14664.399999999998,
+        "p(99)": 18156.94,
+        "max": 18939
+      },
+      "k6ExitCode": 0,
+      "mysqlDelta": {
+        "Com_commit": 29103,
+        "Com_rollback": 61,
+        "Com_select": 131224,
+        "Innodb_row_lock_time": 102317,
+        "Innodb_row_lock_waits": 2330,
+        "Questions": 298432,
+        "Slow_queries": 798,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "raw": "docs/performance/results/stage19-baseline-r3/hot-scarce-100/hot-scarce-100"
+    },
+    {
+      "scenario": "mixed",
+      "vus": 25,
+      "independentBuyerAccounts": 25,
+      "steadySeconds": 60,
+      "httpRps": 119.71666666666667,
+      "acceptedTps": 15.566666666666666,
+      "successfulOrderTps": 15.616666666666667,
+      "paidTps": 5.15,
+      "successCompletionMs": {
+        "med": 1528,
+        "p(95)": 1913.1999999999998,
+        "p(99)": 2516.4399999999996,
+        "max": 3017
+      },
+      "businessFailureCompletionMs": {
+        "med": null,
+        "p(95)": null,
+        "p(99)": null,
+        "max": null
+      },
+      "queueExpiredCompletionMs": {
+        "med": null,
+        "p(95)": null,
+        "p(99)": null,
+        "max": null
+      },
+      "legacyCompletionMs": {
+        "med": 1528,
+        "p(95)": 1913.1999999999998,
+        "p(99)": 2516.4399999999996,
+        "max": 3017
+      },
+      "k6ExitCode": 0,
+      "mysqlDelta": {
+        "Com_commit": 13825,
+        "Com_rollback": 0,
+        "Com_select": 88689,
+        "Innodb_row_lock_time": 79557,
+        "Innodb_row_lock_waits": 2294,
+        "Questions": 181059,
+        "Slow_queries": 488,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "raw": "docs/performance/results/stage19-baseline-r3/mixed-25/mixed-25"
+    },
+    {
+      "scenario": "same-user-cross-session",
+      "vus": 25,
+      "independentBuyerAccounts": 1,
+      "steadySeconds": 60,
+      "httpRps": 113.35,
+      "acceptedTps": 15.733333333333333,
+      "successfulOrderTps": 8.733333333333333,
+      "paidTps": 3.1166666666666667,
+      "successCompletionMs": {
+        "med": 1491,
+        "p(95)": 2073.85,
+        "p(99)": 2294.08,
+        "max": 2776
+      },
+      "businessFailureCompletionMs": {
+        "med": 1434,
+        "p(95)": 1776.2999999999997,
+        "p(99)": 1995.34,
+        "max": 2231
+      },
+      "queueExpiredCompletionMs": {
+        "med": null,
+        "p(95)": null,
+        "p(99)": null,
+        "max": null
+      },
+      "legacyCompletionMs": {
+        "med": 1465,
+        "p(95)": 1995.3999999999999,
+        "p(99)": 2211.08,
+        "max": 2776
+      },
+      "k6ExitCode": 0,
+      "mysqlDelta": {
+        "Com_commit": 12681,
+        "Com_rollback": 438,
+        "Com_select": 74951,
+        "Innodb_row_lock_time": 175394,
+        "Innodb_row_lock_waits": 3493,
+        "Questions": 158765,
+        "Slow_queries": 1335,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "raw": "docs/performance/results/stage19-baseline-r3/same-user-cross-session-25/mixed-25"
+    }
+  ],
+  "jarSha256": "690448e32c25353f060b00ce5fd09d12070347f42f1affbb555e14d043ad7345",
+  "scripts": {
+    "perf.py": "6fbdd48ca91fa7a19c038421a9c3a142bf2ed086ffc202f7792f833dc3ec8290",
+    "scenarios.js": "a7750d79193d9ed955f9338e0cdce02f0bd8bffa37a387a35121893d8dd8560b",
+    "final_load_suite.py": "2662534e30a64cf8a2a63cd1d6ea367721563f64dbab29f0a24eaf410c06e402"
+  },
+  "endedAt": "2026-10-25T03:45:40.207446+00:00",
+  "measurement": "HTTP/订单按完成时刻截取预热后固定窗口，成功与失败时延分开；默认SINGLE，Lua准入关闭。"
+}

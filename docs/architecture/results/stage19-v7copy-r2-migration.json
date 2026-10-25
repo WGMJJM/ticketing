@@ -1,0 +1,3976 @@
+{
+  "passed": true,
+  "startedAt": "2026-10-25T02:50:15.413892+00:00",
+  "sourceModified": false,
+  "repairOrCleanExecuted": false,
+  "checks": [
+    {
+      "name": "原库只读确认为V7",
+      "passed": true,
+      "database": "ticketing",
+      "versions": [
+        {
+          "version": "1",
+          "success": 1
+        },
+        {
+          "version": "2",
+          "success": 1
+        },
+        {
+          "version": "3",
+          "success": 1
+        },
+        {
+          "version": "4",
+          "success": 1
+        },
+        {
+          "version": "5",
+          "success": 1
+        },
+        {
+          "version": "6",
+          "success": 1
+        },
+        {
+          "version": "7",
+          "success": 1
+        }
+      ],
+      "originallyStopped": true
+    },
+    {
+      "name": "原库只读备份且前后全表摘要相同",
+      "passed": true,
+      "tableFacts": {
+        "activity": {
+          "rows": 8,
+          "sha256": "70d7ac895136165a43ef0eb022febefcbdaca7317653a68c4efa6520b907a57a"
+        },
+        "activity_session": {
+          "rows": 9,
+          "sha256": "071f79bce251cae3843e2271c95910c85217533371b2dc125926090262862aad"
+        },
+        "admin_audit_log": {
+          "rows": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "electronic_ticket": {
+          "rows": 5,
+          "sha256": "87d64c74c8c5c2469cb6153f1c90006a7d7b004ea650a44796ae0cfb7d701fcc"
+        },
+        "flyway_schema_history": {
+          "rows": 7,
+          "sha256": "47c1dc7e8605a1afee6fcdbd4e199bd34ff9ffb7eaa90c8ab8bf9f6d7b47d473"
+        },
+        "order_aftercare": {
+          "rows": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "outbox_event": {
+          "rows": 11,
+          "sha256": "2a29a60d1d25c15e87b9b20dc5feba07d4eeea1b8c44f953a8b0ad4f2f0528ff"
+        },
+        "payment_record": {
+          "rows": 3,
+          "sha256": "350eb9466fd14eeff8ac35d60ab7737aabe801ea38dfcff2ec83d36823046004"
+        },
+        "refund_record": {
+          "rows": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "staff_session_permission": {
+          "rows": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ticket_order": {
+          "rows": 6,
+          "sha256": "a53dba8c5845a167610a4eaad0af7d2185ee5b29110826f22f29a4d6b81c4c1f"
+        },
+        "ticket_order_item": {
+          "rows": 6,
+          "sha256": "0868016a9008d693f11f8bd3a0980f63a2af0fb759a49bbb03a74a0e50c82a19"
+        },
+        "ticket_sku": {
+          "rows": 7,
+          "sha256": "618694e70bb041693eff315c143e3f10fcaaeccaa97fc4d6520e18898bb99c60"
+        },
+        "user_account": {
+          "rows": 3,
+          "sha256": "6e68fa1a4b8eb6929da9dc5861a9932971ede29394a403f4df16e81e21a48832"
+        },
+        "waitlist_entry": {
+          "rows": 1,
+          "sha256": "d83bca9cde6c662a0518a4722bc1c292e528d0297177337bef7f3fb511f3cd5a"
+        }
+      },
+      "backupSha256": "2bfe109dba1cf3bcb510eabe7058f3afd66a9be1d410bff5c1fcbd62e01f9330",
+      "backupBytes": 49685,
+      "privateBackup": ".local\\stage19\\stage19-v7copy-r2\\source-v7.sql"
+    },
+    {
+      "name": "V7备份两次真实恢复逐表摘要完全一致",
+      "passed": true
+    },
+    {
+      "name": "V7历史只读迁移预检",
+      "passed": true,
+      "audits": [
+        {
+          "script": "scripts/audit-waitlist-relations.sql",
+          "violations": 0
+        },
+        {
+          "script": "scripts/audit-refund-readiness.sql",
+          "violations": 0
+        },
+        {
+          "script": "scripts/audit-staff-audit-readiness.sql",
+          "violations": 0
+        },
+        {
+          "script": "scripts/audit-async-purchase-readiness.sql",
+          "violations": 0
+        },
+        {
+          "script": "scripts/audit-user-session-quota.sql",
+          "violations": 0
+        }
+      ]
+    },
+    {
+      "name": "副本V9单次迁移已显式批准",
+      "passed": true,
+      "schema": "ticketing_s19_39fee2f068d547a9_it",
+      "writesStopped": true,
+      "backupSha256": "2bfe109dba1cf3bcb510eabe7058f3afd66a9be1d410bff5c1fcbd62e01f9330",
+      "approvalScope": "isolated-copy-only"
+    },
+    {
+      "name": "升级V8V9V10保持所有既有业务事实",
+      "passed": true,
+      "originalOrderCount": 6
+    },
+    {
+      "name": "V10副本全部SQL审计零偏差",
+      "passed": true,
+      "audits": [
+        {
+          "script": "scripts/audit-waitlist-relations.sql",
+          "violations": 0
+        },
+        {
+          "script": "scripts/audit-refund-readiness.sql",
+          "violations": 0
+        },
+        {
+          "script": "scripts/audit-staff-audit-readiness.sql",
+          "violations": 0
+        },
+        {
+          "script": "scripts/audit-async-purchase-readiness.sql",
+          "violations": 0
+        },
+        {
+          "script": "scripts/audit-user-session-quota.sql",
+          "violations": 0
+        },
+        {
+          "script": "scripts/performance/audit.sql",
+          "violations": 0
+        },
+        {
+          "script": "scripts/performance/audit-purchase.sql",
+          "violations": 0
+        },
+        {
+          "script": "scripts/performance/audit-quota.sql",
+          "violations": 0
+        },
+        {
+          "script": "scripts/performance/audit-buckets.sql",
+          "violations": 0
+        }
+      ]
+    },
+    {
+      "name": "V10迁移重跑幂等且单次批准已撤销",
+      "passed": true,
+      "approvalActive": false
+    },
+    {
+      "name": "全新空库V1到V10",
+      "passed": true
+    },
+    {
+      "name": "恢复副本仍保持原V7事实可用于回退",
+      "passed": true,
+      "warning": "恢复演练在新schema，原开发库未升级；失败生产升级不能使用Flyway降级"
+    }
+  ],
+  "schemas": {
+    "upgrade": "ticketing_s19_39fee2f068d547a9_it",
+    "restoredBackup": "ticketing_s19_d93bb3ddf1344e0c_it",
+    "fresh": "ticketing_s19_7dec036939e844e2_it"
+  },
+  "upgradeObjects": {
+    "tables": [
+      {
+        "TABLE_NAME": "activity",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "flyway_schema_history",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "order_aftercare",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "order_stock_allocation",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "payment_record",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "purchase_capacity",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "stock_strategy_switch",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "ticket_stock_balance",
+        "TABLE_TYPE": "VIEW"
+      },
+      {
+        "TABLE_NAME": "ticket_stock_bucket",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "ticket_waitlist_gate",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "user_account",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "user_session_quota",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "TABLE_TYPE": "BASE TABLE"
+      }
+    ],
+    "indexes": [
+      {
+        "TABLE_NAME": "activity",
+        "INDEX_NAME": "idx_activity_discovery",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "status",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "activity",
+        "INDEX_NAME": "idx_activity_discovery",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "city",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "activity",
+        "INDEX_NAME": "idx_activity_discovery",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "category",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "activity",
+        "INDEX_NAME": "idx_activity_discovery",
+        "SEQ_IN_INDEX": 4,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "activity",
+        "INDEX_NAME": "idx_activity_publication",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "status",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "activity",
+        "INDEX_NAME": "idx_activity_publication",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "published_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "activity",
+        "INDEX_NAME": "idx_activity_publication",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "activity",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "INDEX_NAME": "idx_session_activity_start",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "activity_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "INDEX_NAME": "idx_session_activity_start",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "starts_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "INDEX_NAME": "idx_session_activity_start",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "INDEX_NAME": "idx_session_status",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "status",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "INDEX_NAME": "idx_session_status",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "INDEX_NAME": "idx_audit_operator_time",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "operator_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "INDEX_NAME": "idx_audit_operator_time",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "occurred_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "INDEX_NAME": "idx_audit_operator_time",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "INDEX_NAME": "idx_audit_resource_time",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "resource_type",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "INDEX_NAME": "idx_audit_resource_time",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "resource_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "INDEX_NAME": "idx_audit_resource_time",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "occurred_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "INDEX_NAME": "idx_audit_resource_time",
+        "SEQ_IN_INDEX": 4,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "INDEX_NAME": "idx_audit_time",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "occurred_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "INDEX_NAME": "idx_audit_time",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "idx_ticket_checker",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "checked_by",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "idx_ticket_item_reference",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_item_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "idx_ticket_item_reference",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "idx_ticket_item_reference",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "idx_ticket_order_owner",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "idx_ticket_order_owner",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "owner_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "idx_ticket_owner",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "owner_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "idx_ticket_owner",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "created_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "idx_ticket_owner",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "idx_ticket_sku",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "uk_ticket_digest",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "credential_digest",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "uk_ticket_item_sequence",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_item_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "uk_ticket_item_sequence",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "sequence_no",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "uk_ticket_no",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "ticket_no",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "flyway_schema_history",
+        "INDEX_NAME": "flyway_schema_history_s_idx",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "success",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "flyway_schema_history",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "installed_rank",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "order_aftercare",
+        "INDEX_NAME": "idx_aftercare_retry",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "status",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "order_aftercare",
+        "INDEX_NAME": "idx_aftercare_retry",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "next_retry_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "order_aftercare",
+        "INDEX_NAME": "idx_aftercare_retry",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "order_aftercare",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "order_stock_allocation",
+        "INDEX_NAME": "idx_allocation_bucket",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "order_stock_allocation",
+        "INDEX_NAME": "idx_allocation_bucket",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "bucket_no",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "order_stock_allocation",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "order_stock_allocation",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "order_stock_allocation",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "bucket_no",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "INDEX_NAME": "idx_outbox_aggregate",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "aggregate_type",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "INDEX_NAME": "idx_outbox_aggregate",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "aggregate_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "INDEX_NAME": "idx_outbox_aggregate",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "INDEX_NAME": "idx_outbox_channel",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "event_type",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "INDEX_NAME": "idx_outbox_channel",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "status",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "INDEX_NAME": "idx_outbox_channel",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "next_retry_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "INDEX_NAME": "idx_outbox_channel",
+        "SEQ_IN_INDEX": 4,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "INDEX_NAME": "idx_outbox_dispatch",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "status",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "INDEX_NAME": "idx_outbox_dispatch",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "next_retry_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "INDEX_NAME": "idx_outbox_dispatch",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "INDEX_NAME": "uk_outbox_event_id",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "event_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "payment_record",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "payment_record",
+        "INDEX_NAME": "uk_payment_no",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "payment_no",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "payment_record",
+        "INDEX_NAME": "uk_payment_order",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "purchase_capacity",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "fk_purchase_order_owner",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "fk_purchase_order_owner",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "user_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "idx_purchase_expiry",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "status",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "idx_purchase_expiry",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "deadline_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "idx_purchase_expiry",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "idx_purchase_owner",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "user_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "idx_purchase_owner",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "idx_purchase_recovery",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "status",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "idx_purchase_recovery",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "next_recovery_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "idx_purchase_recovery",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "uk_purchase_idempotency",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "user_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "uk_purchase_idempotency",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "idempotency_operation",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "uk_purchase_idempotency",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "idempotency_key",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "uk_purchase_order",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "INDEX_NAME": "fk_refund_operator",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "operator_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "INDEX_NAME": "fk_refund_payment",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "payment_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "INDEX_NAME": "uk_refund_no",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "refund_no",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "INDEX_NAME": "uk_refund_order",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "INDEX_NAME": "idx_permission_grantor",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "granted_by",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "INDEX_NAME": "idx_permission_session",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "session_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "INDEX_NAME": "idx_permission_session",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "staff_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "INDEX_NAME": "uk_staff_session",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "staff_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "INDEX_NAME": "uk_staff_session",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "session_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "stock_strategy_switch",
+        "INDEX_NAME": "fk_switch_operator",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "operator_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "stock_strategy_switch",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_admin_created",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "created_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_admin_created",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_expiry",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "status",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_expiry",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "expires_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_expiry",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_session",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "session_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_user_created",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "user_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_user_created",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "created_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_user_created",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_user_session_status",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "user_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_user_session_status",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "session_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_user_session_status",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "status",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_user_session_status",
+        "SEQ_IN_INDEX": 4,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "uk_order_id_session",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "uk_order_id_session",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "session_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "uk_order_id_user",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "uk_order_id_user",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "user_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "uk_order_idempotency",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "user_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "uk_order_idempotency",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "idempotency_operation",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "uk_order_idempotency",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "idempotency_key",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "uk_order_no",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_no",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "INDEX_NAME": "idx_item_order_session",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "INDEX_NAME": "idx_item_order_session",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "session_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "INDEX_NAME": "idx_item_sku_session",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "INDEX_NAME": "idx_item_sku_session",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "session_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "INDEX_NAME": "uk_item_order",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "INDEX_NAME": "uk_item_order_sku",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "INDEX_NAME": "uk_item_order_sku",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "INDEX_NAME": "uk_item_ticket_reference",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "INDEX_NAME": "uk_item_ticket_reference",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "INDEX_NAME": "uk_item_ticket_reference",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "INDEX_NAME": "uk_sku_id_session",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "INDEX_NAME": "uk_sku_id_session",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "session_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "INDEX_NAME": "uk_sku_session_name",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "session_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "INDEX_NAME": "uk_sku_session_name",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "name",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_stock_bucket",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_stock_bucket",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "bucket_no",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_waitlist_gate",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "user_account",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "user_account",
+        "INDEX_NAME": "uk_user_username",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "username",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "user_session_quota",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "user_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "user_session_quota",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "session_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_expiry",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "status",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_expiry",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "expires_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_expiry",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_order_sku",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "reserved_order_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_order_sku",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_order_user",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "reserved_order_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_order_user",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "user_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_queue",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_queue",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "status",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_queue",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_user",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "user_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_user",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "created_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_user",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "uk_waitlist_active",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "user_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "uk_waitlist_active",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "uk_waitlist_active",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "active_marker",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "uk_waitlist_order",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "reserved_order_id",
+        "NON_UNIQUE": 0
+      }
+    ],
+    "constraints": [
+      {
+        "TABLE_NAME": "activity",
+        "CONSTRAINT_NAME": "ck_activity_category",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "activity",
+        "CONSTRAINT_NAME": "ck_activity_status",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "activity",
+        "CONSTRAINT_NAME": "ck_activity_version",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "activity",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "CONSTRAINT_NAME": "ck_session_sale_time",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "CONSTRAINT_NAME": "ck_session_status",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "CONSTRAINT_NAME": "ck_session_time",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "CONSTRAINT_NAME": "ck_session_version",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "CONSTRAINT_NAME": "fk_session_activity",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "CONSTRAINT_NAME": "fk_audit_operator",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "CONSTRAINT_NAME": "ck_ticket_key_version",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "CONSTRAINT_NAME": "ck_ticket_sequence",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "CONSTRAINT_NAME": "ck_ticket_status",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "CONSTRAINT_NAME": "ck_ticket_used_time",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "CONSTRAINT_NAME": "fk_ticket_checker",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "CONSTRAINT_NAME": "fk_ticket_item",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "CONSTRAINT_NAME": "fk_ticket_order_owner",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "CONSTRAINT_NAME": "fk_ticket_sku",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "CONSTRAINT_NAME": "uk_ticket_digest",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "CONSTRAINT_NAME": "uk_ticket_item_sequence",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "CONSTRAINT_NAME": "uk_ticket_no",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "flyway_schema_history",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "order_aftercare",
+        "CONSTRAINT_NAME": "ck_aftercare_attempt",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "order_aftercare",
+        "CONSTRAINT_NAME": "ck_aftercare_retry",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "order_aftercare",
+        "CONSTRAINT_NAME": "ck_aftercare_status",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "order_aftercare",
+        "CONSTRAINT_NAME": "fk_aftercare_order",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "order_aftercare",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "order_stock_allocation",
+        "CONSTRAINT_NAME": "ck_allocation_quantity",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "order_stock_allocation",
+        "CONSTRAINT_NAME": "fk_allocation_bucket",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "order_stock_allocation",
+        "CONSTRAINT_NAME": "fk_allocation_item",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "order_stock_allocation",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "CONSTRAINT_NAME": "ck_outbox_retry",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "CONSTRAINT_NAME": "ck_outbox_sent_time",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "CONSTRAINT_NAME": "ck_outbox_status",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "CONSTRAINT_NAME": "uk_outbox_event_id",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "payment_record",
+        "CONSTRAINT_NAME": "ck_payment_amount",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "payment_record",
+        "CONSTRAINT_NAME": "ck_payment_status",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "payment_record",
+        "CONSTRAINT_NAME": "ck_payment_time",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "payment_record",
+        "CONSTRAINT_NAME": "fk_payment_order",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "payment_record",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "payment_record",
+        "CONSTRAINT_NAME": "uk_payment_no",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "payment_record",
+        "CONSTRAINT_NAME": "uk_payment_order",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "purchase_capacity",
+        "CONSTRAINT_NAME": "ck_purchase_capacity",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "purchase_capacity",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "CONSTRAINT_NAME": "ck_purchase_deadline",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "CONSTRAINT_NAME": "ck_purchase_lease",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "CONSTRAINT_NAME": "ck_purchase_operation",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "CONSTRAINT_NAME": "ck_purchase_quantity",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "CONSTRAINT_NAME": "ck_purchase_result",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "CONSTRAINT_NAME": "ck_purchase_status",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "CONSTRAINT_NAME": "ck_purchase_token",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "CONSTRAINT_NAME": "fk_purchase_order_owner",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "CONSTRAINT_NAME": "fk_purchase_user",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "CONSTRAINT_NAME": "uk_purchase_idempotency",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "CONSTRAINT_NAME": "uk_purchase_order",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "CONSTRAINT_NAME": "ck_refund_amount",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "CONSTRAINT_NAME": "ck_refund_reason",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "CONSTRAINT_NAME": "ck_refund_status",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "CONSTRAINT_NAME": "fk_refund_operator",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "CONSTRAINT_NAME": "fk_refund_order",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "CONSTRAINT_NAME": "fk_refund_payment",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "CONSTRAINT_NAME": "uk_refund_no",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "CONSTRAINT_NAME": "uk_refund_order",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "CONSTRAINT_NAME": "ck_permission_time",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "CONSTRAINT_NAME": "fk_permission_grantor",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "CONSTRAINT_NAME": "fk_permission_session",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "CONSTRAINT_NAME": "fk_permission_staff",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "CONSTRAINT_NAME": "uk_staff_session",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "stock_strategy_switch",
+        "CONSTRAINT_NAME": "ck_switch_buckets",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "stock_strategy_switch",
+        "CONSTRAINT_NAME": "fk_switch_operator",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "stock_strategy_switch",
+        "CONSTRAINT_NAME": "fk_switch_sku",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "stock_strategy_switch",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "CONSTRAINT_NAME": "ck_order_amount",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "CONSTRAINT_NAME": "ck_order_expiry",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "CONSTRAINT_NAME": "ck_order_paid_time",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "CONSTRAINT_NAME": "ck_order_status",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "CONSTRAINT_NAME": "fk_order_session",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "CONSTRAINT_NAME": "fk_order_user",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "CONSTRAINT_NAME": "uk_order_id_session",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "CONSTRAINT_NAME": "uk_order_id_user",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "CONSTRAINT_NAME": "uk_order_idempotency",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "CONSTRAINT_NAME": "uk_order_no",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "CONSTRAINT_NAME": "ck_item_price",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "CONSTRAINT_NAME": "ck_item_quantity",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "CONSTRAINT_NAME": "fk_item_order_session",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "CONSTRAINT_NAME": "fk_item_sku_session",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "CONSTRAINT_NAME": "uk_item_order",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "CONSTRAINT_NAME": "uk_item_order_sku",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "CONSTRAINT_NAME": "uk_item_ticket_reference",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "CONSTRAINT_NAME": "ck_sku_inventory_strategy",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "CONSTRAINT_NAME": "ck_sku_price",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "CONSTRAINT_NAME": "ck_sku_quantity",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "CONSTRAINT_NAME": "ck_sku_sale_time",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "CONSTRAINT_NAME": "ck_sku_status",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "CONSTRAINT_NAME": "ck_sku_stock",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "CONSTRAINT_NAME": "ck_sku_version",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "CONSTRAINT_NAME": "fk_sku_session",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "CONSTRAINT_NAME": "uk_sku_id_session",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "CONSTRAINT_NAME": "uk_sku_session_name",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "ticket_stock_bucket",
+        "CONSTRAINT_NAME": "ck_bucket_number",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_stock_bucket",
+        "CONSTRAINT_NAME": "ck_bucket_stock",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_stock_bucket",
+        "CONSTRAINT_NAME": "fk_bucket_sku",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "ticket_stock_bucket",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "ticket_waitlist_gate",
+        "CONSTRAINT_NAME": "fk_waitlist_gate_sku",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "ticket_waitlist_gate",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "user_account",
+        "CONSTRAINT_NAME": "ck_user_role",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "user_account",
+        "CONSTRAINT_NAME": "ck_user_status",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "user_account",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "user_account",
+        "CONSTRAINT_NAME": "uk_user_username",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "user_session_quota",
+        "CONSTRAINT_NAME": "ck_user_session_quota_nonnegative",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "user_session_quota",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "CONSTRAINT_NAME": "ck_waitlist_allocation",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "CONSTRAINT_NAME": "ck_waitlist_expiry",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "CONSTRAINT_NAME": "ck_waitlist_quantity",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "CONSTRAINT_NAME": "ck_waitlist_status",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "CONSTRAINT_NAME": "fk_waitlist_order_sku",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "CONSTRAINT_NAME": "fk_waitlist_order_user",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "CONSTRAINT_NAME": "fk_waitlist_sku",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "CONSTRAINT_NAME": "fk_waitlist_user",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "CONSTRAINT_NAME": "uk_waitlist_active",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "CONSTRAINT_NAME": "uk_waitlist_order",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      }
+    ],
+    "triggers": [
+      {
+        "TRIGGER_NAME": "admin_audit_no_delete",
+        "EVENT_MANIPULATION": "DELETE",
+        "ACTION_TIMING": "BEFORE"
+      },
+      {
+        "TRIGGER_NAME": "admin_audit_no_update",
+        "EVENT_MANIPULATION": "UPDATE",
+        "ACTION_TIMING": "BEFORE"
+      }
+    ],
+    "views": [
+      {
+        "TABLE_NAME": "ticket_stock_balance",
+        "CHECK_OPTION": "NONE",
+        "IS_UPDATABLE": "NO"
+      }
+    ]
+  },
+  "freshObjects": {
+    "tables": [
+      {
+        "TABLE_NAME": "activity",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "flyway_schema_history",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "order_aftercare",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "order_stock_allocation",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "payment_record",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "purchase_capacity",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "stock_strategy_switch",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "ticket_stock_balance",
+        "TABLE_TYPE": "VIEW"
+      },
+      {
+        "TABLE_NAME": "ticket_stock_bucket",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "ticket_waitlist_gate",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "user_account",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "user_session_quota",
+        "TABLE_TYPE": "BASE TABLE"
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "TABLE_TYPE": "BASE TABLE"
+      }
+    ],
+    "indexes": [
+      {
+        "TABLE_NAME": "activity",
+        "INDEX_NAME": "idx_activity_discovery",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "status",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "activity",
+        "INDEX_NAME": "idx_activity_discovery",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "city",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "activity",
+        "INDEX_NAME": "idx_activity_discovery",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "category",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "activity",
+        "INDEX_NAME": "idx_activity_discovery",
+        "SEQ_IN_INDEX": 4,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "activity",
+        "INDEX_NAME": "idx_activity_publication",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "status",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "activity",
+        "INDEX_NAME": "idx_activity_publication",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "published_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "activity",
+        "INDEX_NAME": "idx_activity_publication",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "activity",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "INDEX_NAME": "idx_session_activity_start",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "activity_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "INDEX_NAME": "idx_session_activity_start",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "starts_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "INDEX_NAME": "idx_session_activity_start",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "INDEX_NAME": "idx_session_status",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "status",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "INDEX_NAME": "idx_session_status",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "INDEX_NAME": "idx_audit_operator_time",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "operator_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "INDEX_NAME": "idx_audit_operator_time",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "occurred_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "INDEX_NAME": "idx_audit_operator_time",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "INDEX_NAME": "idx_audit_resource_time",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "resource_type",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "INDEX_NAME": "idx_audit_resource_time",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "resource_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "INDEX_NAME": "idx_audit_resource_time",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "occurred_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "INDEX_NAME": "idx_audit_resource_time",
+        "SEQ_IN_INDEX": 4,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "INDEX_NAME": "idx_audit_time",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "occurred_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "INDEX_NAME": "idx_audit_time",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "idx_ticket_checker",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "checked_by",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "idx_ticket_item_reference",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_item_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "idx_ticket_item_reference",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "idx_ticket_item_reference",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "idx_ticket_order_owner",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "idx_ticket_order_owner",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "owner_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "idx_ticket_owner",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "owner_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "idx_ticket_owner",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "created_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "idx_ticket_owner",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "idx_ticket_sku",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "uk_ticket_digest",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "credential_digest",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "uk_ticket_item_sequence",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_item_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "uk_ticket_item_sequence",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "sequence_no",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "INDEX_NAME": "uk_ticket_no",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "ticket_no",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "flyway_schema_history",
+        "INDEX_NAME": "flyway_schema_history_s_idx",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "success",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "flyway_schema_history",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "installed_rank",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "order_aftercare",
+        "INDEX_NAME": "idx_aftercare_retry",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "status",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "order_aftercare",
+        "INDEX_NAME": "idx_aftercare_retry",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "next_retry_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "order_aftercare",
+        "INDEX_NAME": "idx_aftercare_retry",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "order_aftercare",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "order_stock_allocation",
+        "INDEX_NAME": "idx_allocation_bucket",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "order_stock_allocation",
+        "INDEX_NAME": "idx_allocation_bucket",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "bucket_no",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "order_stock_allocation",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "order_stock_allocation",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "order_stock_allocation",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "bucket_no",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "INDEX_NAME": "idx_outbox_aggregate",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "aggregate_type",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "INDEX_NAME": "idx_outbox_aggregate",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "aggregate_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "INDEX_NAME": "idx_outbox_aggregate",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "INDEX_NAME": "idx_outbox_channel",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "event_type",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "INDEX_NAME": "idx_outbox_channel",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "status",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "INDEX_NAME": "idx_outbox_channel",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "next_retry_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "INDEX_NAME": "idx_outbox_channel",
+        "SEQ_IN_INDEX": 4,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "INDEX_NAME": "idx_outbox_dispatch",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "status",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "INDEX_NAME": "idx_outbox_dispatch",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "next_retry_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "INDEX_NAME": "idx_outbox_dispatch",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "INDEX_NAME": "uk_outbox_event_id",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "event_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "payment_record",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "payment_record",
+        "INDEX_NAME": "uk_payment_no",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "payment_no",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "payment_record",
+        "INDEX_NAME": "uk_payment_order",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "purchase_capacity",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "fk_purchase_order_owner",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "fk_purchase_order_owner",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "user_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "idx_purchase_expiry",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "status",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "idx_purchase_expiry",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "deadline_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "idx_purchase_expiry",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "idx_purchase_owner",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "user_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "idx_purchase_owner",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "idx_purchase_recovery",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "status",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "idx_purchase_recovery",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "next_recovery_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "idx_purchase_recovery",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "uk_purchase_idempotency",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "user_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "uk_purchase_idempotency",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "idempotency_operation",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "uk_purchase_idempotency",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "idempotency_key",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "INDEX_NAME": "uk_purchase_order",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "INDEX_NAME": "fk_refund_operator",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "operator_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "INDEX_NAME": "fk_refund_payment",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "payment_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "INDEX_NAME": "uk_refund_no",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "refund_no",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "INDEX_NAME": "uk_refund_order",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "INDEX_NAME": "idx_permission_grantor",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "granted_by",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "INDEX_NAME": "idx_permission_session",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "session_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "INDEX_NAME": "idx_permission_session",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "staff_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "INDEX_NAME": "uk_staff_session",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "staff_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "INDEX_NAME": "uk_staff_session",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "session_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "stock_strategy_switch",
+        "INDEX_NAME": "fk_switch_operator",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "operator_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "stock_strategy_switch",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_admin_created",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "created_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_admin_created",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_expiry",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "status",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_expiry",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "expires_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_expiry",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_session",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "session_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_user_created",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "user_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_user_created",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "created_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_user_created",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_user_session_status",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "user_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_user_session_status",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "session_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_user_session_status",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "status",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "idx_order_user_session_status",
+        "SEQ_IN_INDEX": 4,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "uk_order_id_session",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "uk_order_id_session",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "session_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "uk_order_id_user",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "uk_order_id_user",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "user_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "uk_order_idempotency",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "user_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "uk_order_idempotency",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "idempotency_operation",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "uk_order_idempotency",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "idempotency_key",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "INDEX_NAME": "uk_order_no",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_no",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "INDEX_NAME": "idx_item_order_session",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "INDEX_NAME": "idx_item_order_session",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "session_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "INDEX_NAME": "idx_item_sku_session",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "INDEX_NAME": "idx_item_sku_session",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "session_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "INDEX_NAME": "uk_item_order",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "INDEX_NAME": "uk_item_order_sku",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "INDEX_NAME": "uk_item_order_sku",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "INDEX_NAME": "uk_item_ticket_reference",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "INDEX_NAME": "uk_item_ticket_reference",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "order_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "INDEX_NAME": "uk_item_ticket_reference",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "INDEX_NAME": "uk_sku_id_session",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "INDEX_NAME": "uk_sku_id_session",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "session_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "INDEX_NAME": "uk_sku_session_name",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "session_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "INDEX_NAME": "uk_sku_session_name",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "name",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_stock_bucket",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_stock_bucket",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "bucket_no",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "ticket_waitlist_gate",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "user_account",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "user_account",
+        "INDEX_NAME": "uk_user_username",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "username",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "user_session_quota",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "user_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "user_session_quota",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "session_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_expiry",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "status",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_expiry",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "expires_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_expiry",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_order_sku",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "reserved_order_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_order_sku",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_order_user",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "reserved_order_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_order_user",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "user_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_queue",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_queue",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "status",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_queue",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_user",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "user_id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_user",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "created_at",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "idx_waitlist_user",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 1
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "PRIMARY",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "uk_waitlist_active",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "user_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "uk_waitlist_active",
+        "SEQ_IN_INDEX": 2,
+        "COLUMN_NAME": "sku_id",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "uk_waitlist_active",
+        "SEQ_IN_INDEX": 3,
+        "COLUMN_NAME": "active_marker",
+        "NON_UNIQUE": 0
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "INDEX_NAME": "uk_waitlist_order",
+        "SEQ_IN_INDEX": 1,
+        "COLUMN_NAME": "reserved_order_id",
+        "NON_UNIQUE": 0
+      }
+    ],
+    "constraints": [
+      {
+        "TABLE_NAME": "activity",
+        "CONSTRAINT_NAME": "ck_activity_category",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "activity",
+        "CONSTRAINT_NAME": "ck_activity_status",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "activity",
+        "CONSTRAINT_NAME": "ck_activity_version",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "activity",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "CONSTRAINT_NAME": "ck_session_sale_time",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "CONSTRAINT_NAME": "ck_session_status",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "CONSTRAINT_NAME": "ck_session_time",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "CONSTRAINT_NAME": "ck_session_version",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "CONSTRAINT_NAME": "fk_session_activity",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "activity_session",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "CONSTRAINT_NAME": "fk_audit_operator",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "admin_audit_log",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "CONSTRAINT_NAME": "ck_ticket_key_version",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "CONSTRAINT_NAME": "ck_ticket_sequence",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "CONSTRAINT_NAME": "ck_ticket_status",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "CONSTRAINT_NAME": "ck_ticket_used_time",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "CONSTRAINT_NAME": "fk_ticket_checker",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "CONSTRAINT_NAME": "fk_ticket_item",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "CONSTRAINT_NAME": "fk_ticket_order_owner",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "CONSTRAINT_NAME": "fk_ticket_sku",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "CONSTRAINT_NAME": "uk_ticket_digest",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "CONSTRAINT_NAME": "uk_ticket_item_sequence",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "electronic_ticket",
+        "CONSTRAINT_NAME": "uk_ticket_no",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "flyway_schema_history",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "order_aftercare",
+        "CONSTRAINT_NAME": "ck_aftercare_attempt",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "order_aftercare",
+        "CONSTRAINT_NAME": "ck_aftercare_retry",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "order_aftercare",
+        "CONSTRAINT_NAME": "ck_aftercare_status",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "order_aftercare",
+        "CONSTRAINT_NAME": "fk_aftercare_order",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "order_aftercare",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "order_stock_allocation",
+        "CONSTRAINT_NAME": "ck_allocation_quantity",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "order_stock_allocation",
+        "CONSTRAINT_NAME": "fk_allocation_bucket",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "order_stock_allocation",
+        "CONSTRAINT_NAME": "fk_allocation_item",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "order_stock_allocation",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "CONSTRAINT_NAME": "ck_outbox_retry",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "CONSTRAINT_NAME": "ck_outbox_sent_time",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "CONSTRAINT_NAME": "ck_outbox_status",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "outbox_event",
+        "CONSTRAINT_NAME": "uk_outbox_event_id",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "payment_record",
+        "CONSTRAINT_NAME": "ck_payment_amount",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "payment_record",
+        "CONSTRAINT_NAME": "ck_payment_status",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "payment_record",
+        "CONSTRAINT_NAME": "ck_payment_time",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "payment_record",
+        "CONSTRAINT_NAME": "fk_payment_order",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "payment_record",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "payment_record",
+        "CONSTRAINT_NAME": "uk_payment_no",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "payment_record",
+        "CONSTRAINT_NAME": "uk_payment_order",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "purchase_capacity",
+        "CONSTRAINT_NAME": "ck_purchase_capacity",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "purchase_capacity",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "CONSTRAINT_NAME": "ck_purchase_deadline",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "CONSTRAINT_NAME": "ck_purchase_lease",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "CONSTRAINT_NAME": "ck_purchase_operation",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "CONSTRAINT_NAME": "ck_purchase_quantity",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "CONSTRAINT_NAME": "ck_purchase_result",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "CONSTRAINT_NAME": "ck_purchase_status",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "CONSTRAINT_NAME": "ck_purchase_token",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "CONSTRAINT_NAME": "fk_purchase_order_owner",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "CONSTRAINT_NAME": "fk_purchase_user",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "CONSTRAINT_NAME": "uk_purchase_idempotency",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "purchase_request",
+        "CONSTRAINT_NAME": "uk_purchase_order",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "CONSTRAINT_NAME": "ck_refund_amount",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "CONSTRAINT_NAME": "ck_refund_reason",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "CONSTRAINT_NAME": "ck_refund_status",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "CONSTRAINT_NAME": "fk_refund_operator",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "CONSTRAINT_NAME": "fk_refund_order",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "CONSTRAINT_NAME": "fk_refund_payment",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "CONSTRAINT_NAME": "uk_refund_no",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "refund_record",
+        "CONSTRAINT_NAME": "uk_refund_order",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "CONSTRAINT_NAME": "ck_permission_time",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "CONSTRAINT_NAME": "fk_permission_grantor",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "CONSTRAINT_NAME": "fk_permission_session",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "CONSTRAINT_NAME": "fk_permission_staff",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "staff_session_permission",
+        "CONSTRAINT_NAME": "uk_staff_session",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "stock_strategy_switch",
+        "CONSTRAINT_NAME": "ck_switch_buckets",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "stock_strategy_switch",
+        "CONSTRAINT_NAME": "fk_switch_operator",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "stock_strategy_switch",
+        "CONSTRAINT_NAME": "fk_switch_sku",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "stock_strategy_switch",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "CONSTRAINT_NAME": "ck_order_amount",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "CONSTRAINT_NAME": "ck_order_expiry",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "CONSTRAINT_NAME": "ck_order_paid_time",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "CONSTRAINT_NAME": "ck_order_status",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "CONSTRAINT_NAME": "fk_order_session",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "CONSTRAINT_NAME": "fk_order_user",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "CONSTRAINT_NAME": "uk_order_id_session",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "CONSTRAINT_NAME": "uk_order_id_user",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "CONSTRAINT_NAME": "uk_order_idempotency",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "ticket_order",
+        "CONSTRAINT_NAME": "uk_order_no",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "CONSTRAINT_NAME": "ck_item_price",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "CONSTRAINT_NAME": "ck_item_quantity",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "CONSTRAINT_NAME": "fk_item_order_session",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "CONSTRAINT_NAME": "fk_item_sku_session",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "CONSTRAINT_NAME": "uk_item_order",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "CONSTRAINT_NAME": "uk_item_order_sku",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "ticket_order_item",
+        "CONSTRAINT_NAME": "uk_item_ticket_reference",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "CONSTRAINT_NAME": "ck_sku_inventory_strategy",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "CONSTRAINT_NAME": "ck_sku_price",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "CONSTRAINT_NAME": "ck_sku_quantity",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "CONSTRAINT_NAME": "ck_sku_sale_time",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "CONSTRAINT_NAME": "ck_sku_status",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "CONSTRAINT_NAME": "ck_sku_stock",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "CONSTRAINT_NAME": "ck_sku_version",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "CONSTRAINT_NAME": "fk_sku_session",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "CONSTRAINT_NAME": "uk_sku_id_session",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "ticket_sku",
+        "CONSTRAINT_NAME": "uk_sku_session_name",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "ticket_stock_bucket",
+        "CONSTRAINT_NAME": "ck_bucket_number",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_stock_bucket",
+        "CONSTRAINT_NAME": "ck_bucket_stock",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "ticket_stock_bucket",
+        "CONSTRAINT_NAME": "fk_bucket_sku",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "ticket_stock_bucket",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "ticket_waitlist_gate",
+        "CONSTRAINT_NAME": "fk_waitlist_gate_sku",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "ticket_waitlist_gate",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "user_account",
+        "CONSTRAINT_NAME": "ck_user_role",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "user_account",
+        "CONSTRAINT_NAME": "ck_user_status",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "user_account",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "user_account",
+        "CONSTRAINT_NAME": "uk_user_username",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "user_session_quota",
+        "CONSTRAINT_NAME": "ck_user_session_quota_nonnegative",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "user_session_quota",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "CONSTRAINT_NAME": "ck_waitlist_allocation",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "CONSTRAINT_NAME": "ck_waitlist_expiry",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "CONSTRAINT_NAME": "ck_waitlist_quantity",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "CONSTRAINT_NAME": "ck_waitlist_status",
+        "CONSTRAINT_TYPE": "CHECK"
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "CONSTRAINT_NAME": "fk_waitlist_order_sku",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "CONSTRAINT_NAME": "fk_waitlist_order_user",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "CONSTRAINT_NAME": "fk_waitlist_sku",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "CONSTRAINT_NAME": "fk_waitlist_user",
+        "CONSTRAINT_TYPE": "FOREIGN KEY"
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "CONSTRAINT_NAME": "PRIMARY",
+        "CONSTRAINT_TYPE": "PRIMARY KEY"
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "CONSTRAINT_NAME": "uk_waitlist_active",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      },
+      {
+        "TABLE_NAME": "waitlist_entry",
+        "CONSTRAINT_NAME": "uk_waitlist_order",
+        "CONSTRAINT_TYPE": "UNIQUE"
+      }
+    ],
+    "triggers": [
+      {
+        "TRIGGER_NAME": "admin_audit_no_delete",
+        "EVENT_MANIPULATION": "DELETE",
+        "ACTION_TIMING": "BEFORE"
+      },
+      {
+        "TRIGGER_NAME": "admin_audit_no_update",
+        "EVENT_MANIPULATION": "UPDATE",
+        "ACTION_TIMING": "BEFORE"
+      }
+    ],
+    "views": [
+      {
+        "TABLE_NAME": "ticket_stock_balance",
+        "CHECK_OPTION": "NONE",
+        "IS_UPDATABLE": "NO"
+      }
+    ]
+  },
+  "endedAt": "2026-10-25T02:51:16.423437+00:00",
+  "sourceUpgrade": "NOT_AUTHORIZED_NOT_EXECUTED",
+  "preservedSchemas": true
+}

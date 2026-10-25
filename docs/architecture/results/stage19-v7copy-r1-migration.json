@@ -1,0 +1,161 @@
+{
+  "passed": false,
+  "startedAt": "2026-10-25T02:49:14.509316+00:00",
+  "sourceModified": false,
+  "repairOrCleanExecuted": false,
+  "checks": [
+    {
+      "name": "原库只读确认为V7",
+      "passed": true,
+      "database": "ticketing",
+      "versions": [
+        {
+          "version": "1",
+          "success": 1
+        },
+        {
+          "version": "2",
+          "success": 1
+        },
+        {
+          "version": "3",
+          "success": 1
+        },
+        {
+          "version": "4",
+          "success": 1
+        },
+        {
+          "version": "5",
+          "success": 1
+        },
+        {
+          "version": "6",
+          "success": 1
+        },
+        {
+          "version": "7",
+          "success": 1
+        }
+      ],
+      "originallyStopped": true
+    },
+    {
+      "name": "原库只读备份且前后全表摘要相同",
+      "passed": true,
+      "tableFacts": {
+        "activity": {
+          "rows": 8,
+          "sha256": "70d7ac895136165a43ef0eb022febefcbdaca7317653a68c4efa6520b907a57a"
+        },
+        "activity_session": {
+          "rows": 9,
+          "sha256": "071f79bce251cae3843e2271c95910c85217533371b2dc125926090262862aad"
+        },
+        "admin_audit_log": {
+          "rows": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "electronic_ticket": {
+          "rows": 5,
+          "sha256": "87d64c74c8c5c2469cb6153f1c90006a7d7b004ea650a44796ae0cfb7d701fcc"
+        },
+        "flyway_schema_history": {
+          "rows": 7,
+          "sha256": "47c1dc7e8605a1afee6fcdbd4e199bd34ff9ffb7eaa90c8ab8bf9f6d7b47d473"
+        },
+        "order_aftercare": {
+          "rows": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "outbox_event": {
+          "rows": 11,
+          "sha256": "2a29a60d1d25c15e87b9b20dc5feba07d4eeea1b8c44f953a8b0ad4f2f0528ff"
+        },
+        "payment_record": {
+          "rows": 3,
+          "sha256": "350eb9466fd14eeff8ac35d60ab7737aabe801ea38dfcff2ec83d36823046004"
+        },
+        "refund_record": {
+          "rows": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "staff_session_permission": {
+          "rows": 0,
+          "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "ticket_order": {
+          "rows": 6,
+          "sha256": "a53dba8c5845a167610a4eaad0af7d2185ee5b29110826f22f29a4d6b81c4c1f"
+        },
+        "ticket_order_item": {
+          "rows": 6,
+          "sha256": "0868016a9008d693f11f8bd3a0980f63a2af0fb759a49bbb03a74a0e50c82a19"
+        },
+        "ticket_sku": {
+          "rows": 7,
+          "sha256": "618694e70bb041693eff315c143e3f10fcaaeccaa97fc4d6520e18898bb99c60"
+        },
+        "user_account": {
+          "rows": 3,
+          "sha256": "6e68fa1a4b8eb6929da9dc5861a9932971ede29394a403f4df16e81e21a48832"
+        },
+        "waitlist_entry": {
+          "rows": 1,
+          "sha256": "d83bca9cde6c662a0518a4722bc1c292e528d0297177337bef7f3fb511f3cd5a"
+        }
+      },
+      "backupSha256": "5cfff72ef5c5e0eb16ffd05741befeb2dfb3bcbbc0f31329cbbaaf64729f4ce8",
+      "backupBytes": 49685,
+      "privateBackup": ".local\\stage19\\stage19-v7copy-r1\\source-v7.sql"
+    },
+    {
+      "name": "V7备份两次真实恢复逐表摘要完全一致",
+      "passed": true
+    },
+    {
+      "name": "V7历史只读迁移预检",
+      "passed": true,
+      "audits": [
+        {
+          "script": "scripts/audit-waitlist-relations.sql",
+          "violations": 0
+        },
+        {
+          "script": "scripts/audit-refund-readiness.sql",
+          "violations": 0
+        },
+        {
+          "script": "scripts/audit-staff-audit-readiness.sql",
+          "violations": 0
+        },
+        {
+          "script": "scripts/audit-async-purchase-readiness.sql",
+          "violations": 0
+        },
+        {
+          "script": "scripts/audit-user-session-quota.sql",
+          "violations": 0
+        }
+      ]
+    },
+    {
+      "name": "副本V9单次迁移已显式批准",
+      "passed": true,
+      "schema": "ticketing_s19_2f0f718d681f4287_it",
+      "writesStopped": true,
+      "backupSha256": "5cfff72ef5c5e0eb16ffd05741befeb2dfb3bcbbc0f31329cbbaaf64729f4ce8",
+      "approvalScope": "isolated-copy-only"
+    },
+    {
+      "name": "升级V8V9V10保持所有既有业务事实",
+      "passed": false,
+      "originalOrderCount": 6
+    }
+  ],
+  "schemas": {
+    "upgrade": "ticketing_s19_2f0f718d681f4287_it",
+    "restoredBackup": "ticketing_s19_86558ae203ce455a_it",
+    "fresh": "ticketing_s19_20d28fe3bb984e28_it"
+  }
+}

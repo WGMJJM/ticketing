@@ -1,0 +1,98 @@
+{
+  "source": "docs\\performance\\results\\stage19-soak-r1\\hot-ample-25\\hot-ample-25\\monitoring.json",
+  "scope": "首尾各排除60秒，最近采样点组成约300秒窗口；服务端采样差分，不是k6客户端稳态TPS或时延分位。",
+  "windows": [
+    {
+      "name": "early",
+      "from": "2026-10-25T04:08:59.158597+00:00",
+      "to": "2026-10-25T04:13:59.994150+00:00",
+      "seconds": 300.835553,
+      "timers": {
+        "ticketing.trade.transaction.duration": {
+          "count": 4313.0,
+          "perSecond": 14.336736323183183,
+          "meanMs": 93.95534771620683
+        },
+        "hikaricp.connections.acquire": {
+          "count": 129579.0,
+          "perSecond": 430.7303399076638,
+          "meanMs": 0.08176386837373341
+        },
+        "ticketing.purchase.accepted.to.claim": {
+          "count": 4314.0,
+          "perSecond": 14.340060398379842,
+          "meanMs": 1362.9931546128882
+        },
+        "ticketing.purchase.admission.lock.duration:account": {
+          "count": 4312.0,
+          "perSecond": 14.333412247986526,
+          "meanMs": 1.3854309137291279
+        },
+        "ticketing.purchase.admission.lock.duration:capacity": {
+          "count": 4312.0,
+          "perSecond": 14.333412247986526,
+          "meanMs": 5.384480542671615
+        },
+        "ticketing.trade.lock.duration:stock": {
+          "count": 8628.0,
+          "perSecond": 28.680120796759685,
+          "meanMs": 51.15501789522485
+        }
+      },
+      "meanCpuFraction": 0.04681133502993465,
+      "mysqlDelta": {
+        "Questions": 793426,
+        "Com_select": 389209,
+        "Slow_queries": 3949,
+        "Innodb_row_lock_time": 456005,
+        "Innodb_row_lock_waits": 11663
+      }
+    },
+    {
+      "name": "late",
+      "from": "2026-10-25T04:32:12.466704+00:00",
+      "to": "2026-10-25T04:37:13.377097+00:00",
+      "seconds": 300.910393,
+      "timers": {
+        "ticketing.trade.transaction.duration": {
+          "count": 3204.0,
+          "perSecond": 10.647688064399956,
+          "meanMs": 124.20874867509359
+        },
+        "hikaricp.connections.acquire": {
+          "count": 111630.0,
+          "perSecond": 370.9742255396277,
+          "meanMs": 0.0455816289438323
+        },
+        "ticketing.purchase.accepted.to.claim": {
+          "count": 3204.0,
+          "perSecond": 10.647688064399956,
+          "meanMs": 1903.4186064294631
+        },
+        "ticketing.purchase.admission.lock.duration:account": {
+          "count": 3204.0,
+          "perSecond": 10.647688064399956,
+          "meanMs": 1.162608936017478
+        },
+        "ticketing.purchase.admission.lock.duration:capacity": {
+          "count": 3203.0,
+          "perSecond": 10.644364815940405,
+          "meanMs": 12.415066148922886
+        },
+        "ticketing.trade.lock.duration:stock": {
+          "count": 6407.0,
+          "perSecond": 21.29205288034036,
+          "meanMs": 70.23409386499138
+        }
+      },
+      "meanCpuFraction": 0.029349070513185645,
+      "mysqlDelta": {
+        "Questions": 653331,
+        "Com_select": 314769,
+        "Slow_queries": 4416,
+        "Innodb_row_lock_time": 496350,
+        "Innodb_row_lock_waits": 9505
+      }
+    }
+  ]
+}

@@ -4,7 +4,7 @@ Java源码按业务包放置在`backend/src/main/java/com/ticketing`，保留单
 
 环境：Java 21、Maven 3.9+、满足 Vite 的 Node（20.19+ 或 22.12+）、Docker Desktop 或 Docker Engine + Compose；Windows 推荐 PowerShell。`mvn -version` 显示的 Java 版本才是 Maven 实际使用版本。
 
-首次复制 `.env.example` 为 `.env` 并填写密码；当前本机已生成随机凭据，无需覆盖。Windows 在项目根目录执行：
+首次复制 `.env.example` 为 `.env` 并填写密码与两类独立签名/限流密钥；当前本机已有凭据时无需覆盖。示例默认Secure Cookie为true，本机HTTP联调须在私有`.env`显式设`SESSION_COOKIE_SECURE=false`。有数据的旧库先按[受控升级与运维](32-single-instance-operations.md)核对版本及备份，不能直接启动代替升级审批。Windows 在项目根目录执行：
 
 ```powershell
 docker compose --env-file .env -f deploy/compose.yml up -d --wait
@@ -13,7 +13,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-backend.ps1
 
 另开终端执行 `cd frontend`、`npm ci`、`npm run dev`。访问 `http://127.0.0.1:5173`，后端默认 `http://127.0.0.1:8080`。
 
-macOS/Linux 使用同样的 Compose 命令，后端执行 `bash scripts/start-backend.sh`；前端启动方式相同。后端脚本负责加载根目录 `.env`。`mvn -f backend/pom.xml clean verify` 运行基础测试；PowerShell 脚本加 `-VerifyDatabase` 或 Bash 脚本加 `--verify-database` 执行真实数据库测试；前端 `npm run build` 包含类型检查。
+macOS/Linux 使用同样的 Compose 命令，后端执行 `bash scripts/start-backend.sh`；前端启动方式相同。后端脚本负责加载根目录 `.env`。`mvn -f backend/pom.xml clean verify` 运行基础测试；真实数据库验收使用下述固定隔离入口；前端 `npm run build` 包含类型检查。
 
 ## 配置
 
@@ -28,13 +28,13 @@ PowerShell 脚本为 UTF-8 BOM，Bash 为 LF UTF-8。脚本读取 `.env` 而不�
 1. `docker compose --env-file .env -f deploy/compose.yml config --quiet`。
 2. `docker compose --env-file .env -f deploy/compose.yml up -d --pull never --wait`，核对三个容器健康，镜像必须事先存在。
 3. `mvn -f backend/pom.xml clean verify`，检查不依赖中间件的响应与 MVC/Security 测试。
-4. `scripts/start-backend.ps1 -VerifyDatabase` 或 Bash `--verify-database`，运行真实 MySQL 集成测试；首次连接空库执行 V1，后续执行校验。不会用 H2 替代。
+4. `python -B scripts/performance/perf.py init`启动固定`ticketing-perf`环境，再执行`python -B scripts/performance/verify_backend.py --label <本轮唯一标签>`。脚本核对随机guard并新建随机schema，执行完整`clean verify -Pmysql-it`；成功清理仅本轮合规schema，失败保留现场。不会用H2替代，也不会向原开发库注入测试数据。`-VerifyDatabase`/`--verify-database`是直接继承环境的底层入口，不能在加载业务`.env`时对原`ticketing`库运行它。
 5. 启动后端和前端，检查状态接口、Actuator 与 Vite 代理，确认首页为「服务运行正常」。
 6. 暂停后端，检查活动加载错误和状态连接失败；恢复后端再重试。
 7. 检查 `/about`、活动详情、场次选择及运营管理。演示活动须显式标记；登录后真实下单、模拟支付、查看成功流水，再创建一单等待自动过期，核对库存及限额恢复；不产生实际扣款。
 8. `npm run build` 同时完成 TypeScript 检查和生产打包。
 
-数据库测试位于 `DatabaseMigrationIT`，推荐独立开发库。`ActivityManagementIT`、`TicketManagementIT`覆盖原有业务；`AuthenticationIT`使用随机端口Tomcat、真实HTTP、Cookie、Session和MySQL完成认证及旧会话撤权，`SessionCookieIT`检查生产Secure属性。`CurrentAccountFilterTest`验证公开端点跳过账号查询及订单/候补等受保护端点刷新身份。`OrderManagementIT`现有25项检查订单预占、幂等、限购、支付、取消、过期竞争、流水、回滚和最终库存；`OrderExpiryRecoveryIT`关闭再启动两个真实应用上下文，验证Scheduling重启补偿。`WaitlistManagementIT`新增25项，使用真实HTTP会话、独立MySQL事务及RabbitMQ检查FIFO、并发入队/调度、队首阻塞、状态联动、事件原子性、确认丢失、认领租约、消费重试/死信及数据库补偿。第六阶段验收为35项基础测试加84项集成测试共119项，历史结果见 `docs/13-waitlist-verification.md`。这些是功能与并发一致性验证，不是吞吐压测。
+数据库测试必须在独立验收库运行；下面的数量为早期阶段历史记录，当前执行数见阶段19报告。迁移测试位于 `DatabaseMigrationIT`。`ActivityManagementIT`、`TicketManagementIT`覆盖原有业务；`AuthenticationIT`使用随机端口Tomcat、真实HTTP、Cookie、Session和MySQL完成认证及旧会话撤权，`SessionCookieIT`检查生产Secure属性。`CurrentAccountFilterTest`验证公开端点跳过账号查询及订单/候补等受保护端点刷新身份。`OrderManagementIT`现有25项检查订单预占、幂等、限购、支付、取消、过期竞争、流水、回滚和最终库存；`OrderExpiryRecoveryIT`关闭再启动两个真实应用上下文，验证Scheduling重启补偿。`WaitlistManagementIT`新增25项，使用真实HTTP会话、独立MySQL事务及RabbitMQ检查FIFO、并发入队/调度、队首阻塞、状态联动、事件原子性、确认丢失、认领租约、消费重试/死信及数据库补偿。第六阶段验收为35项基础测试加84项集成测试共119项，历史结果见 `docs/13-waitlist-verification.md`。这些是功能与并发一致性验证，不是吞吐压测。
 
 业务回归默认关闭候补任务和消息；候补IT显式启用消息但停止自动后台任务，使用独立的ticketing.waitlist.it交换机及队列，逐例控制消费并只清空测试队列。夹具按所属用户、场次和SKU清理。Outbox发布器读取当前库待投事件，推荐专用测试库，避免与正在运行的业务实例并行执行；先停止本地后端再验收。测试故障通过Spy在真实事务中注入，队列、数据库和实际库存变化不使用内存替代。
 
@@ -59,7 +59,7 @@ docker compose --env-file .env -f deploy/compose.yml exec -T mysql sh -c 'MYSQL_
 
 ## 票档模块本地验收
 
-当前数据库为V5，V3票档验收历史见 `docs/08-ticket-inventory-verification.md`。原有销售状态单元测试、票档HTTP集成测试及并发编辑冲突测试继续回归。需要票档样例时，手动将 `scripts/demo-tickets.sql` 复制到容器并按上文相同方式导入，不会由Flyway自动导入。
+本段对应早期V5验收，当前迁移上限为V10；原开发库第十九阶段的升级结果见最终报告。V3票档验收历史见 `docs/08-ticket-inventory-verification.md`。原有销售状态单元测试、票档HTTP集成测试及并发编辑冲突测试继续回归。需要票档样例时，仅在明确的演示库手动将 `scripts/demo-tickets.sql` 复制到容器并按上文相同方式导入，不会由Flyway自动导入。
 
 用户在活动详情选择场次后查看票档；管理员在活动管理中打开“场次”，再进入“票档管理”。启用销售前需确认销售窗口；已启用时仅能修改总库存，下架后可改其他基本信息。表单输入人民币元，接口发送整数分字符串。状态以服务端查询结果为准，可点击刷新获取最新结果。
 
@@ -135,7 +135,7 @@ legacy-jar应为基准2c7b086对应的V4产物；本机保留第八阶段产物�
 
 ## 第十一阶段工作人员及管理审计
 
-先启动本项目Compose，在已有Flyway库中只读执行`scripts/audit-staff-audit-readiness.sql`；STOP结果必须停止升级并人工核对。真实集成测试使用独立、名称以`_it`结尾的验收库，通过进程环境变量注入连接后执行`powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-backend.ps1 -VerifyDatabase`，不改写根.env。迁移探针需要在独立验收实例中创建随机schema的权限，运行应用的普通账号不需要全局建库权限。本地MySQL启用binlog时，Compose设置`log_bin_trust_function_creators=1`，让具备当前schema TRIGGER权限的迁移账号创建仅追加审计触发器；部署环境须由数据库管理员按本地权限策略配置等效权限。V7只允许新增迁移，不修改V1～V6；迁移失败保留数据库现场，不自动repair或清库。
+本节记录第十一阶段权限和V7迁移协议。先在已有Flyway库中只读执行`scripts/audit-staff-audit-readiness.sql`；STOP结果必须停止升级并人工核对。当前真实集成统一使用固定perf实例与随机guard，运行`python -u -B scripts/performance/verify_backend.py --label <新标签>`，不要用会导入根.env的`start-backend.ps1 -VerifyDatabase`替代隔离。迁移探针需要在独立验收实例中创建随机schema的权限，运行应用的普通账号不需要全局建库权限。本地MySQL启用binlog时，Compose设置`log_bin_trust_function_creators=1`，让具备当前schema TRIGGER权限的迁移账号创建仅追加审计触发器；部署环境须由数据库管理员按本地权限策略配置等效权限。历史V1～V10均不可改写；迁移失败保留数据库现场，不自动repair或清库。
 
 运营管理员登录`/admin/staff`，从已注册的普通ACTIVE账号中选择工作人员并提升为CHECKIN_STAFF；选择正常场次授予核销权限。工作人员登录`/staff/checkin`后只会看到自己的有效场次。用普通用户在真实演出窗口内购买并模拟支付，再以工作人员账号扫码；有效授权的票核销成功，未授权场次返回无权提示，重复核销显示已核销且不会覆盖原工作人员和时间。管理员继续从运营后台核销入口处理任意场次，现有`/api/v1/admin/checkins`行为不变。
 
@@ -213,7 +213,7 @@ try {
 
 已有历史订单且尚未应用V9时，默认启动预检报`STOP_QUOTA_SWITCH`，不会自动进行额度切换。必须停写并备份，使用同一只读连接先`SET @ticketing_quota_limit=<实际ORDER_SESSION_LIMIT>`再执行`scripts/audit-user-session-quota.sql`，并完成既有关系/退款/管理审计/受理预检。无异常后单次设置`ORDER_QUOTA_MIGRATION_APPROVED=true`迁移；校验全部额度组与有效订单SUM一致后撤销开关、恢复写入。失败现场保留，不执行repair或清库。
 
-原开发库当前仍V7，本次只读核对而未部署V8/V9。不要直接运行普通启动命令替代受控升级。固定隔离基准与真实结果见[第十六阶段验收](27-trade-quota-and-transaction-verification.md)。
+第十六阶段验收时原开发库仍为V7，当时只读核对而未部署V8/V9；该结论属于历史记录。第十九阶段已在用户明确批准的本次停写窗口，使用恢复验证过的V7备份将原开发库升级V10，对账通过并撤销单次批准；详细结果见[最终验收](31-final-acceptance-and-delivery.md)。其他有数据环境仍须逐库获得授权，不能直接用普通启动命令替代受控升级。第十六阶段的固定隔离基准与真实结果见[历史验收](27-trade-quota-and-transaction-verification.md)。
 
 ## 第十六阶段后审查
 

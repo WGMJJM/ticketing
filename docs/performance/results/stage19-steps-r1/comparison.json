@@ -1,0 +1,165 @@
+{
+  "passed": false,
+  "startedAt": "2026-10-25T03:55:46.081439+00:00",
+  "rounds": [
+    {
+      "scenario": "hot-ample",
+      "vus": 25,
+      "independentBuyerAccounts": 25,
+      "steadySeconds": 45,
+      "httpRps": 115.26666666666667,
+      "acceptedTps": 13.777777777777779,
+      "successfulOrderTps": 13.71111111111111,
+      "paidTps": 0.0,
+      "successCompletionMs": {
+        "med": 1637,
+        "p(95)": 2471,
+        "p(99)": 3081.520000000002,
+        "max": 3200
+      },
+      "businessFailureCompletionMs": {
+        "med": null,
+        "p(95)": null,
+        "p(99)": null,
+        "max": null
+      },
+      "queueExpiredCompletionMs": {
+        "med": null,
+        "p(95)": null,
+        "p(99)": null,
+        "max": null
+      },
+      "legacyCompletionMs": {
+        "med": 1637,
+        "p(95)": 2471,
+        "p(99)": 3081.520000000002,
+        "max": 3200
+      },
+      "k6ExitCode": 0,
+      "mysqlDelta": {
+        "Com_commit": 10239,
+        "Com_rollback": 0,
+        "Com_select": 64791,
+        "Innodb_row_lock_time": 79757,
+        "Innodb_row_lock_waits": 1801,
+        "Questions": 132863,
+        "Slow_queries": 641,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "raw": "docs/performance/results/stage19-steps-r1/hot-ample-25/hot-ample-25"
+    },
+    {
+      "scenario": "hot-ample",
+      "vus": 50,
+      "independentBuyerAccounts": 50,
+      "steadySeconds": 45,
+      "httpRps": 204.2888888888889,
+      "acceptedTps": 13.044444444444444,
+      "successfulOrderTps": 13.044444444444444,
+      "paidTps": 0.0,
+      "successCompletionMs": {
+        "med": 3534,
+        "p(95)": 6655.5,
+        "p(99)": 11354.72,
+        "max": 12149
+      },
+      "businessFailureCompletionMs": {
+        "med": null,
+        "p(95)": null,
+        "p(99)": null,
+        "max": null
+      },
+      "queueExpiredCompletionMs": {
+        "med": null,
+        "p(95)": null,
+        "p(99)": null,
+        "max": null
+      },
+      "legacyCompletionMs": {
+        "med": 3534,
+        "p(95)": 6655.5,
+        "p(99)": 11354.72,
+        "max": 12149
+      },
+      "k6ExitCode": 0,
+      "mysqlDelta": {
+        "Com_commit": 14637,
+        "Com_rollback": 0,
+        "Com_select": 77362,
+        "Innodb_row_lock_time": 85788,
+        "Innodb_row_lock_waits": 1791,
+        "Questions": 167168,
+        "Slow_queries": 680,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "raw": "docs/performance/results/stage19-steps-r1/hot-ample-50/hot-ample-50"
+    },
+    {
+      "scenario": "hot-ample",
+      "vus": 100,
+      "independentBuyerAccounts": 100,
+      "steadySeconds": 45,
+      "httpRps": 382.22222222222223,
+      "acceptedTps": 14.6,
+      "successfulOrderTps": 14.577777777777778,
+      "paidTps": 0.0,
+      "successCompletionMs": {
+        "med": 6102.5,
+        "p(95)": 15944.5,
+        "p(99)": 18273.300000000007,
+        "max": 19084
+      },
+      "businessFailureCompletionMs": {
+        "med": null,
+        "p(95)": null,
+        "p(99)": null,
+        "max": null
+      },
+      "queueExpiredCompletionMs": {
+        "med": null,
+        "p(95)": null,
+        "p(99)": null,
+        "max": null
+      },
+      "legacyCompletionMs": {
+        "med": 6102.5,
+        "p(95)": 15944.25,
+        "p(99)": 18273.300000000007,
+        "max": 19084
+      },
+      "k6ExitCode": 0,
+      "mysqlDelta": {
+        "Com_commit": 23593,
+        "Com_rollback": 0,
+        "Com_select": 109086,
+        "Innodb_row_lock_time": 99018,
+        "Innodb_row_lock_waits": 2177,
+        "Questions": 245528,
+        "Slow_queries": 837,
+        "Threads_connected": 0,
+        "Threads_running": 0,
+        "lock_deadlocks": 0,
+        "lock_timeouts": 0,
+        "current_lock_waits": 0
+      },
+      "auditPassed": true,
+      "raw": "docs/performance/results/stage19-steps-r1/hot-ample-100/hot-ample-100"
+    }
+  ],
+  "jarSha256": "690448e32c25353f060b00ce5fd09d12070347f42f1affbb555e14d043ad7345",
+  "scripts": {
+    "perf.py": "6fbdd48ca91fa7a19c038421a9c3a142bf2ed086ffc202f7792f833dc3ec8290",
+    "scenarios.js": "a7750d79193d9ed955f9338e0cdce02f0bd8bffa37a387a35121893d8dd8560b",
+    "final_load_suite.py": "2662534e30a64cf8a2a63cd1d6ea367721563f64dbab29f0a24eaf410c06e402"
+  }
+}

@@ -1,0 +1,209 @@
+{
+  "environment": "ticketing-perf-only",
+  "passed": true,
+  "checks": [
+    {
+      "name": "管理提交下架后20并发不命中旧公开数据",
+      "passed": true
+    },
+    {
+      "name": "重新发布失效后20并发热键正确重建",
+      "passed": true
+    },
+    {
+      "name": "Redis停机且L1过期后20并发公开详情受控回源",
+      "passed": true
+    },
+    {
+      "name": "Redis停机时原安全链路对新请求503关闭且未受理",
+      "passed": true,
+      "httpStatus": 503,
+      "code": "RATE_LIMIT_UNAVAILABLE"
+    },
+    {
+      "name": "Redis停机时原用户安全过滤器也会先拒绝幂等回放",
+      "passed": true
+    },
+    {
+      "name": "Redis真实停机时本人只读查找仍恢复原申请且禁止缓存",
+      "passed": true
+    },
+    {
+      "name": "故障拒绝没有新增受理及容量占用",
+      "passed": true
+    },
+    {
+      "name": "Redis恢复后原请求回放仍指向同一正式订单",
+      "passed": true
+    },
+    {
+      "name": "Redis恢复后公开查询重新填充缓存",
+      "passed": true
+    },
+    {
+      "name": "恢复后L1再次过期仍能命中Redis",
+      "passed": true
+    },
+    {
+      "name": "公开缓存记录真实Redis故障并已恢复读取",
+      "passed": true,
+      "counters": {
+        "catalog.detail.l1": 23.0,
+        "catalog.detail.l2": 1.0,
+        "catalog.detail.db": 5.0,
+        "catalog.detail.negative": 20.0,
+        "catalog.detail.busy": 0,
+        "catalog.detail.redis-unavailable": 1.0,
+        "catalog.detail.load-failure": 0,
+        "catalog.sessions.l1": 0,
+        "catalog.sessions.l2": 0,
+        "catalog.sessions.db": 0,
+        "catalog.sessions.negative": 0,
+        "catalog.sessions.busy": 0,
+        "catalog.sessions.redis-unavailable": 0,
+        "catalog.sessions.load-failure": 0,
+        "catalog.list.l1": 0,
+        "catalog.list.l2": 0,
+        "catalog.list.db": 0,
+        "catalog.list.negative": 0,
+        "catalog.list.busy": 0,
+        "catalog.list.redis-unavailable": 0,
+        "catalog.list.load-failure": 0,
+        "admission.allowed": 1.0,
+        "admission.limited-global": 0,
+        "admission.limited-ticket": 0,
+        "admission.unavailable": 0,
+        "catalog.redis.read.count": 6.0,
+        "catalog.redis.read.totalSeconds": 0.5128856,
+        "catalog.redis.read.maxSeconds": 0.5023653,
+        "catalog.redis.write.count": 4.0,
+        "catalog.redis.write.totalSeconds": 0.0103527,
+        "catalog.redis.write.maxSeconds": 0.004685,
+        "admission.redis.count": 1.0,
+        "admission.redis.totalSeconds": 0.0035631,
+        "admission.redis.maxSeconds": 0.0035631
+      }
+    }
+  ],
+  "audit": {
+    "passed": true,
+    "checks": [
+      {
+        "invariant": "stock_bounds",
+        "violation_count": 0
+      },
+      {
+        "invariant": "stock_order_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "payment_snapshot",
+        "violation_count": 0
+      },
+      {
+        "invariant": "order_snapshot",
+        "violation_count": 0
+      },
+      {
+        "invariant": "session_quota",
+        "violation_count": 0
+      },
+      {
+        "invariant": "waitlist_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "fifo_allocation_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "ticket_quantity",
+        "violation_count": 0
+      },
+      {
+        "invariant": "ticket_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "duplicate_payment_effect",
+        "violation_count": 0
+      },
+      {
+        "invariant": "duplicate_active_waitlist",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_capacity",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_order_relation",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_no_unbound_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_no_late_order",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_reliable_command",
+        "violation_count": 0
+      },
+      {
+        "invariant": "purchase_exhausted_command_active",
+        "violation_count": 0
+      },
+      {
+        "invariant": "quota_order_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "quota_extra_or_orphan",
+        "violation_count": 0
+      },
+      {
+        "invariant": "bucket_strategy_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "bucket_bounds",
+        "violation_count": 0
+      },
+      {
+        "invariant": "allocation_quantity",
+        "violation_count": 0
+      },
+      {
+        "invariant": "bucket_order_totals",
+        "violation_count": 0
+      },
+      {
+        "invariant": "allocation_relations",
+        "violation_count": 0
+      },
+      {
+        "invariant": "bucket_switch_receipt",
+        "violation_count": 0
+      }
+    ],
+    "counts": {
+      "purchase_request": 1,
+      "order_aftercare": 0,
+      "refund_record": 0,
+      "electronic_ticket": 0,
+      "waitlist_entry": 0,
+      "payment_record": 0,
+      "ticket_order_item": 1,
+      "ticket_order": 1,
+      "outbox_event": 2,
+      "ticket_sku": 1,
+      "activity_session": 1,
+      "activity": 1000,
+      "user_account": 42,
+      "user_session_quota": 1
+    }
+  }
+}

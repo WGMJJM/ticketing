@@ -1,0 +1,87 @@
+{
+  "maven": "Apache Maven 3.9.9 (8e8579a9e76f7d015ee5ec7bfcdc97d260186937)\nMaven home: D:\\Tools\\apache-maven-3.9.9\nJava version: 21.0.10, vendor: Oracle Corporation, runtime: D:\\JDK17\nDefault locale: zh_CN, platform encoding: UTF-8\nOS name: \"windows 11\", version: \"10.0\", arch: \"amd64\", family: \"windows\"",
+  "node": "v25.9.0",
+  "rabbitmq": "4.1.8",
+  "redis": [
+    "# Server",
+    "redis_version:7.4.11",
+    "redis_git_sha1:00000000",
+    "redis_git_dirty:0",
+    "redis_build_id:fbf7a7d03c2e9219"
+  ],
+  "containers": [
+    {
+      "name": "/ticketing-perf-mysql-1",
+      "image": "mysql:8.4",
+      "memoryLimit": 0,
+      "nanoCpus": 0,
+      "portBindings": {
+        "3306/tcp": [
+          {
+            "HostIp": "127.0.0.1",
+            "HostPort": "13307"
+          }
+        ]
+      },
+      "restartPolicy": {
+        "Name": "no",
+        "MaximumRetryCount": 0
+      }
+    },
+    {
+      "name": "/ticketing-perf-rabbitmq-1",
+      "image": "rabbitmq:4.1-management-alpine",
+      "memoryLimit": 0,
+      "nanoCpus": 0,
+      "portBindings": {
+        "15672/tcp": [
+          {
+            "HostIp": "127.0.0.1",
+            "HostPort": "25673"
+          }
+        ],
+        "5672/tcp": [
+          {
+            "HostIp": "127.0.0.1",
+            "HostPort": "15673"
+          }
+        ]
+      },
+      "restartPolicy": {
+        "Name": "no",
+        "MaximumRetryCount": 0
+      }
+    },
+    {
+      "name": "/ticketing-perf-redis-1",
+      "image": "redis:7-alpine",
+      "memoryLimit": 0,
+      "nanoCpus": 0,
+      "portBindings": {
+        "6379/tcp": [
+          {
+            "HostIp": "127.0.0.1",
+            "HostPort": "16379"
+          }
+        ]
+      },
+      "restartPolicy": {
+        "Name": "no",
+        "MaximumRetryCount": 0
+      }
+    }
+  ],
+  "baselineParameters": {
+    "stock": "SINGLE",
+    "hikariMax": 10,
+    "consumerConcurrency": 2,
+    "prefetch": 1,
+    "outboxWindow": 16,
+    "outboxBatch": 100,
+    "purchaseCapacity": 200,
+    "purchaseQueueSeconds": 120,
+    "purchaseMessageTtlMs": 120000,
+    "catalogCache": true,
+    "extraLuaAdmission": false
+  }
+}

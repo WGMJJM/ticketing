@@ -1,0 +1,705 @@
+{
+  "capturedAt": "2026-10-25T06:54:30.544715+00:00",
+  "baseCommit": "9830a2658bd9789a64a91ffa6702a74a1b487c3c",
+  "status": "功能及隔离验收完成，性能限制和失败轮保留，生产未上线",
+  "functionalAcceptancePassed": true,
+  "frozenCandidate": {
+    "path": ".local/stage19/candidate.jar",
+    "sha256": "690448e32c25353f060b00ce5fd09d12070347f42f1affbb555e14d043ad7345",
+    "rebuiltProductionClassBytesMatch": true,
+    "comparedClassFiles": 199,
+    "rebuiltJarSha256": "5b5d4cb901eb7964fa383b322c9da9f503e62e68e37e5694c08e9cf1bc634607"
+  },
+  "sourceSnapshot": "docs/architecture/results/stage19-delivery/source-inventory.json",
+  "historicalMigrationsUnchanged": true,
+  "backend": {
+    "ordinaryCommand": "mvn -f backend/pom.xml clean verify",
+    "ordinary": {
+      "capturedAt": "2026-10-25T06:28:18.697127+00:00",
+      "phase": "ordinary",
+      "groups": {
+        "surefire": {
+          "tests": 90,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "suites": [
+            {
+              "name": "com.ticketing.ArchitectureRulesTest",
+              "tests": 2,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.common.ApiResponseTest",
+              "tests": 1,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.ConfigurationBindingTest",
+              "tests": 2,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.controller.SystemControllerTest",
+              "tests": 3,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.messaging.InventoryEventTest",
+              "tests": 1,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.messaging.OutboxPublisherTest",
+              "tests": 7,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.model.OrderStatusTest",
+              "tests": 1,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.model.TicketSaleStatusTest",
+              "tests": 15,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.RateLimitConfigurationTest",
+              "tests": 3,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.security.ClientAddressResolverTest",
+              "tests": 23,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.security.CurrentAccountFilterTest",
+              "tests": 24,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.security.TicketCredentialSignerTest",
+              "tests": 5,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.waitlist.WaitlistContinuationSchedulerTest",
+              "tests": 3,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            }
+          ]
+        }
+      }
+    },
+    "finalFullCommand": "python -u -B scripts/performance/verify_backend.py --label s19final2",
+    "finalFull": {
+      "capturedAt": "2026-10-25T06:52:11.136335+00:00",
+      "phase": "integration",
+      "groups": {
+        "surefire": {
+          "tests": 90,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "suites": [
+            {
+              "name": "com.ticketing.ArchitectureRulesTest",
+              "tests": 2,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.common.ApiResponseTest",
+              "tests": 1,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.ConfigurationBindingTest",
+              "tests": 2,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.controller.SystemControllerTest",
+              "tests": 3,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.messaging.InventoryEventTest",
+              "tests": 1,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.messaging.OutboxPublisherTest",
+              "tests": 7,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.model.OrderStatusTest",
+              "tests": 1,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.model.TicketSaleStatusTest",
+              "tests": 15,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.RateLimitConfigurationTest",
+              "tests": 3,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.security.ClientAddressResolverTest",
+              "tests": 23,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.security.CurrentAccountFilterTest",
+              "tests": 24,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.security.TicketCredentialSignerTest",
+              "tests": 5,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.waitlist.WaitlistContinuationSchedulerTest",
+              "tests": 3,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            }
+          ]
+        },
+        "failsafe": {
+          "tests": 256,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "suites": [
+            {
+              "name": "com.ticketing.ActivityManagementIT",
+              "tests": 6,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.appconfig.MigrationSafetyIT",
+              "tests": 5,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.AsyncPurchaseMigrationIT",
+              "tests": 2,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.AuthenticationIT",
+              "tests": 13,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.CatalogCacheIT",
+              "tests": 6,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.CsrfSessionIT",
+              "tests": 5,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.DatabaseMigrationIT",
+              "tests": 7,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.ElectronicTicketIT",
+              "tests": 25,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.messaging.AsyncPurchaseIT",
+              "tests": 17,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.messaging.OutboxPipelineIT",
+              "tests": 3,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.messaging.WaitlistManagementIT",
+              "tests": 29,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.OrderAftercareIT",
+              "tests": 18,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.OrderExpiryRecoveryIT",
+              "tests": 1,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.OrderManagementIT",
+              "tests": 25,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.QuotaMigrationIT",
+              "tests": 6,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.RateLimitIT",
+              "tests": 12,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.RefundMigrationIT",
+              "tests": 2,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.SessionAftercareRecoveryIT",
+              "tests": 1,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.SessionCookieIT",
+              "tests": 1,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.StaffAuditIT",
+              "tests": 17,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.StaffMigrationIT",
+              "tests": 1,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.StockBucketIT",
+              "tests": 15,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.StockBucketMigrationIT",
+              "tests": 4,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.TicketAdmissionIT",
+              "tests": 9,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.TicketManagementIT",
+              "tests": 8,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.TrustedProxyIT",
+              "tests": 3,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            },
+            {
+              "name": "com.ticketing.UserSessionQuotaIT",
+              "tests": 15,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0
+            }
+          ]
+        }
+      }
+    },
+    "uniqueTestsInFullRun": 346,
+    "earlierFullFailureRetained": "docs/architecture/results/stage19-final-r1-tests.json",
+    "fixScope": "只修正随机Redis测试夹具的时间假设，生产实现不变",
+    "targeted": "docs/architecture/results/stage19-gatefix-target-tests.json"
+  },
+  "frontend": {
+    "commands": [
+      "npm ci",
+      "npm run build"
+    ],
+    "at": "2026-10-25T06:28:01.125505+00:00",
+    "npmCiExitCode": 0,
+    "buildExitCode": 0,
+    "distMatchesBrowserTestedBuild": true,
+    "files": {
+      "assets/_plugin-vue_export-helper-BDNMzG2s.js": "27e87fe62aa760227b7529576953d8314891fd2aec28e0a3f03aece406f2d7d7",
+      "assets/AboutView-CNvnf0Yw.js": "541a20f10820f94a72388917ef48dc74add797593a6a74cb5304fae39d563142",
+      "assets/activities-BSyjBB38.js": "5c9df2d3d2f9122fe7ccd2ef871dd1711638be8d02605b30c7bc59b09c1d7012",
+      "assets/ActivityDetailView-CYEo__L4.js": "fc52e53c55bbfab7d90dedd978b9e5e9f65140b9432d9ab71a8fd8e30637ef7f",
+      "assets/AdminActivitiesView-Db9A6IdJ.js": "4131796d82da0659818e2e3cce7a4e0c6e81bbbab8883f4cdc883f61a385a06d",
+      "assets/AdminAuditView-BruxsJ1K.css": "a1cfb71135dd7c4652de957ca1cc8a35dfdbf50479aa6be138a3d7b283d4381c",
+      "assets/AdminAuditView-DhKEe0Ri.js": "8e42700a67a32b84b5ed5fc4da703ca57bc9a11af421a2e20fed50203647fd0e",
+      "assets/AdminCheckinView-Dci4GIvp.js": "421608235aa796c0b57f2701022fe8836ad84dab2a3d0073bb5b251b607ac50a",
+      "assets/AdminOrdersView-CTQ1Kg9x.js": "a08b21b8824ced826fa90048327f8b7c5fb0081201fb4357fe7195a81fe369db",
+      "assets/AdminStaffView-CN8U-Ysh.js": "dab6f490274eae63d122bdef31269cc7ced233edd1fc0949a7ed5ce4033665bf",
+      "assets/AdminStaffView-Djd1WFMm.css": "d833c442944b8c6ce9cfc3c8deac6e30b52df2dfcac2cbfaf1c0bf0c42cb2608",
+      "assets/auth-C3HtQxE2.js": "5781b2b398b689079d2a9066ed29446a60dafc2f1a565d028c8dc56394e95bdd",
+      "assets/AuthLayout-BWFMKisM.js": "f549d7b41b0b7a9b5b5aa743f1b7a01cdab37e29216cc719241e63ef37aa3281",
+      "assets/css-CJG9lvSm.js": "f372ba11740e5626ea564cf4ec4eed3507daf2fe6c5f1782011590ff66456e40",
+      "assets/css-Vcjjznms.css": "a2c053617897890847a7c41651c1df2c086beac81f9719ab8e60fbfcb293e098",
+      "assets/date-rLeZ_pZ8.js": "ea8978c0f903dbd309d156d9c1654292bbc3209296fa3158dbf2ec37ff6edae8",
+      "assets/electronicTickets-Cxgy-TYN.js": "541bd38b24832bd659b0577c3a3225debadad3282a27df029f3dcb33e3f742cb",
+      "assets/ElectronicTicketsView-CYZQw0xJ.js": "fd2e4c3c5b55c5ad58fc4e95ff56ec30081292e6e3deb3800da13be04977e044",
+      "assets/esm-CBZlbYwd.js": "c7ce00f821b6f0ab7bcf3113df79f92d0962f6b2ea0782ec49f7b399629ff535",
+      "assets/index-B9bUMs1N.css": "39b259d8828640fba1ac618ef9f3b92fa82768d09fe075d680db8a76d296f4ee",
+      "assets/index-Bt7gcij0.js": "2f545fd8f9ce1fab7d5563693b8f653406e83c86551666a9506268423d9fca13",
+      "assets/LoginView-Byu_N4BC.js": "69f2f827540cd983ae4dff35a72c97db62af061d9adb611544b7c2eed24f2198",
+      "assets/message-box-BzM-n41W.js": "86698efbebdf81fe1cbb780537481f85ed60ac0a92ab5bdb2824809ef7794d2c",
+      "assets/money-B7B_jTQK.js": "ae0fd6ce48d3b93ab13f5fc137ca68865af2f6ca70b18f19f2ff60d8ca810f22",
+      "assets/OrderCard-YjvuVn97.js": "efd1a3955ee1ba6a881ea38dc958d123d098129e01c2c3447dad34d28d8e82ae",
+      "assets/orders-BkPKbBS4.js": "a5fdaa848e9b87f39d73ff11b090aa352e0a3d2c8e93f80a390fb0950b51045a",
+      "assets/OrdersView-BOeSFiDR.js": "0718e0f65d5f029a3eeac6738740a1e9da109ababd460dfb1e0bf49659a72b61",
+      "assets/ProfileView-1ZbU2rYb.js": "c4a95d31837e1dfbe6a02d66eb374fff61432aff009a665a2ee3c9e39a9fb209",
+      "assets/purchaseAttempts-DdvPjILP.js": "689c4a26ec367a91d85133738a1c50cb5ee4a502622d158e2bfa4a881d593038",
+      "assets/PurchaseRequestsView-CzB-8S2T.js": "43659a49f6a6ce119cff9101895f0713e8c2107f513e72f5dde44bd621b0d6d7",
+      "assets/RegisterView--2tQEQ-3.js": "c962be5cc131ad9230693addf5ca036987c8b15a83d9d8363a0c056a608ae333",
+      "assets/rolldown-runtime-XKyaHtl9.js": "548d1dbf321e7d2ae804fcc158b588706a7c52f8ca175de1490c6ccb4dbe55b7",
+      "assets/runtime-core.esm-bundler-BKHgPjq3.js": "e5f23e6fdda4e4b11ef03dd0af034f101a62b2a3fa3e4fba1d95c7aa72d99f41",
+      "assets/staff--GmeGCOD.js": "1b843df297a8607e46da9dd6524342b6be9981f0ffb968dbdcf6d2784a71b016",
+      "assets/tickets-CxK657my.js": "e27e602b9d5bea8e5debe01bb9f4507f595442df5d2b9379f698a9355292d1ac",
+      "assets/validation-B02F6DQv.js": "4419a756588cabf8ceb2eadfee996c4524e3f02074a17c610dc616c044ec8f6c",
+      "assets/waitlist-DJ-p31su.js": "1e3515f58d5e772b6dcf705514d1ea6daf0cbaccb5f0e704cff2ee4d74aad699",
+      "assets/WaitlistView-DXrAUk_T.js": "bec39260212e50721b2459766609c5cb87e5b94231aadcbc11f893e280525013",
+      "index.html": "3256742ae0c60d6c843d9fb9d4624919a6b29fc70c5346b5dd9d49db897917bc"
+    }
+  },
+  "browser": {
+    "report": "docs/architecture/results/stage19-r9-browser.json",
+    "passed": 10,
+    "failed": 0,
+    "skipped": 0,
+    "realBrowser": true,
+    "mockedBusinessResponses": false,
+    "mobileOrderAndQrChecked": true
+  },
+  "additionalChecks": {
+    "performanceIsolationTests": 7,
+    "loginFunctionTests": 4,
+    "jfrParserAssertions": 3,
+    "pythonSyntaxFiles": 37,
+    "gitDiffCheckPassed": true
+  },
+  "faults": [
+    {
+      "report": "docs/architecture/results/catalog-faults-stage19-final.json",
+      "passed": true,
+      "checks": 11
+    },
+    {
+      "report": "docs/architecture/results/async-faults-stage19-final.json",
+      "passed": true,
+      "checks": 8
+    },
+    {
+      "report": "docs/architecture/results/publisher-crash-stage19-final.json",
+      "passed": true,
+      "checks": 3
+    }
+  ],
+  "migration": {
+    "isolatedReport": "docs/architecture/results/stage19-v7copy-r2-migration.json",
+    "originalReport": "docs/architecture/results/stage19-original-r3-development-upgrade.json",
+    "originalTarget": "127.0.0.1:3307/ticketing",
+    "explicitUserApprovalReceived": true,
+    "originalUpgradedTo": "V10",
+    "businessFactsPreserved": true,
+    "oneTimeApprovalRevoked": true,
+    "sourceBackupSha256": "2bfe109dba1cf3bcb510eabe7058f3afd66a9be1d410bff5c1fcbd62e01f9330",
+    "repairOrCleanExecuted": false,
+    "productionDeploymentAuthorized": false
+  },
+  "performance": {
+    "sameJarAndScriptsAcrossFinalComparison": true,
+    "normalReverseRoundsPassed": true,
+    "soakSteadySeconds": 1800,
+    "soakPassed": true,
+    "soakAverageSuccessfulOrderTps": 13.735555555555555,
+    "soakLateServerSampleTps": 10.647688064399956,
+    "sceneReports": [
+      {
+        "report": "docs/performance/results/stage19-baseline-r1/hot-ample-100/hot-ample-100/environment.json",
+        "scenario": "hot-ample",
+        "vus": 100,
+        "steadySeconds": 60,
+        "k6ExitCode": 99,
+        "auditPassed": true
+      },
+      {
+        "report": "docs/performance/results/stage19-baseline-r2/hot-ample-100/hot-ample-100/environment.json",
+        "scenario": "hot-ample",
+        "vus": 100,
+        "steadySeconds": 60,
+        "k6ExitCode": 99,
+        "auditPassed": true
+      },
+      {
+        "report": "docs/performance/results/stage19-baseline-r3/hot-ample-100/hot-ample-100/environment.json",
+        "scenario": "hot-ample",
+        "vus": 100,
+        "steadySeconds": 60,
+        "k6ExitCode": 0,
+        "auditPassed": true
+      },
+      {
+        "report": "docs/performance/results/stage19-baseline-r3/hot-scarce-100/hot-scarce-100/environment.json",
+        "scenario": "hot-scarce",
+        "vus": 100,
+        "steadySeconds": 60,
+        "k6ExitCode": 0,
+        "auditPassed": true
+      },
+      {
+        "report": "docs/performance/results/stage19-baseline-r3/mixed-25/mixed-25/environment.json",
+        "scenario": "mixed",
+        "vus": 25,
+        "steadySeconds": 60,
+        "k6ExitCode": 0,
+        "auditPassed": true
+      },
+      {
+        "report": "docs/performance/results/stage19-baseline-r3/same-user-cross-session-25/mixed-25/environment.json",
+        "scenario": "mixed",
+        "vus": 25,
+        "steadySeconds": 60,
+        "k6ExitCode": 0,
+        "auditPassed": true
+      },
+      {
+        "report": "docs/performance/results/stage19-baseline-r4/hot-ample-100/hot-ample-100/environment.json",
+        "scenario": "hot-ample",
+        "vus": 100,
+        "steadySeconds": 60,
+        "k6ExitCode": 0,
+        "auditPassed": true
+      },
+      {
+        "report": "docs/performance/results/stage19-baseline-r4/hot-scarce-100/hot-scarce-100/environment.json",
+        "scenario": "hot-scarce",
+        "vus": 100,
+        "steadySeconds": 60,
+        "k6ExitCode": 0,
+        "auditPassed": true
+      },
+      {
+        "report": "docs/performance/results/stage19-baseline-r4/mixed-25/mixed-25/environment.json",
+        "scenario": "mixed",
+        "vus": 25,
+        "steadySeconds": 60,
+        "k6ExitCode": 0,
+        "auditPassed": true
+      },
+      {
+        "report": "docs/performance/results/stage19-baseline-r4/same-user-cross-session-25/mixed-25/environment.json",
+        "scenario": "mixed",
+        "vus": 25,
+        "steadySeconds": 60,
+        "k6ExitCode": 0,
+        "auditPassed": true
+      },
+      {
+        "report": "docs/performance/results/stage19-soak-r1/hot-ample-25/hot-ample-25/environment.json",
+        "scenario": "hot-ample",
+        "vus": 25,
+        "steadySeconds": 1800,
+        "k6ExitCode": 0,
+        "auditPassed": true
+      },
+      {
+        "report": "docs/performance/results/stage19-steps-r1/hot-ample-100/hot-ample-100/environment.json",
+        "scenario": "hot-ample",
+        "vus": 100,
+        "steadySeconds": 45,
+        "k6ExitCode": 0,
+        "auditPassed": true
+      },
+      {
+        "report": "docs/performance/results/stage19-steps-r1/hot-ample-200/hot-ample-200/environment.json",
+        "scenario": "hot-ample",
+        "vus": 200,
+        "steadySeconds": 45,
+        "k6ExitCode": 99,
+        "auditPassed": true
+      },
+      {
+        "report": "docs/performance/results/stage19-steps-r1/hot-ample-25/hot-ample-25/environment.json",
+        "scenario": "hot-ample",
+        "vus": 25,
+        "steadySeconds": 45,
+        "k6ExitCode": 0,
+        "auditPassed": true
+      },
+      {
+        "report": "docs/performance/results/stage19-steps-r1/hot-ample-50/hot-ample-50/environment.json",
+        "scenario": "hot-ample",
+        "vus": 50,
+        "steadySeconds": 45,
+        "k6ExitCode": 0,
+        "auditPassed": true
+      }
+    ],
+    "allK6ScenesPassed": false,
+    "documentedFailures": [
+      "stage19-baseline-r1启动Redis超时",
+      "stage19-baseline-r2启动Redis超时",
+      "stage19-steps-r1的200VU预热TCP连接拒绝"
+    ],
+    "limits": [
+      "末段服务端采样变慢，唯一根因未确认",
+      "SINGLE默认",
+      "额外Lua准入默认关闭",
+      "regression安全阈值10000及专用短支付窗口，不是生产SLA"
+    ]
+  },
+  "deployment": {
+    "finalHttpReport": "docs/architecture/results/stage19-final-http-smoke.json",
+    "productionHttpsChecked": false,
+    "productionDeploymentPerformed": false
+  },
+  "ci": {
+    "workflow": ".github/workflows/ci.yml",
+    "scope": "Java21普通测试和架构守卫、Node22锁依赖和严格构建",
+    "remoteStatusAtPrePushGeneration": "未运行，推送后单独核对",
+    "verifiedRuntimeCommit": "3a46a21e5f8687ee5ef1eb82f40ae420c70f46ab",
+    "remoteRuntimePassed": true,
+    "runUrl": "https://github.com/WGMJJM/ticketing/actions/runs/40170951470",
+    "evidence": "docs/architecture/results/stage19-remote-ci-runtime.json",
+    "checkedAt": "2026-10-25T06:59:08.165747+00:00"
+  },
+  "deliveryChecks": {
+    "scannedDeliveryFiles": 193,
+    "privateCredentialValuesAbsent": true,
+    "k6SummariesWithoutSetupData": 15,
+    "sensitiveAndBuildPathsIgnored": true,
+    "allTenMigrationBytesUnchangedFromStart": true
+  },
+  "runtimeDeliveryCommit": "3a46a21e5f8687ee5ef1eb82f40ae420c70f46ab",
+  "runtimeCommits": [
+    {
+      "sha": "770ecc4d2035e60e533a02bf0397f84c15e71c50",
+      "purpose": "消息阶段诊断和可靠性边界测试"
+    },
+    {
+      "sha": "ae43396062d61cc917fd76024d4de70e97f1bdc8",
+      "purpose": "真实浏览器和最终负载工具"
+    },
+    {
+      "sha": "3a46a21e5f8687ee5ef1eb82f40ae420c70f46ab",
+      "purpose": "单实例运维和基础CI"
+    }
+  ]
+}

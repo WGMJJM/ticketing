@@ -1,0 +1,77 @@
+{
+  "capturedAt": "2026-10-25T06:54:27.548357+00:00",
+  "host": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "logicalProcessors": 16,
+    "CPU": "13th Gen Intel(R) Core(TM) i5-13400F",
+    "Build": "26200",
+    "TotalMemoryGiB": 31.82
+  },
+  "docker": {
+    "ServerVersion": "29.5.2",
+    "NCPU": 16,
+    "MemTotal": 16670457856,
+    "OperatingSystem": "Docker Desktop",
+    "Driver": "overlayfs"
+  },
+  "images": [
+    {
+      "id": "sha256:24989179f58856db763f418010c1169fecc944e3ec1ea7e921572d83eb070f70",
+      "tags": [
+        "mysql:8.4"
+      ],
+      "digests": [
+        "mysql@sha256:24989179f58856db763f418010c1169fecc944e3ec1ea7e921572d83eb070f70"
+      ]
+    },
+    {
+      "id": "sha256:5466c0d65fc84d5cd662041e71bfa3601cc30a60a709390fe0de5c4c4a51bc8c",
+      "tags": [
+        "rabbitmq:4.1-management-alpine"
+      ],
+      "digests": [
+        "rabbitmq@sha256:5466c0d65fc84d5cd662041e71bfa3601cc30a60a709390fe0de5c4c4a51bc8c"
+      ]
+    },
+    {
+      "id": "sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf",
+      "tags": [
+        "redis:7-alpine"
+      ],
+      "digests": [
+        "redis@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf"
+      ]
+    }
+  ],
+  "java": "java version \"21.0.10\" 2026-01-20 LTS\nJava(TM) SE Runtime Environment (build 21.0.10+8-LTS-217)\nJava HotSpot(TM) 64-Bit Server VM (build 21.0.10+8-LTS-217, mixed mode, sharing)",
+  "python": "3.12.10 (tags/v3.12.10:0cc8128, Apr  8 2025, 12:21:36) [MSC v.1943 64 bit (AMD64)]",
+  "k6": "k6.exe v2.3.0 (commit/e088784614, go1.26.8, windows/amd64)",
+  "jvmFlags": [
+    "-Xms512m",
+    "-Xmx1024m",
+    "-XX:+UseG1GC"
+  ],
+  "mysql": [
+    {
+      "version": "8.4.11",
+      "flush_at_commit": 1,
+      "sync_binlog": 1,
+      "default_isolation": "REPEATABLE-READ",
+      "max_connections": 151,
+      "buffer_pool_bytes": 134217728,
+      "log_bin": 1
+    }
+  ],
+  "mysqlLockMetrics": [
+    {
+      "NAME": "lock_deadlocks",
+      "COUNT": 4,
+      "STATUS": "enabled"
+    },
+    {
+      "NAME": "lock_timeouts",
+      "COUNT": 2,
+      "STATUS": "enabled"
+    }
+  ]
+}

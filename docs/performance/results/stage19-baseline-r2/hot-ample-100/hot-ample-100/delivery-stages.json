@@ -1,0 +1,57 @@
+{
+  "acceptedCommitToOutboxClaimMs": {
+    "count": 1080,
+    "p50": 2126.4893,
+    "p95": 7978.4198449999985,
+    "p99": 10427.162527,
+    "max": 10969.4956,
+    "negativeSamples": 0
+  },
+  "outboxClaimToBrokerConfirmMs": {
+    "count": 1080,
+    "p50": 4.8741,
+    "p95": 14.283434999999999,
+    "p99": 135.049281,
+    "max": 226.0814,
+    "negativeSamples": 0
+  },
+  "brokerConfirmToConsumerClaimSignedMs": {
+    "count": 920,
+    "p50": 4596.195,
+    "p95": 5625.557574999999,
+    "p99": 6041.196944,
+    "max": 6263.4015,
+    "negativeSamples": 0
+  },
+  "consumerClaimToOrderCommitMs": {
+    "count": 920,
+    "p50": 102.6502,
+    "p95": 181.20284499999997,
+    "p99": 263.39533499999953,
+    "max": 723.8627,
+    "negativeSamples": 0
+  },
+  "acceptedCommitToOrderCommitMs": {
+    "count": 920,
+    "p50": 6786.9361499999995,
+    "p95": 11188.640834999997,
+    "p99": 13151.493912,
+    "max": 13335.6897,
+    "negativeSamples": 0
+  },
+  "acceptedCommitToBusinessFailureMs": {
+    "count": 0,
+    "p50": null,
+    "p95": null,
+    "p99": null,
+    "max": null,
+    "negativeSamples": 0
+  },
+  "observedDeliveryAttempts": 1080,
+  "acceptedObserved": 920,
+  "scope": "同一JVM单调时钟关联实际提交/Confirm回调时刻；全轮样本，非k6稳定窗口。",
+  "overlap": "Confirm→消费者认领允许负数，表示消费先于发布确认完成；保留符号，分位数不能直接相加。",
+  "incompleteGroups": 160,
+  "rawRecording": ".local\\stage19\\recordings\\stage19-baseline-r2-hot-ample-100.jfr",
+  "rawSha256": "93d863a8f6a8a93a5e5ab09421433f28da52425e577014cb9812fa333b26f075"
+}

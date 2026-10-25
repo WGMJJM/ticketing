@@ -2,6 +2,8 @@
 
 后端保持单Maven模块，控制器、服务及Mapper按业务包组织，根包为`com.ticketing`。普通购票沿用第十四阶段异步受理协议；第十五阶段新增的票档/全局429及准入503见本文末尾，原权限、CSRF及用户安全限流保持。历史验收文档中的旧源码路径以当时提交为准，当前结构见[架构说明](01-architecture.md)。
 
+第十九阶段没有改变业务HTTP契约。可选运维配置将health/info/metrics置于`/api/v1/admin/monitoring`，继续要求实时ADMIN身份；其他敏感Actuator端点不暴露。该路径仅供本机或受控运维网络使用，部署检查见[运维手册](32-single-instance-operations.md)。所有BIGINT ID按字符串传输；时间使用带时区表示，人民币金额为整数分。
+
 ## 第十阶段订单运营与模拟退款
 
 以下新增端点均在`/api/v1`下，沿用最新账号状态/ADMIN角色检查、Session和写请求CSRF，响应no-store。匿名401、普通用户403、非法参数400、状态冲突409，不返回票券凭证、摘要或认证信息。
@@ -214,7 +216,7 @@ TICKET_BACKFILL_ENABLED默认false，显式开启后启动扫描PAID订单，默
 
 ## 第八阶段独立压测监测
 
-仅显式加载scripts/performance/application-performance.yml的专用18080进程，将已有Actuator迁至 `/api/v1/admin/monitoring`，开放health、info、metrics。全部位于原ADMIN匹配器内，继续复查数据库最新账号状态及角色；匿名401、USER403、ADMIN可读。普通开发/生产配置仍只暴露原health/info，不公开JVM或连接池指标。脚本通过真实登录Session读取指标，未增加免认证监测、故障注入或测试数据管理HTTP接口。
+显式加载scripts/performance/application-performance.yml的专用18080进程，将已有Actuator迁至 `/api/v1/admin/monitoring`，开放health、info、metrics。全部位于原ADMIN匹配器内，继续复查数据库最新账号状态及角色；匿名401、USER403、ADMIN可读。默认配置仍只暴露原health/info，不公开JVM或连接池指标；第十九阶段可选`deploy/application-operations.yml`使用相同受保护路径，仅供内部运维网络。脚本通过真实登录Session读取指标，未增加免认证监测、故障注入或测试数据管理HTTP接口。
 
 业务请求路径及响应结构不变，压测日志只按固定路由名聚合，不使用用户、订单或票号标签。MySQL和RabbitMQ管理观测仅通过独立环境的本地工具获取，凭据和完整电子票不进入报告。接口SQL次数、故障恢复及库存审计结果见 [性能复现](performance/01-reproduce.md) 和同目录实际结果。
 
