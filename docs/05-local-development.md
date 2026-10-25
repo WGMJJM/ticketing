@@ -1,6 +1,6 @@
 # 本地开发与验收
 
-Java源码按业务包放置在`backend/src/main/java/com/ticketing`，保留单Maven模块及唯一Spring Boot应用。新生产类须同步登记`backend/src/test/resources/architecture-modules.properties`中的业务归属；测试检查业务包匹配、归属完整性、公开协作边界及循环依赖。详细结构见[架构说明](01-architecture.md)。
+Java源码按`controller`、`service`、`mapper`、`entity`、`dto`、`vo`等技术层放置在`backend/src/main/java/com/ticketing`，保留单Maven模块及唯一Spring Boot应用。新生产类须同步登记`backend/src/test/resources/architecture-modules.properties`中的逻辑业务归属；测试分别检查技术包位置、分层依赖、归属完整性、公开协作边界及业务循环依赖。详细结构见[架构说明](01-architecture.md)。
 
 环境：Java 21、Maven 3.9+、满足 Vite 的 Node（20.19+ 或 22.12+）、Docker Desktop 或 Docker Engine + Compose；Windows 推荐 PowerShell。`mvn -version` 显示的 Java 版本才是 Maven 实际使用版本。
 

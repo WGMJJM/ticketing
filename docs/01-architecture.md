@@ -4,26 +4,28 @@
 
 ## 当前源码目录
 
-按第十四阶段已确认的执行说明恢复业务包，保留已有类及逻辑边界。采用单Maven模块内的业务包守卫，避免额外构建模块和半迁移；不再把所有业务混放在同一controller/service/mapper包。
+按用户最新要求采用黑马点评风格的技术分层目录，保留单Maven模块、已有类及逻辑协作边界。Controller、Service、Mapper与实体分别存放，业务归属由架构测试单独登记。第十四阶段的业务包目录已被本次分层结构替代，验收见[技术分层整理](35-layered-package-refactor-verification.md)。
 
 ```text
 backend/src/main/java/com/ticketing/
 ├── TicketingApplication.java
-├── activity/    活动、场次及SessionWindowGuard
-├── inventory/   票档销售规则与权威库存条件SQL
-├── auth/        账号、Session、限流与可信身份
-├── admission/   新请求速率准入、可靠受理、状态、容量预算与恢复
-├── trade/       订单消费者、预占、支付、退款和售后
-├── waitlist/    缺票候补FIFO与同步订单联动
-├── checkin/     出票、凭证及核销
-├── staff/       场次工作人员权限
-├── audit/       只追加管理审计
-├── common/      ApiResponse、PageResponse、BusinessException
-├── appconfig/   Security等装配配置和迁移安全预检
-└── messaging/   通用事件、Outbox及RabbitMQ拓扑
+├── controller/  HTTP接口
+├── service/     业务服务、事务入口及协作接口
+├── mapper/      MyBatis数据访问与SQL
+├── entity/      数据库实体及记录
+├── dto/         请求、查询参数和内部传输快照
+├── vo/          返回视图
+├── config/      Spring装配、配置属性和迁移安全预检
+├── enums/       状态及业务枚举
+├── security/    会话身份、安全过滤器、限流及凭证签名
+├── task/        定时任务及候补续跑调度
+├── messaging/   消息载荷、消费者、发布器及投递观测
+├── cache/       公开目录缓存
+├── exception/   业务异常及统一异常处理
+└── common/      通用响应与分页
 ```
 
-Spring Boot、配置属性和Mapper仍从`com.ticketing`扫描，启动类、Docker及脚本的构建产物路径不变。`architecture-modules.properties`逐类登记业务归属；守卫覆盖实际业务包匹配、新类完整登记、同包依赖、交易公开协作边界及业务依赖无环。旧目录整理属于历史阶段，当前异步协议及验收见[第十四阶段](25-async-purchase-refactor-verification.md)。
+Spring Boot、配置属性和Mapper仍从`com.ticketing`扫描，启动类、Docker及脚本的构建产物路径不变。`architecture-modules.properties`逐类登记逻辑业务归属；守卫分别检查技术包位置、分层依赖、新类完整登记、同包依赖、交易公开协作边界及业务依赖无环。服务继续使用现有具体类，已有协作接口保留。异步协议及历史验收见[第十四阶段](25-async-purchase-refactor-verification.md)。
 
 ## 第九阶段之前的依赖
 
@@ -42,7 +44,7 @@ graph LR
 
 ## 当前依赖与协作边界
 
-以下为当前核心业务依赖，节点对应业务包；共用响应与装配依赖省略。候补、核销只能调用交易公开契约、模型、DTO及原有资源锁定/预占协作，不能访问交易内部服务、Mapper或实体。受理不依赖交易实现，通用消息设施不依赖任何业务实现。
+以下为当前核心业务依赖，节点对应逻辑业务归属，与技术分层目录分别表达；共用响应与装配依赖省略。候补、核销只能调用交易公开契约、模型、DTO及原有资源锁定/预占协作，不能访问交易内部服务、Mapper或实体。受理不依赖交易实现，通用消息设施不依赖任何业务实现。
 
 ```mermaid
 graph LR
@@ -83,8 +85,8 @@ SessionWindowGuard归活动模块定义，TicketService在场次UPDATE锁内校�
 | WaitlistOrderLifecycle | 订单锁之后核对候补用户、SKU、数量、幂等域及键，原子联动COMPLETED/EXPIRED |
 | TicketIssuer | 支付末端和历史补票共用的按明细序号幂等出票；两个事务入口调用同一个私有算法 |
 | ElectronicTicketService | 本人凭证及展示、核销和受控补票编排；只通过订单公开锁API协作 |
-| OutboxService、OutboxPublisher、OutboxMapper、OutboxPublishJob | messaging包中的通用认领、路由、确认及重试；库存/购票通道轮转 |
-| WaitlistRabbitConfig、InventoryConsumer | waitlist包中的独立候补拓扑、消费者和分配触发 |
+| OutboxService、OutboxPublisher、OutboxMapper、OutboxPublishJob | 分别位于service、messaging、mapper、task；通用认领、路由、确认及重试，库存/购票通道轮转 |
+| WaitlistRabbitConfig、InventoryConsumer | 分别位于config、messaging；独立候补拓扑、消费者和分配触发 |
 
 库存SQL从OrderMapper归回TicketSkuMapper，由TicketInventory使用。候补不再查询OrderMapper，也不依赖OrderService的内部record；核销不再重复实现订单加锁或为角色额外查询一次用户。销售状态计算集中于TicketSale，TicketService与预占/候补使用同一规则。删除重复的SaleContext/PurchaseContext、候补对预留订单的重复回读和限额校验中的冗余场次存在性查询；保留分配和最终预占各自必须重新检查的销售条件。
 
@@ -172,6 +174,6 @@ AdminOrdersView负责筛选与稳定分页，AdminOrderDetail负责明细、受�
 故障默认拒绝四类提交并返回有界503，公开活动读取及其他交易和补偿链路维持原有依赖。生产默认开启；普通测试显式关闭，真实Redis验收显式开启，专用性能环境分别记录关闭对照、开启放宽阈值及默认阈值三种配置。实现、窗口边界、部署与验收记录见[阶段十二说明](22-redis-security-rate-limits-verification.md)。
 ## 第十五阶段公开目录缓存与新请求准入
 
-公开活动详情、场次列表和有限列表组合通过activity包内`CatalogCache`读取Caffeine/Redis；票档动态库存、销售状态、serverTime及交易权威读继续查MySQL。活动、场次和票档管理提交后本地换代，旧加载只能回填旧代，不使用KEYS。单实例有界加载和短TTL限制Redis故障时的回源压力。
+公开活动详情、场次列表和有限列表组合通过cache包内`CatalogCache`读取Caffeine/Redis；票档动态库存、销售状态、serverTime及交易权威读继续查MySQL。活动、场次和票档管理提交后本地换代，旧加载只能回填旧代，不使用KEYS。单实例有界加载和短TTL限制Redis故障时的回源压力。
 
 普通HTTP下单改经`PurchaseEntryService`非事务编排：原有安全过滤器→数据库只读幂等→新键Lua双桶速率→原`PurchaseAdmission`事务。全局及SKU桶一起判定扣减，Redis只筛选流量，不维护门票或排队占位；交易消费者、MySQL容量、库存及限购仍为原协议。回放不消耗新增票档预算，原用户安全限流依然更早执行。完整时序、默认值及证据见[第十五阶段验收](26-redis-catalog-and-ticket-admission-verification.md)。
