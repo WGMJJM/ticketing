@@ -3,8 +3,8 @@ import fs from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import crypto from 'node:crypto'
 
-const fixture = JSON.parse(fs.readFileSync('../.local/stage19/browser-fixture.json', 'utf8'))
-if (fixture.environment !== 'ticketing-perf-only') throw new Error('拒绝非隔离浏览器环境')
+const fixture = JSON.parse(fs.readFileSync('../.local/verification/browser-fixture.json', 'utf8'))
+if (fixture.environment !== 'ticketing-verification-only') throw new Error('拒绝非隔离浏览器环境')
 const buyer = fixture.users[0]
 let orderId, refundOrder, credential, ticketId, waitId
 test.describe.configure({ mode: 'serial' })
@@ -57,7 +57,7 @@ async function cancel(page) {
   await expect(page.locator('.order-card')).toHaveAttribute('data-status', 'CANCELLED')
 }
 function control(action) {
-  execFileSync('python', ['-B', 'scripts/performance/final_browser_fixture.py', '--action', action],
+  execFileSync('python', ['-B', 'scripts/verification/browser_fixture.py', '--action', action],
     { cwd: '..', stdio: 'pipe', windowsHide: true, timeout: 120000 })
 }
 test.beforeEach(async ({ browser, page }, info) => {
@@ -76,7 +76,7 @@ test.beforeAll(async ({ request }) => {
   })
   expect(authenticated.status()).toBe(200)
   const info = await request.get(origin + '/api/v1/admin/monitoring/info')
-  expect((await info.json()).performance.environment).toBe('ticketing-perf-only')
+  expect((await info.json()).verification.environment).toBe('ticketing-verification-only')
   const fresh = (await (await request.get(origin + '/api/v1/auth/csrf')).json()).data
   await request.post(origin + '/api/v1/auth/logout', { headers: { [fresh.headerName]: fresh.token } })
 })
@@ -175,7 +175,7 @@ test('03 同键同参重放 异参409 限额失败 主动取消与本人边界',
 test('04 管理员授权工作人员 核销一次 重复拒绝 撤权与停用旧会话', async ({ page, browser }) => {
   await login(page, fixture.admin, true)
   const info = await api(page, 'GET', '/admin/monitoring/info')
-  expect(info.body.performance.environment).toBe('ticketing-perf-only')
+  expect(info.body.verification.environment).toBe('ticketing-verification-only')
   await page.goto('/admin/staff')
   await page.getByLabel('用户名', { exact: true }).fill(fixture.users[4].username)
   await page.getByRole('button', { name: '查询账号' }).click()

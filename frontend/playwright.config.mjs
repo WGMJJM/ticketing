@@ -12,7 +12,7 @@ export default defineConfig({
   timeout: 120000,
   expect: { timeout: 15000 },
   reporter: [['./e2e/reporter.mjs']],
-  outputDir: `../.local/stage19/e2e-${label}`,
+  outputDir: `../.local/verification/e2e-${label}`,
   use: {
     baseURL: 'http://127.0.0.1:5174',
     browserName: 'chromium',

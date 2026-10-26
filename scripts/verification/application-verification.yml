@@ -1,0 +1,70 @@
+# 仅供隔离的功能验收应用显式加载，禁止连接业务库；基础设施须单独配置。
+spring:
+  datasource:
+    url: jdbc:mysql://127.0.0.1:13307/ticketing_verify?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&characterEncoding=UTF-8
+    username: ticketing_perf
+    password: ${VERIFY_DB_PASSWORD}
+  data:
+    redis:
+      port: 16379
+  rabbitmq:
+    port: 15673
+    username: ticketing_verify
+    password: ${VERIFY_MQ_PASSWORD}
+server:
+  port: 18080
+  servlet:
+    session:
+      cookie:
+        secure: false
+management:
+  endpoints:
+    web:
+      # 沿用现有 ADMIN 授权及账号状态复查，不公开 JVM/连接池指标。
+      base-path: /api/v1/admin/monitoring
+      exposure:
+        include: health,info,metrics
+  info:
+    env:
+      enabled: true
+info:
+  verification:
+    environment: ticketing-verification-only
+ticketing:
+  security:
+    client-address:
+      mode: DIRECT
+      trusted-proxies: []
+    rate-limit:
+      # 功能验收按场景选择正常或宽限流阈值，始终开启安全过滤器。
+      enabled: ${VERIFY_RATE_LIMIT_ENABLED:true}
+      key-secret: ${VERIFY_RATE_LIMIT_KEY_SECRET:}
+      namespace: verification
+      csrf-session-ip:
+        limit: ${VERIFY_RATE_LIMIT_CSRF_SESSION_IP:120}
+      login-ip:
+        limit: ${VERIFY_RATE_LIMIT_LOGIN_IP:60}
+      login-account-ip:
+        limit: ${VERIFY_RATE_LIMIT_LOGIN_ACCOUNT_IP:10}
+      register-ip:
+        limit: ${VERIFY_RATE_LIMIT_REGISTER_IP:10}
+      order-user:
+        limit: ${VERIFY_RATE_LIMIT_ORDER_USER:30}
+      waitlist-user:
+        limit: ${VERIFY_RATE_LIMIT_WAITLIST_USER:10}
+  checkin:
+    credential-keys: ${VERIFY_TICKET_KEYS}
+    backfill:
+      enabled: false
+  admin-bootstrap:
+    enabled: true
+    username: verify_admin
+    password: ${VERIFY_ADMIN_PASSWORD}
+  order:
+    payment-window-minutes: ${ORDER_PAYMENT_WINDOW_MINUTES:15}
+    expiry:
+      scan-delay-ms: ${ORDER_EXPIRY_SCAN_DELAY_MS:1000}
+  waitlist:
+    compensation-poll-ms: ${WAITLIST_COMPENSATION_POLL_MS:60000}
+    outbox:
+      batch-size: ${TICKETING_WAITLIST_OUTBOX_BATCH_SIZE:100}

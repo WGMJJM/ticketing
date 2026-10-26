@@ -12,7 +12,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--base-url', required=True)
     parser.add_argument('--output', required=True)
-    parser.add_argument('--performance', action='store_true')
+    parser.add_argument('--admin-monitoring', action='store_true', help='使用受保护的管理诊断端点检查健康')
     parser.add_argument('--require-https', action='store_true')
     args = parser.parse_args()
     url = urlsplit(args.base_url)
@@ -41,13 +41,11 @@ def main():
     check('公开活动查询可用', session.get(base + '/api/v1/activities?size=12', timeout=10, allow_redirects=False).status_code == 200)
     check('敏感Actuator端点未公开', all(session.get(base + path, timeout=10, allow_redirects=False).status_code in (401, 403, 404)
         for path in ['/actuator/env', '/actuator/configprops', '/actuator/metrics']))
-    if args.performance:
+    if args.admin_monitoring:
         check('诊断端点拒绝匿名', session.get(base + '/api/v1/admin/monitoring/metrics', timeout=10, allow_redirects=False).status_code == 401)
         account = {'username': os.environ['TICKETING_SMOKE_USERNAME'], 'password': os.environ['TICKETING_SMOKE_PASSWORD']}
         login = session.post(base + '/api/v1/auth/login', data=account, headers={token['headerName']: token['token']}, timeout=15, allow_redirects=False)
         check('诊断使用真实管理员会话', login.status_code == 200)
-        info = session.get(base + '/api/v1/admin/monitoring/info', timeout=10).json()
-        check('专用环境身份标记', info.get('performance', {}).get('environment') == 'ticketing-perf-only')
         health = session.get(base + '/api/v1/admin/monitoring/health', timeout=10)
     else:
         health = session.get(base + '/actuator/health', timeout=10)

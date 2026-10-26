@@ -51,7 +51,7 @@ def main():
         return
     if args.confirm_database != 'ticketing' or not args.maintenance_confirmed:
         raise RuntimeError('缺少具体原库及本次停写窗口的明确确认')
-    if (ROOT / '.local/performance/app.pid').exists():
+    if (ROOT / '.local/verification/app.pid').exists():
         raise RuntimeError('先停止专用后端，保持唯一Spring Boot进程')
     with socket.socket() as probe:
         if probe.connect_ex(('127.0.0.1', 8080)) == 0:
@@ -87,7 +87,7 @@ def main():
         raise RuntimeError('原库目标与授权不一致')
     if any(key.startswith(('SPRING_', 'TICKETING_', 'MANAGEMENT_')) or key in ('JAVA_TOOL_OPTIONS', 'JDK_JAVA_OPTIONS', '_JAVA_OPTIONS') for key in settings):
         raise RuntimeError('受控升级不接受可重定向Spring配置或注入JVM的额外环境项')
-    private = ROOT / '.local/stage19' / args.label
+    private = ROOT / '.local/maintenance' / args.label
     private.mkdir(parents=True, exist_ok=False)
     report = {'passed': False, 'startedAt': datetime.now(timezone.utc).isoformat(),
               'target': '127.0.0.1:3307/ticketing', 'backupSha256': digest,
@@ -140,12 +140,12 @@ def main():
                     cur.execute('SHOW COLUMNS FROM `' + table + '`')
                     columns[table] = cur.fetchall()
         if args.resume_migrated_startup:
-            sys.path.insert(0, str(ROOT / 'scripts/performance'))
-            import perf
+            sys.path.insert(0, str(ROOT / 'scripts/verification'))
+            import environment as verification_env
             reference = verification['schemas']['restoredBackup']
             if not re.fullmatch(r'ticketing_s19_[a-f0-9]{16}_it', reference):
                 raise RuntimeError('V7恢复参考库格式不符')
-            with perf.connect() as reference_db, reference_db.cursor() as reference_cur:
+            with verification_env.connect() as reference_db, reference_db.cursor() as reference_cur:
                 reference_cur.execute('USE `' + reference + '`')
                 if helpers.facts(reference_db) != before:
                     raise RuntimeError('V7恢复参考事实发生变化')
@@ -211,7 +211,7 @@ def main():
             cur.execute('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ')
             cur.execute('START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY')
             for script in ['audit.sql', 'audit-purchase.sql', 'audit-quota.sql', 'audit-buckets.sql']:
-                sql = '\n'.join(line for line in (ROOT / 'scripts/performance' / script).read_text(encoding='utf-8').splitlines()
+                sql = '\n'.join(line for line in (ROOT / 'scripts/verification' / script).read_text(encoding='utf-8').splitlines()
                                 if not line.lstrip().startswith('--')).replace('FROM ticket_sku', 'FROM ticket_stock_balance')
                 for statement in sql.split(';'):
                     if statement.strip():

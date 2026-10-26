@@ -15,12 +15,12 @@ export default class SafeReporter {
   }
   onEnd(result) {
     const label = process.env.TICKETING_E2E_LABEL
-    const target = path.resolve('../docs/architecture/results', `${label}-browser.json`)
+    const target = path.resolve('../.local/verification/results', `${label}-browser.json`)
     if (fs.existsSync(target)) throw new Error('浏览器证据已存在，禁止覆盖')
-    const app = JSON.parse(fs.readFileSync('../.local/performance/app.json', 'utf8'))
+    const app = JSON.parse(fs.readFileSync('../.local/verification/app.json', 'utf8'))
     fs.mkdirSync(path.dirname(target), { recursive: true })
     fs.writeFileSync(target, JSON.stringify({ startedAt: this.started, endedAt: new Date().toISOString(),
-      runner: 'Playwright + real Microsoft Edge', environment: 'ticketing-perf-only',
+      runner: 'Playwright + real Microsoft Edge', environment: 'ticketing-verification-only',
       mockedBusinessResponses: false, jarSha256: app.sha256, result: result.status,
       passed: this.rows.filter(r => r.status === 'passed').length,
       failed: this.rows.filter(r => ['failed', 'timedOut', 'interrupted'].includes(r.status)).length,

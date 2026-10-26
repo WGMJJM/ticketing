@@ -174,20 +174,23 @@ def backup(args, directory):
 
 
 def verify_backup(args, directory):
-    """仅在带随机guard的既有ticketing-perf MySQL中新建克隆与参考库，绝不覆盖已有库。"""
+    """仅在带随机guard的独立功能验收MySQL中新建克隆与参考库，绝不覆盖已有库。"""
     manifest=json.loads((directory/'manifest.json').read_text(encoding='utf-8'))
     data=(directory/'database.sql').read_bytes()
     if hashlib.sha256(data).hexdigest()!=manifest['dumpSha256']: raise RuntimeError('备份摘要不匹配')
     password=os.environ.get('RECOVERY_VERIFY_PASSWORD')
     guard=os.environ.get('RECOVERY_VERIFY_GUARD')
     if not password or not guard: raise RuntimeError('缺少专用恢复验证凭据和随机标记')
-    with pymysql.connect(host='127.0.0.1',port=13307,user='root',password=password,database='ticketing_perf') as db,db.cursor() as cur:
+    container = os.environ.get('RECOVERY_VERIFY_CONTAINER')
+    if not container or container in {args.container, 'ticketing-mysql-1'}:
+        raise RuntimeError('须显式指定独立恢复验证容器，不能使用源库或业务容器')
+    with pymysql.connect(host='127.0.0.1',port=13307,user='root',password=password,database='ticketing_verify') as db,db.cursor() as cur:
         cur.execute('SELECT token FROM performance_control.environment_guard')
         if cur.fetchone()[0]!=guard: raise RuntimeError('恢复验证实例隔离标记错误')
         clone='ticketing_v7_restore_'+uuid.uuid4().hex[:16]+'_it'
         reference='ticketing_v7_reference_'+uuid.uuid4().hex[:16]+'_it'
         for schema in (clone,reference): cur.execute(f'CREATE DATABASE `{schema}` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci')
-    destination=argparse.Namespace(host='127.0.0.1',port=13307,user='root',database=clone,container='ticketing-perf-mysql-1')
+    destination=argparse.Namespace(host='127.0.0.1',port=13307,user='root',database=clone,container=container)
     original=os.environ.get('MYSQL_PASSWORD')
     os.environ['MYSQL_PASSWORD']=password
     try:
