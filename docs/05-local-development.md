@@ -33,7 +33,7 @@ PowerShell 脚本为 UTF-8 BOM，Bash 为 LF UTF-8。脚本读取 `.env` 而不�
 4. `python -B scripts/performance/perf.py init`启动固定`ticketing-perf`环境，再执行`python -B scripts/performance/verify_backend.py --label <本轮唯一标签>`。脚本核对随机guard并新建随机schema，执行完整`clean verify -Pmysql-it`；成功清理仅本轮合规schema，失败保留现场。不会用H2替代，也不会向原开发库注入测试数据。`-VerifyDatabase`/`--verify-database`是直接继承环境的底层入口，不能在加载业务`.env`时对原`ticketing`库运行它。
 5. 启动后端和前端，检查状态接口、Actuator 与 Vite 代理，确认首页为「服务运行正常」。
 6. 暂停后端，检查活动加载错误和状态连接失败；恢复后端再重试。
-7. 检查 `/about`、活动详情、场次选择及运营管理。演示活动须显式标记；登录后真实下单、模拟支付、查看成功流水，再创建一单等待自动过期，核对库存及限额恢复；不产生实际扣款。
+7. 检查 `/about`、活动详情、场次选择及运营管理。按最新要求，页面使用正常产品文案；支付与退款确认时说明模拟处理和不发生实际资金往来。登录后下单、支付、查看成功流水，再创建一单等待自动过期，核对库存及限额恢复。当前展示文案调整见[正常展示文案验收](38-normal-display-copy.md)。
 8. `npm run build` 同时完成 TypeScript 检查和生产打包。
 
 数据库测试必须在独立验收库运行；下面的数量为早期阶段历史记录，当前执行数见阶段19报告。迁移测试位于 `DatabaseMigrationIT`。`ActivityManagementIT`、`TicketManagementIT`覆盖原有业务；`AuthenticationIT`使用随机端口Tomcat、真实HTTP、Cookie、Session和MySQL完成认证及旧会话撤权，`SessionCookieIT`检查生产Secure属性。`CurrentAccountFilterTest`验证公开端点跳过账号查询及订单/候补等受保护端点刷新身份。`OrderManagementIT`现有25项检查订单预占、幂等、限购、支付、取消、过期竞争、流水、回滚和最终库存；`OrderExpiryRecoveryIT`关闭再启动两个真实应用上下文，验证Scheduling重启补偿。`WaitlistManagementIT`新增25项，使用真实HTTP会话、独立MySQL事务及RabbitMQ检查FIFO、并发入队/调度、队首阻塞、状态联动、事件原子性、确认丢失、认领租约、消费重试/死信及数据库补偿。第六阶段验收为35项基础测试加84项集成测试共119项，历史结果见 `docs/13-waitlist-verification.md`。这些是功能与并发一致性验证，不是吞吐压测。
@@ -57,7 +57,7 @@ docker cp scripts/demo-data.sql ticketing-mysql-1:/tmp/ticketing-demo.sql
 docker compose --env-file .env -f deploy/compose.yml exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --default-character-set=utf8mb4 -u "$MYSQL_USER" "$MYSQL_DATABASE" < /tmp/ticketing-demo.sql'
 ```
 
-脚本仅导入名称标有“演示”的虚构活动和场次，不建立票档、订单等数据，也不会由通用 Flyway 迁移自动执行。首次不导入时页面显示真实空状态。封面可留空，或在图片失败时显示稳定分类占位。
+脚本仅导入本地虚构样例活动和场次，不建立票档、订单等数据，也不会由通用 Flyway 迁移自动执行。按用户最新要求，样例使用正常展示名称，数据来源保留在脚本注释和开发说明中，不据此宣称为真实演出。首次不导入时页面显示空状态。封面可留空，或在图片失败时显示稳定分类占位。已有旧名称的数据不会被导入脚本自动改写，也不应重复导入；本次本机文字更新已另获具体授权。
 
 ## 票档模块本地验收
 
