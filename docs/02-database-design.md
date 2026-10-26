@@ -1,12 +1,12 @@
 # 数据库设计与迁移历史
 
-V1～V10保持原文。第十四阶段V8引入普通购票可靠受理及持久预算；第十九阶段部署了V10分桶兼容结构。本轮只新增V11，将稳定Redis预扣token与MySQL申请关联；旧阶段段落保留其当时架构背景，当前行为以V11说明为准。
+V1～V11均为不可改写的历史迁移。V8引入普通购票申请，V10增加分桶兼容，V11将稳定Redis预扣token与申请关联。本轮六项定向修复仅调整代码，没有新增DDL或执行迁移。当前ticket_sku.version仅用于配置编辑；普通库存DML不再递增版本，历史版本值原样保留。
 
 ## V11 Redis预扣与受理关联
 
 `V11__redis_stock_reservation_link.sql`只给`purchase_request`新增`stock_reservation_token BINARY(32)`，按可信user_id、固定`CREATE_ORDER`操作域、原幂等键和request_hash的SHA-256回填旧申请，再设为NOT NULL并建立唯一索引；`(sku_id,status,id)`支持有界SKU活动申请恢复。V1至V10不修改。迁移不写订单、库存、容量、Outbox或支付事实。
 
-MySQL申请行是token与申请ID的持久反向关联。Redis丢失token时，可从QUEUED/PROCESSING申请重建token与SKU索引；Redis全局容量计数丢失时，以活动申请数加未落库/待终态Redis token有界重建。Redis中找不到、MySQL也没有申请的孤儿预扣，恢复器在用户UPDATE锁下写终态幂等申请和唯一库存事件后才执行Lua幂等释放，迟到HTTP写事务会看到该终态。`purchase_capacity`表保留但V11应用路径停止读写，不再形成每次受理的MySQL热点。
+MySQL申请行是token与申请ID的持久反向关联。Redis丢失token时，可从QUEUED/PROCESSING申请重建token与SKU索引；Redis全局容量计数丢失时，先冻结并补齐缺失活动凭据，再以MySQL活动token与Redis恢复索引成员的并集有界重建，后续申请过期仍可结算减计数。Redis中存在、MySQL尚无申请的孤儿预扣，恢复器在用户UPDATE锁下写终态幂等申请和唯一库存事件后才执行Lua幂等释放，迟到HTTP写事务会看到该终态。`purchase_capacity`表保留但V11应用路径停止读写，不再形成每次受理的MySQL热点。
 
 ## V8 购票受理与预算
 
@@ -50,7 +50,7 @@ order_aftercare按订单主键保存RETRY/MANUAL_REQUIRED/COMPLETED、受控中�
 
 V2 新增 `V2__activity_session_management.sql`，V1 保持不变。V2 复用 description 作为详情，增加 summary、cover_url、published_at、version；活动状态为 DRAFT/PUBLISHED/OFFLINE，兼容将旧 CANCELLED 转为 OFFLINE。增加 `(status,published_at,id)` 支持公开列表排序。场次增加 sale_starts_at、version 及开售早于开始的 CHECK；旧数据按开始前30天补齐开售时间，新建必须输入。更新时间与版本由业务操作显式更新。
 
-`V3__ticket_sku_version.sql`只在既有ticket_sku增加version及非负CHECK，原有外键、同场次名称唯一约束、库存CHECK和索引保留。票档名称在场次内不区分大小写唯一，写入前去除首尾空格。管理版本从0开始，成功修改、订单预占和释放均递增。
+`V3__ticket_sku_version.sql`只在既有ticket_sku增加version及非负CHECK，原有外键、同场次名称唯一约束、库存CHECK和索引保留。票档名称在场次内不区分大小写唯一，写入前去除首尾空格。管理配置版本从0开始，配置修改递增；普通预占、支付、释放和退款不再递增，仍保留原版本条件与库存条件更新。
 
 第三阶段认证完整复用user_account现有字段，无新增迁移。用户名采用3至32位ASCII字母、数字、下划线且字母开头；唯一键与utf8mb4_0900_ai_ci负责大小写不敏感唯一性。注册仅创建USER/ACTIVE，password_hash保存Spring Security BCrypt编码，不保存明文。密码8至72个字符、UTF-8不超过72字节且无控制字符；数据库管理员初始化额外要求至少16个字符。角色与状态保留既有CHECK。Session及CSRF保存在单实例内存，不创建会话表、不引入Redis认证。
 
@@ -87,9 +87,9 @@ V2 新增 `V2__activity_session_management.sql`，V1 保持不变。V2 复用 de
 
 数据库强制 `total_stock >= 0`、`locked_stock >= 0`、`sold_stock >= 0`、`locked_stock + sold_stock <= total_stock`。MySQL可售量为`total_stock - locked_stock - sold_stock`，并且是唯一权威。Redis维护的是由该值减去未落入MySQL订单的有效预扣token得到的可预扣镜像；冻结重建时必须从MySQL和全部活动token重算，不能把Redis镜像当成交易库存事实。
 
-下单在READ_COMMITTED事务内依次锁用户、活动、场次、SKU，校验账号ACTIVE、父级状态、统一销售窗口和两层限购。库存通过 `UPDATE ticket_sku SET locked_stock=locked_stock+quantity,version=version+1 ... WHERE status='ON_SALE' AND sale_starts_at<=UTC_TIMESTAMP(6) AND sale_ends_at>UTC_TIMESTAMP(6) AND total_stock-locked_stock-sold_stock>=quantity` 条件更新，活动和场次状态在父级锁内核验并稳定至提交。随后插入PENDING订单和唯一明细，任何写入失败全部回滚。订单总额通过Math.multiplyExact计算，明细保存票档名、单价分和数量快照。库存释放与管理员增库存从第六阶段起同事务写Outbox。
+下单在READ_COMMITTED事务内依次锁用户、活动、场次、SKU，校验账号ACTIVE、父级状态、统一销售窗口和两层限购。库存通过 `UPDATE ticket_sku SET locked_stock=locked_stock+quantity ... WHERE status='ON_SALE' AND sale_starts_at<=UTC_TIMESTAMP(6) AND sale_ends_at>UTC_TIMESTAMP(6) AND total_stock-locked_stock-sold_stock>=quantity` 条件更新，活动和场次状态在父级锁内核验并稳定至提交。随后插入PENDING订单和唯一明细，任何写入失败全部回滚。订单总额通过Math.multiplyExact计算，明细保存票档名、单价分和数量快照。库存释放与管理员增库存从第六阶段起同事务写Outbox。
 
-统一锁序为user_account UPDATE→activity SHARE→activity_session SHARE→ticket_sku UPDATE→已有ticket_order UPDATE。活动变更只锁活动；管理场次/票档先活动SHARE、再场次UPDATE、再SKU更新，防止下架、取消或改窗口与下单交叉；初次不加锁查询只发现不可变的父级ID，锁定后读取最新状态。管理员库存更新保留version及 `total_stock>=locked_stock+sold_stock` 条件；与预占竞争后可能409，不能覆盖已有锁定量。
+统一锁序为user_account UPDATE→activity SHARE→activity_session SHARE→ticket_sku UPDATE→已有ticket_order UPDATE。活动变更只锁活动；管理场次/票档先活动SHARE、再场次UPDATE、再SKU更新，防止下架、取消或改窗口与下单交叉；初次不加锁查询只发现不可变的父级ID，锁定后读取最新状态。管理员库存更新保留version及 `total_stock>=locked_stock+sold_stock` 条件；配置编辑冲突仍可能409；库存数字由条件更新保护，不能覆盖已有锁定量。
 
 主动取消同样先锁用户及父级/SKU再锁订单，仅PENDING允许转CANCELLED，条件释放locked_stock且检查受影响行数。重复取消CANCELLED直接返回原结果，其他状态409；释放与状态更新同事务回滚。活动下架不自动处理旧订单；场次取消后由第十阶段善后任务逐单关闭或模拟退款，不在管理员取消事务内遍历。
 

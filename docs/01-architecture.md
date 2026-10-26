@@ -74,7 +74,7 @@ SessionWindowGuard归活动模块定义，TicketService在场次UPDATE锁内校�
 | 组件 | 当前职责 |
 | --- | --- |
 | PurchaseAdmission、PurchaseRequestsController | 原幂等读查后调用Redis库存Lua，再持久写本人申请；保留原请求查询协议 |
-| RedisStockReservationService、StockSnapshotService | 管理无TTL预扣token、Redis冻结/快照、MySQL活动申请恢复与有界孤儿恢复；Redis网络IO在MySQL事务外执行 |
+| RedisStockReservationService、StockSnapshotService | 管理无TTL活动token、7天终态保留、Redis冻结/快照、MySQL活动申请恢复与有界孤儿恢复；Redis网络IO在MySQL事务外执行 |
 | PurchaseAdmissionTransaction | 用户UPDATE锁内写`purchase_request`和既有购票Outbox；V8的`purchase_capacity`不再参与热路径 |
 | PurchaseProcessing、PurchaseRecoveryJob | 申请认领、业务终态及库存Outbox；同一有界扫描恢复孤儿token、终态结算和过期冻结SKU |
 | PurchaseOrderConsumer、PurchaseOrderWorker | 建单前校验Redis预扣凭据，在交易事务内由MySQL最终预占、建单并绑定受理成功，提交后结算token并确认 |
@@ -180,10 +180,31 @@ AdminOrdersView负责筛选与稳定分页，AdminOrderDetail负责明细、受�
 
 公开活动详情、场次列表和有限列表组合继续通过`CatalogCache`读取Caffeine/Redis；票档动态库存、销售状态、serverTime及交易权威读继续查MySQL。目录管理提交后失效缓存，不把交易事实混入目录缓存。
 
-购票写路径为：原安全身份/频率过滤与同键只读回放 → `TicketInventory`短只读资格版本 → Redis库存Lua检查SKU状态/版本、稳定幂等token及容量后原子扣减并登记恢复索引 → MySQL用户UPDATE短事务写`purchase_request`与既有Outbox → 事务提交后返回202 → 原Outbox Confirm/Return链路发布RabbitMQ → 消费者确认token后在READ_COMMITTED事务内执行MySQL库存、场次限额、订单和受理终态 → Redis将token置为CONSUMED或失败后RELEASED。稳定token为可信userId、固定`CREATE_ORDER`、原幂等键与请求摘要的SHA-256，V11持久关联到申请行；重复同参不重复扣减，异参409。
+购票写路径为：原安全身份/频率过滤与同键只读回放 → Redis库存Lua检查已初始化的SKU配置、销售时间、稳定幂等token、可售量及容量后原子扣减并登记恢复索引 → MySQL用户UPDATE短事务写`purchase_request`与既有Outbox → 事务提交后返回202 → 原Outbox Confirm/Return链路发布RabbitMQ → 消费者确认token后在READ_COMMITTED事务内执行MySQL库存、场次限额、订单和受理终态 → Redis将token置为CONSUMED或失败后RELEASED。稳定token为可信userId、固定`CREATE_ORDER`、原幂等键与请求摘要的SHA-256，V11持久关联到申请行；重复同参不重复扣减，异参409。
 
-Redis Key使用`ticketing:seckill:v1:`前缀，SKU hash、SKU token索引、全局token索引、待恢复ZSET和待处理计数都无TTL。Compose使用AOF `appendfsync always`与`noeviction`。冻结期间快照写入与解冻都校验递增mutation；既有token在此期间完成时重新读取MySQL，避免以旧token集合覆盖余额。Redis-first与MySQL/Rabbit不是分布式事务：申请缺失的token在用户UPDATE锁下写终态幂等事实后才归还；晚到请求会读到该终态，不能重新建单。订单成功或失败先提交MySQL，再尽力结算Lua；恢复扫描按持久token索引重试。Redis错误或无法核对的状态拒绝新预扣，冻结SKU保持关闭；已存在DB活动申请可由数据库重建token。
+Redis Key使用`ticketing:seckill:v1:`前缀。活动token无TTL；SKU token索引与待恢复ZSET分别服务SKU仲裁和有界恢复，不再额外维护内容相同的全局token索引。结算Lua原子完成状态、索引移除、Pending减量及必要返票，并为终态Hash设置7天TTL，重复结算不续期、不重复返票。活动凭据、余额和恢复索引使用AOF `appendfsync always`与`noeviction`。快照读取前记录mutation，写快照与解冻在同一Lua中校验owner/fence/mutation；发生并发结算就有界重读。Redis-first与MySQL/Rabbit不是分布式事务：孤儿token在用户UPDATE锁下写终态幂等事实后才释放，迟到写事务只能回放该终态。长期幂等由MySQL申请和订单唯一约束保证；极迟到请求在终态token过期后重新预扣时，未绑定申请的预扣会被释放。
 
-`PurchaseRecoveryJob`同时处理DB请求恢复、Redis孤儿、终态token结算及过期冻结SKU，不再用`purchase_capacity`每次受理的MySQL热点写。Redis容量计数丢失时，仅在短期初始化租约内以有界token索引与MySQL活动申请重建；V8表保留但不再作运行时预算。旧购票双桶Lua限速器不再接入`PurchaseEntryService`；独立安全请求限流保持。
+`PurchaseRecoveryJob`同时处理DB请求恢复、Redis孤儿、终态token结算及过期冻结SKU，不再用`purchase_capacity`每次受理的MySQL热点写。Redis容量计数丢失时，在短期初始化租约内先冻结并补齐缺失的MySQL活动申请凭据，再按恢复ZSET与活动token的并集重建，避免重复计数及申请过期后遗留无法释放的计数；V8表保留但不再作运行时预算。旧购票双桶Lua限速器不再接入`PurchaseEntryService`；独立安全请求限流保持。
 
-取消、超时、退款、库存/销售配置修改和购票失败仍由MySQL事务写既有库存Outbox。候补消费者及原周期补偿统一调用冻结仲裁，余额先扣除有效普通token，再由`WaitlistService`逐个处理MySQL队首，成功后重算并解冻。生产不再启用`WaitlistContinuationScheduler`内存续跑；FIFO达到单轮边界后由持久候补补偿扫描继续。订单交易、支付、退款、电子票签发与核销状态机保持现有MySQL实现。
+取消、超时、退款、票档库存/销售配置修改和购票失败仍由MySQL事务写既有库存Outbox；活动发布/下架及场次修改/取消也在原事务写所属SKU的资格同步事件。候补消费者及原周期补偿统一调用冻结仲裁，余额先扣除有效普通token，再由`WaitlistService`逐个处理MySQL队首，成功后重算并解冻。生产不再启用`WaitlistContinuationScheduler`内存续跑；FIFO达到单轮边界后由持久候补补偿扫描继续。订单交易、支付、退款、电子票签发与核销状态机保持现有MySQL实现。
+
+
+## 配置版本、恢复事实与分桶兼容边界
+
+`ticket_sku.version`只表示票档配置版本。管理编辑、启停销售仍在原场次锁与版本条件内递增；普通预占、支付、取消和退款只改库存及updated_at。正常新购票不再逐次查询MySQL销售资格或版本，首次装载、配置事件及故障恢复才读MySQL快照。Lua用Redis时间检查快照中的开售/停售边界；消费者仍在原MySQL事务中最终检查账号、父资源、票档、窗口、库存和场次限额，事件同步前的旧资格不能产生违规正式订单。
+
+```mermaid
+flowchart LR
+    R[Redis RESERVED 无TTL] --> A[MySQL申请与Outbox提交]
+    A --> Q[Rabbit至少一次投递]
+    Q --> D[MySQL订单及申请终态原子提交]
+    D --> T[Lua CONSUMED或RELEASED 保留7天]
+    R -->|尚无MySQL申请| F[用户锁内写失败幂等事实]
+    F --> T
+```
+
+`PurchaseRecoveryJob`统一接管未落库、已落库及终态未结算token；Outbox负责消息补发。候补及库存回补统一经过`dispatchFrozen`。现有`WaitlistCompensation`除了扫描WAITING，还按SKU有界扫描库存Outbox最大序号；只有Redis快照未覆盖该序号时才重新仲裁。快照在SKU锁内读取已提交事件序号并原子写入Redis，因此SENT但消费失败、进入死信且没有候补的释放事件也能补偿。没有新增任务类、表或每日Redis清理任务。超过单批候补边界后仍由WAITING扫描接续。
+
+新建票档固定SINGLE，新普通/候补订单只使用SKU条件UPDATE。`switch_stock.py`的命令行和导入调用均在访问数据库前停止；分桶新预占、分配写入及本地候补续跑代码已删除。V10的桶、订单分配及审计表不删除：历史BUCKETED订单继续按原分配记录支付、关闭、退款，余额查询和必要管理维护继续读取桶；不能直接改策略或删除分配记录。历史票档需要重新销售时，须在另行批准的停写窗口备份、执行现有只读库存/订单/额度/候补审计，明确处理全部有效订单后再制定迁移；当前代码不自动迁移。
+
+2026-10-26对本机`ticketing`的只读盘点：Flyway为V10，7个SKU均为SINGLE，`order_stock_allocation`和`stock_strategy_switch`均为0行，进行中购票申请为0。Redis旧全局索引和恢复索引均为空。本轮没有执行V11或其他数据库迁移，也不据此假设其他环境没有分桶历史。

@@ -101,7 +101,7 @@ CSRF保存在HttpSession，保留默认XOR保护。客户端先GET csrf，把响
 
 ON_SALE仅为管理状态。后端先判断活动发布、场次正常且未结束、票档启用及父子窗口一致，否则UNAVAILABLE（暂不可售）；然后判断停售边界STOPPED（已停售）、未开售NOT_STARTED（暂未开售）、可售量为0 SOLD_OUT（已售罄），最后为SELLING（正在售票）。活动隐藏时公开接口404；已取消/结束的公开场次可返回ON_SALE票档，但只会显示暂不可售。前端不得用本机时钟重算销售状态；提交订单必须再次在事务锁内检查，列表展示不能保证随后下单成功。
 
-同一场次票档名唯一，重复409；陈旧版本、非法状态转换、总库存低于锁定加已售为409。已启用销售只能改总库存，其他信息必须先下架。可售量只计算不存储，管理写接口从不改锁定和已售库存。每场次最多200票档，列表有界；订单预占和释放会递增票档version，陈旧的管理表单需刷新后重试。
+同一场次票档名唯一，重复409；陈旧版本、非法状态转换、总库存低于锁定加已售为409。已启用销售只能改总库存，其他信息必须先下架。可售量只计算不存储，管理写接口从不改锁定和已售库存。每场次最多200票档，列表有界；票档version只随配置变更递增，普通订单预占、支付、释放和退款不改变配置版本；配置冲突仍需刷新表单。
 
 ## 购票订单与库存预占
 
@@ -122,13 +122,13 @@ ON_SALE仅为管理状态。后端先判断活动发布、场次正常且未结�
 
 第十六阶段该限额改读MySQL用户场次独立额度，返回字段不变，仍跨该场次全部票档共享。PENDING与PAID占额，支付不重复占额，取消/过期/整单退款成功才同事务释放；WAITING及未建单请求不占额。交易账号SHARE与禁用/撤权UPDATE协调，限额写在精确额度行串行；HTTP受理仍保留原账号UPDATE与幂等事实事务。取消成功响应在写事务提交后读取公开详情，不暴露内部额度记录。迁移及完整锁协议见[第十六阶段说明](27-trade-quota-and-transaction-verification.md)。
 
-新键先经原只读幂等查重，再用MySQL短只读事务检查活动、场次、票档及版本；不存在票档404 TICKET_NOT_FOUND，明确未销售/下架/取消或窗口关闭409 TICKET_UNAVAILABLE，不写申请或Outbox。随后Redis Lua按该版本检查真实可售余额、SKU状态及受理容量并原子预扣。Redis不足409 TICKET_UNAVAILABLE；Redis不可用、SKU正冻结或状态无法证明时503 PURCHASE_ADMISSION_UNAVAILABLE。MySQL消费者仍执行库存和限购最终检查；预扣和预检均不保证正式建单成功。恢复开售后原先未受理的键可以用原键重试。
+新键先经原只读幂等查重，再由Redis Lua按已初始化的SKU配置、销售时间、真实可售量和受理容量原子预扣；正常请求不再逐次读取MySQL销售资格和版本。首次装载时不存在票档返回404 TICKET_NOT_FOUND；Redis销售状态/窗口无效或余额不足返回409 TICKET_UNAVAILABLE；Redis不可用、SKU冻结或状态无法证明时503 PURCHASE_ADMISSION_UNAVAILABLE。配置和父级资格变化通过同事务库存Outbox更新快照，时间边界由Lua校验；短暂旧资格最多产生后续FAILED申请，MySQL消费者仍最终核验资格、条件库存及限购。恢复开售后原先未受理的键可用原键重试。历史BUCKETED票档停止新的普通和候补预占，已有订单及同键终态继续查询回放。
 
 POST原安全429/故障503仍可能先于业务查重，不因同键而放宽。丢失首次响应时可登录后用上述只读lookup恢复既有事实；404才表示当前读取时尚无已提交申请，重试写入仍须原键。客户端不自动循环重发写请求。取消响应超时或提交后详情读取失败也不代表取消未发生，应查询订单状态；CANCELLED可安全重试取消而不再次释放库存或额度。
 
 skuId为正十进制字符串且不能超过Java long，quantity为正INT整数，拒绝小数。未知创建字段（userId、价格、金额、状态、库存等）400；身份和价格只能来自服务端。幂等键为1至128位可见ASCII字符（不含空格），区分大小写；缺失或非法400。操作域固定CREATE_ORDER，同一用户同键同参返回同一个requestId及真实状态，不续期、不重复占预算或追加消息；同键异SKU/数量409 IDEMPOTENCY_CONFLICT，不同用户可共用键。V8将旧普通订单幂等事实登记为SUCCEEDED，旧订单已取消仍关联该原单，不重复预占。
 
-PurchaseRequestView为 `{requestId,skuId,quantity,status,orderId,failureCode,failureMessage,acceptedAt,deadlineAt,serverTime}`，ID按字符串传输。状态为QUEUED（抢票排队）、PROCESSING（确认中）、SUCCEEDED（订单已创建）、FAILED（业务失败）、EXPIRED（排队超时）。后面三种为终态；只有SUCCEEDED有真实orderId。202证明Redis预扣和MySQL申请/Outbox已完成，不表示正式订单已创建或可支付。默认受理容量200、排队120秒；Redis计数与token原子更新，计数丢失时由有界恢复从MySQL活动申请及Redis索引重建。首次受理MySQL事务只写申请与Outbox，不再更新V8 `purchase_capacity`表。Redis受理容量已满时503 PURCHASE_QUEUE_FULL，带有界Retry-After，不创建申请或Outbox。
+PurchaseRequestView为 `{requestId,skuId,quantity,status,orderId,failureCode,failureMessage,acceptedAt,deadlineAt,serverTime}`，ID按字符串传输。状态为QUEUED（抢票排队）、PROCESSING（确认中）、SUCCEEDED（订单已创建）、FAILED（业务失败）、EXPIRED（排队超时）。后面三种为终态；只有SUCCEEDED有真实orderId。202证明Redis预扣和MySQL申请/Outbox已完成，不表示正式订单已创建或可支付。默认受理容量200、排队120秒；Redis计数与token原子更新，计数丢失时从MySQL活动申请token与Redis恢复索引的并集有界重建。首次受理MySQL事务只写申请与Outbox，不再更新V8 `purchase_capacity`表。Redis受理容量已满时503 PURCHASE_QUEUE_FULL，带有界Retry-After，不创建申请或Outbox。
 
 购票命令消费者先在MySQL事务外确认token仍为RESERVED并已绑定当前请求，再按账号SHARE→活动SHARE→场次SHARE→用户场次额度UPDATE→SKU UPDATE→订单→购票请求加锁，校验活动PUBLISHED、场次SCHEDULED及销售窗口、SKU ON_SALE、可售量；区间为 `[saleStartsAt,saleEndsAt)`。数量受SKU单笔上限和跨SKU用户场次限额约束，默认每人每场4张，PENDING/PAID占额，CANCELLED/EXPIRED/REFUNDED不占额。库存或不可售、限购及金额异常表现为请求FAILED和有限业务码及中文说明；临时数据库异常回滚并保持可恢复状态。成功订单、明细、库存、额度及SUCCEEDED绑定必须一起提交，提交后Redis token才结算为CONSUMED；确定失败先提交申请终态和库存Outbox，再由Lua幂等释放token。排队截止与订单15分钟支付截止独立，支付时间从正式订单创建开始计算。
 
@@ -179,7 +179,7 @@ WaitlistView字段：id/skuId/sessionId/activityId/activityTitle/sessionTitle/sk
 
 RabbitMQ持久交换机ticketing.waitlist，路由inventory.available，持久队列ticketing.waitlist.dispatch；死信交换机ticketing.waitlist.dead，死信队列ticketing.waitlist.dispatch.dead，路由failed。消费者核对已提交Outbox与messageId、SKU，事务完成后确认；重复消息重查数据库，不重复创建订单。消费最多4次、间隔1/2/4秒，失败拒绝重新入队并进入死信，避免快速无限循环。
 
-独立数据库补偿默认每60秒扫描100个仍有WAITING的SKU，每SKU至多处理50次队首；覆盖有库存未分配及无库存但队首已失效的情况。逐SKU隔离失败，游标前进并回绕，重启从数据库恢复。WAITLIST_MESSAGING_ENABLED=false关闭候补拓扑及消费，补偿仍运行；WAITLIST_JOBS_ENABLED=false关闭候补后台补偿。第十四阶段通用Outbox发布统一由OUTBOX_JOBS_ENABLED控制，同时服务候补和购票通道；购票消费和请求恢复分别由PURCHASE_MESSAGING_ENABLED、PURCHASE_JOBS_ENABLED控制。关闭任何通道仅供受控故障验证，正常部署均保持开启；不保证即时分配或吞吐指标。
+独立数据库补偿默认每60秒扫描100个仍有WAITING的SKU，并另按同样边界核对库存Outbox序号未被Redis快照覆盖的SKU，每SKU至多处理50次队首；覆盖有库存未分配及无库存但队首已失效的情况。逐SKU隔离失败，游标前进并回绕，重启从数据库恢复。WAITLIST_MESSAGING_ENABLED=false关闭候补拓扑及消费，补偿仍运行；WAITLIST_JOBS_ENABLED=false关闭候补后台补偿。第十四阶段通用Outbox发布统一由OUTBOX_JOBS_ENABLED控制，同时服务候补和购票通道；购票消费和请求恢复分别由PURCHASE_MESSAGING_ENABLED、PURCHASE_JOBS_ENABLED控制。关闭任何通道仅供受控故障验证，正常部署均保持开启；不保证即时分配或吞吐指标。
 
 ## 电子票查询与入场凭证
 
