@@ -7,9 +7,19 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Update;
+import org.apache.ibatis.annotations.Select;
+import java.util.List;
 
 @Mapper
 public interface TicketSkuMapper extends BaseMapper<TicketSku> {
+    @Select("SELECT redis_inventory_initialized FROM ticket_sku WHERE id=#{id}")
+    boolean redisInitialized(long id);
+    @Select("SELECT COUNT(*) FROM ticket_sku WHERE redis_inventory_initialized=TRUE")
+    long redisInitializedCount();
+    @Update("UPDATE ticket_sku SET redis_inventory_initialized=TRUE WHERE id=#{id}")
+    int markRedisInitialized(long id);
+    @Select("SELECT id FROM ticket_sku WHERE id>#{after} ORDER BY id LIMIT #{size}")
+    List<Long> inventoryCandidates(@Param("after") long after, @Param("size") int size);
     @Update("""
             UPDATE ticket_sku SET sold_stock=sold_stock-#{quantity},updated_at=UTC_TIMESTAMP(6)
             WHERE id=#{skuId} AND inventory_strategy='SINGLE' AND sold_stock>=#{quantity}

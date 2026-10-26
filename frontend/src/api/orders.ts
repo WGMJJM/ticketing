@@ -9,7 +9,7 @@ export interface PurchaseRequest {
   requestId: string
   skuId: string
   quantity: number
-  status: 'QUEUED' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED' | 'EXPIRED'
+  status: 'QUEUED' | 'SUCCEEDED' | 'FAILED' | 'EXPIRED'
   orderId: string | null
   failureCode: string | null
   failureMessage: string | null
@@ -18,7 +18,7 @@ export interface PurchaseRequest {
   serverTime: string
 }
 export const purchaseStatusText = {
-  QUEUED: '等待处理', PROCESSING: '正在确认购票结果', SUCCEEDED: '订单已创建',
+  QUEUED: '等待处理', SUCCEEDED: '订单已创建',
   FAILED: '购票未成功', EXPIRED: '排队已超时',
 }
 export const purchaseApi = {

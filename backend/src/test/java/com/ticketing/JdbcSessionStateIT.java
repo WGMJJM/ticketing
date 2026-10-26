@@ -44,7 +44,7 @@ class JdbcSessionStateIT {
                     assertThat(jdbc.queryForObject("SELECT CONNECTION_ID()", Long.class)).isEqualTo(connectionId);
                     assertThat(jdbc.queryForObject("SELECT @@session.transaction_isolation", String.class)).isEqualTo("READ-COMMITTED");
                     assertThat(jdbc.queryForObject("SELECT @@session.transaction_read_only", Integer.class)).isEqualTo(1);
-                    assertThatThrownBy(() -> jdbc.update("UPDATE purchase_capacity SET pending_count=pending_count WHERE id=1"))
+                    assertThatThrownBy(() -> jdbc.update("UPDATE user_account SET status=status WHERE id=0"))
                             .isInstanceOf(DataAccessException.class);
                 });
                 assertThat(jdbc.queryForObject("SELECT @@session.transaction_isolation", String.class)).isEqualTo(initialIsolation);
@@ -52,7 +52,7 @@ class JdbcSessionStateIT {
                 TransactionTemplate write = new TransactionTemplate(manager);
                 write.executeWithoutResult(status -> {
                     assertThat(jdbc.queryForObject("SELECT CONNECTION_ID()", Long.class)).isEqualTo(connectionId);
-                    jdbc.update("UPDATE purchase_capacity SET pending_count=pending_count WHERE id=1");
+                    jdbc.update("UPDATE user_account SET status=status WHERE id=0");
                 });
             }
         }

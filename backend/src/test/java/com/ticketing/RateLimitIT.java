@@ -62,6 +62,7 @@ import static org.mockito.Mockito.reset;
         "ticketing.security.rate-limit.order-user.limit=2", "ticketing.security.rate-limit.order-user.window-seconds=1",
         "ticketing.security.rate-limit.waitlist-user.limit=1", "ticketing.security.rate-limit.waitlist-user.window-seconds=1"})
 class RateLimitIT {
+    @Autowired private com.ticketing.service.StockSnapshotService stockSnapshots;
     private static final String NAMESPACE = "it_" + UUID.randomUUID().toString().replace("-", "").substring(0, 24);
     private static final String SECRET = secret();
     private static final String PREFIX = "ticketing:rate-limit:v1:" + NAMESPACE + ":";
@@ -357,6 +358,7 @@ class RateLimitIT {
         sessionId = jdbc.queryForObject("SELECT id FROM activity_session WHERE activity_id=?", Long.class, activityId);
         jdbc.update("INSERT INTO ticket_sku(session_id,name,price_cents,total_stock,sale_starts_at,sale_ends_at,status) VALUES(?,'限流验收票',12800,?,TIMESTAMPADD(HOUR,-1,UTC_TIMESTAMP(6)),TIMESTAMPADD(HOUR,2,UTC_TIMESTAMP(6)),'ON_SALE')", sessionId, stock);
         skuId = jdbc.queryForObject("SELECT id FROM ticket_sku WHERE session_id=?", Long.class, sessionId);
+        PurchaseTestSupport.prepare(stockSnapshots,skuId);
     }
 
     private void assertFacts(int orders, int locked, int waiting) {

@@ -47,26 +47,6 @@ public interface OutboxMapper extends BaseMapper<OutboxEvent> {
             """)
     int claimBatch(@Param("ids") List<Long> ids, @Param("lease") int lease);
 
-    @Update("""
-        UPDATE outbox_event SET status='PENDING',sent_at=NULL,next_retry_at=UTC_TIMESTAMP(6),updated_at=UTC_TIMESTAMP(6)
-        WHERE event_id=#{eventId} AND event_type='PURCHASE_REQUEST_ACCEPTED' AND status='SENT'
-        """)
-    int recoverPurchase(String eventId);
-
-    @Select("""
-            SELECT EXISTS(SELECT 1 FROM outbox_event WHERE event_id=#{eventId}
-              AND event_type='PURCHASE_REQUEST_ACCEPTED' AND aggregate_type='PURCHASE_REQUEST'
-              AND status='FAILED')
-            """)
-    boolean purchaseFailed(String eventId);
-
-    @Update("""
-        UPDATE outbox_event SET status='FAILED',retry_count=retry_count+1,last_error='购票排队已结束，无需继续投递',
-          updated_at=UTC_TIMESTAMP(6)
-        WHERE event_id=#{eventId} AND event_type='PURCHASE_REQUEST_ACCEPTED' AND status IN('PENDING','PROCESSING')
-        """)
-    int closePurchase(String eventId);
-
     @Update(
             """
             UPDATE outbox_event SET status='SENT',sent_at=UTC_TIMESTAMP(6),last_error=NULL,updated_at=UTC_TIMESTAMP(6)

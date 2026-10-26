@@ -63,11 +63,11 @@ class OutboxPipelineIT {
     }
 
     @Test
-    void boundedBatchGivesBothChannelsAShareAndOldTokensCannotOverwrite() {
-        for (int index = 0; index < 4; index++) { event(PurchaseCommand.TYPE); event(InventoryEvent.TYPE); }
+    void boundedInventoryBatchAndOldTokensCannotOverwrite() {
+        for (int index = 0; index < 4; index++) { event(InventoryEvent.TYPE); event(InventoryEvent.TYPE); }
         List<OutboxEvent> first = outbox.claimBatch(4);
         assertThat(first).hasSize(4);
-        assertThat(first.stream().filter(e -> PurchaseCommand.TYPE.equals(e.getEventType()))).hasSize(2);
+        assertThat(first.stream().filter(e -> InventoryEvent.TYPE.equals(e.getEventType()))).hasSize(4);
         assertThat(first).allMatch(e -> e.getRetryCount() == 1);
         for (OutboxEvent event : first) db.update("UPDATE outbox_event SET next_retry_at='1999-01-01' WHERE id=?", event.getId());
         List<OutboxEvent> second = outbox.claimBatch(4);
@@ -79,7 +79,7 @@ class OutboxPipelineIT {
 
     @Test
     void concurrentBatchClaimsNeverReturnTheSameEventOrMoreThanRequested() throws Exception {
-        for (int index = 0; index < 32; index++) { event(PurchaseCommand.TYPE); event(InventoryEvent.TYPE); }
+        for (int index = 0; index < 32; index++) { event(InventoryEvent.TYPE); event(InventoryEvent.TYPE); }
         List<OutboxEvent> claims = new ArrayList<>();
         try (var threads = Executors.newFixedThreadPool(4)) {
             var futures = new ArrayList<java.util.concurrent.Future<List<OutboxEvent>>>();
@@ -97,21 +97,12 @@ class OutboxPipelineIT {
     }
 
     @Test
-    void realMandatoryReturnDoesNotPreventOtherChannelFromBeingMarkedSent() {
-        event(PurchaseCommand.TYPE);
-        event(InventoryEvent.TYPE);
-        new OutboxPublisher(outbox, rabbit, EXCHANGE, EXCHANGE + ".unrouted", 120,
-                new OutboxProperties(2, 5000, 30, 10, 2, 300, 2), meters).publishBatch();
-        assertThat(db.queryForObject("SELECT status FROM outbox_event WHERE event_id=?", String.class, ids.get(0))).isEqualTo("PENDING");
-        assertThat(db.queryForObject("SELECT status FROM outbox_event WHERE event_id=?", String.class, ids.get(1))).isEqualTo("SENT");
-        assertThat(broker.getQueueInfo(QUEUE).getMessageCount()).isEqualTo(1);
-        // 缺少交换机使真实代理关闭该发布通道并NACK；另一通道的健康消息仍须成功。
-        event(PurchaseCommand.TYPE);
-        event(InventoryEvent.TYPE);
-        new OutboxPublisher(outbox, rabbit, EXCHANGE, EXCHANGE + ".missing." + UUID.randomUUID(), 120,
-                new OutboxProperties(2, 5000, 30, 10, 2, 300, 2), meters).publishBatch();
-        assertThat(db.queryForObject("SELECT status FROM outbox_event WHERE event_id=?", String.class, ids.get(2))).isEqualTo("PENDING");
-        assertThat(db.queryForObject("SELECT status FROM outbox_event WHERE event_id=?", String.class, ids.get(3))).isEqualTo("SENT");
-        assertThat(broker.getQueueInfo(QUEUE).getMessageCount()).isEqualTo(2);
+    void realMandatoryReturnRetainsInventoryEventsForRetry() {
+        event(InventoryEvent.TYPE);event(InventoryEvent.TYPE);
+        new OutboxPublisher(outbox,rabbit,EXCHANGE+".unrouted",
+                new OutboxProperties(2,5000,30,10,2,300,2),meters).publishBatch();
+        for(String id:ids) assertThat(db.queryForObject("SELECT status FROM outbox_event WHERE event_id=?",String.class,id)).isEqualTo("PENDING");
+        assertThat(broker.getQueueInfo(QUEUE).getMessageCount()).isZero();
     }
+
 }

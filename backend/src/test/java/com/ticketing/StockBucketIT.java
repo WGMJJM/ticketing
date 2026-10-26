@@ -12,7 +12,9 @@ import com.ticketing.service.OrderRefundService;
 import com.ticketing.service.OrderService;
 import com.ticketing.service.PurchaseAdmission;
 import com.ticketing.service.PurchaseOrderWorker;
-import com.ticketing.service.PurchaseProcessing;
+import com.ticketing.service.RedisStockReservationService;
+import com.ticketing.mapper.PurchaseRequestMapper;
+import com.ticketing.service.StockSnapshotService;
 import com.ticketing.service.TicketService;
 import com.ticketing.service.TradeResourceLocker;
 import com.ticketing.service.WaitlistDispatcher;
@@ -36,12 +38,14 @@ import org.springframework.test.annotation.DirtiesContext;
 import static org.assertj.core.api.Assertions.*;
 
 /** 每个用例使用新建虚构活动；锁、库存、订单、票券与同步生命周期均使用真实MySQL。 */
-@SpringBootTest(properties={"ticketing.purchase.lease-seconds=300", "ticketing.purchase.queue-seconds=600"})
+@SpringBootTest(properties={"ticketing.purchase.queue-seconds=600"})
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class StockBucketIT {
     @Autowired JdbcTemplate db;
     @Autowired PurchaseAdmission admission;
-    @Autowired PurchaseProcessing processing;
+    @Autowired RedisStockReservationService stocks;
+    @Autowired PurchaseRequestMapper requests;
+    @Autowired StockSnapshotService snapshots;
     @Autowired PurchaseOrderWorker worker;
     @Autowired OrderService orders;
     @Autowired OrderRefundService refunds;
@@ -90,13 +94,14 @@ class StockBucketIT {
     }
     TransactionTemplate tx() { var tx=new TransactionTemplate(manager);tx.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);return tx; }
     PurchaseRequest claim(long owner,long ticket,int quantity) {
+        PurchaseTestSupport.prepare(snapshots,ticket);
         long id=Long.parseLong(admission.accept(owner,Long.toString(ticket),quantity,UUID.randomUUID().toString()).requestId());
-        return Objects.requireNonNull(processing.claim(id));
+        return Objects.requireNonNull(stocks.find(id));
     }
     long order(long owner,long ticket,int quantity) {
-        PurchaseRequest claim=claim(owner,ticket,quantity);worker.complete(claim);
-        assertThat(processing.find(claim.id()).status()).isEqualTo("SUCCEEDED");
-        return processing.find(claim.id()).orderId();
+        PurchaseRequest claim=claim(owner,ticket,quantity);worker.process(claim.id());
+        assertThat(requests.find(claim.id()).status()).isEqualTo("SUCCEEDED");
+        return requests.find(claim.id()).orderId();
     }
     void stock(long ticket,int locked,int sold) {
         var row=db.queryForMap("SELECT * FROM ticket_stock_balance WHERE id=?",ticket);
@@ -152,8 +157,8 @@ class StockBucketIT {
         assertThat(orders.expire(buyer,second)).isTrue();assertThat(orders.expire(buyer,second)).isFalse();stock(sku,0,0);consistent();
     }
     @Test void insufficientGlobalStockRollsBackEveryPartialAllocationAndQuota() {
-        order(buyer,sku,3);long other=user("USER");PurchaseRequest attempt=claim(other,sku,2);worker.complete(attempt);
-        assertThat(processing.find(attempt.id()).status()).isEqualTo("FAILED");stock(sku,3,0);
+        order(buyer,sku,3);long other=user("USER");PurchaseRequest attempt=claim(other,sku,2);worker.process(attempt.id());
+        assertThat(requests.find(attempt.id()).status()).isEqualTo("FAILED");stock(sku,3,0);
         assertThat(db.queryForObject("SELECT COUNT(*) FROM ticket_order WHERE user_id=?",Integer.class,other)).isZero();
         assertThat(db.queryForObject("SELECT COALESCE(SUM(occupied_quantity),0) FROM user_session_quota WHERE user_id=?",Integer.class,other)).isZero();consistent();
     }
@@ -162,19 +167,19 @@ class StockBucketIT {
         for(int n=0;n<100;n++) claims.add(claim(user("USER"),hot,1));
         try(var pool=Executors.newFixedThreadPool(16)) {
             var futures=new ArrayList<Future<?>>();
-            for(var request:claims) futures.add(pool.submit(()->{try {worker.complete(request);} catch(ConcurrencyFailureException retry) { /* 持久PROCESSING留给下轮真实补偿。 */ }}));
+            for(var request:claims) futures.add(pool.submit(()->{try {worker.process(request.id());} catch(ConcurrencyFailureException retry) { /* 持久PROCESSING留给下轮真实补偿。 */ }}));
             for(var future:futures)future.get(60,TimeUnit.SECONDS);
         }
-        for(var request:claims) if("PROCESSING".equals(processing.find(request.id()).status()))worker.complete(request);
-        assertThat(claims.stream().filter(c->"SUCCEEDED".equals(processing.find(c.id()).status())).count()).isEqualTo(60);
-        assertThat(claims.stream().filter(c->"FAILED".equals(processing.find(c.id()).status())).count()).isEqualTo(40);
+        for(var request:claims) if(requests.find(request.id())==null)worker.process(request.id());
+        assertThat(claims.stream().filter(c->"SUCCEEDED".equals(requests.find(c.id()).status())).count()).isEqualTo(60);
+        assertThat(claims.stream().filter(c->"FAILED".equals(requests.find(c.id()).status())).count()).isEqualTo(40);
         stock(hot,60,0);consistent();
     }
     @Test void sameBuyerAcrossBucketsAndTicketsStillSharesOneSessionQuota() throws Exception {
         long second=sku(session,8,4);long otherSession=session();long third=sku(otherSession,8,4);
         var claims=List.of(claim(buyer,sku,2),claim(buyer,second,2),claim(buyer,second,2),claim(buyer,third,2));
         try(var pool=Executors.newFixedThreadPool(4)) {
-            var tasks=claims.stream().map(c->pool.submit(()->worker.complete(c))).toList();
+            var tasks=claims.stream().map(c->pool.submit(()->worker.process(c.id()))).toList();
             for(var task:tasks)task.get(30,TimeUnit.SECONDS);
         }
         assertThat(db.queryForObject("SELECT occupied_quantity FROM user_session_quota WHERE user_id=? AND session_id=?",Integer.class,buyer,session)).isEqualTo(4);
@@ -220,17 +225,12 @@ class StockBucketIT {
     }
     @Test void finalTransactionFailureRollsBackBucketsAllocationOrderAndRequestTogether() {
         PurchaseRequest request=claim(buyer,sku,3);
-        assertThatThrownBy(()->tx().executeWithoutResult(s->{worker.complete(request);throw new IllegalStateException("隔离提交前中断");})).isInstanceOf(IllegalStateException.class);
-        stock(sku,0,0);assertThat(processing.find(request.id()).status()).isEqualTo("PROCESSING");
+        assertThatThrownBy(()->tx().executeWithoutResult(s->{worker.process(request.id());throw new IllegalStateException("隔离提交前中断");})).isInstanceOf(IllegalStateException.class);
+        stock(sku,0,0);assertThat(requests.find(request.id()).status()).isEqualTo("PROCESSING");
         assertThat(db.queryForObject("SELECT COUNT(*) FROM ticket_order WHERE user_id=?",Integer.class,buyer)).isZero();
-        worker.complete(request);worker.process(request.id());stock(sku,3,0);consistent();
+        worker.process(request.id());worker.process(request.id());stock(sku,3,0);consistent();
     }
-    @Test void staleProcessingTokenCannotCommitAnyBucketOrAllocation() {
-        PurchaseRequest old=claim(buyer,sku,3);
-        db.update("UPDATE purchase_request SET processing_token=processing_token+1,processing_lease_until=TIMESTAMPADD(SECOND,-1,UTC_TIMESTAMP(6)) WHERE id=?",old.id());
-        assertThatThrownBy(()->worker.complete(old)).isInstanceOf(IllegalStateException.class);stock(sku,0,0);
-        worker.process(old.id());stock(sku,3,0);consistent();
-    }
+
     @Test void usedTicketRefundRemainsManualAndCancelledSessionHandlesDisabledBuyer() {
         long id=order(buyer,sku,2);orders.pay(buyer,id);
         var ticket=db.queryForMap("SELECT ticket_no,credential_key_version FROM electronic_ticket WHERE order_id=? ORDER BY id LIMIT 1",id);
@@ -245,8 +245,9 @@ class StockBucketIT {
     PurchaseRequest routed(long owner,int number) {
         String key;
         do { key=UUID.randomUUID().toString(); } while(Math.floorMod(Long.hashCode(owner ^ (long)key.hashCode()),4)!=number);
+        PurchaseTestSupport.prepare(snapshots,sku);
         long id=Long.parseLong(admission.accept(owner,Long.toString(sku),1,key).requestId());
-        return processing.claim(id);
+        return stocks.find(id);
     }
     void awaitWaiter(String table) {
         long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(8);
@@ -271,8 +272,8 @@ class StockBucketIT {
             }));
             try {
                 assertThat(held.await(5,TimeUnit.SECONDS)).isTrue();
-                pool.submit(()->worker.complete(request)).get(5,TimeUnit.SECONDS);
-                assertThat(processing.find(request.id()).status()).isEqualTo("SUCCEEDED");
+                pool.submit(()->worker.process(request.id())).get(5,TimeUnit.SECONDS);
+                assertThat(requests.find(request.id()).status()).isEqualTo("SUCCEEDED");
                 var editor=pool.submit(()->resize(sku,0));awaitWaiter("activity_session");
                 release.countDown();blocker.get(5,TimeUnit.SECONDS);
                 assertThatThrownBy(()->editor.get(5,TimeUnit.SECONDS)).hasCauseInstanceOf(com.ticketing.exception.BusinessException.class);
@@ -289,11 +290,11 @@ class StockBucketIT {
                 try {release.await(10,TimeUnit.SECONDS);} catch(InterruptedException e) {throw new IllegalStateException(e);}
             }));
             try {
-                assertThat(held.await(5,TimeUnit.SECONDS)).isTrue();var consumer=pool.submit(()->worker.complete(request));
+                assertThat(held.await(5,TimeUnit.SECONDS)).isTrue();var consumer=pool.submit(()->worker.process(request.id()));
                 awaitWaiter("activity_session");release.countDown();editor.get(5,TimeUnit.SECONDS);consumer.get(5,TimeUnit.SECONDS);
             } finally {release.countDown();}
         }
-        assertThat(processing.find(request.id()).status()).isEqualTo("FAILED");stock(sku,0,0);consistent();
+        assertThat(requests.find(request.id()).status()).isEqualTo("FAILED");stock(sku,0,0);consistent();
     }
     @Test void genuineMysqlDeadlockRollsBackVictimAndConsumerRecoversWithoutPartialBuckets() throws Exception {
         PurchaseRequest request=claim(buyer,sku,3);var held=new CountDownLatch(1);
@@ -308,9 +309,9 @@ class StockBucketIT {
                 });} catch(ConcurrencyFailureException expectedVictim) { deadlockVictims.incrementAndGet(); }
             });
             assertThat(held.await(5,TimeUnit.SECONDS)).isTrue();
-            var consumer=pool.submit(()->worker.complete(request));fault.get(15,TimeUnit.SECONDS);consumer.get(15,TimeUnit.SECONDS);
+            var consumer=pool.submit(()->worker.process(request.id()));fault.get(15,TimeUnit.SECONDS);consumer.get(15,TimeUnit.SECONDS);
         }
         assertThat(deadlockVictims.get()).isEqualTo(1);
-        assertThat(processing.find(request.id()).status()).isEqualTo("SUCCEEDED");stock(sku,3,0);consistent();
+        assertThat(requests.find(request.id()).status()).isEqualTo("SUCCEEDED");stock(sku,3,0);consistent();
     }
 }

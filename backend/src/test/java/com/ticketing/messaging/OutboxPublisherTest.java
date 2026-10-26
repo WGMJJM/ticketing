@@ -74,21 +74,7 @@ class OutboxPublisherTest {
         }
     }
 
-    @Test
-    void purchaseMessagesUseSeparateRouteAndFiniteBrokerLifetime() {
-        OutboxEvent event = event(1);
-        event.setEventType(PurchaseCommand.TYPE);
-        when(service.claimBatch(anyInt())).thenReturn(java.util.List.of(event), java.util.List.of());
-        doAnswer(call -> {
-            assertThat(call.getArgument(0, String.class)).isEqualTo("test.purchase");
-            assertThat(call.getArgument(1, String.class)).isEqualTo(PurchaseCommand.ROUTING_KEY);
-            assertThat(call.getArgument(2, Message.class).getMessageProperties().getExpiration()).isEqualTo("120000");
-            call.getArgument(3, CorrelationData.class).getFuture().complete(new CorrelationData.Confirm(true, null));
-            return null;
-        }).when(rabbit).send(anyString(), anyString(), any(Message.class), any(CorrelationData.class));
-        publisher().publishBatch();
-        verify(service).sent(event);
-    }
+
 
     @Test
     void oneMissingConfirmationDoesNotBlockHealthyMessagesAndLateAckCannotMarkSent() {
@@ -149,7 +135,7 @@ class OutboxPublisherTest {
     }
 
     private OutboxPublisher publisher() { return publisher(1); }
-    private OutboxPublisher publisher(int window) { return new OutboxPublisher(service, rabbit, "test.exchange", "test.purchase", 120,
+    private OutboxPublisher publisher(int window) { return new OutboxPublisher(service, rabbit, "test.exchange",
             new OutboxProperties(100, 100, 30, 10, 2, 300, window), new io.micrometer.core.instrument.simple.SimpleMeterRegistry()); }
     private OutboxEvent event(long id) {
         OutboxEvent event = new OutboxEvent();

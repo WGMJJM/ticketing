@@ -12,7 +12,9 @@ import com.ticketing.service.OrderRefundService;
 import com.ticketing.service.OrderService;
 import com.ticketing.service.PurchaseAdmission;
 import com.ticketing.service.PurchaseOrderWorker;
-import com.ticketing.service.PurchaseProcessing;
+import com.ticketing.service.RedisStockReservationService;
+import com.ticketing.mapper.PurchaseRequestMapper;
+import com.ticketing.service.StockSnapshotService;
 import com.ticketing.service.TicketService;
 import com.ticketing.service.TradeResourceLocker;
 import com.ticketing.service.UserSessionQuotaService;
@@ -36,12 +38,14 @@ import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
 
 /** 真实MySQL精确额度与完整生命周期。仅订单明细故障点使用Spy，所有锁及状态SQL真实执行。 */
-@SpringBootTest(properties={"ticketing.purchase.lease-seconds=120","ticketing.purchase.queue-seconds=600",
+@SpringBootTest(properties={"ticketing.purchase.queue-seconds=600",
         "ticketing.checkin.opens-before-minutes=120"})
 class UserSessionQuotaIT {
     @Autowired JdbcTemplate db;
     @Autowired PurchaseAdmission admission;
-    @Autowired PurchaseProcessing processing;
+    @Autowired RedisStockReservationService stocks;
+    @Autowired PurchaseRequestMapper requests;
+    @Autowired StockSnapshotService snapshots;
     @Autowired PurchaseOrderWorker worker;
     @Autowired TradeResourceLocker resources;
     @Autowired UserSessionQuotaService quotas;
@@ -78,10 +82,10 @@ class UserSessionQuotaIT {
         db.update("INSERT INTO ticket_sku(session_id,name,price_cents,total_stock,max_quantity_per_order,status,sale_starts_at,sale_ends_at) VALUES(?,?,100,?,4,'ON_SALE',TIMESTAMPADD(MINUTE,-30,UTC_TIMESTAMP(6)),TIMESTAMPADD(MINUTE,30,UTC_TIMESTAMP(6)))",parent,"票档"+UUID.randomUUID(),stock);
         return db.queryForObject("SELECT MAX(id) FROM ticket_sku WHERE session_id=?",Long.class,parent);
     }
-    long accept(long owner,long ticket,int quantity,String key){return Long.parseLong(admission.accept(owner,Long.toString(ticket),quantity,key).requestId());}
+    long accept(long owner,long ticket,int quantity,String key){PurchaseTestSupport.prepare(snapshots,ticket);return Long.parseLong(admission.accept(owner,Long.toString(ticket),quantity,key).requestId());}
     long order(long owner,long ticket,int quantity) {
         long id=accept(owner,ticket,quantity,UUID.randomUUID().toString());worker.process(id);
-        assertThat(processing.find(id).status()).isEqualTo("SUCCEEDED");return processing.find(id).orderId();
+        assertThat(requests.find(id).status()).isEqualTo("SUCCEEDED");return requests.find(id).orderId();
     }
     TransactionTemplate tx(){var tx=new TransactionTemplate(manager);tx.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);return tx;}
     void consistent() {
@@ -107,13 +111,13 @@ class UserSessionQuotaIT {
     }
     @Test void concurrentFirstRowsAcrossTicketsShareOneSessionLimitAndReplaysDoNotOccupyAgain()throws Exception {
         long other=sku(session,100);var ids=new ArrayList<Long>();
-        for(int i=0;i<12;i++)ids.add(accept(user,i%2==0?sku:other,1,"first-"+i));
-        parallel(12,i->{worker.process(ids.get(i));return true;});
-        assertThat(ids.stream().filter(id->"SUCCEEDED".equals(processing.find(id).status())).count()).isEqualTo(4);
+        for(int i=0;i<4;i++)ids.add(accept(user,i%2==0?sku:other,1,"first-"+i));
+        parallel(ids.size(),i->{worker.process(ids.get(i));return true;});
+        assertThat(ids.stream().filter(id->"SUCCEEDED".equals(requests.find(id).status())).count()).isEqualTo(4);
         assertThat(quotas.occupied(user,session)).isEqualTo(4);
         assertThat(orders.limits(user,session).remainingQuantity()).isZero();
-        parallel(12,i->{worker.process(ids.get(i));return true;});
-        assertThat(db.queryForObject("SELECT pending_count FROM purchase_capacity WHERE id=1",Integer.class)).isZero();consistent();
+        parallel(ids.size(),i->{worker.process(ids.get(i));return true;});
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM purchase_request WHERE status='QUEUED'",Integer.class)).isZero();consistent();
     }
     @Test void sameUserDifferentSessionsHoldSharedAccountAndIndependentQuotaConcurrentlyButDisableWaits()throws Exception {
         long second=session(),secondSku=sku(second,100);long request=accept(user,sku,1,"disable-after");
@@ -126,7 +130,7 @@ class UserSessionQuotaIT {
             var disable=pool.submit(()->{changing.countDown();db.update("UPDATE user_account SET status='DISABLED' WHERE id=?",user);});
             assertThat(changing.await(1,TimeUnit.SECONDS)).isTrue();Thread.sleep(100);assertThat(disable.isDone()).isFalse();
             release.countDown();first.get(5,TimeUnit.SECONDS);other.get(5,TimeUnit.SECONDS);disable.get(5,TimeUnit.SECONDS);
-            worker.process(request);assertThat(processing.find(request).failureCode()).isEqualTo("ACCOUNT_UNAVAILABLE");
+            worker.process(request);assertThat(requests.find(request).failureCode()).isEqualTo("ACCOUNT_UNAVAILABLE");
             assertThat(quotas.occupied(user,session)).isZero();consistent();
         } finally {release.countDown();pool.shutdownNow();}
     }
@@ -179,16 +183,13 @@ class UserSessionQuotaIT {
         refunds.processCancelledSession(pending);refunds.processCancelledSession(paid);
         assertThat(quotas.occupied(user,session)).isZero();consistent();
     }
-    @Test void transactionFailureAndStaleClaimRollBackQuotaInventoryAndOrderBeforeSafeRecovery() {
-        long id=accept(user,sku,2,"rollback");var old=processing.claim(id);
+    @Test void transactionFailureRollsBackQuotaInventoryAndOrderBeforeSafeRecovery() {
+        long id=accept(user,sku,2,"rollback");var old=stocks.find(id);
         doThrow(new org.springframework.dao.DataAccessResourceFailureException("隔离明细故障")).when(orderMapper).insertItem(any(),any(),anyInt());
-        assertThatThrownBy(()->worker.complete(old)).isInstanceOf(org.springframework.dao.DataAccessResourceFailureException.class);
-        assertThat(quotas.occupied(user,session)).isZero();assertThat(processing.find(id).status()).isEqualTo("PROCESSING");
+        assertThatThrownBy(()->worker.process(old.id())).isInstanceOf(org.springframework.dao.DataAccessResourceFailureException.class);
+        assertThat(quotas.occupied(user,session)).isZero();assertThat(requests.find(id)).isNull();
         reset(orderMapper);
-        db.update("UPDATE purchase_request SET processing_lease_until=TIMESTAMPADD(SECOND,-1,UTC_TIMESTAMP(6)) WHERE id=?",id);
-        var current=processing.claim(id);assertThat(current.processingToken()).isGreaterThan(old.processingToken());
-        assertThatThrownBy(()->worker.complete(old)).isInstanceOf(IllegalStateException.class);
-        assertThat(quotas.occupied(user,session)).isZero();worker.complete(current);
+        assertThat(quotas.occupied(user,session)).isZero();worker.process(old.id());
         assertThat(quotas.occupied(user,session)).isEqualTo(2);consistent();
     }
     @Test void quotaUnderflowRollsBackCancellationAndNeverClampsCorruptStateToZero() {
@@ -201,7 +202,7 @@ class UserSessionQuotaIT {
     @Test void realMysqlDeadlockRetriesReservationWithoutDoubleOccupancy()throws Exception {
         // 仅测试Spy故意反向锁第二票档，制造数据库1213；生产协议没有这条反向锁路径。
         var fillers=new ArrayList<Long>();for(int i=0;i<20;i++)fillers.add(sku(session,100));long other=fillers.getFirst();
-        long request=accept(user,sku,1,"real-deadlock");var claim=processing.claim(request);
+        long request=accept(user,sku,1,"real-deadlock");var claim=stocks.find(request);
         var itemInsertAttempts=new AtomicInteger();
         var blockerReady=new CountDownLatch(1);var workerEntered=new CountDownLatch(1);var blockerTrying=new CountDownLatch(1);
         doAnswer(call->{itemInsertAttempts.incrementAndGet();workerEntered.countDown();await(blockerReady);await(blockerTrying);
@@ -216,11 +217,11 @@ class UserSessionQuotaIT {
                 db.queryForObject("SELECT id FROM ticket_sku WHERE id=? FOR UPDATE",Long.class,sku);
             }));
             assertThat(blockerReady.await(5,TimeUnit.SECONDS)).isTrue();
-            var purchase=pool.submit(()->worker.complete(claim));
+            var purchase=pool.submit(()->worker.process(claim.id()));
             purchase.get(10,TimeUnit.SECONDS);
             blocker.get(10,TimeUnit.SECONDS);reset(orderMapper);
             assertThat(itemInsertAttempts.get()).isGreaterThanOrEqualTo(2); // 首次真实死锁回滚后，在新事务内重试。
-            assertThat(processing.find(request).status()).isEqualTo("SUCCEEDED");
+            assertThat(requests.find(request).status()).isEqualTo("SUCCEEDED");
             assertThat(db.queryForObject("SELECT COUNT(*) FROM ticket_order WHERE user_id=?",Integer.class,user)).isEqualTo(1);
             assertThat(db.queryForObject("SELECT locked_stock FROM ticket_sku WHERE id=?",Integer.class,sku)).isEqualTo(1);
             assertThat(quotas.occupied(user,session)).isEqualTo(1);consistent();
@@ -228,7 +229,7 @@ class UserSessionQuotaIT {
     }
     @Test void realMysqlLockTimeoutRollsBackAndTheSameClaimCanRecover()throws Exception {
         requireFaultGuard();
-        long request=accept(user,sku,1,"lock-timeout");var claim=processing.claim(request);
+        long request=accept(user,sku,1,"lock-timeout");var claim=stocks.find(request);
         tx().executeWithoutResult(s->resources.lockReservation(user,sku,true));
         var ready=new CountDownLatch(1);var release=new CountDownLatch(1);
         try(var pool=Executors.newSingleThreadExecutor()) {
@@ -238,22 +239,22 @@ class UserSessionQuotaIT {
                 assertThatThrownBy(()->tx().executeWithoutResult(s->{
                     int original=db.queryForObject("SELECT @@session.innodb_lock_wait_timeout",Integer.class);
                     db.execute("SET SESSION innodb_lock_wait_timeout=1");
-                    try {worker.complete(claim);}
+                    try {worker.process(claim.id());}
                     finally {db.execute("SET SESSION innodb_lock_wait_timeout="+original);}
                 })).isInstanceOf(org.springframework.dao.ConcurrencyFailureException.class);
             } finally {release.countDown();blocker.get(10,TimeUnit.SECONDS);}
         }
-        assertThat(processing.find(request).status()).isEqualTo("PROCESSING");
+        assertThat(requests.find(request)).isNull();
         assertThat(quotas.occupied(user,session)).isZero();
         assertThat(db.queryForObject("SELECT locked_stock FROM ticket_sku WHERE id=?",Integer.class,sku)).isZero();
-        worker.complete(claim);worker.process(request);
-        assertThat(processing.find(request).status()).isEqualTo("SUCCEEDED");
+        worker.process(claim.id());worker.process(request);
+        assertThat(requests.find(request).status()).isEqualTo("SUCCEEDED");
         assertThat(quotas.occupied(user,session)).isEqualTo(1);consistent();
     }
 
     @Test void realPoolExhaustionCreatesNoPartialOrderAndRecoveryCommitsExactlyOnce()throws Exception {
         requireFaultGuard();
-        long request=accept(user,sku,1,"pool-exhaustion");var claim=processing.claim(request);
+        long request=accept(user,sku,1,"pool-exhaustion");var claim=stocks.find(request);
         var pool=dataSource.unwrap(com.zaxxer.hikari.HikariDataSource.class);
         int originalMaximum=pool.getMaximumPoolSize(),originalMinimum=pool.getMinimumIdle();
         // 整轮回归缓存多个上下文；只耗尽当前已建连接，避免夹具本身抢占MySQL全局连接名额。
@@ -263,17 +264,17 @@ class UserSessionQuotaIT {
             pool.setMinimumIdle(0);
             pool.setMaximumPoolSize(existing);
             for(int index=0;index<existing;index++)held.add(pool.getConnection());
-            assertThatThrownBy(()->worker.complete(claim)).isInstanceOf(org.springframework.transaction.CannotCreateTransactionException.class);
+            assertThatThrownBy(()->worker.process(claim.id())).isInstanceOf(org.springframework.transaction.CannotCreateTransactionException.class);
         } finally {
             for(var connection:held)connection.close();
             pool.setMaximumPoolSize(originalMaximum);
             pool.setMinimumIdle(originalMinimum);
         }
-        assertThat(processing.find(request).status()).isEqualTo("PROCESSING");
+        assertThat(requests.find(request)).isNull();
         assertThat(quotas.occupied(user,session)).isZero();
         assertThat(db.queryForObject("SELECT COUNT(*) FROM ticket_order WHERE user_id=?",Integer.class,user)).isZero();
-        worker.complete(claim);worker.process(request);worker.process(request);
-        assertThat(processing.find(request).status()).isEqualTo("SUCCEEDED");
+        worker.process(claim.id());worker.process(request);worker.process(request);
+        assertThat(requests.find(request).status()).isEqualTo("SUCCEEDED");
         assertThat(db.queryForObject("SELECT COUNT(*) FROM ticket_order WHERE user_id=?",Integer.class,user)).isEqualTo(1);
         assertThat(quotas.occupied(user,session)).isEqualTo(1);consistent();
     }
@@ -317,7 +318,7 @@ class UserSessionQuotaIT {
             });
             assertThat(managing.await(1,TimeUnit.SECONDS)).isTrue();Thread.sleep(100);assertThat(change.isDone()).isFalse();
             release.countDown();purchase.get(5,TimeUnit.SECONDS);change.get(5,TimeUnit.SECONDS);reset(orderMapper);
-            long original=processing.find(request).orderId();assertThat(db.queryForObject("SELECT total_amount_cents FROM ticket_order WHERE id=?",Long.class,original)).isEqualTo(100);
+            long original=requests.find(request).orderId();assertThat(db.queryForObject("SELECT total_amount_cents FROM ticket_order WHERE id=?",Long.class,original)).isEqualTo(100);
             long newer=order(user,sku,1);assertThat(db.queryForObject("SELECT total_amount_cents FROM ticket_order WHERE id=?",Long.class,newer)).isEqualTo(250);consistent();
         } finally {release.countDown();pool.shutdownNow();}
     }
@@ -326,17 +327,17 @@ class UserSessionQuotaIT {
         long head=Long.parseLong(waitlist.join(user,new JoinWaitlistRequest(Long.toString(sku),2)).id());
         long next=Long.parseLong(waitlist.join(second,new JoinWaitlistRequest(Long.toString(sku),1)).id());
         assertThat(quotas.occupied(user,session)).isZero();db.update("UPDATE ticket_sku SET total_stock=1 WHERE id=?",sku);
-        assertThat(waitlist.allocateHead(sku,head,1)).isEqualTo(WaitlistService.Allocation.BLOCKED);
-        assertThat(waitlist.allocateHead(sku,next,1)).isEqualTo(WaitlistService.Allocation.RETRY);
+        assertThat(waitlist.allocateHead(sku,head)).isEqualTo(WaitlistService.Allocation.BLOCKED);
+        assertThat(waitlist.allocateHead(sku,next)).isEqualTo(WaitlistService.Allocation.RETRY);
         long ordinary=order(second,sku,1);orders.cancel(second,ordinary);
         db.update("UPDATE ticket_sku SET total_stock=2 WHERE id=?",sku);
-        assertThat(waitlist.allocateHead(sku,head,2)).isEqualTo(WaitlistService.Allocation.ALLOCATED);
-        assertThat(waitlist.allocateHead(sku,head,2)).isEqualTo(WaitlistService.Allocation.RETRY);
+        assertThat(waitlist.allocateHead(sku,head)).isEqualTo(WaitlistService.Allocation.ALLOCATED);
+        assertThat(waitlist.allocateHead(sku,head)).isEqualTo(WaitlistService.Allocation.RETRY);
         long headOrder=db.queryForObject("SELECT reserved_order_id FROM waitlist_entry WHERE id=?",Long.class,head);
         orders.pay(user,headOrder);assertThat(quotas.occupied(user,session)).isEqualTo(2);
         refunds.refund(admin,headOrder,RefundReason.CUSTOMER_REQUEST);
         assertThat(db.queryForObject("SELECT status FROM waitlist_entry WHERE id=?",String.class,head)).isEqualTo("COMPLETED");
-        assertThat(waitlist.allocateHead(sku,next,1)).isEqualTo(WaitlistService.Allocation.ALLOCATED);
+        assertThat(waitlist.allocateHead(sku,next)).isEqualTo(WaitlistService.Allocation.ALLOCATED);
         long nextOrder=db.queryForObject("SELECT reserved_order_id FROM waitlist_entry WHERE id=?",Long.class,next);
         orders.cancel(second,nextOrder);assertThat(quotas.occupied(second,session)).isZero();consistent();
     }

@@ -28,18 +28,20 @@ public class WaitlistService {
     private final OrderReservation reservation;
     private final InventoryEvents events;
     private final int waitMinutes;
+    private final StockSnapshotService inventory;
 
     public WaitlistService(
             WaitlistMapper waitlists,
             TradeResourceLocker resources,
             OrderReservation reservation,
             InventoryEvents events,
-            WaitlistProperties properties) {
+            WaitlistProperties properties, StockSnapshotService inventory) {
         this.waitlists = waitlists;
         this.resources = resources;
         this.reservation = reservation;
         this.events = events;
         this.waitMinutes = properties.maxWaitMinutes();
+        this.inventory = inventory;
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -146,9 +148,9 @@ public class WaitlistService {
         return view;
     }
 
-    /** Redis冻结仲裁提供本轮可分配预算；MySQL仍执行最终条件预占。 */
+    /** SKU 锁内暂停普通入口；未完成预扣归零后才允许候补使用 MySQL 余额。 */
     @Transactional(isolation = Isolation.READ_COMMITTED)
-    public Allocation allocateHead(long skuId, long candidateId, int redisAvailableBudget) {
+    public Allocation allocateHead(long skuId, long candidateId) {
         WaitlistEntry initial = waitlists.selectById(candidateId);
         if (initial == null || !initial.getSkuId().equals(skuId)) {
             return Allocation.RETRY;
@@ -165,7 +167,9 @@ public class WaitlistService {
             terminal(head, WaitlistStatus.EXPIRED);
             return Allocation.ADVANCED;
         }
-        if (context.sale().availableStock() < head.getQuantity() || redisAvailableBudget < head.getQuantity()) {
+        if (!inventory.pauseForWaitlist(skuId)) return Allocation.BLOCKED;
+        if (context.sale().availableStock() < head.getQuantity()) {
+            inventory.synchronize(skuId);
             return Allocation.BLOCKED;
         }
         long orderId = reservation.reserveWaitlist(context, head.getQuantity(), head.getId());
@@ -173,6 +177,8 @@ public class WaitlistService {
         if (waitlists.allocate(head.getId(), orderId) != 1) {
             throw conflict("候补状态已变化，分配未生效");
         }
+        // 只有减少可售量的候补事务可在提交前发布；回滚最多低估可售量，下轮按 MySQL 恢复。
+        inventory.synchronize(skuId);
         return Allocation.ALLOCATED;
     }
 

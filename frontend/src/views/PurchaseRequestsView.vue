@@ -48,7 +48,7 @@ async function load(restart = false) {
     if (active === generation && !disposed) {
       loading.value = false
       polls++
-      const pending = rows.value.some(request => request.status === 'QUEUED' || request.status === 'PROCESSING')
+      const pending = rows.value.some(request => request.status === 'QUEUED')
       if ((pending || error.value) && polls < 60 && !document.hidden) timer = setTimeout(() => void load(), Math.min(5000, 2000 + polls * 100))
       else if (pending || error.value) paused.value = true
     }

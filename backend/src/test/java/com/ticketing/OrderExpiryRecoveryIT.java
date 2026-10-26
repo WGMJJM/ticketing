@@ -43,6 +43,7 @@ class OrderExpiryRecoveryIT {
                 sessionId = jdbc.queryForObject("SELECT id FROM activity_session WHERE activity_id=?", Long.class, activityId);
                 jdbc.update("INSERT INTO ticket_sku(session_id,name,price_cents,total_stock,sale_starts_at,sale_ends_at,status) VALUES(?,'重启补偿票',100,5,DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 HOUR),DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 1 HOUR),'ON_SALE')", sessionId);
                 skuId = jdbc.queryForObject("SELECT id FROM ticket_sku WHERE session_id=?", Long.class, sessionId);
+                first.getBean(com.ticketing.service.StockSnapshotService.class).synchronize(skuId);
                 var accepted = first.getBean(com.ticketing.service.PurchaseAdmission.class).accept(userId,Long.toString(skuId),2,"restart-"+suffix);
                 orderId = PurchaseTestSupport.order(first.getBean(com.ticketing.service.PurchaseOrderWorker.class),
                         first.getBean(com.ticketing.mapper.PurchaseRequestMapper.class),jdbc,Long.parseLong(accepted.requestId()));

@@ -11,6 +11,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 /** 历史交易回归显式驱动生产消费者服务，测试真实SQL事务；新MQ协议另由AsyncPurchaseIT验证。 */
 public final class PurchaseTestSupport {
     private PurchaseTestSupport() {}
+    /** 后台任务关闭的业务回归显式执行库存初始化/事件同步，不改变生产 HTTP 链路。 */
+    public static void prepare(com.ticketing.service.StockSnapshotService inventory,long skuId) {
+        if(inventory.needsRefresh(skuId)) inventory.synchronize(skuId);
+    }
     public static PurchaseRequest resolve(PurchaseOrderWorker worker, PurchaseRequestMapper mapper, JdbcTemplate db, long id) throws Exception {
         worker.process(id);
         long end=System.nanoTime()+Duration.ofSeconds(15).toNanos();
@@ -19,7 +23,6 @@ public final class PurchaseTestSupport {
             value=mapper.find(id);
             if(value.terminal()) {
                 // 本工具仅隔离历史交易回归的已处理夹具消息，不伪造SENT；MQ端到端测试不使用本工具。
-                db.update("DELETE FROM outbox_event WHERE aggregate_type='PURCHASE_REQUEST' AND aggregate_id=?",id);
                 Long session=db.queryForObject("SELECT session_id FROM ticket_sku WHERE id=?",Long.class,value.skuId());
                 assertQuotaConsistent(db,session);
                 return value;
@@ -35,8 +38,6 @@ public final class PurchaseTestSupport {
     }
     public static void cleanup(JdbcTemplate db,long sessionId) {
         db.update("DELETE FROM user_session_quota WHERE session_id=?",sessionId);
-        db.update("UPDATE purchase_capacity SET pending_count=pending_count-(SELECT COUNT(*) FROM purchase_request p JOIN ticket_sku s ON p.sku_id=s.id WHERE s.session_id=? AND p.status IN('QUEUED','PROCESSING')) WHERE id=1",sessionId);
-        db.update("DELETE e FROM outbox_event e JOIN purchase_request p ON e.aggregate_id=p.id JOIN ticket_sku s ON p.sku_id=s.id WHERE e.aggregate_type='PURCHASE_REQUEST' AND s.session_id=?",sessionId);
         db.update("DELETE p FROM purchase_request p JOIN ticket_sku s ON p.sku_id=s.id WHERE s.session_id=?",sessionId);
     }
     public static void assertQuotaConsistent(JdbcTemplate db,long sessionId) {

@@ -17,7 +17,7 @@ import com.ticketing.service.PurchaseOrderWorker;
 import com.ticketing.service.WaitlistCompensation;
 import com.ticketing.service.WaitlistDispatcher;
 import com.ticketing.service.WaitlistService;
-import com.ticketing.service.RedisStockReservationService;
+import com.ticketing.service.StockSnapshotService;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -83,6 +83,7 @@ import static org.mockito.Mockito.reset;
         "spring.rabbitmq.listener.simple.retry.max-attempts=3","spring.rabbitmq.listener.simple.retry.initial-interval=100ms",
         "spring.rabbitmq.listener.simple.retry.max-interval=400ms","ticketing.waitlist.outbox.max-attempts=3"})
 class WaitlistManagementIT {
+    @Autowired private com.ticketing.service.StockSnapshotService stockSnapshots;
     private static final String QUEUE="ticketing.waitlist.it.dispatch";
     @LocalServerPort private int port;
     @Autowired private ObjectMapper json;
@@ -92,7 +93,7 @@ class WaitlistManagementIT {
     @Autowired private com.ticketing.service.PurchaseOrderWorker purchaseWorker;
     @Autowired private com.ticketing.mapper.PurchaseRequestMapper purchaseRequests;
     @Autowired private WaitlistService waitlists;
-    @Autowired private RedisStockReservationService stocks;
+    @Autowired private StockSnapshotService stocks;
     @Autowired private OutboxService outbox;
     @Autowired private InventoryEvents writer;
     @Autowired private WaitlistCompensation compensation;
@@ -239,7 +240,7 @@ class WaitlistManagementIT {
     void staleHeadCandidateIsRecheckedAfterAcquiringLocks() throws Exception {
         JsonNode first=a.join(skuId,1,200); JsonNode next=b.join(skuId,1,200);
         stock(1); a.call("POST","/waitlist/"+first.path("id").asText()+"/cancel",null,200);
-        assertThat(waitlists.allocateHead(skuId,first.path("id").asLong(),1)).isEqualTo(WaitlistService.Allocation.RETRY);
+        assertThat(waitlists.allocateHead(skuId,first.path("id").asLong())).isEqualTo(WaitlistService.Allocation.RETRY);
         assertThat(state(next)).isEqualTo("WAITING"); assertThat(orderCount()).isZero();
         dispatcher.dispatch(skuId); assertThat(state(next)).isEqualTo("ALLOCATED"); invariant(1,0);
     }
@@ -331,7 +332,7 @@ class WaitlistManagementIT {
         CachingConnectionFactory unavailable=new CachingConnectionFactory("127.0.0.1",1);
         try {
             unavailable.setConnectionTimeout(200);
-            new OutboxPublisher(outbox,new RabbitTemplate(unavailable),"ticketing.waitlist.it","ticketing.purchase.it",120,new OutboxProperties(1,100,30,3,2,300, 1), new io.micrometer.core.instrument.simple.SimpleMeterRegistry()).publishBatch();
+            new OutboxPublisher(outbox,new RabbitTemplate(unavailable),"ticketing.waitlist.it",new OutboxProperties(1,100,30,3,2,300, 1), new io.micrometer.core.instrument.simple.SimpleMeterRegistry()).publishBatch();
         } finally { unavailable.destroy(); }
         assertThat(eventStatus()).isEqualTo("PENDING"); assertThat(event().getRetryCount()).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT next_retry_at>UTC_TIMESTAMP(6) FROM outbox_event WHERE id=?",Boolean.class,event().getId())).isTrue();
@@ -357,7 +358,7 @@ class WaitlistManagementIT {
         dueEvent(); OutboxEvent newer=outbox.claimNext(); assertThat(newer.getRetryCount()).isEqualTo(2);
         assertThat(outbox.sent(old)).isFalse(); outbox.failed(old);
         assertThat(eventStatus()).isEqualTo("PROCESSING");
-        dueEvent(); new OutboxPublisher(outbox,rabbit,"ticketing.waitlist.it","ticketing.purchase.it",120,new OutboxProperties(1,5000,30,3,2,300, 1), new io.micrometer.core.instrument.simple.SimpleMeterRegistry()).publishBatch();
+        dueEvent(); new OutboxPublisher(outbox,rabbit,"ticketing.waitlist.it",new OutboxProperties(1,5000,30,3,2,300, 1), new io.micrometer.core.instrument.simple.SimpleMeterRegistry()).publishBatch();
         assertThat(eventStatus()).isEqualTo("SENT"); assertThat(event().getRetryCount()).isEqualTo(3);
         registry.start(); await(()->"ALLOCATED".equals(state(entry))); invariant(1,0); assertThat(orderCount()).isEqualTo(1);
     }
@@ -374,7 +375,7 @@ class WaitlistManagementIT {
         CachingConnectionFactory unavailable=new CachingConnectionFactory("127.0.0.1",1);
         try {
             unavailable.setConnectionTimeout(200);
-            OutboxPublisher failed=new OutboxPublisher(outbox,new RabbitTemplate(unavailable),"ticketing.waitlist.it","ticketing.purchase.it",120,new OutboxProperties(1,100,30,3,2,300, 1), new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
+            OutboxPublisher failed=new OutboxPublisher(outbox,new RabbitTemplate(unavailable),"ticketing.waitlist.it",new OutboxProperties(1,100,30,3,2,300, 1), new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
             for (int count=0;count<3;count++) { dueEvent(); failed.publishBatch(); }
         } finally { unavailable.destroy(); }
         assertThat(eventStatus()).isEqualTo("FAILED"); assertThat(event().getRetryCount()).isEqualTo(3);
@@ -466,7 +467,7 @@ class WaitlistManagementIT {
         for(int allocation=0;allocation<50;allocation++) {
             WaitlistEntry head=waitlistMapper.head(skuId);
             assertThat(head).isNotNull();
-            assertThat(waitlists.allocateHead(skuId,head.getId(),100-allocation)).isEqualTo(WaitlistService.Allocation.ALLOCATED);
+            assertThat(waitlists.allocateHead(skuId,head.getId())).isEqualTo(WaitlistService.Allocation.ALLOCATED);
         }
         assertThat(allocatedCount()).isEqualTo(50);
         assertThat(waitingCount()).isEqualTo(50);
@@ -612,7 +613,7 @@ class WaitlistManagementIT {
         Client client=new Client(); String username="wait_"+UUID.randomUUID().toString().replace("-","").substring(0,24); String password=UUID.randomUUID().toString();
         client.csrf();
         if (administrator) accounts.initializeAdmin(new AdminCredentials(username,password));
-        else client.call("POST","/auth/register",Map.of("username",username,"password",password),200);
+        else com.ticketing.AccountTestSupport.legacyUser(jdbc,username,password);
         client.id=jdbc.queryForObject("SELECT id FROM user_account WHERE username=?",Long.class,username); userIds.add(client.id);
         client.raw("POST","/auth/login","username="+username+"&password="+URLEncoder.encode(password,StandardCharsets.UTF_8),"application/x-www-form-urlencoded",null,200); client.csrf(); return client;
     }
@@ -639,6 +640,7 @@ class WaitlistManagementIT {
         void csrf() throws Exception { token=call("GET","/auth/csrf",null,200).path("data").path("token").asText(); }
         JsonNode join(long sku,int quantity,int expected) throws Exception { return call("POST","/waitlist",Map.of("skuId",Long.toString(sku),"quantity",quantity),expected).path("data"); }
         JsonNode create(long sku,int quantity) throws Exception {
+            com.ticketing.PurchaseTestSupport.prepare(stockSnapshots,sku);
             long requestId=raw("POST","/orders",json.writeValueAsString(Map.of("skuId",Long.toString(sku),"quantity",quantity)),"application/json",UUID.randomUUID().toString(),202).path("data").path("requestId").asLong();
             String orderId=com.ticketing.PurchaseTestSupport.order(purchaseWorker,purchaseRequests,jdbc,requestId);
             return raw("GET","/orders/"+orderId,"","application/json",null,200).path("data");

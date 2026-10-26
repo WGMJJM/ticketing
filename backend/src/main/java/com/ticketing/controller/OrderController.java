@@ -6,7 +6,7 @@ import com.ticketing.dto.CreateOrderRequest;
 import com.ticketing.exception.BusinessException;
 import com.ticketing.security.AccountPrincipal;
 import com.ticketing.service.OrderService;
-import com.ticketing.service.PurchaseEntryService;
+import com.ticketing.service.PurchaseAdmission;
 import com.ticketing.vo.OrderView;
 import com.ticketing.vo.PaymentView;
 import com.ticketing.vo.PurchaseLimit;
@@ -35,9 +35,9 @@ import java.util.Map;
 @RequestMapping("/api/v1/orders")
 public class OrderController {
     private final OrderService orders;
-    private final PurchaseEntryService admission;
+    private final PurchaseAdmission admission;
 
-    public OrderController(OrderService orders, PurchaseEntryService admission) {
+    public OrderController(OrderService orders, PurchaseAdmission admission) {
         this.orders = orders;
         this.admission = admission;
     }

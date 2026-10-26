@@ -58,6 +58,7 @@ import java.util.concurrent.TimeoutException;
             "ticketing.admin-bootstrap.enabled=false"
         })
 class StaffAuditIT {
+    @Autowired private com.ticketing.service.StockSnapshotService stockSnapshots;
     private static final String KEYS = keys();
 
     @DynamicPropertySource
@@ -856,6 +857,7 @@ class StaffAuditIT {
     }
 
     private long paid(long sku) throws Exception {
+        PurchaseTestSupport.prepare(stockSnapshots,sku);
         var response =
                 buyer.send(
                         "POST",

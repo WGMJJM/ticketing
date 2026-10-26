@@ -1,6 +1,5 @@
 package com.ticketing;
 
-import com.ticketing.config.AdmissionLimitProperties;
 import com.ticketing.config.AftercareProperties;
 import com.ticketing.config.CatalogCacheProperties;
 import com.ticketing.config.CheckinProperties;
@@ -33,8 +32,6 @@ class ConfigurationBindingTest {
             assertThat(context.getBean(WaitlistProperties.class).dispatchMaxSteps()).isEqualTo(50);
             assertThat(context.getBean(PurchaseProperties.class).capacity()).isEqualTo(200);
             assertThat(context.getBean(CatalogCacheProperties.class).maximumEntries()).isEqualTo(2000);
-            assertThat(context.getBean(AdmissionLimitProperties.class).globalBurst()).isEqualTo(40);
-            assertThat(context.getBean(AdmissionLimitProperties.class).enabled()).isFalse();
         });
         runner.withPropertyValues("ticketing.order.payment-window-minutes=3", "ticketing.waitlist.outbox.batch-size=20")
                 .run(context -> {
@@ -53,17 +50,16 @@ class ConfigurationBindingTest {
                 "ticketing.order.aftercare.max-attempts=1", "ticketing.order.aftercare.retry-delay-seconds=0",
                 "ticketing.purchase.consumer.concurrency=17", "ticketing.purchase.consumer.prefetch=0",
                 "ticketing.purchase.consumer.prefetch=65", "ticketing.purchase.consumer.concurrency=0",
-                "ticketing.purchase.capacity=0", "ticketing.purchase.queue-seconds=4", "ticketing.purchase.lease-seconds=0",
+                "ticketing.purchase.capacity=0", "ticketing.purchase.queue-seconds=4", "ticketing.purchase.in-flight-window=0",
                 "ticketing.waitlist.outbox.in-flight-window=65", "ticketing.waitlist.outbox.lease-seconds=5",
                 "ticketing.catalog-cache.maximum-entries=0", "ticketing.catalog-cache.local-seconds=31",
                 "ticketing.catalog-cache.redis-seconds=301", "ticketing.catalog-cache.concurrent-loads=0",
-                "ticketing.catalog-cache.namespace=invalid key", "ticketing.purchase.admission-limit.global-rate=0",
-                "ticketing.purchase.admission-limit.ticket-burst=0", "ticketing.purchase.admission-limit.global-burst=20001"}) {
+                "ticketing.catalog-cache.namespace=invalid key"}) {
             runner.withPropertyValues(property).run(context -> assertThat(context).hasFailed());
         }
     }
 
     @TestConfiguration(proxyBeanMethods = false)
-    @EnableConfigurationProperties({OrderProperties.class, AftercareProperties.class, OutboxProperties.class, CheckinProperties.class, WaitlistProperties.class, PurchaseProperties.class, CatalogCacheProperties.class, AdmissionLimitProperties.class, PurchaseConsumerProperties.class})
+    @EnableConfigurationProperties({OrderProperties.class, AftercareProperties.class, OutboxProperties.class, CheckinProperties.class, WaitlistProperties.class, PurchaseProperties.class, CatalogCacheProperties.class, PurchaseConsumerProperties.class})
     static class Properties { }
 }

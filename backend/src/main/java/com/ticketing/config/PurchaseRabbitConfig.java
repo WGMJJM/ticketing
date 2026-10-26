@@ -5,7 +5,6 @@ import com.ticketing.messaging.PurchaseCommand;
 import java.util.Map;
 import org.springframework.amqp.core.*;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
@@ -15,7 +14,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 
 @Configuration(proxyBeanMethods=false)
 @EnableConfigurationProperties(PurchaseConsumerProperties.class)
-@ConditionalOnProperty(name="ticketing.purchase.messaging-enabled",matchIfMissing=true)
 public class PurchaseRabbitConfig {
     @Bean
     SimpleRabbitListenerContainerFactory purchaseListenerFactory(

@@ -36,6 +36,7 @@ import static org.mockito.Mockito.*;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
         properties = {"server.servlet.session.cookie.secure=false", "ticketing.admin-bootstrap.enabled=false"})
 class OrderAftercareIT {
+    @Autowired private com.ticketing.service.StockSnapshotService stockSnapshots;
     @LocalServerPort int port;
     @Autowired ObjectMapper json;
     @Autowired JdbcTemplate jdbc;
@@ -375,7 +376,7 @@ class OrderAftercareIT {
         Client client=new Client(); String username="af_"+UUID.randomUUID().toString().replace("-","").substring(0,24); String password=UUID.randomUUID().toString();
         client.csrf();
         if (administrator) accounts.initializeAdmin(new AdminCredentials(username,password));
-        else client.call("POST","/auth/register",Map.of("username",username,"password",password),200);
+        else com.ticketing.AccountTestSupport.legacyUser(jdbc,username,password);
         client.id=jdbc.queryForObject("SELECT id FROM user_account WHERE username=?",Long.class,username); users.add(client.id);
         client.username = username;
         client.raw("POST","/auth/login","username="+username+"&password="+URLEncoder.encode(password,StandardCharsets.UTF_8),"application/x-www-form-urlencoded",null,200);
@@ -396,6 +397,7 @@ class OrderAftercareIT {
         long id; String token=""; String username;
         void csrf() throws Exception { token=call("GET","/auth/csrf",null,200).path("data").path("token").asText(); }
         long create(int quantity) throws Exception {
+            com.ticketing.PurchaseTestSupport.prepare(stockSnapshots,skuId);
             long requestId=raw("POST","/orders",json.writeValueAsString(Map.of("skuId",Long.toString(skuId),"quantity",quantity)),"application/json",UUID.randomUUID().toString(),202).path("data").path("requestId").asLong();
             return Long.parseLong(PurchaseTestSupport.order(purchaseWorker,purchaseRequests,jdbc,requestId));
         }

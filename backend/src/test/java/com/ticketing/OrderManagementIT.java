@@ -40,6 +40,7 @@ import static org.mockito.ArgumentMatchers.*;
                 "ticketing.order.max-per-user-session=4", "ticketing.order.payment-window-minutes=15",
                 "ticketing.order.expiry.enabled=false"})
 class OrderManagementIT {
+    @Autowired private com.ticketing.service.StockSnapshotService stockSnapshots;
     @LocalServerPort private int port;
     @Autowired private ObjectMapper json;
     @Autowired private JdbcTemplate jdbc;
@@ -605,7 +606,7 @@ class OrderManagementIT {
         String password = UUID.randomUUID().toString();
         client.csrf();
         if (administrator) accounts.initializeAdmin(new AdminCredentials(username, password));
-        else client.call("POST", "/auth/register", Map.of("username", username, "password", password), null, 200);
+        else com.ticketing.AccountTestSupport.legacyUser(jdbc,username,password);
         client.id = jdbc.queryForObject("SELECT id FROM user_account WHERE username=?", Long.class, username);
         users.add(client.id);
         client.raw("POST", "/auth/login", "username=" + username + "&password=" + URLEncoder.encode(password, StandardCharsets.UTF_8), "application/x-www-form-urlencoded", null, 200);
@@ -632,6 +633,7 @@ class OrderManagementIT {
         String token = "";
         void csrf() throws Exception { token = call("GET", "/auth/csrf", null, null, 200).path("data").path("token").asText(); }
         JsonNode create(long sku, int quantity, String key, int expected) throws Exception {
+            com.ticketing.PurchaseTestSupport.prepare(stockSnapshots,sku);
             var accepted = call("POST", "/orders", Map.of("skuId", Long.toString(sku), "quantity", quantity), key, -1);
             int http = accepted.path("httpStatus").asInt();
             if (http != 202 && !(http == 200 && accepted.path("data").has("requestId"))) {
