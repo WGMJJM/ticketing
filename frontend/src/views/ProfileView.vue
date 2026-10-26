@@ -56,6 +56,12 @@ async function logout() {
         查看订单安排、关注候补进度，出发前记得准备好你的电子票。
       </p>
       <nav class="profile-shortcuts" aria-label="我的现场功能">
+        <RouterLink to="/followed-activities">
+          <span class="shortcut-icon" aria-hidden="true">♡</span>
+          <strong>我的关注</strong>
+          <small>查看关注活动的场次与开售时间</small>
+          <span class="shortcut-arrow" aria-hidden="true">↗</span>
+        </RouterLink>
         <RouterLink to="/orders">
           <span class="shortcut-icon" aria-hidden="true">▤</span>
           <strong>我的订单</strong>

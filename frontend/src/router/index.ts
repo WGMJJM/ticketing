@@ -40,6 +40,11 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     {
+      path: '/followed-activities',
+      component: () => import('../views/FollowedActivitiesView.vue'),
+      meta: { requiresAuth: true },
+    },
+    {
       path: '/waitlist',
       component: () => import('../views/WaitlistView.vue'),
       meta: { requiresAuth: true },
