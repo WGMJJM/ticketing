@@ -302,7 +302,7 @@ class UserSessionQuotaIT {
                     new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(principal,null,principal.getAuthorities()));
                 try {
                     managing.countDown();int version=db.queryForObject("SELECT version FROM ticket_sku WHERE id=?",Integer.class,sku);
-                    // 管理线程等待场次锁期间消费者会增加库存版本，先完成第一次阻塞调用再按最新版本重试。
+                    // 管理线程等待场次锁；库存流水不改变配置版本，管理编辑仍使用乐观锁。
                     try { ticketManagement.offline(sku,new com.ticketing.dto.VersionRequest(version)); }
                     catch(BusinessException conflict){assertThat(conflict.getStatus().value()).isEqualTo(409);}
                     version=db.queryForObject("SELECT version FROM ticket_sku WHERE id=?",Integer.class,sku);
@@ -326,17 +326,17 @@ class UserSessionQuotaIT {
         long head=Long.parseLong(waitlist.join(user,new JoinWaitlistRequest(Long.toString(sku),2)).id());
         long next=Long.parseLong(waitlist.join(second,new JoinWaitlistRequest(Long.toString(sku),1)).id());
         assertThat(quotas.occupied(user,session)).isZero();db.update("UPDATE ticket_sku SET total_stock=1 WHERE id=?",sku);
-        assertThat(waitlist.allocateHead(sku,head)).isEqualTo(WaitlistService.Allocation.BLOCKED);
-        assertThat(waitlist.allocateHead(sku,next)).isEqualTo(WaitlistService.Allocation.RETRY);
+        assertThat(waitlist.allocateHead(sku,head,1)).isEqualTo(WaitlistService.Allocation.BLOCKED);
+        assertThat(waitlist.allocateHead(sku,next,1)).isEqualTo(WaitlistService.Allocation.RETRY);
         long ordinary=order(second,sku,1);orders.cancel(second,ordinary);
         db.update("UPDATE ticket_sku SET total_stock=2 WHERE id=?",sku);
-        assertThat(waitlist.allocateHead(sku,head)).isEqualTo(WaitlistService.Allocation.ALLOCATED);
-        assertThat(waitlist.allocateHead(sku,head)).isEqualTo(WaitlistService.Allocation.RETRY);
+        assertThat(waitlist.allocateHead(sku,head,2)).isEqualTo(WaitlistService.Allocation.ALLOCATED);
+        assertThat(waitlist.allocateHead(sku,head,2)).isEqualTo(WaitlistService.Allocation.RETRY);
         long headOrder=db.queryForObject("SELECT reserved_order_id FROM waitlist_entry WHERE id=?",Long.class,head);
         orders.pay(user,headOrder);assertThat(quotas.occupied(user,session)).isEqualTo(2);
         refunds.refund(admin,headOrder,RefundReason.CUSTOMER_REQUEST);
         assertThat(db.queryForObject("SELECT status FROM waitlist_entry WHERE id=?",String.class,head)).isEqualTo("COMPLETED");
-        assertThat(waitlist.allocateHead(sku,next)).isEqualTo(WaitlistService.Allocation.ALLOCATED);
+        assertThat(waitlist.allocateHead(sku,next,1)).isEqualTo(WaitlistService.Allocation.ALLOCATED);
         long nextOrder=db.queryForObject("SELECT reserved_order_id FROM waitlist_entry WHERE id=?",Long.class,next);
         orders.cancel(second,nextOrder);assertThat(quotas.occupied(second,session)).isZero();consistent();
     }

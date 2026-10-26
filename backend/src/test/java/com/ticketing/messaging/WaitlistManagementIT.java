@@ -17,7 +17,7 @@ import com.ticketing.service.PurchaseOrderWorker;
 import com.ticketing.service.WaitlistCompensation;
 import com.ticketing.service.WaitlistDispatcher;
 import com.ticketing.service.WaitlistService;
-import com.ticketing.task.WaitlistContinuationScheduler;
+import com.ticketing.service.RedisStockReservationService;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -92,6 +92,7 @@ class WaitlistManagementIT {
     @Autowired private com.ticketing.service.PurchaseOrderWorker purchaseWorker;
     @Autowired private com.ticketing.mapper.PurchaseRequestMapper purchaseRequests;
     @Autowired private WaitlistService waitlists;
+    @Autowired private RedisStockReservationService stocks;
     @Autowired private OutboxService outbox;
     @Autowired private InventoryEvents writer;
     @Autowired private WaitlistCompensation compensation;
@@ -238,7 +239,7 @@ class WaitlistManagementIT {
     void staleHeadCandidateIsRecheckedAfterAcquiringLocks() throws Exception {
         JsonNode first=a.join(skuId,1,200); JsonNode next=b.join(skuId,1,200);
         stock(1); a.call("POST","/waitlist/"+first.path("id").asText()+"/cancel",null,200);
-        assertThat(waitlists.allocateHead(skuId,first.path("id").asLong())).isEqualTo(WaitlistService.Allocation.RETRY);
+        assertThat(waitlists.allocateHead(skuId,first.path("id").asLong(),1)).isEqualTo(WaitlistService.Allocation.RETRY);
         assertThat(state(next)).isEqualTo("WAITING"); assertThat(orderCount()).isZero();
         dispatcher.dispatch(skuId); assertThat(state(next)).isEqualTo("ALLOCATED"); invariant(1,0);
     }
@@ -465,27 +466,21 @@ class WaitlistManagementIT {
         for(int allocation=0;allocation<50;allocation++) {
             WaitlistEntry head=waitlistMapper.head(skuId);
             assertThat(head).isNotNull();
-            assertThat(waitlists.allocateHead(skuId,head.getId())).isEqualTo(WaitlistService.Allocation.ALLOCATED);
+            assertThat(waitlists.allocateHead(skuId,head.getId(),100-allocation)).isEqualTo(WaitlistService.Allocation.ALLOCATED);
         }
         assertThat(allocatedCount()).isEqualTo(50);
         assertThat(waitingCount()).isEqualTo(50);
         assertThat(orderCount()).isEqualTo(50);
         invariant(50,0);
 
-        WaitlistProperties restartedProperties=new WaitlistProperties(60,50,100,64);
-        var restartedContinuations=new com.ticketing.task.WaitlistContinuationScheduler(
-                restartedProperties,new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
-        try {
-            var restartedDispatcher=new WaitlistDispatcher(waitlistMapper,waitlists,restartedProperties,restartedContinuations);
-            WaitlistCompensation restartedCompensation=new WaitlistCompensation(waitlistMapper,restartedDispatcher,restartedProperties);
-            long recoveryStartedAt=System.nanoTime();
-            restartedCompensation.scan();
-            await(()->allocatedCount()==100);
-            long recoveryMs=TimeUnit.NANOSECONDS.toMillis(System.nanoTime()-recoveryStartedAt);
-            System.out.printf("新调度器从MySQL恢复剩余50条候补：%d ms%n",recoveryMs);
-        } finally {
-            restartedContinuations.shutdown();
-        }
+        WaitlistProperties restartedProperties=new WaitlistProperties(60,50,100);
+        var restartedDispatcher=new WaitlistDispatcher(waitlistMapper,waitlists,stocks,restartedProperties);
+        WaitlistCompensation restartedCompensation=new WaitlistCompensation(waitlistMapper,restartedDispatcher,restartedProperties,writer);
+        long recoveryStartedAt=System.nanoTime();
+        restartedCompensation.scan();
+        await(()->allocatedCount()==100);
+        long recoveryMs=TimeUnit.NANOSECONDS.toMillis(System.nanoTime()-recoveryStartedAt);
+        System.out.printf("新调度器从MySQL恢复剩余50条候补：%d ms%n",recoveryMs);
         assertThat(allocatedCount()).isEqualTo(100);
         assertThat(waitingCount()).isZero();
         assertThat(orderCount()).isEqualTo(100);

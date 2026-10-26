@@ -146,12 +146,6 @@ public class WaitlistService {
         return view;
     }
 
-    /** 一次只处理一个候选用户，释放全部锁后才会选择下一位。 */
-    @Transactional(isolation = Isolation.READ_COMMITTED)
-    public Allocation allocateHead(long skuId, long candidateId) {
-        return allocateHead(skuId, candidateId, Integer.MAX_VALUE);
-    }
-
     /** Redis冻结仲裁提供本轮可分配预算；MySQL仍执行最终条件预占。 */
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public Allocation allocateHead(long skuId, long candidateId, int redisAvailableBudget) {

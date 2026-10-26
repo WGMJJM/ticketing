@@ -2,8 +2,6 @@ package com.ticketing.service;
 
 import com.ticketing.config.WaitlistProperties;
 import com.ticketing.mapper.WaitlistMapper;
-import com.ticketing.task.WaitlistContinuationScheduler;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 /** 冻结Redis普通预扣余额后，按MySQL队首顺序逐单分配候补。 */
@@ -14,7 +12,6 @@ public class WaitlistDispatcher {
     private final RedisStockReservationService stocks;
     private final int maxSteps;
 
-    @Autowired
     public WaitlistDispatcher(WaitlistMapper waitlists, WaitlistService service,
             RedisStockReservationService stocks, WaitlistProperties properties) {
         this.waitlists = waitlists;
@@ -23,18 +20,12 @@ public class WaitlistDispatcher {
         this.maxSteps = properties.dispatchMaxSteps();
     }
 
-    /** 保留测试夹具的旧构造形态；生产Spring上下文使用带库存仲裁器的构造器。 */
-    public WaitlistDispatcher(WaitlistMapper waitlists, WaitlistService service, WaitlistProperties properties,
-            WaitlistContinuationScheduler ignored) {
-        this.waitlists = waitlists;
-        this.service = service;
-        this.stocks = null;
-        this.maxSteps = properties.dispatchMaxSteps();
+    public int dispatch(long skuId) {
+        return stocks.dispatchFrozen(skuId, budget -> dispatchQueue(skuId, budget));
     }
 
-    public int dispatch(long skuId) {
-        if (stocks == null) return dispatchQueue(skuId, Integer.MAX_VALUE);
-        return stocks.dispatchFrozen(skuId, budget -> dispatchQueue(skuId, budget));
+    public void dispatchIfInventoryChanged(long skuId, long inventorySequence) {
+        if (stocks.needsInventoryReconciliation(skuId, inventorySequence)) dispatch(skuId);
     }
 
     private int dispatchQueue(long skuId, int availableBudget) {
