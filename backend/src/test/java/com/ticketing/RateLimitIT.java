@@ -2,7 +2,6 @@ package com.ticketing;
 
 import com.ticketing.config.RateLimitProperties;
 import com.ticketing.config.RateLimitProperties.Policy;
-import com.ticketing.dto.RegisterRequest;
 import com.ticketing.mapper.PurchaseRequestMapper;
 import com.ticketing.security.RedisRateLimiter;
 import com.ticketing.security.RedisRateLimiter.Outcome;
@@ -196,7 +195,8 @@ class RateLimitIT {
     @Test
     void twoLimiterInstancesAllowExactly50Of160ConcurrentRequests() throws Exception {
         var policy = new Policy(50, 10);
-        var settings = new RateLimitProperties(true, SECRET, NAMESPACE, 1, policy, policy, policy, policy, policy, policy);
+        var settings = new RateLimitProperties(true, SECRET, NAMESPACE, 1, policy, policy, policy, policy, policy, policy,
+                policy, policy, policy);
         var first = new RedisRateLimiter(redis, settings, new SimpleMeterRegistry());
         var second = new RedisRateLimiter(new StringRedisTemplate(redis.getConnectionFactory()), settings, new SimpleMeterRegistry());
         var start = new CountDownLatch(1);
@@ -370,7 +370,7 @@ class RateLimitIT {
 
     private String createAccount() {
         String username = name();
-        users.add(Long.valueOf(accounts.register(new RegisterRequest(username, password)).id()));
+        users.add(Long.valueOf(AccountTestSupport.legacyUser(jdbc, username, password).id()));
         return username;
     }
     private Browser loggedIn() throws Exception {

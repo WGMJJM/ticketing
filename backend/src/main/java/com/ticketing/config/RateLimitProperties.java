@@ -23,7 +23,10 @@ public record RateLimitProperties(
         @Valid Policy registerIp,
         @Valid Policy orderUser,
         @Valid Policy waitlistUser,
-        @Valid Policy csrfSessionIp) {
+        @Valid Policy csrfSessionIp,
+        @Valid Policy emailCodeIp,
+        @Valid Policy emailCodeCooldown,
+        @Valid Policy emailCodeDaily) {
 
     public RateLimitProperties {
         loginIp = defaults(loginIp, 60, 60);
@@ -32,6 +35,9 @@ public record RateLimitProperties(
         orderUser = defaults(orderUser, 30, 10);
         waitlistUser = defaults(waitlistUser, 10, 60);
         csrfSessionIp = defaults(csrfSessionIp, 120, 60);
+        emailCodeIp = defaults(emailCodeIp, 10, 600);
+        emailCodeCooldown = defaults(emailCodeCooldown, 1, 60);
+        emailCodeDaily = defaults(emailCodeDaily, 5, 86400);
     }
 
     private static Policy defaults(Policy configured, int limit, int windowSeconds) {
@@ -57,5 +63,5 @@ public record RateLimitProperties(
     }
 
     public record Policy(@NotNull @Min(1) @Max(10000) Integer limit,
-                         @NotNull @Min(1) @Max(3600) Integer windowSeconds) {}
+                         @NotNull @Min(1) @Max(86400) Integer windowSeconds) {}
 }

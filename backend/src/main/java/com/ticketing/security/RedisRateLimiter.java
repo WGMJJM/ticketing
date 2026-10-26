@@ -56,6 +56,13 @@ public class RedisRateLimiter {
         return evaluate("register", List.of(key("register-ip", address)), List.of(properties.registerIp()));
     }
 
+    /** IP、邮箱冷却与邮箱日窗口在原多KEY Lua中全部通过后才一起扣额。 */
+    public Decision emailCode(String address, String email) {
+        return evaluate("email-code", List.of(key("email-code-ip", address), key("email-code-cooldown", email),
+                        key("email-code-daily", email)),
+                List.of(properties.emailCodeIp(), properties.emailCodeCooldown(), properties.emailCodeDaily()));
+    }
+
     public Decision csrfSession(String address) {
         return evaluate("csrf-session", List.of(key("csrf-session-ip", address)), List.of(properties.csrfSessionIp()));
     }

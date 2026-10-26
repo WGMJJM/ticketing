@@ -33,7 +33,7 @@ class RateLimitConfigurationTest {
     @Test
     void invalidThresholdWindowNamespaceAndSecretFailStartup() {
         for (String invalid : new String[] {"login-ip.limit=0", "login-account-ip.limit=10001",
-                "register-ip.window-seconds=0", "order-user.window-seconds=3601", "waitlist-user.limit=-1",
+                "register-ip.window-seconds=0", "order-user.window-seconds=86401", "waitlist-user.limit=-1",
                 "namespace=unsafe:*", "unavailable-retry-seconds=61", "key-secret=short", "csrf-session-ip.limit=0"}) {
             runner.withPropertyValues("ticketing.security.rate-limit.key-secret=" + secret(),
                     "ticketing.security.rate-limit." + invalid).run(context -> assertThat(context).hasFailed());
