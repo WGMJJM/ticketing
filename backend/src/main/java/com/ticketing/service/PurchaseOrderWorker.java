@@ -6,6 +6,8 @@ import com.ticketing.exception.BusinessException;
 import com.ticketing.mapper.PurchaseRequestMapper;
 import java.security.MessageDigest;
 import java.util.Set;
+import java.util.List;
+import com.ticketing.enums.OrderOperation;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -21,10 +23,12 @@ public class PurchaseOrderWorker {
     private final OrderReservation reservation;
     private final RedisStockReservationService stocks;
     private final TransactionTemplate transaction;
+    private final List<PurchaseLifecycle> participants;
 
     public PurchaseOrderWorker(PurchaseRequestMapper requests, TradeResourceLocker resources, OrderReservation reservation,
-            RedisStockReservationService stocks, PlatformTransactionManager manager) {
+            RedisStockReservationService stocks, PlatformTransactionManager manager, List<PurchaseLifecycle> participants) {
         this.requests = requests; this.resources = resources; this.reservation = reservation; this.stocks = stocks;
+        this.participants = participants;
         transaction = new TransactionTemplate(manager);
         transaction.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
         transaction.setTimeout(30);
@@ -69,14 +73,18 @@ public class PurchaseOrderWorker {
             return transaction.execute(state -> {
             PurchaseRequest current = coordinate(request);
             if (current.terminal()) return current;
-            if (!current.deadlineAt().isAfter(requests.now())) return finish(current, "EXPIRED", null, "QUEUE_EXPIRED");
+            if (!current.deadlineAt().isAfter(requests.now())) return fail(current, "EXPIRED", "QUEUE_EXPIRED");
             if (expiryOnly) { state.setRollbackOnly(); return null; }
             TradeContext context = resources.lockReservation(current.userId(), current.skuId(), true);
-            long orderId = reservation.reservePurchase(context, current.quantity(), current.idempotencyKey());
+            participants.forEach(p -> p.validate(current));
+            long orderId = reservation.reservePurchase(context, current.quantity(),
+                    OrderOperation.valueOf(current.idempotencyOperation()), current.idempotencyKey());
             if (!current.deadlineAt().isAfter(requests.now())) {
                 throw new BusinessException(org.springframework.http.HttpStatus.CONFLICT, "QUEUE_EXPIRED", "购票申请已过期");
             }
-            return finish(current, "SUCCEEDED", orderId, null);
+            PurchaseRequest result = finish(current, "SUCCEEDED", orderId, null);
+            participants.forEach(p -> p.allocated(result));
+            return result;
             });
         } catch (BusinessException exception) {
             if (!BUSINESS_FAILURES.contains(exception.getCode()) && !"QUEUE_EXPIRED".equals(exception.getCode())) throw exception;
@@ -86,7 +94,7 @@ public class PurchaseOrderWorker {
                 PurchaseRequest current = coordinate(request);
                 if (current.terminal()) return current;
                 boolean expired = "QUEUE_EXPIRED".equals(exception.getCode()) || !current.deadlineAt().isAfter(requests.now());
-                return finish(current, expired ? "EXPIRED" : "FAILED", null, expired ? "QUEUE_EXPIRED" : exception.getCode());
+                return fail(current, expired ? "EXPIRED" : "FAILED", expired ? "QUEUE_EXPIRED" : exception.getCode());
             });
         } catch (IllegalStateException inconsistency) {
             stocks.pause(request.skuId());
@@ -99,10 +107,18 @@ public class PurchaseOrderWorker {
         PurchaseRequest current = requests.lock(request.id());
         if (current == null || current.userId() != request.userId() || current.skuId() != request.skuId()
                 || current.quantity() != request.quantity() || !current.idempotencyKey().equals(request.idempotencyKey())
+                || !current.idempotencyOperation().equals(request.idempotencyOperation())
+                || !java.util.Objects.equals(current.waitlistEntryId(), request.waitlistEntryId())
                 || !MessageDigest.isEqual(current.requestHash(), request.requestHash())) {
             throw new IllegalStateException("购票请求唯一约束或凭据关联不一致");
         }
         return current;
+    }
+
+    private PurchaseRequest fail(PurchaseRequest request, String status, String code) {
+        PurchaseRequest result = finish(request, status, null, code);
+        participants.forEach(p -> p.failed(result));
+        return result;
     }
 
     private PurchaseRequest finish(PurchaseRequest request, String status, Long orderId, String failure) {

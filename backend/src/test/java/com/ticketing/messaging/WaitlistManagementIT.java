@@ -1,658 +1,235 @@
 package com.ticketing.messaging;
 
-import com.ticketing.config.OutboxProperties;
-import com.ticketing.config.WaitlistProperties;
+import com.ticketing.AccountTestSupport;
+import com.ticketing.config.PurchaseProperties;
 import com.ticketing.dto.JoinWaitlistRequest;
-import com.ticketing.dto.AdminCredentials;
-import com.ticketing.entity.OutboxEvent;
-import com.ticketing.entity.WaitlistEntry;
-import com.ticketing.enums.InventoryChangeReason;
-import com.ticketing.mapper.OutboxMapper;
+import com.ticketing.entity.PurchaseRequest;
+import com.ticketing.exception.BusinessException;
+import com.ticketing.mapper.OrderMapper;
 import com.ticketing.mapper.PurchaseRequestMapper;
-import com.ticketing.mapper.WaitlistMapper;
-import com.ticketing.service.AccountService;
-import com.ticketing.service.OrderService;
-import com.ticketing.service.OutboxService;
-import com.ticketing.service.PurchaseOrderWorker;
-import com.ticketing.service.WaitlistCompensation;
-import com.ticketing.service.WaitlistDispatcher;
-import com.ticketing.service.WaitlistService;
-import com.ticketing.service.StockSnapshotService;
-
+import com.ticketing.service.*;
+import com.ticketing.task.PurchaseRecoveryJob;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.net.CookieManager;
-import java.net.CookiePolicy;
-import java.net.URI;
-import java.net.URLEncoder;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
+import java.net.*;
+import java.net.http.*;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.function.BooleanSupplier;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.springframework.amqp.core.AmqpAdmin;
-import org.springframework.amqp.core.Binding;
-import org.springframework.amqp.core.Declarables;
-import org.springframework.amqp.core.Exchange;
-import org.springframework.amqp.core.Message;
-import org.springframework.amqp.core.MessageProperties;
-import org.springframework.amqp.core.Queue;
-import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
+import java.util.*;
+import java.util.concurrent.*;
+import org.junit.jupiter.api.*;
+import org.mybatis.spring.SqlSessionTemplate;
+import org.springframework.amqp.core.*;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
-import org.springframework.amqp.rabbit.core.RabbitAdmin;
 import org.springframework.amqp.rabbit.listener.RabbitListenerEndpointRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.*;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.reset;
-
-/** 真实HTTP身份、独立MySQL事务和独立RabbitMQ测试队列，停止后台轮询以精确驱动竞争。 */
+/** 七个候补统一链路场景：真实 Redis Lua、Rabbit Confirm/消费与 MySQL 本地事务。 */
 @SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,properties={
-        "server.servlet.session.cookie.secure=false","ticketing.admin-bootstrap.enabled=false",
-        "ticketing.order.expiry.enabled=false","ticketing.waitlist.jobs.enabled=false",
-        "ticketing.messaging.jobs-enabled=false",
-        "ticketing.waitlist.messaging.enabled=true","ticketing.waitlist.exchange=ticketing.waitlist.it",
-        "ticketing.waitlist.queue=ticketing.waitlist.it.dispatch","spring.rabbitmq.listener.simple.auto-startup=false",
-        "spring.rabbitmq.listener.simple.retry.max-attempts=3","spring.rabbitmq.listener.simple.retry.initial-interval=100ms",
-        "spring.rabbitmq.listener.simple.retry.max-interval=400ms","ticketing.waitlist.outbox.max-attempts=3"})
+    "server.servlet.session.cookie.secure=false", "ticketing.admin-bootstrap.enabled=false",
+    "ticketing.purchase.queue-seconds=60", "ticketing.purchase.confirm-timeout-ms=500",
+    "ticketing.purchase.recovery-seconds=1", "ticketing.purchase.messaging-enabled=true",
+    "ticketing.purchase.exchange=ticketing.purchase.waitlist.it", "ticketing.purchase.queue=ticketing.purchase.waitlist.it.orders",
+    "ticketing.waitlist.messaging.enabled=true", "ticketing.purchase.consumer.concurrency=2", "spring.rabbitmq.listener.simple.auto-startup=false",
+    "spring.rabbitmq.listener.simple.retry.max-attempts=2", "spring.rabbitmq.listener.simple.retry.initial-interval=100ms"})
 class WaitlistManagementIT {
-    @Autowired private com.ticketing.service.StockSnapshotService stockSnapshots;
-    private static final String QUEUE="ticketing.waitlist.it.dispatch";
-    @LocalServerPort private int port;
-    @Autowired private ObjectMapper json;
-    @Autowired private JdbcTemplate jdbc;
-    @Autowired private AccountService accounts;
-    @Autowired private OrderService orders;
-    @Autowired private com.ticketing.service.PurchaseOrderWorker purchaseWorker;
-    @Autowired private com.ticketing.mapper.PurchaseRequestMapper purchaseRequests;
-    @Autowired private WaitlistService waitlists;
-    @Autowired private StockSnapshotService stocks;
-    @Autowired private OutboxService outbox;
-    @Autowired private InventoryEvents writer;
-    @Autowired private WaitlistCompensation compensation;
-    @Autowired private RabbitTemplate rabbit;
-    @Autowired private AmqpAdmin rabbitAdmin;
-    @Autowired private Declarables waitlistTopology;
-    @Autowired private RabbitListenerEndpointRegistry registry;
-    @Autowired private PlatformTransactionManager transactions;
-    @MockitoSpyBean private OutboxPublisher publisher;
-    @MockitoSpyBean private WaitlistDispatcher dispatcher;
-    @MockitoSpyBean private WaitlistMapper waitlistMapper;
-    @MockitoSpyBean private OutboxMapper outboxMapper;
-    private final List<Long> userIds=new ArrayList<>();
-    private long activityId;
-    private long sessionId;
-    private long skuId;
-    private Client a;
-    private Client b;
-    private Client c;
-    private Client operator;
+    static final String QUEUE="ticketing.purchase.waitlist.it.orders";
+    @LocalServerPort int port;
+    @Autowired JdbcTemplate db;
+    @Autowired ObjectMapper json;
+    @Autowired PurchaseAdmission admission;
+    @Autowired PurchaseOrderWorker worker;
+    @Autowired StockSnapshotService inventory;
+    @Autowired PurchaseProperties properties;
+    @Autowired OrderService orderService;
+    @Autowired WaitlistService waitlists;
+    @Autowired WaitlistDispatcher dispatcher;
+    @Autowired RabbitListenerEndpointRegistry registry;
+    @Autowired AmqpAdmin broker;
+    @Autowired Declarables purchaseTopology;
+    @Autowired StringRedisTemplate redis;
+    @Autowired SqlSessionTemplate mybatis;
+    @Autowired PurchaseRequestMapper requests;
+    @MockitoSpyBean OrderMapper orders;
+    @MockitoSpyBean RabbitTemplate rabbit;
+    @MockitoSpyBean RedisStockReservationService stocks;
+    @MockitoSpyBean PurchasePublisher publisher;
+    @Autowired InventoryConsumer inventoryConsumer;
+    long activity,session,sku;
+    Client buyer,other;
 
-    @BeforeEach
-    void fixture() throws Exception {
+    @BeforeEach void fixture() throws Exception {
+        assertThat(System.getenv("MYSQL_PORT")).isEqualTo("13307");
+        assertThat(db.queryForObject("SELECT token FROM performance_control.environment_guard",String.class))
+                .isEqualTo(System.getenv("RECOVERY_TEST_GUARD"));
         registry.stop();
-        for (var declarable:waitlistTopology.getDeclarables()) {
-            if (declarable instanceof Exchange value) rabbitAdmin.declareExchange(value);
-            if (declarable instanceof Queue value) rabbitAdmin.declareQueue(value);
-            if (declarable instanceof Binding value) rabbitAdmin.declareBinding(value);
+        for(var declaration:purchaseTopology.getDeclarables()) {
+            if(declaration instanceof Exchange v)broker.declareExchange(v);
+            if(declaration instanceof org.springframework.amqp.core.Queue v)broker.declareQueue(v);
+            if(declaration instanceof Binding v)broker.declareBinding(v);
         }
-        rabbitAdmin.purgeQueue(QUEUE,false); rabbitAdmin.purgeQueue(QUEUE+".dead",false);
-        a=client(false); b=client(false); c=client(false); operator=client(true);
-        String title="候补验收"+UUID.randomUUID();
-        jdbc.update("INSERT INTO activity(title,category,city,venue,status,published_at) VALUES(?,'CONCERT','上海','测试场馆','PUBLISHED',UTC_TIMESTAMP(6))",title);
-        activityId=jdbc.queryForObject("SELECT id FROM activity WHERE title=?",Long.class,title);
-        jdbc.update("INSERT INTO activity_session(activity_id,title,starts_at,ends_at,sale_starts_at) VALUES(?,'候补测试',DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 1 DAY),DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 2 DAY),DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 DAY))",activityId);
-        sessionId=jdbc.queryForObject("SELECT id FROM activity_session WHERE activity_id=?",Long.class,activityId);
-        skuId=sku();
+        broker.purgeQueue(QUEUE,false);broker.purgeQueue(QUEUE+".dead",false);
+        buyer=client();other=client();
+        String tag="direct_"+UUID.randomUUID();
+        db.update("INSERT INTO activity(title,category,city,venue,status,published_at) VALUES(?,'CONCERT','上海','隔离验收','PUBLISHED',UTC_TIMESTAMP(6))",tag);
+        activity=db.queryForObject("SELECT id FROM activity WHERE title=?",Long.class,tag);
+        db.update("INSERT INTO activity_session(activity_id,title,starts_at,ends_at,sale_starts_at) VALUES(?,'直接购票',TIMESTAMPADD(DAY,1,UTC_TIMESTAMP(6)),TIMESTAMPADD(DAY,2,UTC_TIMESTAMP(6)),TIMESTAMPADD(HOUR,-2,UTC_TIMESTAMP(6)))",activity);
+        session=db.queryForObject("SELECT MAX(id) FROM activity_session WHERE activity_id=?",Long.class,activity);
+        db.update("INSERT INTO ticket_sku(session_id,name,price_cents,total_stock,max_quantity_per_order,sale_starts_at,sale_ends_at,status) VALUES(?,'普通票',12345,8,4,TIMESTAMPADD(HOUR,-1,UTC_TIMESTAMP(6)),TIMESTAMPADD(HOUR,1,UTC_TIMESTAMP(6)),'ON_SALE')",session);
+        sku=db.queryForObject("SELECT MAX(id) FROM ticket_sku WHERE session_id=?",Long.class,session);
+        assertThat(inventory.synchronize(sku)).isTrue();
+        clearInvocations(orders,rabbit,stocks,publisher);
     }
-    @AfterEach
-    void cleanup() {
-        com.ticketing.PurchaseTestSupport.cleanup(jdbc,sessionId);
-        registry.stop();
-        reset(publisher,dispatcher,waitlistMapper,outboxMapper);
-        rabbitAdmin.purgeQueue(QUEUE,false); rabbitAdmin.purgeQueue(QUEUE+".dead",false);
-        if (sessionId!=0) {
-            jdbc.update("DELETE e FROM outbox_event e JOIN ticket_sku s ON e.aggregate_id=s.id WHERE e.aggregate_type='TICKET_SKU' AND s.session_id=?",sessionId);
-            jdbc.update("DELETE w FROM waitlist_entry w JOIN ticket_sku s ON w.sku_id=s.id WHERE s.session_id=?",sessionId);
-            jdbc.update("DELETE t FROM electronic_ticket t JOIN ticket_order o ON t.order_id=o.id WHERE o.session_id=?",sessionId);
-            jdbc.update("DELETE p FROM payment_record p JOIN ticket_order o ON p.order_id=o.id WHERE o.session_id=?",sessionId);
-            jdbc.update("DELETE i FROM ticket_order_item i JOIN ticket_order o ON i.order_id=o.id WHERE o.session_id=?",sessionId);
-            jdbc.update("DELETE FROM ticket_order WHERE session_id=?",sessionId);
-            jdbc.update("DELETE FROM ticket_sku WHERE session_id=?",sessionId);
-            jdbc.update("DELETE FROM activity_session WHERE id=?",sessionId);
-        }
-        if (activityId!=0) jdbc.update("DELETE FROM activity WHERE id=?",activityId);
-        for (long id:userIds) jdbc.update("DELETE FROM user_account WHERE id=? AND id NOT IN (SELECT operator_id FROM admin_audit_log)",id);
+    @AfterEach void stop() {registry.stop();reset(orders,rabbit,stocks,publisher);}
+
+    @Test void priorityBlocksNewOrdinaryRequestsButPreservesEarlierReservationAndReplay() throws Exception {
+        total(2);
+        long id=accept(buyer,2,"before").path("requestId").asLong();
+        var entry=join(other,1);
+        assertThat(priority()).isEqualTo("1");
+        assertThat(buyer.call("POST","/orders",Map.of("skuId",Long.toString(sku),"quantity",1),"new",409)
+                .path("code").asText()).isEqualTo("WAITLIST_PRIORITY");
+        assertThat(accept(buyer,2,"before").path("requestId").asLong()).isEqualTo(id);
+        start();assertThat(await(buyer,id).path("status").asText()).isEqualTo("SUCCEEDED");
+        assertThat(status(entry)).isEqualTo("WAITING");stock(2,0);
     }
 
-    @Test
-    void joinsAndCancelsRealWaitlistWithoutReservingInventory() throws Exception {
-        JsonNode entry=a.join(skuId,2,200);
-        assertThat(entry.path("status").asText()).isEqualTo("WAITING");
-        assertThat(entry.path("id").isTextual()).isTrue();
-        assertThat(entry.path("skuId").asText()).isEqualTo(Long.toString(skuId));
-        assertThat(a.call("GET","/waitlist",null,200).path("data").path("total").asInt()).isEqualTo(1);
-        assertThat(b.call("GET","/waitlist",null,200).path("data").path("total").asInt()).isZero();
-        assertThat(jdbc.queryForObject("SELECT expires_at<=sale_ends_at FROM waitlist_entry w JOIN ticket_sku s ON w.sku_id=s.id WHERE w.id=?",Boolean.class,entry.path("id").asLong())).isTrue();
-        a.call("POST","/waitlist/"+entry.path("id").asText()+"/cancel",null,200);
-        a.call("POST","/waitlist/"+entry.path("id").asText()+"/cancel",null,200);
-        assertThat(state(entry)).isEqualTo("CANCELLED");
-        invariant(0,0); assertThat(orderCount()).isZero();
-    }
-    @Test
-    void concurrentDuplicateRequestsReturnOneActiveEntryAndDifferentQuantityConflicts() throws Exception {
-        var ids=parallel(6,index->a.join(skuId,2,200).path("id").asText());
-        assertThat(ids.stream().distinct().count()).isEqualTo(1);
-        a.join(skuId,1,409);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM waitlist_entry WHERE sku_id=? AND active_marker=1",Integer.class,skuId)).isEqualTo(1);
-        assertThat(eventCount()).isEqualTo(1);
-        invariant(0,0);
-    }
-    @Test
-    void validatesInventoryQuantityWindowAndReadonlyIdentityFields() throws Exception {
-        a.call("POST","/waitlist",Map.of("skuId",Long.toString(skuId),"quantity",0),400);
-        a.call("POST","/waitlist",Map.of("skuId",Long.toString(skuId),"quantity",1.5),400);
-        a.call("POST","/waitlist",Map.of("skuId",Long.toString(skuId),"quantity",1,"userId",b.id),400);
-        a.call("POST","/waitlist",Map.of("skuId","9999999999999999999","quantity",1),400);
-        a.join(skuId,5,409);
-        stock(3); a.join(skuId,3,409);
-        a.join(skuId,4,200); // 部分库存不足也可候补。
-        jdbc.update("UPDATE ticket_sku SET sale_starts_at=DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 10 MINUTE) WHERE id=?",skuId);
-        b.join(skuId,1,409);
-        assertThat(orderCount()).isZero(); invariant(0,0);
-    }
-    @Test
-    void ownershipAuthenticationCsrfAndDisabledSessionAreEnforced() throws Exception {
-        JsonNode entry=a.join(skuId,1,200); String path="/waitlist/"+entry.path("id").asText();
-        for (Client other:List.of(b,operator)) { other.call("GET",path,null,404); other.call("POST",path+"/cancel",null,404); }
-        Client anonymous=new Client(); anonymous.csrf(); anonymous.call("GET","/waitlist",null,401); anonymous.join(skuId,1,401);
-        String token=a.token; a.token=""; a.join(skuId,1,403); a.token="wrong"; a.call("POST",path+"/cancel",null,403); a.token=token;
-        jdbc.update("UPDATE user_account SET status='DISABLED' WHERE id=?",a.id);
-        a.call("GET",path,null,401);
-        assertThat(state(entry)).isEqualTo("WAITING"); invariant(0,0);
-    }
-    @Test
-    void fifoAllocatesAbcWithServerPricesDomainAndSharedLimits() throws Exception {
-        var entries=List.of(a.join(skuId,1,200),b.join(skuId,2,200),c.join(skuId,1,200));
-        stock(4); assertThat(dispatcher.dispatch(skuId)).isEqualTo(3);
-        long previous=0;
-        for (JsonNode entry:entries) {
-            assertThat(state(entry)).isEqualTo("ALLOCATED");
-            long order=reserved(entry); assertThat(order).isGreaterThan(previous); previous=order;
-            var row=jdbc.queryForMap("SELECT o.*,i.sku_id,i.quantity,i.unit_price_cents FROM ticket_order o JOIN ticket_order_item i ON i.order_id=o.id WHERE o.id=?",order);
-            assertThat(row.get("idempotency_operation")).isEqualTo("WAITLIST_CONFIRM");
-            assertThat(row.get("idempotency_key")).isEqualTo("waitlist-"+entry.path("id").asText());
-            assertThat(((Number)row.get("total_amount_cents")).longValue()).isEqualTo(entry.path("quantity").asInt()*12345L);
-            assertThat(((Number)row.get("sku_id")).longValue()).isEqualTo(skuId);
-        }
-        invariant(4,0); assertThat(orderCount()).isEqualTo(3);
-    }
-    @Test
-    void insufficientStockNeverSkipsHeadAndCancellationAllowsNext() throws Exception {
-        JsonNode head=a.join(skuId,4,200); JsonNode next=b.join(skuId,1,200);
-        stock(2); assertThat(dispatcher.dispatch(skuId)).isZero();
-        assertThat(state(head)).isEqualTo("WAITING"); assertThat(state(next)).isEqualTo("WAITING"); assertThat(orderCount()).isZero();
-        a.call("POST","/waitlist/"+head.path("id").asText()+"/cancel",null,200);
-        assertThat(dispatcher.dispatch(skuId)).isEqualTo(1); assertThat(state(next)).isEqualTo("ALLOCATED"); invariant(1,0);
-    }
-    @Test
-    void concurrentEnqueuesAndDispatchersPreserveIdOrderAndReserveOnce() throws Exception {
-        var actors=List.of(a,b,c);
-        var entries=parallel(3,index->actors.get(index).join(skuId,1,200));
-        stock(3);
-        parallel(6,index->dispatcher.dispatch(skuId));
-        var rows=jdbc.queryForList("SELECT id,reserved_order_id FROM waitlist_entry WHERE sku_id=? ORDER BY id",skuId);
-        assertThat(rows).hasSize(3);
-        long previous=0;
-        for (var row:rows) { long order=((Number)row.get("reserved_order_id")).longValue(); assertThat(order).isGreaterThan(previous); previous=order; }
-        assertThat(orderCount()).isEqualTo(3); invariant(3,0);
-        assertThat(dispatcher.dispatch(skuId)).isZero();
-        assertThat(entries).hasSize(3);
-    }
-    @Test
-    void staleHeadCandidateIsRecheckedAfterAcquiringLocks() throws Exception {
-        JsonNode first=a.join(skuId,1,200); JsonNode next=b.join(skuId,1,200);
-        stock(1); a.call("POST","/waitlist/"+first.path("id").asText()+"/cancel",null,200);
-        assertThat(waitlists.allocateHead(skuId,first.path("id").asLong())).isEqualTo(WaitlistService.Allocation.RETRY);
-        assertThat(state(next)).isEqualTo("WAITING"); assertThat(orderCount()).isZero();
-        dispatcher.dispatch(skuId); assertThat(state(next)).isEqualTo("ALLOCATED"); invariant(1,0);
-    }
-    @Test
-    void invalidHeadExpiresThenNextCanAllocateAndQuotaIsRechecked() throws Exception {
-        JsonNode first=a.join(skuId,2,200); JsonNode next=b.join(skuId,1,200);
-        long otherSku=sku(); jdbc.update("UPDATE ticket_sku SET total_stock=4 WHERE id=?",otherSku);
-        a.create(otherSku,4);
-        stock(1); dispatcher.dispatch(skuId);
-        assertThat(state(first)).isEqualTo("EXPIRED"); assertThat(state(next)).isEqualTo("ALLOCATED");
-        assertThat(used(a)).isEqualTo(4); assertThat(used(b)).isEqualTo(1); invariant(1,0);
-    }
-    @Test
-    void disabledExpiredOrOfflineHeadsReachTerminalStateWithoutInventoryLeaks() throws Exception {
-        JsonNode disabled=a.join(skuId,1,200); JsonNode expired=b.join(skuId,1,200); JsonNode live=c.join(skuId,1,200);
-        jdbc.update("UPDATE user_account SET status='DISABLED' WHERE id=?",a.id);
-        jdbc.update("UPDATE waitlist_entry SET created_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 2 HOUR),expires_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE id=?",expired.path("id").asLong());
-        stock(1); dispatcher.dispatch(skuId);
-        assertThat(state(disabled)).isEqualTo("EXPIRED"); assertThat(state(expired)).isEqualTo("EXPIRED"); assertThat(state(live)).isEqualTo("ALLOCATED"); invariant(1,0);
-        long second=sku(); JsonNode closed=b.join(second,1,200);
-        long third=sku(); JsonNode cancelledSession=b.join(third,1,200);
-        jdbc.update("UPDATE activity SET status='OFFLINE' WHERE id=?",activityId);
-        dispatcher.dispatch(second); assertThat(state(closed)).isEqualTo("EXPIRED");
-        jdbc.update("UPDATE activity SET status='PUBLISHED' WHERE id=?",activityId);
-        jdbc.update("UPDATE activity_session SET status='CANCELLED' WHERE id=?",sessionId);
-        dispatcher.dispatch(third); assertThat(state(cancelledSession)).isEqualTo("EXPIRED");
-    }
-    @Test
-    void allocationFailureRollsBackOrderInventoryAndWaitlistThenCanRetry() throws Exception {
-        JsonNode entry=a.join(skuId,2,200); stock(2);
-        doReturn(0).when(waitlistMapper).allocate(anyLong(),anyLong());
-        try {
-            org.assertj.core.api.Assertions.assertThatThrownBy(()->dispatcher.dispatch(skuId)).isInstanceOf(RuntimeException.class);
-            assertThat(state(entry)).isEqualTo("WAITING"); invariant(0,0); assertThat(orderCount()).isZero(); assertThat(used(a)).isZero();
-        } finally { reset(waitlistMapper); }
-        dispatcher.dispatch(skuId); assertThat(state(entry)).isEqualTo("ALLOCATED"); invariant(2,0); assertThat(orderCount()).isEqualTo(1);
-    }
-    @Test
-    void allocatedWaitlistCannotCancelDirectlyAndOrderCancelOrExpirySynchronizes() throws Exception {
-        JsonNode first=a.join(skuId,2,200); JsonNode next=b.join(skuId,2,200); stock(2); dispatcher.dispatch(skuId);
-        a.call("POST","/waitlist/"+first.path("id").asText()+"/cancel",null,409); invariant(2,0);
-        a.call("POST","/orders/"+reserved(first)+"/cancel",null,200);
-        assertThat(state(first)).isEqualTo("EXPIRED"); invariant(0,0); assertThat(used(a)).isZero();
-        dispatcher.dispatch(skuId); assertThat(state(next)).isEqualTo("ALLOCATED");
-        long order=reserved(next);
-        jdbc.update("UPDATE user_account SET status='DISABLED' WHERE id=?",b.id);
-        jdbc.update("UPDATE ticket_order SET created_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 20 MINUTE),expires_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE id=?",order);
-        assertThat(orders.expire(b.id,order)).isTrue(); assertThat(orders.expire(b.id,order)).isFalse();
-        assertThat(state(next)).isEqualTo("EXPIRED"); invariant(0,0); assertThat(used(b)).isZero();
-    }
-    @Test
-    void reservedOrderPaymentCompletesWaitlistExactlyOnce() throws Exception {
-        JsonNode entry=a.join(skuId,2,200); stock(2); dispatcher.dispatch(skuId); long order=reserved(entry);
-        var results=parallel(5,index->a.call("POST","/orders/"+order+"/pay",null,200).path("data").path("paymentNo").asText());
-        assertThat(results.stream().distinct().count()).isEqualTo(1); assertThat(state(entry)).isEqualTo("COMPLETED");
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM payment_record WHERE order_id=?",Integer.class,order)).isEqualTo(1);
-        assertThat(a.call("GET","/waitlist/"+entry.path("id").asText(),null,200).path("data").path("orderStatus").asText()).isEqualTo("PAID");
-        invariant(0,2); assertThat(used(a)).isEqualTo(2);
+    @Test void fifoHeadNeedingTwoKeepsSingleReleasedTicketAndBlocksFollowers() throws Exception {
+        total(0);var a=join(buyer,2);var b=join(other,1);Client third=client();var c=join(third,1);
+        assertThat(Long.parseLong(a.id())).isLessThan(Long.parseLong(b.id()));
+        assertThat(Long.parseLong(b.id())).isLessThan(Long.parseLong(c.id()));
+        total(1);assertThat(dispatcher.dispatch(sku)).isZero();
+        assertThat(status(a)).isEqualTo("WAITING");assertThat(status(b)).isEqualTo("WAITING");
+        assertThat(available()).isEqualTo(1);assertThat(priority()).isEqualTo("1");
+        assertThatThrownBy(()->stocks.reserve(third.id,sku,1,"steal")).isInstanceOfSatisfying(BusinessException.class,e->assertThat(e.getCode()).isEqualTo("WAITLIST_PRIORITY"));
+        total(2);assertThat(dispatcher.dispatch(sku)).isEqualTo(1);start();awaitAllocated(a);
+        assertThat(status(b)).isEqualTo("WAITING");assertThat(status(c)).isEqualTo("WAITING");stock(2,0);
     }
 
-    @Test
-    void cancellationOutboxSurvivesConsumerInterruptionAndCompletesRealPayment() throws Exception {
-        stock(1); JsonNode held=b.create(skuId,1); JsonNode entry=a.join(skuId,1,200); clearEvents();
-        b.call("POST","/orders/"+held.path("id").asText()+"/cancel",null,200);
-        assertThat(eventCount()).isEqualTo(1); invariant(0,0);
-        publisher.publishBatch();
-        // 测试共用开发库，发布器可能一并投递其他业务遗留的事件；不以队列总数代替本单事实。
-        assertThat(eventStatus()).isEqualTo("SENT"); assertThat(depth(QUEUE)).isGreaterThanOrEqualTo(1);
-        assertThat(state(entry)).isEqualTo("WAITING"); // 消费者停止期间消息留在真实持久队列。
-        registry.start(); await(()->"ALLOCATED".equals(state(entry)));
-        a.call("POST","/orders/"+reserved(entry)+"/pay",null,200);
-        assertThat(state(entry)).isEqualTo("COMPLETED"); invariant(0,1);
-    }
-    @Test
-    void duplicateRealRabbitMessagesAndTwoConsumersAllocateEachEntryOnce() throws Exception {
-        var entries=List.of(a.join(skuId,1,200),b.join(skuId,1,200),c.join(skuId,1,200)); stock(3); clearEvents(); appendEvent();
-        publisher.publishBatch();
-        OutboxEvent event=event();
-        for (int count=0;count<6;count++) sendDuplicate(event);
-        registry.start(); await(()->entries.stream().allMatch(entry->"ALLOCATED".equals(state(entry))));
-        await(()->depth(QUEUE)==0);
-        assertThat(orderCount()).isEqualTo(3); invariant(3,0);
-        assertThat(reserved(entries.get(0))).isLessThan(reserved(entries.get(1)));
-        assertThat(reserved(entries.get(1))).isLessThan(reserved(entries.get(2)));
-    }
-    @Test
-    void brokerFailureBacksOffThenRealPublisherRecovers() throws Exception {
-        JsonNode entry=a.join(skuId,1,200); stock(1); clearEvents(); appendEvent();
-        CachingConnectionFactory unavailable=new CachingConnectionFactory("127.0.0.1",1);
-        try {
-            unavailable.setConnectionTimeout(200);
-            new OutboxPublisher(outbox,new RabbitTemplate(unavailable),"ticketing.waitlist.it",new OutboxProperties(1,100,30,3,2,300, 1), new io.micrometer.core.instrument.simple.SimpleMeterRegistry()).publishBatch();
-        } finally { unavailable.destroy(); }
-        assertThat(eventStatus()).isEqualTo("PENDING"); assertThat(event().getRetryCount()).isEqualTo(1);
-        assertThat(jdbc.queryForObject("SELECT next_retry_at>UTC_TIMESTAMP(6) FROM outbox_event WHERE id=?",Boolean.class,event().getId())).isTrue();
-        assertThat(depth(QUEUE)).isZero();
-        dueEvent(); publisher.publishBatch(); assertThat(eventStatus()).isEqualTo("SENT");
-        registry.start(); await(()->"ALLOCATED".equals(state(entry))); invariant(1,0);
-    }
-    @Test
-    void lostPublisherConfirmationRedeliversWithoutCreatingAnotherReservedOrder() throws Exception {
-        JsonNode entry=a.join(skuId,1,200); stock(1); clearEvents(); appendEvent();
-        doThrow(new TimeoutException("验收模拟确认丢失")).when(publisher).awaitConfirm(any());
-        publisher.publishBatch();
-        assertThat(eventStatus()).isEqualTo("PENDING");
-        registry.start(); await(()->"ALLOCATED".equals(state(entry)));
-        reset(publisher); dueEvent(); publisher.publishBatch();
-        assertThat(eventStatus()).isEqualTo("SENT"); await(()->depth(QUEUE)==0);
-        assertThat(orderCount()).isEqualTo(1); invariant(1,0);
-    }
-    @Test
-    void expiredClaimAndFreshPublisherRecoverWithFencingAgainstOldWorker() throws Exception {
-        JsonNode entry=a.join(skuId,1,200); stock(1); clearEvents(); appendEvent();
-        OutboxEvent old=outbox.claimNext(); assertThat(old.getRetryCount()).isEqualTo(1);
-        dueEvent(); OutboxEvent newer=outbox.claimNext(); assertThat(newer.getRetryCount()).isEqualTo(2);
-        assertThat(outbox.sent(old)).isFalse(); outbox.failed(old);
-        assertThat(eventStatus()).isEqualTo("PROCESSING");
-        dueEvent(); new OutboxPublisher(outbox,rabbit,"ticketing.waitlist.it",new OutboxProperties(1,5000,30,3,2,300, 1), new io.micrometer.core.instrument.simple.SimpleMeterRegistry()).publishBatch();
-        assertThat(eventStatus()).isEqualTo("SENT"); assertThat(event().getRetryCount()).isEqualTo(3);
-        registry.start(); await(()->"ALLOCATED".equals(state(entry))); invariant(1,0); assertThat(orderCount()).isEqualTo(1);
-    }
-    @Test
-    void concurrentPublishClaimsAreExclusiveAcrossDatabaseConnections() throws Exception {
-        appendEvent();
-        var claims=parallel(6,index->outbox.claimNext());
-        assertThat(claims.stream().filter(java.util.Objects::nonNull).count()).isEqualTo(1);
-        assertThat(eventStatus()).isEqualTo("PROCESSING"); assertThat(event().getRetryCount()).isEqualTo(1);
-    }
-    @Test
-    void exhaustedOutboxRetriesBecomeFailedButDatabaseCompensationStillAllocates() throws Exception {
-        JsonNode entry=a.join(skuId,1,200); stock(1); clearEvents(); appendEvent();
-        CachingConnectionFactory unavailable=new CachingConnectionFactory("127.0.0.1",1);
-        try {
-            unavailable.setConnectionTimeout(200);
-            OutboxPublisher failed=new OutboxPublisher(outbox,new RabbitTemplate(unavailable),"ticketing.waitlist.it",new OutboxProperties(1,100,30,3,2,300, 1), new io.micrometer.core.instrument.simple.SimpleMeterRegistry());
-            for (int count=0;count<3;count++) { dueEvent(); failed.publishBatch(); }
-        } finally { unavailable.destroy(); }
-        assertThat(eventStatus()).isEqualTo("FAILED"); assertThat(event().getRetryCount()).isEqualTo(3);
-        assertThat(state(entry)).isEqualTo("WAITING");
-        compensation.scan(); assertThat(state(entry)).isEqualTo("ALLOCATED"); invariant(1,0);
+    @Test void headUsesSameLuaQueueConsumerAndCommitsOrderAndAllocationTogether() throws Exception {
+        total(0);var entry=join(buyer,1);total(1);assertThat(dispatcher.dispatch(sku)).isEqualTo(1);
+        long id=request(entry);assertThat(stocks.find(id).idempotencyOperation()).isEqualTo("WAITLIST_CONFIRM");
+        assertThat(stocks.find(id).waitlistEntryId()).isEqualTo(Long.parseLong(entry.id()));
+        assertThat(requests.find(id)).isNull();assertThat(status(entry)).isEqualTo("PROCESSING");
+        start();long order=awaitAllocated(entry);assertThat(requests.find(id).orderId()).isEqualTo(order);
+        assertThat(db.queryForObject("SELECT idempotency_operation FROM ticket_order WHERE id=?",String.class,order)).isEqualTo("WAITLIST_CONFIRM");
+        assertThat(db.queryForObject("SELECT status FROM ticket_order WHERE id=?",String.class,order)).isEqualTo("PENDING");
+        orderService.pay(buyer.id,order);assertThat(status(entry)).isEqualTo("COMPLETED");
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM electronic_ticket WHERE order_id=?",Integer.class,order)).isEqualTo(1);
+        dispatcher.dispatch(sku);assertThat(priority()).isEqualTo("0");stock(0,1);
     }
 
-    @Test
-    void continuesHundredAvailableWaitlistEntriesAfterSingleRabbitEventAndCoalescesDuplicates() throws Exception {
-        populateWaiting(100);
-        stock(100);
-        clearEvents();
-        appendEvent();
-        publisher.publishBatch();
-        assertThat(eventStatus()).isEqualTo("SENT");
-        assertThat(depth(QUEUE)).isEqualTo(1);
-
-        registry.start();
-        await(()->allocatedCount()==100);
-        await(()->depth(QUEUE)==0);
-        assertThat(allocatedCount()).isEqualTo(100);
-        assertThat(waitingCount()).isZero();
-        assertThat(orderCount()).isEqualTo(100);
-        invariant(100,0);
-
-        OutboxEvent event=event();
-        for(int duplicate=0;duplicate<5;duplicate++) sendDuplicate(event);
-        await(()->depth(QUEUE)==0);
-        assertThat(allocatedCount()).isEqualTo(100);
-        assertThat(orderCount()).isEqualTo(100);
-        invariant(100,0);
+    @Test void repeatedReleaseEventsAndDispatchNeverDuplicateReservationOrderOrReturnedStock() throws Exception {
+        total(1);var held=stocks.reserve(buyer.id,sku,1,"held");worker.process(held.id());
+        var entry=join(other,1);orderService.cancel(buyer.id,requests.find(held.id()).orderId());
+        var event=db.queryForMap("SELECT event_id,payload FROM outbox_event WHERE aggregate_id=? ORDER BY id DESC LIMIT 1",sku);
+        MessageProperties mp=new MessageProperties();mp.setMessageId(event.get("event_id").toString());
+        Message signal=new Message(event.get("payload").toString().getBytes(StandardCharsets.UTF_8),mp);
+        inventoryConsumer.consume(signal);long id=request(entry);inventoryConsumer.consume(signal);dispatcher.dispatch(sku);
+        assertThat(request(entry)).isEqualTo(id);assertThat(available()).isZero();
+        start();long order=awaitAllocated(entry);worker.process(id);assertThat(orderCount()).isEqualTo(2);stock(1,0);
+        db.update("UPDATE ticket_order SET expires_at=TIMESTAMPADD(SECOND,-1,UTC_TIMESTAMP(6)),created_at=TIMESTAMPADD(MINUTE,-20,UTC_TIMESTAMP(6)) WHERE id=?",order);
+        assertThat(orderService.expire(other.id,order)).isTrue();assertThat(status(entry)).isEqualTo("EXPIRED");
+        inventoryConsumer.consume(signal);inventoryConsumer.consume(signal);
+        assertThat(available()).isEqualTo(1);assertThat(priority()).isEqualTo("0");stock(0,0);
     }
 
-    @Test
-    void resumesFifoAfterPartialCapacityIsIncreasedAndAnotherRealEventArrives() throws Exception {
-        populateWaiting(100);
-        stock(50);
-        clearEvents();
-        appendEvent();
-        publisher.publishBatch();
-        registry.start();
-        await(()->allocatedCount()==50);
-        await(()->depth(QUEUE)==0);
-        assertThat(waitingCount()).isEqualTo(50);
-        assertThat(orderCount()).isEqualTo(50);
-        invariant(50,0);
-
-        stock(100);
-        clearEvents();
-        appendEvent();
-        publisher.publishBatch();
-        await(()->allocatedCount()==100);
-        await(()->depth(QUEUE)==0);
-        assertThat(waitingCount()).isZero();
-        assertThat(orderCount()).isEqualTo(100);
-        invariant(100,0);
+    @Test void processingAndUnknownPublishKeepOneHeadAndStableRequestWhileOthersJoin() throws Exception {
+        total(0);var entry=join(buyer,1);total(2);
+        doReturn(false).when(publisher).confirm(anyLong(),anyLong());dispatcher.dispatch(sku);
+        long id=request(entry);assertThat(status(entry)).isEqualTo("PROCESSING");assertThat(available()).isEqualTo(1);
+        var follower=join(other,1);dispatcher.dispatch(sku);assertThat(request(entry)).isEqualTo(id);
+        assertThat(status(follower)).isEqualTo("WAITING");assertThat(priority()).isEqualTo("1");
+        buyer.call("POST","/waitlist/"+entry.id()+"/cancel",null,null,409);
+        reset(publisher);redis.opsForZSet().add(stocks.recoveryKey(),sku+":"+id,0);
+        new PurchaseRecoveryJob(stocks,worker,publisher,inventory,properties).scan();start();awaitAllocated(entry);
+        assertThat(requests.find(id).status()).isEqualTo("SUCCEEDED");assertThat(orderCount()).isEqualTo(1);
     }
 
-    @Test
-    void continuesOneThousandAvailableWaitlistEntriesAcrossBoundedBatchesAndDuplicateMessages() throws Exception {
-        populateWaiting(1000);
-        stock(1000);
-        clearEvents();
-        appendEvent();
-        publisher.publishBatch();
-        assertThat(eventStatus()).isEqualTo("SENT");
-        assertThat(depth(QUEUE)).isEqualTo(1);
-
-        long startedAt=System.nanoTime();
-        registry.start();
-        await(()->allocatedCount()>=50,Duration.ofMinutes(3));
-        OutboxEvent event=event();
-        for(int duplicate=0;duplicate<10;duplicate++) sendDuplicate(event);
-        await(()->allocatedCount()==1000,Duration.ofMinutes(3));
-        await(()->depth(QUEUE)==0,Duration.ofSeconds(30));
-
-        long elapsedMs=TimeUnit.NANOSECONDS.toMillis(System.nanoTime()-startedAt);
-        System.out.printf("1000条候补单事件续跑完成：%d ms；重复库存消息10条%n",elapsedMs);
-        assertThat(waitingCount()).isZero();
-        assertThat(orderCount()).isEqualTo(1000);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ticket_order WHERE session_id=? AND status='PENDING'",Integer.class,sessionId)).isEqualTo(1000);
-        invariant(1000,0);
+    @Test void consumerRollbackAndDefinitiveFailureReuseRecoveryAndSettleBeforeAdvancing() throws Exception {
+        total(0);var entry=join(buyer,1);var follower=join(other,1);total(2);dispatcher.dispatch(sku);long id=request(entry);
+        doThrow(new org.springframework.dao.DataAccessResourceFailureException("isolated rollback")).when(orders).insertItem(any(),any(),anyInt());
+        assertThatThrownBy(()->worker.process(id)).isInstanceOf(org.springframework.dao.DataAccessResourceFailureException.class);
+        assertThat(requests.find(id)).isNull();assertThat(status(entry)).isEqualTo("PROCESSING");stock(0,0);
+        reset(orders);db.update("UPDATE user_account SET status='DISABLED' WHERE id=?",buyer.id);
+        doReturn(false).when(stocks).settle(any());worker.process(id);
+        assertThat(requests.find(id).status()).isEqualTo("FAILED");assertThat(status(entry)).isEqualTo("EXPIRED");
+        assertThatThrownBy(()->dispatcher.dispatch(sku)).isInstanceOf(BusinessException.class);
+        assertThat(status(follower)).isEqualTo("WAITING");assertThat(available()).isEqualTo(1);
+        reset(stocks);worker.recover(id,sku);assertThat(available()).isEqualTo(2);worker.process(id);assertThat(available()).isEqualTo(2);
+        dispatcher.dispatch(sku);start();awaitAllocated(follower);assertThat(orderCount()).isEqualTo(1);
+        registry.stop();Client retrying=client();var retried=join(retrying,2);total(3);dispatcher.dispatch(sku);
+        long expired=request(retried);long now=System.currentTimeMillis();
+        redis.opsForHash().put(stocks.requestKey(expired),"acceptedAt",Long.toString(now-2000));
+        redis.opsForHash().put(stocks.requestKey(expired),"deadlineAt",Long.toString(now-1000));
+        assertThat(worker.recover(expired,sku)).isTrue();assertThat(requests.find(expired).status()).isEqualTo("EXPIRED");
+        dispatcher.dispatch(sku);assertThat(status(retried)).isEqualTo("WAITING");dispatcher.dispatch(sku);
+        long fresh=request(retried);assertThat(fresh).isNotEqualTo(expired);
+        assertThat(stocks.find(fresh).idempotencyKey()).isNotEqualTo(requests.find(expired).idempotencyKey());
+        worker.process(fresh);assertThat(status(retried)).isEqualTo("ALLOCATED");
     }
 
-    @Test
-    void freshSchedulerAndCursorRestoreRemainingWaitlistFromMySql() throws Exception {
-        populateWaiting(100);
-        stock(100);
-        for(int allocation=0;allocation<50;allocation++) {
-            WaitlistEntry head=waitlistMapper.head(skuId);
-            assertThat(head).isNotNull();
-            assertThat(waitlists.allocateHead(skuId,head.getId())).isEqualTo(WaitlistService.Allocation.ALLOCATED);
-        }
-        assertThat(allocatedCount()).isEqualTo(50);
-        assertThat(waitingCount()).isEqualTo(50);
-        assertThat(orderCount()).isEqualTo(50);
-        invariant(50,0);
-
-        WaitlistProperties restartedProperties=new WaitlistProperties(60,50,100);
-        var restartedDispatcher=new WaitlistDispatcher(waitlistMapper,waitlists,stocks,restartedProperties);
-        WaitlistCompensation restartedCompensation=new WaitlistCompensation(waitlistMapper,restartedDispatcher,restartedProperties,writer);
-        long recoveryStartedAt=System.nanoTime();
-        restartedCompensation.scan();
-        await(()->allocatedCount()==100);
-        long recoveryMs=TimeUnit.NANOSECONDS.toMillis(System.nanoTime()-recoveryStartedAt);
-        System.out.printf("新调度器从MySQL恢复剩余50条候补：%d ms%n",recoveryMs);
-        assertThat(allocatedCount()).isEqualTo(100);
-        assertThat(waitingCount()).isZero();
-        assertThat(orderCount()).isEqualTo(100);
-        invariant(100,0);
-    }
-    @Test
-    void consumerTransientFailureRetriesWithBackoffAndEventuallyCommits() throws Exception {
-        JsonNode entry=a.join(skuId,1,200); stock(1); clearEvents(); appendEvent();
-        doThrow(new IllegalStateException("验收模拟临时消费故障")).doCallRealMethod().when(dispatcher).dispatch(skuId);
-        publisher.publishBatch(); registry.start(); await(()->"ALLOCATED".equals(state(entry)));
-        assertThat(depth(QUEUE+".dead")).isZero(); assertThat(orderCount()).isEqualTo(1); invariant(1,0);
-    }
-    @Test
-    void persistentConsumerFailureGoesToDeadLetterAndCompensationRestoresBusiness() throws Exception {
-        JsonNode entry=a.join(skuId,1,200); stock(1); clearEvents(); appendEvent();
-        doThrow(new IllegalStateException("验收模拟持续消费故障")).when(dispatcher).dispatch(skuId);
-        publisher.publishBatch(); registry.start(); await(()->depth(QUEUE+".dead")==1);
-        assertThat(state(entry)).isEqualTo("WAITING"); assertThat(orderCount()).isZero(); invariant(0,0);
-        registry.stop(); reset(dispatcher); compensation.scan();
-        assertThat(state(entry)).isEqualTo("ALLOCATED"); invariant(1,0);
-    }
-    @Test
-    void stockChangesAndOutboxInsertionRollbackTogetherOnWriterFailure() throws Exception {
-        stock(1); JsonNode held=b.create(skuId,1); clearEvents();
-        doThrow(new DataIntegrityViolationException("验收注入事件写入失败")).when(outboxMapper).insert(any(OutboxEvent.class));
-        try {
-            b.call("POST","/orders/"+held.path("id").asText()+"/cancel",null,409);
-            invariant(1,0); assertThat(eventCount()).isZero();
-            assertThat(jdbc.queryForObject("SELECT status FROM ticket_order WHERE id=?",String.class,held.path("id").asLong())).isEqualTo("PENDING");
-            var row=jdbc.queryForMap("SELECT * FROM ticket_sku WHERE id=?",skuId);
-            operator.call("PUT","/admin/tickets/"+skuId,ticketBody(row,2),409);
-            assertThat(jdbc.queryForObject("SELECT total_stock FROM ticket_sku WHERE id=?",Integer.class,skuId)).isEqualTo(1);
-        } finally { reset(outboxMapper); }
-        b.call("POST","/orders/"+held.path("id").asText()+"/cancel",null,200); invariant(0,0); assertThat(eventCount()).isEqualTo(1);
-    }
-    @Test
-    void wrongSkuIsRejectedByForeignKeyAndQuantityMismatchRollsBackPayment() throws Exception {
-        JsonNode entry=a.join(skuId,1,200); stock(1); dispatcher.dispatch(skuId); long order=reserved(entry); long different=sku();
-        assertThatThrownBy(() -> jdbc.update("UPDATE waitlist_entry SET sku_id=? WHERE id=?", different, entry.path("id").asLong()))
-                .isInstanceOf(DataIntegrityViolationException.class);
-        // 数量一致仍由同步候补协作校验，验证状态、库存、流水在异常时全部回滚。
-        jdbc.update("UPDATE waitlist_entry SET quantity=2 WHERE id=?", entry.path("id").asLong());
-        a.call("POST","/orders/"+order+"/pay",null,409);
-        a.call("GET","/waitlist/"+entry.path("id").asText(),null,409);
-        assertThat(jdbc.queryForObject("SELECT status FROM ticket_order WHERE id=?",String.class,order)).isEqualTo("PENDING");
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM payment_record WHERE order_id=?",Integer.class,order)).isZero(); invariant(1,0);
-    }
-    @Test
-    void normalPurchaseAndWaitlistRacingCancellationPaymentAndExpiryConserveStock() throws Exception {
-        stock(1); JsonNode held=b.create(skuId,1); JsonNode entry=a.join(skuId,1,200);
-        var results=parallel(3,index->{
-            if (index==0) return b.call("POST","/orders/"+held.path("id").asText()+"/cancel",null,200).path("code").asText();
-            if (index==1) return Integer.toString(dispatcher.dispatch(skuId));
-            JsonNode accepted=c.raw("POST","/orders",json.writeValueAsString(Map.of("skuId",Long.toString(skuId),"quantity",1)),"application/json",UUID.randomUUID().toString(),202);
-            var result=com.ticketing.PurchaseTestSupport.resolve(purchaseWorker,purchaseRequests,jdbc,accepted.path("data").path("requestId").asLong());
-            assertThat(result.status()).isIn("SUCCEEDED","FAILED");
-            return result.orderId()==null?"-":result.orderId().toString();
-        });
-        compensation.scan();
-        Long allocated=jdbc.queryForObject("SELECT reserved_order_id FROM waitlist_entry WHERE id=?",Long.class,entry.path("id").asLong());
-        Client winner=allocated==null?c:a;
-        long order=allocated==null?Long.parseLong(results.get(2)):allocated;
-        invariant(1,0); assertThat(orderCount()).isEqualTo(2);
-        parallel(3,index->{
-            if (index==0) return winner.call("POST","/orders/"+order+"/pay",null,200).path("code").asText();
-            if (index==1) return Boolean.toString(orders.expire(winner.id,order));
-            return b.call("POST","/orders/"+held.path("id").asText()+"/cancel",null,200).path("code").asText();
-        });
-        invariant(0,1); assertThat(used(winner)).isEqualTo(1);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM payment_record WHERE order_id=?",Integer.class,order)).isEqualTo(1);
+    @Test void cancellationExpiryAndConcurrentEnqueueCannotLeavePriorityOpen() throws Exception {
+        total(0);var entry=join(buyer,1);waitlists.cancel(buyer.id,Long.parseLong(entry.id()));
+        var closing=new CountDownLatch(1);var release=new CountDownLatch(1);
+        doAnswer(call->{closing.countDown();assertThat(release.await(10,TimeUnit.SECONDS)).isTrue();return call.callRealMethod();}).when(stocks).closePriority(sku);
+        try(var pool=Executors.newFixedThreadPool(2)) {
+            var close=pool.submit(()->dispatcher.dispatch(sku));assertThat(closing.await(5,TimeUnit.SECONDS)).isTrue();
+            var joining=pool.submit(()->join(other,1));Thread.sleep(80);assertThat(joining.isDone()).isFalse();release.countDown();close.get(10,TimeUnit.SECONDS);
+            var next=joining.get(10,TimeUnit.SECONDS);assertThat(priority()).isEqualTo("1");reset(stocks);
+            db.update("UPDATE waitlist_entry SET created_at=TIMESTAMPADD(MINUTE,-2,UTC_TIMESTAMP(6)),expires_at=TIMESTAMPADD(SECOND,-1,UTC_TIMESTAMP(6)) WHERE id=?",Long.parseLong(next.id()));
+            dispatcher.dispatch(sku);assertThat(status(next)).isEqualTo("EXPIRED");assertThat(priority()).isEqualTo("0");
+        } finally {release.countDown();}
     }
 
-    private void clearEvents() { jdbc.update("DELETE FROM outbox_event WHERE aggregate_type='TICKET_SKU' AND aggregate_id=?",skuId); }
-    private void populateWaiting(int count) {
-        String usernamePrefix="wl_batch_"+UUID.randomUUID().toString().replace("-","").substring(0,16)+"_";
-        String passwordHash=jdbc.queryForObject("SELECT password_hash FROM user_account WHERE id=?",String.class,a.id);
-        List<Object[]> batch=new ArrayList<>(count);
-        for(int index=0;index<count;index++) {
-            batch.add(new Object[]{usernamePrefix+String.format("%04d",index),passwordHash});
-        }
-        jdbc.batchUpdate("INSERT INTO user_account(username,password_hash,status,role) VALUES(?,?,'ACTIVE','USER')",batch);
-        List<Long> batchUserIds=jdbc.queryForList("SELECT id FROM user_account WHERE LOCATE(?,username)=1 ORDER BY id",Long.class,usernamePrefix);
-        assertThat(batchUserIds).hasSize(count);
-        userIds.addAll(batchUserIds);
-        for(long userId:batchUserIds) {
-            waitlists.join(userId,new JoinWaitlistRequest(Long.toString(skuId),1));
-        }
-    }
-    private int allocatedCount() { return jdbc.queryForObject("SELECT COUNT(*) FROM waitlist_entry WHERE sku_id=? AND status='ALLOCATED'",Integer.class,skuId); }
-    private int waitingCount() { return jdbc.queryForObject("SELECT COUNT(*) FROM waitlist_entry WHERE sku_id=? AND status='WAITING'",Integer.class,skuId); }
-    private void appendEvent() { new TransactionTemplate(transactions).executeWithoutResult(status->writer.append(skuId,InventoryChangeReason.STOCK_INCREASED)); }
-    private OutboxEvent event() { return outboxMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<OutboxEvent>().eq(OutboxEvent::getAggregateId,skuId).eq(OutboxEvent::getAggregateType,"TICKET_SKU")); }
-    private String eventStatus() { return event().getStatus(); }
-    private void dueEvent() { jdbc.update("UPDATE outbox_event SET next_retry_at=DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 SECOND) WHERE aggregate_type='TICKET_SKU' AND aggregate_id=?",skuId); }
-    private int depth(String queue) { var properties=rabbitAdmin.getQueueProperties(queue); return properties==null?0:((Number)properties.get(RabbitAdmin.QUEUE_MESSAGE_COUNT)).intValue(); }
-    private void sendDuplicate(OutboxEvent event) {
-        MessageProperties properties=new MessageProperties(); properties.setMessageId(event.getEventId()); properties.setContentType(MessageProperties.CONTENT_TYPE_JSON);
-        rabbit.send("ticketing.waitlist.it","inventory.available",new Message(event.getPayload().getBytes(StandardCharsets.UTF_8),properties));
+    void total(int count){db.update("UPDATE ticket_sku SET total_stock=? WHERE id=?",count,sku);assertThat(inventory.synchronize(sku)).isTrue();}
+    com.ticketing.vo.WaitlistView join(Client who,int qty){return waitlists.join(who.id,new JoinWaitlistRequest(Long.toString(sku),qty));}
+    String status(com.ticketing.vo.WaitlistView entry){return db.queryForObject("SELECT status FROM waitlist_entry WHERE id=?",String.class,Long.parseLong(entry.id()));}
+    String priority(){return Objects.toString(redis.opsForHash().get(stocks.skuKey(sku),"waitlistPriority"));}
+    long request(com.ticketing.vo.WaitlistView entry){return db.queryForObject("SELECT purchase_request_id FROM waitlist_entry WHERE id=?",Long.class,Long.parseLong(entry.id()));}
+    long awaitAllocated(com.ticketing.vo.WaitlistView entry)throws Exception{
+        long until=System.nanoTime()+TimeUnit.SECONDS.toNanos(15);
+        while(System.nanoTime()<until){if("ALLOCATED".equals(status(entry)))return db.queryForObject("SELECT reserved_order_id FROM waitlist_entry WHERE id=?",Long.class,Long.parseLong(entry.id()));Thread.sleep(30);}
+        throw new AssertionError("waitlist did not allocate: "+status(entry));
     }
 
-    private long sku() {
-        String name="候补票"+UUID.randomUUID();
-        jdbc.update("INSERT INTO ticket_sku(session_id,name,price_cents,total_stock,sale_starts_at,sale_ends_at,status) VALUES(?,?,12345,0,DATE_SUB(UTC_TIMESTAMP(6),INTERVAL 1 HOUR),DATE_ADD(UTC_TIMESTAMP(6),INTERVAL 1 HOUR),'ON_SALE')",sessionId,name);
-        return jdbc.queryForObject("SELECT id FROM ticket_sku WHERE name=? AND session_id=?",Long.class,name,sessionId);
+    void start(){registry.getListenerContainer("purchaseOrders").start();}
+    JsonNode accept(Client who,int quantity,String key)throws Exception{return who.call("POST","/orders",Map.of("skuId",Long.toString(sku),"quantity",quantity),key,202).path("data");}
+    JsonNode await(Client who,long id)throws Exception {
+        long until=System.nanoTime()+TimeUnit.SECONDS.toNanos(15);
+        while(System.nanoTime()<until){var r=who.call("GET","/purchase-requests/"+id,null,null,200).path("data");if(Set.of("SUCCEEDED","FAILED","EXPIRED").contains(r.path("status").asText()))return r;Thread.sleep(30);}
+        throw new AssertionError("request did not finish");
     }
-    private void stock(int total) throws Exception {
-        var row=jdbc.queryForMap("SELECT * FROM ticket_sku WHERE id=?",skuId);
-        operator.call("PUT","/admin/tickets/"+skuId,ticketBody(row,total),200);
+    long available(){return Long.parseLong(Objects.requireNonNull(redis.opsForHash().get(stocks.skuKey(sku),"available")).toString());}
+    int orderCount(){return db.queryForObject("SELECT COUNT(*) FROM ticket_order WHERE session_id=?",Integer.class,session);}
+    void stock(int locked,int sold){assertThat(db.queryForObject("SELECT locked_stock FROM ticket_sku WHERE id=?",Integer.class,sku)).isEqualTo(locked);assertThat(db.queryForObject("SELECT sold_stock FROM ticket_sku WHERE id=?",Integer.class,sku)).isEqualTo(sold);com.ticketing.PurchaseTestSupport.assertQuotaConsistent(db,session);}
+    Client client()throws Exception {
+        String name="direct_"+UUID.randomUUID().toString().replace("-", "").substring(0,20),password=UUID.randomUUID().toString();
+        long id=Long.parseLong(AccountTestSupport.legacyUser(db,name,password).id());
+        Client c=new Client();c.id=id;c.csrf();c.form("/auth/login","username="+name+"&password="+URLEncoder.encode(password,StandardCharsets.UTF_8));c.csrf();return c;
     }
-    private Map<String,Object> ticketBody(Map<String,Object> row,int total) {
-        return Map.of("name",row.get("name"),"priceCents",row.get("price_cents").toString(),"totalStock",total,
-                "saleStartsAt",((LocalDateTime)row.get("sale_starts_at")).toInstant(ZoneOffset.UTC).toString(),
-                "saleEndsAt",((LocalDateTime)row.get("sale_ends_at")).toInstant(ZoneOffset.UTC).toString(),
-                "maxQuantityPerOrder",4,"version",row.get("version"));
-    }
-    private String state(JsonNode entry) { return jdbc.queryForObject("SELECT status FROM waitlist_entry WHERE id=?",String.class,entry.path("id").asLong()); }
-    private long reserved(JsonNode entry) { return jdbc.queryForObject("SELECT reserved_order_id FROM waitlist_entry WHERE id=?",Long.class,entry.path("id").asLong()); }
-    private int orderCount() { return jdbc.queryForObject("SELECT COUNT(*) FROM ticket_order WHERE session_id=?",Integer.class,sessionId); }
-    private int eventCount() { return jdbc.queryForObject("SELECT COUNT(*) FROM outbox_event WHERE aggregate_type='TICKET_SKU' AND aggregate_id=?",Integer.class,skuId); }
-    private int used(Client actor) { return jdbc.queryForObject("SELECT COALESCE(SUM(i.quantity),0) FROM ticket_order o JOIN ticket_order_item i ON i.order_id=o.id WHERE o.user_id=? AND o.session_id=? AND o.status IN('PENDING','PAID')",Integer.class,actor.id,sessionId); }
-    private void invariant(int locked,int sold) {
-        var row=jdbc.queryForMap("SELECT * FROM ticket_sku WHERE id=?",skuId);
-        assertThat(((Number)row.get("locked_stock")).intValue()).isEqualTo(locked);
-        assertThat(((Number)row.get("sold_stock")).intValue()).isEqualTo(sold);
-        assertThat(locked).isGreaterThanOrEqualTo(0); assertThat(sold).isGreaterThanOrEqualTo(0);
-        assertThat(locked+sold).isLessThanOrEqualTo(((Number)row.get("total_stock")).intValue());
-    }
-    private Client client(boolean administrator) throws Exception {
-        Client client=new Client(); String username="wait_"+UUID.randomUUID().toString().replace("-","").substring(0,24); String password=UUID.randomUUID().toString();
-        client.csrf();
-        if (administrator) accounts.initializeAdmin(new AdminCredentials(username,password));
-        else com.ticketing.AccountTestSupport.legacyUser(jdbc,username,password);
-        client.id=jdbc.queryForObject("SELECT id FROM user_account WHERE username=?",Long.class,username); userIds.add(client.id);
-        client.raw("POST","/auth/login","username="+username+"&password="+URLEncoder.encode(password,StandardCharsets.UTF_8),"application/x-www-form-urlencoded",null,200); client.csrf(); return client;
-    }
-    private <T> List<T> parallel(int count,CheckedFunction<T> action) throws Exception {
-        CountDownLatch start=new CountDownLatch(1);
-        try (var pool=Executors.newFixedThreadPool(count)) {
-            List<Future<T>> futures=new ArrayList<>();
-            for (int index=0;index<count;index++) { int value=index; futures.add(pool.submit(()-> { start.await(); return action.apply(value); })); }
-            start.countDown(); List<T> results=new ArrayList<>(); for (Future<T> future:futures) results.add(future.get(25,TimeUnit.SECONDS)); return results;
-        }
-    }
-    @FunctionalInterface private interface CheckedFunction<T> { T apply(int index) throws Exception; }
-    private void await(BooleanSupplier condition) throws Exception {
-        await(condition,Duration.ofSeconds(15));
-    }
-    private void await(BooleanSupplier condition,Duration timeout) throws Exception {
-        long deadline=System.nanoTime()+timeout.toNanos();
-        while (!condition.getAsBoolean() && System.nanoTime()<deadline) Thread.sleep(100);
-        assertThat(condition.getAsBoolean()).isTrue();
-    }
-    private class Client {
+    class Client {
+        long id;String token="";
         final HttpClient http=HttpClient.newBuilder().cookieHandler(new CookieManager(null,CookiePolicy.ACCEPT_ALL)).build();
-        long id; String token="";
-        void csrf() throws Exception { token=call("GET","/auth/csrf",null,200).path("data").path("token").asText(); }
-        JsonNode join(long sku,int quantity,int expected) throws Exception { return call("POST","/waitlist",Map.of("skuId",Long.toString(sku),"quantity",quantity),expected).path("data"); }
-        JsonNode create(long sku,int quantity) throws Exception {
-            com.ticketing.PurchaseTestSupport.prepare(stockSnapshots,sku);
-            long requestId=raw("POST","/orders",json.writeValueAsString(Map.of("skuId",Long.toString(sku),"quantity",quantity)),"application/json",UUID.randomUUID().toString(),202).path("data").path("requestId").asLong();
-            String orderId=com.ticketing.PurchaseTestSupport.order(purchaseWorker,purchaseRequests,jdbc,requestId);
-            return raw("GET","/orders/"+orderId,"","application/json",null,200).path("data");
+        void csrf()throws Exception{token=call("GET","/auth/csrf",null,null,200).path("data").path("token").asText();}
+        void form(String path,String body)throws Exception{assertThat(sendRaw("POST",path,body,"application/x-www-form-urlencoded",null).statusCode()).isEqualTo(200);}
+        JsonNode call(String method,String path,Object body,String key,int expected)throws Exception {
+            var response=send(method,path,body,key);assertThat(response.statusCode()).as("%s %s",method,path).isEqualTo(expected);return json.readTree(response.body());
         }
-        JsonNode call(String method,String path,Object body,int expected) throws Exception { return raw(method,path,body==null?"":json.writeValueAsString(body),"application/json",null,expected); }
-        JsonNode raw(String method,String path,String body,String type,String key,int expected) throws Exception {
-            var request=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/api/v1"+path)).timeout(Duration.ofSeconds(20)).header("Content-Type",type);
-            if (!token.isEmpty()) request.header("X-CSRF-TOKEN",token);
-            if (key!=null) request.header("Idempotency-Key",key);
-            var response=http.send(request.method(method,HttpRequest.BodyPublishers.ofString(body)).build(),HttpResponse.BodyHandlers.ofString());
-            if (expected>=0) assertThat(response.statusCode()).as("%s %s %s",method,path,response.body()).isEqualTo(expected);
-            var result=(com.fasterxml.jackson.databind.node.ObjectNode)json.readTree(response.body()); result.put("httpStatus",response.statusCode()); return result;
+        HttpResponse<String> send(String method,String path,Object body,String key)throws Exception{return sendRaw(method,path,body==null?"":json.writeValueAsString(body),"application/json",key);}
+        HttpResponse<String> sendRaw(String method,String path,String body,String type,String key)throws Exception {
+            var request=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+"/api/v1"+path)).timeout(Duration.ofSeconds(30)).header("Content-Type",type);
+            if(!token.isEmpty())request.header("X-CSRF-TOKEN",token);if(key!=null)request.header("Idempotency-Key",key);
+            return http.send(request.method(method,HttpRequest.BodyPublishers.ofString(body)).build(),HttpResponse.BodyHandlers.ofString());
         }
     }
 }

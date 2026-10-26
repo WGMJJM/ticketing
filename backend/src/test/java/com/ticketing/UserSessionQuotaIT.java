@@ -52,6 +52,7 @@ class UserSessionQuotaIT {
     @Autowired OrderService orders;
     @Autowired OrderRefundService refunds;
     @Autowired WaitlistService waitlist;
+    @Autowired com.ticketing.service.WaitlistDispatcher dispatcher;
     @Autowired ElectronicTicketService tickets;
     @Autowired PlatformTransactionManager manager;
     @Autowired com.ticketing.service.TicketService ticketManagement;
@@ -323,21 +324,18 @@ class UserSessionQuotaIT {
         } finally {release.countDown();pool.shutdownNow();}
     }
     @Test void waitlistQueueOwnsNoQuotaAndFifoAllocationRefundAndCancellationStayAtomic() {
-        db.update("UPDATE ticket_sku SET total_stock=0 WHERE id=?",sku);long second=user("USER");
+        db.update("UPDATE ticket_sku SET total_stock=0 WHERE id=?",sku);snapshots.synchronize(sku);long second=user("USER");
         long head=Long.parseLong(waitlist.join(user,new JoinWaitlistRequest(Long.toString(sku),2)).id());
         long next=Long.parseLong(waitlist.join(second,new JoinWaitlistRequest(Long.toString(sku),1)).id());
-        assertThat(quotas.occupied(user,session)).isZero();db.update("UPDATE ticket_sku SET total_stock=1 WHERE id=?",sku);
-        assertThat(waitlist.allocateHead(sku,head)).isEqualTo(WaitlistService.Allocation.BLOCKED);
-        assertThat(waitlist.allocateHead(sku,next)).isEqualTo(WaitlistService.Allocation.RETRY);
-        long ordinary=order(second,sku,1);orders.cancel(second,ordinary);
-        db.update("UPDATE ticket_sku SET total_stock=2 WHERE id=?",sku);
-        assertThat(waitlist.allocateHead(sku,head)).isEqualTo(WaitlistService.Allocation.ALLOCATED);
-        assertThat(waitlist.allocateHead(sku,head)).isEqualTo(WaitlistService.Allocation.RETRY);
+        assertThat(quotas.occupied(user,session)).isZero();db.update("UPDATE ticket_sku SET total_stock=1 WHERE id=?",sku);snapshots.synchronize(sku);
+        assertThat(dispatcher.dispatch(sku)).isZero();
+        db.update("UPDATE ticket_sku SET total_stock=2 WHERE id=?",sku);snapshots.synchronize(sku);dispatcher.dispatch(sku);
+        long request=db.queryForObject("SELECT purchase_request_id FROM waitlist_entry WHERE id=?",Long.class,head);worker.process(request);
         long headOrder=db.queryForObject("SELECT reserved_order_id FROM waitlist_entry WHERE id=?",Long.class,head);
         orders.pay(user,headOrder);assertThat(quotas.occupied(user,session)).isEqualTo(2);
         refunds.refund(admin,headOrder,RefundReason.CUSTOMER_REQUEST);
         assertThat(db.queryForObject("SELECT status FROM waitlist_entry WHERE id=?",String.class,head)).isEqualTo("COMPLETED");
-        assertThat(waitlist.allocateHead(sku,next)).isEqualTo(WaitlistService.Allocation.ALLOCATED);
+        dispatcher.dispatch(sku);worker.process(db.queryForObject("SELECT purchase_request_id FROM waitlist_entry WHERE id=?",Long.class,next));
         long nextOrder=db.queryForObject("SELECT reserved_order_id FROM waitlist_entry WHERE id=?",Long.class,next);
         orders.cancel(second,nextOrder);assertThat(quotas.occupied(second,session)).isZero();consistent();
     }

@@ -8,15 +8,15 @@ import org.apache.ibatis.annotations.*;
 @Mapper
 public interface PurchaseRequestMapper {
     String COLUMNS = "id,user_id,sku_id,quantity,idempotency_key,request_hash,status,order_id,failure_code,"
-            + "accepted_at,deadline_at,updated_at";
+            + "accepted_at,deadline_at,updated_at,idempotency_operation,waitlist_entry_id";
     @Select("SELECT " + COLUMNS + " FROM purchase_request WHERE id=#{id}")
     PurchaseRequest find(long id);
     @Select("SELECT " + COLUMNS + " FROM purchase_request WHERE user_id=#{userId} AND idempotency_operation='CREATE_ORDER' AND idempotency_key=#{key}")
     PurchaseRequest byKey(@Param("userId") long userId, @Param("key") String key);
     /** 消费和过期仲裁共用唯一键及行锁；冲突只锁原事实，不吞事务异常。 */
     @Insert("""
-        INSERT INTO purchase_request(id,user_id,sku_id,quantity,idempotency_key,request_hash,accepted_at,deadline_at)
-        VALUES(#{id},#{userId},#{skuId},#{quantity},#{idempotencyKey},#{requestHash},#{acceptedAt},#{deadlineAt})
+        INSERT INTO purchase_request(id,user_id,sku_id,quantity,idempotency_key,request_hash,accepted_at,deadline_at,idempotency_operation,waitlist_entry_id)
+        VALUES(#{id},#{userId},#{skuId},#{quantity},#{idempotencyKey},#{requestHash},#{acceptedAt},#{deadlineAt},#{idempotencyOperation},#{waitlistEntryId})
         ON DUPLICATE KEY UPDATE id=purchase_request.id
         """)
     int coordinate(PurchaseRequest request);

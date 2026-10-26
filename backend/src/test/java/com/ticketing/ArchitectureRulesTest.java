@@ -131,7 +131,7 @@ class ArchitectureRulesTest {
     }
 
     private boolean isPublicOrderContract(String reference) {
-        return Set.of("OrderLifecycle", "TradeContext", "OrderStatus", "OrderOperation", "OrderView", "PaymentView",
+        return Set.of("OrderLifecycle", "PurchaseLifecycle", "TradeContext", "OrderStatus", "OrderOperation", "OrderView", "PaymentView",
                 "RefundResult", "RefundView", "RefundReason").contains(reference.substring(reference.lastIndexOf('.') + 1))
                 || ORDER_COLLABORATORS.contains(reference);
     }

@@ -10,8 +10,11 @@ local quantity = tonumber(redis.call('HGET', KEYS[2], 'quantity'))
 if tonumber(redis.call('GET', KEYS[5]) or '0') < 1
     or tonumber(redis.call('HGET', KEYS[1], 'pending') or '0') < 1
     or tonumber(redis.call('GET', KEYS[7]) or '0') < quantity then return -1 end
+local waitlist = redis.call('HGET', KEYS[2], 'operation') == 'WAITLIST_CONFIRM'
+if waitlist and tonumber(redis.call('HGET', KEYS[1], 'waitlistPending') or '0') < 1 then return -1 end
 if next == 'RELEASED' then redis.call('HINCRBY', KEYS[1], 'available', quantity) end
 redis.call('HINCRBY', KEYS[1], 'pending', -1)
+if waitlist then redis.call('HINCRBY', KEYS[1], 'waitlistPending', -1) end
 redis.call('DECR', KEYS[5])
 if redis.call('DECRBY', KEYS[7], quantity) == 0 then redis.call('DEL', KEYS[7]) end
 for _, key in ipairs({KEYS[2], KEYS[3]}) do

@@ -17,15 +17,15 @@ const limit = ref<PurchaseLimit>()
 const loading = ref(false)
 const busy = ref(false)
 const error = ref('')
-const minimum = computed(() => Math.max(1, props.ticket.availableStock + 1))
-const quantity = ref(minimum.value)
+const minimum = 1
+const quantity = ref(1)
 const maximum = computed(() =>
   Math.min(
     props.ticket.maxQuantityPerOrder,
     limit.value?.remainingQuantity ?? props.ticket.maxQuantityPerOrder,
   ),
 )
-const show = computed(() => minimum.value <= maximum.value)
+const show = computed(() => minimum <= maximum.value)
 async function loadLimit() {
   limit.value = undefined
   if (!auth.authenticated) return
@@ -47,7 +47,7 @@ async function join() {
   }
   if (
     !Number.isInteger(quantity.value) ||
-    quantity.value < minimum.value ||
+    quantity.value < minimum ||
     quantity.value > maximum.value
   ) {
     error.value = '请选择库存不足且符合限购的候补数量'
@@ -92,7 +92,7 @@ async function join() {
     @change.capture="clearValidation"
   >
     <p>
-      库存不足时可申请同票档候补，按候补记录顺序处理；库存不足以满足队首时不会跳过。
+      库存不足或已有候补排队时可申请，按记录顺序优先分配；不足以满足队首时会继续等待。
     </p>
     <p v-if="limit">
       本场还可购买 {{ limit.remainingQuantity }} 张，分配时将再次检查限购。

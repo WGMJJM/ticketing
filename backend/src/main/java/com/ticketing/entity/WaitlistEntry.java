@@ -14,6 +14,8 @@ public class WaitlistEntry {
     private Integer quantity;
     private String status;
     private Long reservedOrderId;
+    private Integer attemptNo;
+    private Long purchaseRequestId;
     private LocalDateTime expiresAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -29,6 +31,11 @@ public class WaitlistEntry {
     public void setStatus(String value) { status = value; }
     public Long getReservedOrderId() { return reservedOrderId; }
     public void setReservedOrderId(Long value) { reservedOrderId = value; }
+    public Integer getAttemptNo() { return attemptNo; }
+    public void setAttemptNo(Integer value) { attemptNo = value; }
+    public Long getPurchaseRequestId() { return purchaseRequestId; }
+    public void setPurchaseRequestId(Long value) { purchaseRequestId = value; }
+    public String purchaseKey() { return "waitlist-" + id + "-" + attemptNo; }
     public LocalDateTime getExpiresAt() { return expiresAt; }
     public void setExpiresAt(LocalDateTime value) { expiresAt = value; }
     public LocalDateTime getCreatedAt() { return createdAt; }

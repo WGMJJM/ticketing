@@ -13,5 +13,5 @@ if redis.call('EXISTS', KEYS[2]) == 0 then
 end
 redis.call('HSET', KEYS[1], 'available', ARGV[2], 'eligible', ARGV[3],
   'saleStartsAt', ARGV[4], 'saleEndsAt', ARGV[5], 'maxQuantity', ARGV[6],
-  'sessionId', ARGV[7], 'inventorySequence', ARGV[8], 'pending', '0', 'ready', '1')
+  'sessionId', ARGV[7], 'inventorySequence', ARGV[8], 'pending', '0', 'ready', '1', 'waitlistPending', '0', 'waitlistPriority', ARGV[10])
 return 1

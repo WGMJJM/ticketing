@@ -1,6 +1,7 @@
 package com.ticketing.service;
 
 import com.ticketing.entity.PurchaseRequest;
+import com.ticketing.dto.PurchaseIntent;
 import com.ticketing.exception.BusinessException;
 import com.ticketing.mapper.PurchaseRequestMapper;
 import com.ticketing.messaging.PurchasePublisher;
@@ -30,12 +31,23 @@ public class PurchaseAdmission {
         catch (NumberFormatException exception) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, "INVALID_SKU_ID", "票档编号超出允许范围");
         }
-        PurchaseRequest request = stocks.reserve(userId, skuId, quantity, key);
+        return view(submit(new PurchaseIntent(userId, skuId, quantity, "CREATE_ORDER", key, null, 0, null, null)));
+    }
+
+    @Transactional(propagation = Propagation.NEVER)
+    public PurchaseRequest submit(PurchaseIntent intent) {
+        PurchaseRequest request = stocks.reserve(intent);
         if (!request.terminal() && !publisher.confirm(request.id(), request.skuId())) {
             throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, "PURCHASE_PUBLISH_UNCONFIRMED",
                     "购票申请已记录，消息确认暂不确定，请按原幂等键查询或重试");
         }
-        return view(request);
+        return request;
+    }
+
+    /** 内部调度仅查询已绑定的申请，不产生新的预扣。 */
+    public PurchaseRequest result(long id) {
+        PurchaseRequest committed = requests.find(id);
+        return committed == null ? stocks.find(id) : committed;
     }
 
     public PurchaseRequestView detail(long userId, long id) {

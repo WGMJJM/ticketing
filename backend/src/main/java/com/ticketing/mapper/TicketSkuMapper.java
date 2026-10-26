@@ -12,6 +12,8 @@ import java.util.List;
 
 @Mapper
 public interface TicketSkuMapper extends BaseMapper<TicketSku> {
+    @Select("SELECT EXISTS(SELECT 1 FROM waitlist_entry WHERE sku_id=#{skuId} AND status IN ('WAITING','PROCESSING'))")
+    boolean hasWaitlist(long skuId);
     @Select("SELECT redis_inventory_initialized FROM ticket_sku WHERE id=#{id}")
     boolean redisInitialized(long id);
     @Select("SELECT COUNT(*) FROM ticket_sku WHERE redis_inventory_initialized=TRUE")

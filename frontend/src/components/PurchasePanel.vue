@@ -104,13 +104,14 @@ async function purchase() {
       await router.push('/orders/' + result.orderId)
     } else await router.push('/purchase-requests/' + result.requestId)
   } catch (failure) {
-    const notAdmitted = isAxiosError(failure) && ['TICKET_NOT_FOUND', 'TICKET_UNAVAILABLE']
+    const notAdmitted = isAxiosError(failure) && ['TICKET_NOT_FOUND', 'TICKET_UNAVAILABLE', 'WAITLIST_PRIORITY']
       .includes(String(failure.response?.data?.code))
+    const priority = isAxiosError(failure) && failure.response?.data?.code === 'WAITLIST_PRIORITY'
     const rejected = isAxiosError(failure) && [429, 503].includes(failure.response?.status ?? 0) &&
       ['TOO_MANY_REQUESTS', 'RATE_LIMIT_UNAVAILABLE', 'PURCHASE_QUEUE_FULL', 'PURCHASE_GLOBAL_BUSY',
         'PURCHASE_TICKET_BUSY', 'PURCHASE_ADMISSION_UNAVAILABLE'].includes(String(failure.response?.data?.code))
     if (active === generation) error.value = (failure instanceof Error ? failure.message : '购票申请提交失败') +
-      (attempt.value ? notAdmitted ? '。本次提交未获受理，原申请参数仍保留；票档恢复可售后可用原申请重试。' : rejected ? '。本次提交暂未通过，原申请仍保留，请稍后重试确认。' : '。结果尚未确认，请用同一申请重试；刷新页面后也会保留原申请。' : '。请确认浏览器允许本站会话存储后重试。')
+      (priority ? '。本次没有预扣库存，可在下方申请候补；原购票申请仍可在候补队列清空后重试。' : attempt.value ? notAdmitted ? '。本次提交未获受理，原申请参数仍保留；票档恢复可售后可用原申请重试。' : rejected ? '。本次提交暂未通过，原申请仍保留，请稍后重试确认。' : '。结果尚未确认，请用同一申请重试；刷新页面后也会保留原申请。' : '。请确认浏览器允许本站会话存储后重试。')
   } finally { if (active === generation) busy.value = false }
 }
 </script>

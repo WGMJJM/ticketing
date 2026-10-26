@@ -49,33 +49,17 @@ public class OrderReservation {
 
     /** 消费者已按用户→父级→SKU加锁，复用唯一的预占和金额快照算法。 */
     public long reservePurchase(TradeContext context, int quantity, String key) {
+        return reservePurchase(context, quantity, OrderOperation.CREATE_ORDER, key);
+    }
+
+    public long reservePurchase(TradeContext context, int quantity, OrderOperation operation, String key) {
         byte[] hash = requestHash(context.sale().skuId(), quantity);
-        TicketOrder existing = find(context.userId(), OrderOperation.CREATE_ORDER, key);
+        TicketOrder existing = find(context.userId(), operation, key);
         if (existing != null) {
             requireHash(existing, hash);
             return existing.getId();
         }
-        return insert(context.userId(), quantity, OrderOperation.CREATE_ORDER, key, hash, context.sale());
-    }
-
-    public long reserveWaitlist(TradeContext context, int quantity, long entryId) {
-        String key = "waitlist-" + entryId;
-        TicketSale sale = context.sale();
-        byte[] hash = requestHash(sale.skuId(), quantity);
-        TicketOrder existing = find(context.userId(), OrderOperation.WAITLIST_CONFIRM, key);
-        if (existing != null) {
-            TicketOrder owned = orders.ownedSnapshot(existing.getId(), context.userId());
-            if (!MessageDigest.isEqual(existing.getRequestHash(), hash)
-                    || !OrderStatus.PENDING.name().equals(existing.getStatus())
-                    || owned == null
-                    || owned.getSessionId() != sale.sessionId()
-                    || owned.getSkuId() != sale.skuId()
-                    || owned.getQuantity() != quantity) {
-                throw conflict("WAITLIST_ORDER_CONFLICT", "候补预留订单不一致");
-            }
-            return existing.getId();
-        }
-        return insert(context.userId(), quantity, OrderOperation.WAITLIST_CONFIRM, key, hash, sale);
+        return insert(context.userId(), quantity, operation, key, hash, context.sale());
     }
 
     public boolean eligibleForWaitlist(TradeContext context, int quantity, LocalDateTime now) {

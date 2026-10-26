@@ -28,20 +28,20 @@ public class WaitlistService {
     private final OrderReservation reservation;
     private final InventoryEvents events;
     private final int waitMinutes;
-    private final StockSnapshotService inventory;
+    private final RedisStockReservationService stocks;
 
     public WaitlistService(
             WaitlistMapper waitlists,
             TradeResourceLocker resources,
             OrderReservation reservation,
             InventoryEvents events,
-            WaitlistProperties properties, StockSnapshotService inventory) {
+            WaitlistProperties properties, RedisStockReservationService stocks) {
         this.waitlists = waitlists;
         this.resources = resources;
         this.reservation = reservation;
         this.events = events;
         this.waitMinutes = properties.maxWaitMinutes();
-        this.inventory = inventory;
+        this.stocks = stocks;
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -62,6 +62,7 @@ public class WaitlistService {
                                 .in(
                                         WaitlistEntry::getStatus,
                                         WaitlistStatus.WAITING.name(),
+                                        WaitlistStatus.PROCESSING.name(),
                                         WaitlistStatus.ALLOCATED.name()));
         if (active != null
                 && WaitlistStatus.WAITING.name().equals(active.getStatus())
@@ -79,9 +80,8 @@ public class WaitlistService {
         if (!reservation.eligibleForWaitlist(context, quantity, now)) {
             throw conflict("账号、销售窗口或购票限额不符合候补条件");
         }
-        if (context.sale().availableStock() >= quantity) {
-            throw conflict("当前库存充足，请直接购买");
-        }
+        // 和普通预扣在同一 Lua 原子边界检查余额并开启优先门禁，先门禁后提交队列。
+        stocks.joinPriority(skuId, quantity, waitlists.head(skuId) != null);
         LocalDateTime deadline = now.plusMinutes(waitMinutes);
         if (deadline.isAfter(context.sale().saleEndsAt())) {
             deadline = context.sale().saleEndsAt();
@@ -91,6 +91,7 @@ public class WaitlistService {
         entry.setSkuId(skuId);
         entry.setQuantity(quantity);
         entry.setStatus(WaitlistStatus.WAITING.name());
+        entry.setAttemptNo(0);
         entry.setCreatedAt(now);
         entry.setUpdatedAt(now);
         entry.setExpiresAt(deadline);
@@ -114,7 +115,7 @@ public class WaitlistService {
             return view(userId, id);
         }
         if (!WaitlistStatus.WAITING.name().equals(entry.getStatus())) {
-            throw conflict("只能取消等待中的候补，已分配请前往对应订单处理");
+            throw conflict("仅等待中的候补可取消；分配中请等待结果，已分配请处理对应订单");
         }
         terminal(entry, WaitlistStatus.CANCELLED);
         events.append(entry.getSkuId(), InventoryChangeReason.WAITLIST_CANCELLED);
@@ -148,38 +149,49 @@ public class WaitlistService {
         return view;
     }
 
-    /** SKU 锁内暂停普通入口；未完成预扣归零后才允许候补使用 MySQL 余额。 */
+    /** 只选取队首并登记尝试，不创建订单、不预扣库存、不等待 MQ。 */
     @Transactional(isolation = Isolation.READ_COMMITTED)
-    public Allocation allocateHead(long skuId, long candidateId) {
-        WaitlistEntry initial = waitlists.selectById(candidateId);
-        if (initial == null || !initial.getSkuId().equals(skuId)) {
-            return Allocation.RETRY;
+    public WaitlistEntry prepare(long skuId) {
+        WaitlistEntry initial = waitlists.head(skuId);
+        if (initial == null) {
+            resources.lockSale(skuId);
+            if (waitlists.head(skuId) == null) stocks.closePriority(skuId);
+            return null;
         }
-        TradeContext context = resources.lockWaitlistReservation(initial.getUserId(), skuId, false);
+        TradeContext context = resources.lockWaitlistPurchase(initial.getUserId(), skuId, false);
         WaitlistEntry head = waitlists.head(skuId);
-        // 等待SKU锁期间队首可能已经改变，不能拿着旧用户锁替下一位分配。
-        if (head == null || !head.getId().equals(candidateId)) {
-            return Allocation.RETRY;
+        if (head == null || !head.getId().equals(initial.getId())) return null;
+        if ("PROCESSING".equals(head.getStatus())) {
+            stocks.selectWaitlist(skuId, head.getId(), head.getAttemptNo());
+            return head;
         }
         LocalDateTime now = waitlists.databaseNow();
-        if (!head.getExpiresAt().isAfter(now)
-                || !reservation.eligibleForWaitlist(context, head.getQuantity(), now)) {
+        if (!head.getExpiresAt().isAfter(now) || !reservation.eligibleForWaitlist(context, head.getQuantity(), now)) {
             terminal(head, WaitlistStatus.EXPIRED);
-            return Allocation.ADVANCED;
+            return null;
         }
-        if (!inventory.pauseForWaitlist(skuId)) return Allocation.BLOCKED;
-        if (context.sale().availableStock() < head.getQuantity()) {
-            inventory.synchronize(skuId);
-            return Allocation.BLOCKED;
-        }
-        long orderId = reservation.reserveWaitlist(context, head.getQuantity(), head.getId());
-        // 新订单的行锁在候补行锁之前；后续支付/关闭也按订单→候补更新。
-        if (waitlists.allocate(head.getId(), orderId) != 1) {
-            throw conflict("候补状态已变化，分配未生效");
-        }
-        // 只有减少可售量的候补事务可在提交前发布；回滚最多低估可售量，下轮按 MySQL 恢复。
-        inventory.synchronize(skuId);
-        return Allocation.ALLOCATED;
+        stocks.selectWaitlist(skuId, head.getId(), head.getAttemptNo());
+        long requestId = com.baomidou.mybatisplus.core.toolkit.IdWorker.getId();
+        if (waitlists.start(head.getId(), requestId) != 1) throw conflict("候补状态已变化");
+        head.setStatus("PROCESSING");
+        head.setPurchaseRequestId(requestId);
+        return head;
+    }
+
+    /** 仅无预扣的明确拒绝，或已提交终态且 Redis 已结算后才可推进尝试号。 */
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public void finishAttempt(long id, long requestId, boolean retryable) {
+        WaitlistEntry initial = waitlists.selectById(id);
+        if (initial == null) return;
+        TradeContext context = resources.lockWaitlistPurchase(initial.getUserId(), initial.getSkuId(), false);
+        WaitlistEntry head = waitlists.head(initial.getSkuId());
+        if (head == null || !head.getId().equals(id) || !"PROCESSING".equals(head.getStatus())
+                || !java.util.Objects.equals(head.getPurchaseRequestId(), requestId)) return;
+        if (!stocks.finishWaitlistAttempt(head.getSkuId(), head.getId(), head.getAttemptNo())) return;
+        LocalDateTime now = waitlists.databaseNow();
+        boolean waiting = retryable && head.getExpiresAt().isAfter(now)
+                && reservation.eligibleForWaitlist(context, head.getQuantity(), now);
+        waitlists.finishAttempt(id, requestId, waiting ? "WAITING" : "EXPIRED");
     }
 
     private WaitlistEntry requireOwned(long userId, long id) {
@@ -214,10 +226,4 @@ public class WaitlistService {
         return new BusinessException(HttpStatus.NOT_FOUND, "WAITLIST_NOT_FOUND", "候补记录不存在");
     }
 
-    public enum Allocation {
-        ALLOCATED,
-        ADVANCED,
-        RETRY,
-        BLOCKED
-    }
 }

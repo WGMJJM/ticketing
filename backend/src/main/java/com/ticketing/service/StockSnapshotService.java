@@ -60,15 +60,9 @@ public class StockSnapshotService {
                 && !sku.getSaleStartsAt().isBefore(session.getSaleStartsAt()) && !sku.getSaleEndsAt().isAfter(session.getStartsAt());
         stocks.publish(skuId, (long) sku.getTotalStock() - sku.getLockedStock() - sku.getSoldStock(), eligible,
                 sku.getSaleStartsAt().toInstant(ZoneOffset.UTC).toEpochMilli(), sku.getSaleEndsAt().toInstant(ZoneOffset.UTC).toEpochMilli(),
-                sku.getMaxQuantityPerOrder(), session.getId(), outbox.latestInventorySequence(skuId), !initialized, initializeCounter);
+                sku.getMaxQuantityPerOrder(), session.getId(), outbox.latestInventorySequence(skuId), !initialized, initializeCounter, tickets.hasWaitlist(skuId));
         if (!initialized) tickets.markRedisInitialized(skuId);
         return true;
-    }
-
-    /** 候补已经持有正确锁序的 SKU 锁；暂停后仍有普通预扣就等待下一轮。 */
-    public boolean pauseForWaitlist(long skuId) {
-        if (!tickets.redisInitialized(skuId) && !synchronize(skuId)) return false;
-        return stocks.pause(skuId) == 0;
     }
 
     public List<Long> candidates(long after, int size) { return tickets.inventoryCandidates(after, size); }

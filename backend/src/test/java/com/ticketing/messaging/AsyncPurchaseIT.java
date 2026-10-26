@@ -191,18 +191,18 @@ class AsyncPurchaseIT {
         worker.process(held.id());assertThat(available()).isEqualTo(8);
     }
 
-    @Test void orderReleaseAndFifoWaitlistCannotConsumeUnfinishedOrdinaryReservation() {
+    @Test void orderReleaseAndFifoWaitlistCannotConsumeUnfinishedOrdinaryReservation() throws Exception {
         db.update("UPDATE ticket_sku SET total_stock=1 WHERE id=?",sku);inventory.synchronize(sku);
-        var first=stocks.reserve(buyer.id,sku,1,"first");worker.process(first.id());long firstOrder=requests.find(first.id()).orderId();
+        var ordinary=stocks.reserve(buyer.id,sku,1,"before-gate");
         var waiting=waitlists.join(other.id,new JoinWaitlistRequest(Long.toString(sku),1));
-        orderService.cancel(buyer.id,firstOrder);inventory.synchronize(sku);
-        var second=stocks.reserve(buyer.id,sku,1,"second");
-        assertThat(dispatcher.dispatch(sku)).isZero();assertThat(waitlists.detail(other.id,Long.parseLong(waiting.id())).status()).isEqualTo("WAITING");
-        worker.process(second.id());stock(1,0);assertThat(dispatcher.dispatch(sku)).isZero();
-        orderService.cancel(buyer.id,requests.find(second.id()).orderId());
-        assertThat(dispatcher.dispatch(sku)).isEqualTo(1);assertThat(dispatcher.dispatch(sku)).isZero();
-        assertThat(waitlists.detail(other.id,Long.parseLong(waiting.id())).status()).isEqualTo("ALLOCATED");stock(1,0);assertThat(available()).isZero();
-        assertThat(stocks.find(second.id()).status()).isEqualTo("SUCCEEDED");
+        assertThatThrownBy(()->stocks.reserve(buyer.id,sku,1,"after-gate")).isInstanceOfSatisfying(BusinessException.class,
+                e->assertThat(e.getCode()).isEqualTo("WAITLIST_PRIORITY"));
+        worker.process(ordinary.id());orderService.cancel(buyer.id,requests.find(ordinary.id()).orderId());
+        assertThat(dispatcher.dispatch(sku)).isEqualTo(1);start();
+        long until=System.nanoTime()+TimeUnit.SECONDS.toNanos(10);
+        while(System.nanoTime()<until && !waitlists.detail(other.id,Long.parseLong(waiting.id())).status().equals("ALLOCATED")) Thread.sleep(30);
+        assertThat(waitlists.detail(other.id,Long.parseLong(waiting.id())).status()).isEqualTo("ALLOCATED");
+        stock(1,0);assertThat(stocks.find(ordinary.id()).status()).isEqualTo("SUCCEEDED");
     }
 
     void start(){registry.getListenerContainer("purchaseOrders").start();}

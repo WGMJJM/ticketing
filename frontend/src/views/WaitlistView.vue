@@ -138,6 +138,7 @@ function changePage(value: number) {
             <dd>{{ formatTime(entry.expiresAt) }}（北京时间）</dd>
           </div>
         </dl>
+        <p v-if="entry.status === 'PROCESSING'" class="order-note">正在为你分配订单，请等待结果后操作；此时暂不能取消候补。</p>
         <p v-if="entry.status === 'ALLOCATED'" class="order-note">
           已获得真实待支付订单，请前往订单核对金额并支付。支付截止
           {{

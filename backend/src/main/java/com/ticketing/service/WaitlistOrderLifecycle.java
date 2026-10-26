@@ -46,7 +46,7 @@ public class WaitlistOrderLifecycle implements OrderLifecycle {
                 || entry.getSkuId() != transition.skuId()
                 || entry.getQuantity() != transition.quantity()
                 || !WaitlistStatus.ALLOCATED.name().equals(entry.getStatus())
-                || !("waitlist-" + entry.getId()).equals(transition.idempotencyKey())) {
+                || !matchesKey(entry, transition.idempotencyKey())) {
             throw conflict("候补与预留订单的用户、场次、票档或数量不一致");
         }
         WaitlistStatus target =
@@ -70,10 +70,15 @@ public class WaitlistOrderLifecycle implements OrderLifecycle {
         if (entry == null || !reserved || entry.getUserId() != transition.userId()
                 || entry.getSkuId() != transition.skuId() || entry.getQuantity() != transition.quantity()
                 || !WaitlistStatus.COMPLETED.name().equals(entry.getStatus())
-                || !("waitlist-" + entry.getId()).equals(transition.idempotencyKey())) {
+                || !matchesKey(entry, transition.idempotencyKey())) {
             return new RefundBlock("WAITLIST_RELATION_INVALID", "候补与已支付订单关联异常，需要人工处理");
         }
         return null;
+    }
+
+    private boolean matchesKey(WaitlistEntry entry, String key) {
+        // 已应用迁移前的历史分配保留原键；新尝试只接受持久尝试号生成的键。
+        return entry.getPurchaseRequestId() == null ? ("waitlist-" + entry.getId()).equals(key) : entry.purchaseKey().equals(key);
     }
 
     private BusinessException conflict(String message) {

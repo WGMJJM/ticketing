@@ -12,7 +12,7 @@ export interface WaitlistEntry {
   skuName: string
   priceCents: string
   quantity: number
-  status: 'WAITING' | 'ALLOCATED' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED'
+  status: 'WAITING' | 'PROCESSING' | 'ALLOCATED' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED'
   createdAt: string
   expiresAt: string
   reservedOrderId: string | null
@@ -22,6 +22,7 @@ export interface WaitlistEntry {
 }
 export const waitlistStatusText = {
   WAITING: '等待候补',
+  PROCESSING: '分配中',
   ALLOCATED: '已分配待支付订单',
   COMPLETED: '候补已完成',
   CANCELLED: '已取消候补',

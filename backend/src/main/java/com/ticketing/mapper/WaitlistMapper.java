@@ -6,6 +6,7 @@ import com.ticketing.vo.WaitlistView;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
@@ -52,19 +53,27 @@ public interface WaitlistMapper extends BaseMapper<WaitlistEntry> {
             @Param("userId") long userId, @Param("size") int size, @Param("offset") long offset);
 
     @Select(
-            "SELECT * FROM waitlist_entry WHERE sku_id=#{skuId} AND status='WAITING' ORDER BY id"
+            "SELECT * FROM waitlist_entry WHERE sku_id=#{skuId} AND status IN ('WAITING','PROCESSING') ORDER BY id"
                     + " LIMIT 1")
+    @Options(useCache = false, flushCache = Options.FlushCachePolicy.TRUE)
     WaitlistEntry head(@Param("skuId") long skuId);
 
     @Select(
-            "SELECT DISTINCT sku_id FROM waitlist_entry WHERE status='WAITING' AND sku_id>#{after}"
-                    + " ORDER BY sku_id LIMIT #{size}")
-    List<Long> pendingSkus(@Param("after") long after, @Param("size") int size);
+            "SELECT id FROM ticket_sku WHERE id>#{after} ORDER BY id LIMIT #{size}")
+    List<Long> recoverySkus(@Param("after") long after, @Param("size") int size);
 
     @Update(
             """
             UPDATE waitlist_entry SET status='ALLOCATED',reserved_order_id=#{orderId},updated_at=UTC_TIMESTAMP(6)
-            WHERE id=#{id} AND status='WAITING' AND reserved_order_id IS NULL
+            WHERE id=#{id} AND status='PROCESSING' AND purchase_request_id=#{requestId} AND reserved_order_id IS NULL
             """)
-    int allocate(@Param("id") long id, @Param("orderId") long orderId);
+    int allocate(@Param("id") long id, @Param("requestId") long requestId, @Param("orderId") long orderId);
+
+    @Update("UPDATE waitlist_entry SET status='PROCESSING',purchase_request_id=#{requestId},updated_at=UTC_TIMESTAMP(6) WHERE id=#{id} AND status='WAITING'")
+    int start(@Param("id") long id, @Param("requestId") long requestId);
+
+    @Update("UPDATE waitlist_entry SET status=#{status},attempt_no=attempt_no+1,purchase_request_id=NULL,updated_at=UTC_TIMESTAMP(6) WHERE id=#{id} AND status='PROCESSING' AND purchase_request_id=#{requestId}")
+    int finishAttempt(@Param("id") long id, @Param("requestId") long requestId, @Param("status") String status);
+    @Update("UPDATE waitlist_entry SET status='EXPIRED',updated_at=UTC_TIMESTAMP(6) WHERE id=#{id} AND status='PROCESSING' AND purchase_request_id=#{requestId}")
+    int expireProcessing(@Param("id") long id, @Param("requestId") long requestId);
 }

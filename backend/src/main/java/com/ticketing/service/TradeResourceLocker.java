@@ -94,10 +94,6 @@ public class TradeResourceLocker {
         return lockPurchase(userId, skuId, requireActive);
     }
 
-    public TradeContext lockWaitlistReservation(long userId, long skuId, boolean requireActive) {
-        return lockReservation(userId, skuId, requireActive);
-    }
-
     public TicketSale lockSaleForQuota(long userId, long skuId) {
         return sale(skuId, userId);
     }
