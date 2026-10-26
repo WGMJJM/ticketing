@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { getSystemStatus } from '../api/system'
 import ActivityList from '../components/ActivityList.vue'
+import PopularActivities from '../components/PopularActivities.vue'
 import StageArtwork from '../components/StageArtwork.vue'
 
 const connection = ref<'loading' | 'online' | 'offline'>('loading')
@@ -105,6 +106,8 @@ onBeforeUnmount(() => controller.abort())
       <span class="art-caption">原创视觉概念 · 非售票信息</span>
     </div>
   </section>
+
+  <PopularActivities />
 
   <section id="discover" class="upcoming" aria-labelledby="upcoming-title">
     <div class="section-heading">
