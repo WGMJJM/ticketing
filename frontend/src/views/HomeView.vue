@@ -1,183 +1,64 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { getSystemStatus } from '../api/system'
+import { ref } from 'vue'
 import ActivityList from '../components/ActivityList.vue'
 import PopularActivities from '../components/PopularActivities.vue'
 import StageArtwork from '../components/StageArtwork.vue'
+import SiteIcon from '../components/SiteIcon.vue'
 
-const connection = ref<'loading' | 'online' | 'offline'>('loading')
-const lastChecked = ref<Date | null>(null)
-const controller = new AbortController()
-const connectionText = computed(
-  () =>
-    ({
-      loading: '正在连接服务',
-      online: '服务运行正常',
-      offline: '服务暂时无法连接',
-    })[connection.value],
-)
-const checkedTime = computed(() =>
-  lastChecked.value
-    ? new Intl.DateTimeFormat('zh-CN', {
-        timeZone: 'Asia/Shanghai',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false,
-      }).format(lastChecked.value)
-    : '',
-)
+const selectedCategory = ref('')
 const categories = [
-  {
-    name: '演唱会',
-    description: '在万人合唱里，找到共鸣',
-    icon: 'mic',
-    accent: 'purple',
-  },
-  {
-    name: '音乐节',
-    description: '把自由，交给音乐与旷野',
-    icon: 'wave',
-    accent: 'green',
-  },
-  {
-    name: '舞台演出',
-    description: '灯光亮起，好故事正在发生',
-    icon: 'stage',
-    accent: 'orange',
-  },
-  {
-    name: '展览赛事',
-    description: '遇见灵感，也见证高光',
-    icon: 'star',
-    accent: 'blue',
-  },
-]
-
-async function checkConnection() {
-  connection.value = 'loading'
-  try {
-    await getSystemStatus(controller.signal)
-    connection.value = 'online'
-  } catch {
-    if (!controller.signal.aborted) connection.value = 'offline'
-  } finally {
-    if (!controller.signal.aborted) lastChecked.value = new Date()
-  }
-}
-
-onMounted(checkConnection)
-onBeforeUnmount(() => controller.abort())
+  { value: '', label: '全部演出', icon: 'grid' },
+  { value: 'CONCERT', label: '演唱会', icon: 'music' },
+  { value: 'FESTIVAL', label: '音乐节', icon: 'heart' },
+  { value: 'STAGE', label: '舞台演出', icon: 'stage' },
+  { value: 'EXHIBITION', label: '展览', icon: 'art' },
+  { value: 'ESPORTS', label: '电竞赛事', icon: 'game' },
+] as const
 </script>
 
 <template>
   <div class="home-page">
-  <section class="hero" aria-labelledby="hero-title">
-    <div class="hero-copy">
-      <span class="eyebrow"><span></span> 下一站，现场</span>
-      <h1 id="hero-title">
-        为热爱，<br />奔赴<span class="hero-outline">现场</span><span class="hero-asterisk" aria-hidden="true">✳</span>
-      </h1>
-      <p>
-        有些心动，只有在现场才能听见。<br />从一场演出、一段音乐，找到下一次出发的理由。
-      </p>
-      <div class="hero-actions">
-        <a class="primary-link" href="#discover">浏览近期活动 <span aria-hidden="true">↗</span></a>
-        <RouterLink class="hero-secondary" to="/tickets">我的入场凭证 <span aria-hidden="true">→</span></RouterLink>
-      </div>
-      <div class="hero-journey" aria-label="现场体验流程">
-        <span><small>01</small> 发现心动</span><i aria-hidden="true">—</i>
-        <span><small>02</small> 预订现场</span><i aria-hidden="true">—</i>
-        <span><small>03</small> 凭票入场</span>
-      </div>
-    </div>
-    <div
-      class="hero-art"
-      role="img"
-      aria-label="音乐唱片与纸带构成的原创概念海报，不代表实际售票活动"
-    >
-      <StageArtwork />
-      <span class="poster-kicker">献给每一个想要在场的你</span>
-      <strong class="poster-title">热爱<br />自有回响。</strong>
-      <div class="poster-footer">
-        <span>让期待落地<br /><b>让热爱在场</b></span>
-        <span aria-hidden="true">↗</span>
-      </div>
-      <span class="art-caption">原创视觉概念 · 非售票信息</span>
-    </div>
-  </section>
-
-  <PopularActivities />
-
-  <section id="discover" class="upcoming" aria-labelledby="upcoming-title">
-    <div class="section-heading">
-      <div>
-        <span class="section-kicker">01 / 为喜欢，留出时间</span>
-        <h2 id="upcoming-title">近期精彩现场<span class="heading-dot" aria-hidden="true">.</span></h2>
-      </div>
-      <a class="section-aside" href="#inspiration">寻找更多灵感 <span aria-hidden="true">↗</span></a>
-    </div>
-    <ActivityList />
-  </section>
-
-  <section id="inspiration" class="discovery" aria-labelledby="discover-title">
-    <div class="section-heading">
-      <div>
-        <span class="section-kicker">02 / 跟随你的热爱</span>
-        <h2 id="discover-title">找到你的同频现场<span class="heading-dot" aria-hidden="true">.</span></h2>
-      </div>
-      <span class="section-aside"
-        >四种精彩，无限可能 <span aria-hidden="true">↘</span></span
-      >
-    </div>
-    <div class="category-grid">
-      <article
-        v-for="(category, index) in categories"
-        :key="category.name"
-        class="category-card"
-        :class="category.accent"
-      >
-        <div class="category-top">
-          <span class="category-number">0{{ index + 1 }}</span
-          ><span class="category-glyph" aria-hidden="true">{{
-            ['♫', '≋', '◒', '✧'][index]
-          }}</span>
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <span class="eyebrow"><span></span>为下一次相遇，留个位置</span>
+        <h1 id="hero-title">发现<span>好演出</span>，<br />现在就出发。</h1>
+        <p>从演唱会到舞台，从音乐节到展览。<br />找到你想去的现场，让期待有个日期。</p>
+        <div class="hero-actions">
+          <a class="primary-link" href="#discover">浏览演出<SiteIcon name="arrow" /></a>
+          <a class="hero-secondary" href="#popular">看看大家喜欢什么<SiteIcon name="arrow" /></a>
         </div>
-        <h3>{{ category.name }}</h3>
-        <p>{{ category.description }}</p>
-        <span class="category-caption">{{ ['听见共鸣', '奔向自由', '走进故事', '发现新意'][index] }}</span>
-      </article>
-    </div>
-  </section>
-
-  <section
-    class="connection-panel"
-    :class="connection"
-    aria-label="服务连接状态"
-  >
-    <div class="connection-copy" role="status" aria-live="polite">
-      <span class="status-dot" aria-hidden="true"></span>
-      <div>
-        <strong>{{ connectionText }}</strong>
-        <p>
-          {{
-            connection === 'offline'
-              ? '请稍后重新连接，已显示的内容可继续浏览。'
-              : '发现喜欢的活动，选择场次，安排下一次现场。'
-          }}
-        </p>
+        <div class="hero-footnote"><SiteIcon name="ticket" /><span>发现演出</span><i></i><span>在线购票</span><i></i><span>电子票入场</span></div>
       </div>
-    </div>
-    <div class="connection-actions">
-      <span v-if="checkedTime" class="checked-time"
-        >北京时间 {{ checkedTime }} 检查</span
-      ><ElButton
-        :loading="connection === 'loading'"
-        :disabled="connection === 'loading'"
-        @click="checkConnection"
-        >重新检测</ElButton
-      >
-    </div>
-  </section>
+      <div class="hero-art" role="img" aria-label="抽象舞台与唱片组成的视觉概念海报">
+        <StageArtwork />
+        <span class="poster-kicker">把期待，留给现场</span>
+        <span class="art-caption">视觉概念海报</span>
+      </div>
+    </section>
+
+    <nav class="category-nav" aria-label="按类别发现演出">
+      <a v-for="category in categories" :key="category.value" href="#discover" :class="{ selected: selectedCategory === category.value }" :aria-current="selectedCategory === category.value ? 'true' : undefined" @click="selectedCategory = category.value">
+        <SiteIcon :name="category.icon" /><span>{{ category.label }}</span>
+      </a>
+    </nav>
+
+    <section id="discover" class="upcoming" aria-labelledby="upcoming-title">
+      <div class="section-heading">
+        <div><span class="section-kicker">为喜欢，安排一个日期</span><h2 id="upcoming-title">发现演出<span class="heading-dot">.</span></h2></div>
+        <span class="section-aside">你的下一场精彩，从这里开始</span>
+      </div>
+      <ActivityList v-model:category="selectedCategory" />
+    </section>
+
+    <PopularActivities />
+
+    <section class="home-guide" aria-label="购票流程">
+      <div><span class="section-kicker">从发现到入场</span><h2>离现场，更近一步。</h2><RouterLink class="text-link" to="/about">查看购票指南<SiteIcon name="arrow" /></RouterLink></div>
+      <ol>
+        <li><span>01</span><div><h3>选择心仪演出</h3><p>查看场次、开售时间与票档。</p></div></li>
+        <li><span>02</span><div><h3>确认购票结果</h3><p>在购票进度中查看订单结果。</p></div></li>
+        <li><span>03</span><div><h3>带上电子票</h3><p>支付完成后，前往我的票夹。</p></div></li>
+      </ol>
+    </section>
   </div>
 </template>

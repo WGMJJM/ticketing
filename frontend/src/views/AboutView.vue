@@ -1,39 +1,19 @@
+<script setup lang="ts">
+import SiteIcon from '../components/SiteIcon.vue'
+import { siteName } from '../config/site'
+</script>
 <template>
   <div class="about-page">
-    <span class="eyebrow"><span></span> 从一份热爱，到一场相遇</span>
-    <h1>好现场，<br /><span>我们一起期待。</span></h1>
-    <p class="about-intro">
-      票务交易平台面向中国大陆用户，为演唱会、音乐节、舞台演出、展览和电竞赛事逐步建立清晰、可信赖的购票体验。
-    </p>
+    <span class="eyebrow"><span></span>购票指南</span>
+    <h1>从心动，到<span>在场。</span></h1>
+    <p class="about-intro">{{ siteName }}支持演唱会、音乐节、舞台演出、展览与电竞赛事。选一场喜欢的演出，按下面的步骤安排你的行程。</p>
     <div class="about-grid">
-      <section class="about-card">
-        <span class="section-kicker">当前阶段</span>
-        <h2>从购票到电子票核销</h2>
-        <p>
-          目前支持活动与票档展示、购票订单、模拟支付、超时关闭及候补。支付成功后自动生成独立电子票，用户可查看二维码，管理员可核销入场。
-        </p>
-        <p class="about-note">
-          标记为“演示”的活动为虚构示例。订单会实际预占库存，电子票及核销记录真实保存；模拟支付不产生实际扣款，演示票不对应真实演出。
-        </p>
-      </section>
-      <section class="about-card">
-        <span class="section-kicker">入场提示</span>
-        <h2>一张电子票，一次入场</h2>
-        <ol>
-          <li>按场次出示独立二维码，已核销或已作废的票券不能再次入场。</li>
-        </ol>
-      </section>
+      <section class="about-card"><SiteIcon name="calendar" /><span class="section-kicker">01 · 选择演出</span><h2>先选场次，再选票档</h2><p>在演出详情页查看场馆、演出时间与开售安排，选择正常开放的场次，再查看可售票档及余票。</p></section>
+      <section class="about-card"><SiteIcon name="clock" /><span class="section-kicker">02 · 确认结果</span><h2>购票进度，一处查看</h2><p>提交申请后，在「购票进度」查看处理结果。受理成功不等于购票成功；订单创建后，请在截止时间前完成支付。</p></section>
+      <section class="about-card"><SiteIcon name="ticket" /><span class="section-kicker">03 · 准备入场</span><h2>电子票，收在我的票夹</h2><p>支付成功后生成独立电子票。入场时出示对应场次的二维码；已核销或已作废的票券不能再次使用。</p></section>
+      <section class="about-card"><SiteIcon name="bookmark" /><span class="section-kicker">也可以，先留一份期待</span><h2>关注演出，或申请候补</h2><p>点赞参与人气排名，关注方便回看场次和开售安排。缺票时可申请候补，等待期间不占库存或购票额度，也不保证分配成功。</p></section>
     </div>
-    <section class="architecture-note">
-      <h2>关于平台架构</h2>
-      <p>
-        前端采用 Vue 3 与 TypeScript，后端采用 Java 21 与 Spring Boot。MySQL
-        保存交易、库存与电子票事实，RabbitMQ
-        配合事务事件触发候补调度，数据库扫描提供补偿。电子票使用服务端签名凭证，核销由数据库条件更新控制。
-      </p>
-    </section>
-    <RouterLink class="primary-link" to="/"
-      >返回发现活动 <span aria-hidden="true">↗</span></RouterLink
-    >
+    <aside class="demo-notice"><strong>演示体验说明</strong><p>当前支付与退款均为模拟操作，不产生实际资金往来。标记为「演示」的活动为虚构示例，演示电子票不对应真实演出。请勿据此安排行程。</p></aside>
+    <RouterLink class="primary-link" to="/">去发现演出<SiteIcon name="arrow" /></RouterLink>
   </div>
 </template>

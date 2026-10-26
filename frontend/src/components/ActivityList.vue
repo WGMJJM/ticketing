@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
   categories,
   categoryInfo,
@@ -8,9 +8,12 @@ import {
   type ActivityQuery,
 } from '../api/activities'
 import ActivityCover from './ActivityCover.vue'
+import SiteIcon from './SiteIcon.vue'
+const props = defineProps<{ category?: string }>()
+const emit = defineEmits<{ 'update:category': [value: string] }>()
 const query = reactive<ActivityQuery>({
   keyword: '',
-  category: '',
+  category: props.category ?? '',
   city: '',
   page: 1,
   size: 6,
@@ -44,21 +47,27 @@ function changePage(next: number) {
   query.page = next
   void load()
 }
+watch(() => props.category, (category) => {
+  if (query.category !== (category ?? '')) {
+    query.category = category ?? ''
+    void load(true)
+  }
+})
 onMounted(() => load())
 onBeforeUnmount(() => controller?.abort())
 </script>
 <template>
   <form class="activity-filters" @submit.prevent="load(true)">
     <label class="search-field"
-      ><span>搜索活动</span
+      ><span>演出名称</span
       ><input
         v-model="query.keyword"
         maxlength="80"
-        placeholder="输入活动名称，寻找你的热爱"
+        placeholder="搜索演出名称"
     /></label>
     <label
-      ><span>活动类别</span
-      ><select v-model="query.category">
+      ><span>演出类型</span
+      ><select v-model="query.category" @change="emit('update:category', query.category ?? ''); load(true)">
         <option value="">全部类别</option>
         <option
           v-for="category in categories"
@@ -74,11 +83,11 @@ onBeforeUnmount(() => controller?.abort())
       ><input v-model="query.city" maxlength="64" placeholder="全部城市"
     /></label>
     <ElButton native-type="submit" type="primary" :loading="loading"
-      >查找活动</ElButton
+      ><SiteIcon name="search" />搜索演出</ElButton
     >
   </form>
   <div v-if="loading" class="content-state" role="status">
-    正在寻找精彩现场…
+    正在加载演出…
   </div>
   <div v-else-if="error" class="content-state error-state" role="alert">
     <h3>活动暂时无法加载</h3>
@@ -86,10 +95,10 @@ onBeforeUnmount(() => controller?.abort())
     <ElButton @click="load()">重新加载</ElButton>
   </div>
   <div v-else-if="items.length === 0" class="empty-events">
-    <div class="empty-ticket" aria-hidden="true">✦</div>
+    <div class="empty-ticket" aria-hidden="true"><SiteIcon name="ticket" /></div>
     <div>
-      <h3>暂时没有符合条件的活动</h3>
-      <p>试试其他关键词、类别或城市。活动正在陆续准备中。</p>
+      <h3>暂时没有找到相关演出</h3>
+      <p>试试其他演出名称、类型或城市。</p>
     </div>
   </div>
   <div v-else class="activity-grid">
@@ -113,7 +122,7 @@ onBeforeUnmount(() => controller?.abort())
         <p>{{ item.summary }}</p>
         <div class="event-card-bottom">
           <span>{{ item.venue }}</span
-          ><span>查看场次 ↗</span>
+          ><span class="card-link">查看详情<SiteIcon name="arrow" /></span>
         </div>
       </div>
     </RouterLink>

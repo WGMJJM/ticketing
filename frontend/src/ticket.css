@@ -21,12 +21,13 @@
 .ticket-card {
   background: white;
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 12px;
   padding: 28px;
   box-shadow: var(--shadow);
   border-top: 3px solid var(--border);
 }
-.ticket-card.selling { border-top-color: #517d66; }
+.ticket-card.selling { border-top-color: var(--success); }
+.ticket-card.selling .ticket-sale-label { color: var(--success); background: var(--success-soft); }
 .ticket-card.sold_out { border-top-color: #c0a178; }
 .ticket-card-top {
   display: flex;
@@ -45,7 +46,7 @@
   font-weight: 600;
   white-space: nowrap;
   padding: 5px 9px;
-  background: var(--green-soft);
+  background: var(--primary-soft);
   color: var(--muted);
   border-radius: 5px;
 }
@@ -59,13 +60,13 @@
 }
 .ticket-card.stopped .ticket-sale-label,
 .ticket-card.unavailable .ticket-sale-label {
-  background: #f3f6f4;
+  background: var(--surface-soft);
   color: var(--muted);
 }
 .ticket-price {
   font-size: 32px;
   font-weight: 650;
-  color: var(--green);
+  color: var(--primary);
   margin: 25px 0 18px;
   letter-spacing: -0.8px;
   overflow-wrap: anywhere;
@@ -88,7 +89,7 @@
 .ticket-stock strong {
   font-size: 17px;
   font-weight: 600;
-  color: var(--green);
+  color: var(--ink);
 }
 .ticket-stock > span {
   margin-left: auto;

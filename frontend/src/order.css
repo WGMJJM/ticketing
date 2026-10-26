@@ -22,11 +22,11 @@
   font: inherit;
 }
 .purchase-panel > a {
-  color: var(--green);
+  color: var(--primary);
 }
 .purchase-estimate {
   margin-left: auto;
-  color: var(--green);
+  color: var(--primary);
   font-weight: 600;
   display: grid;
   gap: 5px;
@@ -70,7 +70,7 @@
 }
 .personal-empty {
   border: 1px solid var(--border);
-  background: #ffffffb3;
+  background: var(--surface);
   padding: 60px 28px;
 }
 .empty-illustration {
@@ -81,8 +81,8 @@
   height: 76px;
   border: 1px dashed var(--border);
   border-radius: 14px;
-  background: var(--green-soft);
-  color: #6e8758;
+  background: var(--primary-soft);
+  color: var(--primary);
   font-size: 36px;
   transform: rotate(-6deg);
 }
@@ -103,11 +103,11 @@
   padding: 11px 18px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  color: var(--green);
+  color: var(--primary);
   background: var(--surface-soft);
 }
 .empty-action:hover {
-  background: var(--green-soft);
+  background: var(--primary-soft);
 }
 .waitlist-purchase {
   padding: 20px;
@@ -119,7 +119,7 @@
   padding: 30px;
   background: white;
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 12px;
   margin: 24px 0;
   box-shadow: var(--shadow);
 }
@@ -147,7 +147,7 @@
 }
 .order-total {
   font-size: 26px;
-  color: var(--green);
+  color: var(--primary);
   font-variant-numeric: tabular-nums;
 }
 .order-card dl div {
@@ -163,14 +163,14 @@
 }
 .order-note {
   padding: 16px 18px;
-  background: var(--green-soft);
+  background: var(--primary-soft);
   border-radius: 9px;
 }
 .payment-info {
   margin: 20px 0;
   padding: 18px;
-  background: var(--green-soft);
-  border-radius: 6px;
+  background: var(--success-soft);
+  border-radius: 8px;
 }
 .payment-info h3 {
   margin: 0;
@@ -205,8 +205,8 @@
 }
 .order-card[data-status='PAID'] > .order-top > .ticket-sale-label,
 .order-card[data-status='COMPLETED'] > .order-top > .ticket-sale-label {
-  color: var(--green);
-  background: var(--green-soft);
+  color: var(--success);
+  background: var(--success-soft);
 }
 .order-card[data-status='WAITING'] > .order-top > .ticket-sale-label,
 .order-card[data-status='USED'] > .order-top > .ticket-sale-label {
@@ -217,7 +217,7 @@
 .order-card[data-status='EXPIRED'] > .order-top > .ticket-sale-label,
 .order-card[data-status='VOID'] > .order-top > .ticket-sale-label {
   color: #52665f;
-  background: #edf2f0;
+  background: var(--surface-soft);
 }
 .purchase-panel input {
   min-height: 40px;

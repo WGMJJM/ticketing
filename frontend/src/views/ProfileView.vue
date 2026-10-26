@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import SiteIcon from '../components/SiteIcon.vue'
 const auth = useAuthStore()
 const router = useRouter()
 const error = ref('')
@@ -28,68 +29,31 @@ async function logout() {
 </script>
 <template>
   <div class="profile-page">
-    <span class="eyebrow"><span></span>我的账号</span>
-    <h1>个人中心</h1>
+    <span class="eyebrow"><span></span>个人中心</span>
+    <h1>我的演出安排</h1>
     <section v-if="auth.user" class="profile-card">
       <div class="profile-identity">
-        <span class="profile-avatar" aria-hidden="true">{{ auth.user.username.slice(0, 1).toUpperCase() }}</span>
-        <div>
-          <span class="section-kicker">欢迎回到你的现场</span>
-          <h2>你好，{{ auth.user.username }}</h2>
-          <p>每一次期待，都可以从这里继续。</p>
-        </div>
+        <span class="profile-avatar">{{ auth.user.username.slice(0, 1).toUpperCase() }}</span>
+        <div><span class="section-kicker">欢迎回来</span><h2>{{ auth.user.username }}</h2><p>订单、票券和关注的演出，都在这里。</p></div>
       </div>
       <dl>
-        <div>
-          <dt>用户编号</dt>
-          <dd>{{ auth.user.id }}</dd>
-        </div>
-        <div>
-          <dt>账号身份</dt>
-          <dd>{{ auth.isAdmin ? '管理员' : auth.isStaff ? '核销工作人员' : '普通用户' }}</dd>
-        </div>
+        <div><dt>账号身份</dt><dd>{{ auth.isAdmin ? '管理员' : auth.isStaff ? '核销工作人员' : '普通用户' }}</dd></div>
+        <div><dt>用户编号</dt><dd>{{ auth.user.id }}</dd></div>
       </dl>
-      <p v-if="$route.query.denied" class="inline-error" role="alert">
-        当前账号没有运营管理权限
-      </p>
-      <p>
-        查看订单安排、关注候补进度，出发前记得准备好你的电子票。
-      </p>
-      <nav class="profile-shortcuts" aria-label="我的现场功能">
-        <RouterLink to="/followed-activities">
-          <span class="shortcut-icon" aria-hidden="true">♡</span>
-          <strong>我的关注</strong>
-          <small>查看关注活动的场次与开售时间</small>
-          <span class="shortcut-arrow" aria-hidden="true">↗</span>
-        </RouterLink>
-        <RouterLink to="/orders">
-          <span class="shortcut-icon" aria-hidden="true">▤</span>
-          <strong>我的订单</strong>
-          <small>查看预订与支付状态</small>
-          <span class="shortcut-arrow" aria-hidden="true">↗</span>
-        </RouterLink>
-        <RouterLink to="/waitlist">
-          <span class="shortcut-icon" aria-hidden="true">◷</span>
-          <strong>我的候补</strong>
-          <small>关注每一份等待</small>
-          <span class="shortcut-arrow" aria-hidden="true">↗</span>
-        </RouterLink>
-        <RouterLink to="/tickets">
-          <span class="shortcut-icon" aria-hidden="true">▱</span>
-          <strong>我的电子票</strong>
-          <small>查看票券与入场凭证</small>
-          <span class="shortcut-arrow" aria-hidden="true">↗</span>
-        </RouterLink>
+      <p v-if="$route.query.denied" class="inline-error" role="alert">当前账号没有运营管理权限</p>
+      <div class="profile-section-heading"><h3>常用功能</h3><RouterLink class="text-link" to="/purchase-requests">查看购票进度<SiteIcon name="arrow" /></RouterLink></div>
+      <nav class="profile-shortcuts" aria-label="个人常用功能">
+        <RouterLink to="/orders"><span class="shortcut-icon"><SiteIcon name="calendar" /></span><strong>我的订单</strong><small>查看订单与支付状态</small><span class="shortcut-arrow"><SiteIcon name="arrow" /></span></RouterLink>
+        <RouterLink to="/tickets"><span class="shortcut-icon"><SiteIcon name="ticket" /></span><strong>我的票夹</strong><small>电子票与入场二维码</small><span class="shortcut-arrow"><SiteIcon name="arrow" /></span></RouterLink>
+        <RouterLink to="/followed-activities"><span class="shortcut-icon"><SiteIcon name="bookmark" /></span><strong>关注演出</strong><small>回看场次与开售时间</small><span class="shortcut-arrow"><SiteIcon name="arrow" /></span></RouterLink>
+        <RouterLink to="/waitlist"><span class="shortcut-icon"><SiteIcon name="clock" /></span><strong>候补记录</strong><small>查看候补分配结果</small><span class="shortcut-arrow"><SiteIcon name="arrow" /></span></RouterLink>
       </nav>
       <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
       <div class="auth-links">
-        <RouterLink v-if="auth.canCheckin" :to="auth.isAdmin ? '/admin/checkins' : '/staff/checkin'">进入电子票核销</RouterLink>
-        <RouterLink to="/">继续发现活动</RouterLink
-        ><RouterLink v-if="auth.isAdmin" to="/admin/checkins"
-          >电子票核销</RouterLink
-        ><RouterLink v-if="auth.isAdmin" to="/admin/activities"
-          >进入运营管理</RouterLink
-        ><ElButton :loading="busy" @click="logout">退出登录</ElButton>
+        <RouterLink to="/">继续发现演出</RouterLink>
+        <RouterLink v-if="auth.canCheckin" :to="auth.isAdmin ? '/admin/checkins' : '/staff/checkin'">入场核销</RouterLink>
+        <RouterLink v-if="auth.isAdmin" to="/admin/activities">演出管理</RouterLink>
+        <ElButton :loading="busy" @click="logout">退出登录</ElButton>
       </div>
     </section>
   </div>

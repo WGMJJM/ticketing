@@ -16,6 +16,7 @@ import {
   type ActivitySession,
 } from '../api/activities'
 import ActivityCover from '../components/ActivityCover.vue'
+import SiteIcon from '../components/SiteIcon.vue'
 import TicketList from '../components/TicketList.vue'
 import { useAuthStore } from '../stores/auth'
 import { formatTime } from '../utils/date'
@@ -50,6 +51,7 @@ async function refreshEngagement(id = activity.value?.id) {
 
 async function load() {
   controller?.abort()
+  engagementController?.abort()
   const active = new AbortController()
   controller = active
   loading.value = true
@@ -127,7 +129,7 @@ onBeforeUnmount(() => {
 </script>
 <template>
   <div class="detail-page">
-    <RouterLink to="/" class="back-link">← 返回发现活动</RouterLink>
+    <RouterLink to="/" class="back-link">← 返回演出列表</RouterLink>
     <div v-if="loading" class="content-state" role="status">
       正在加载活动信息…
     </div>
@@ -154,26 +156,26 @@ onBeforeUnmount(() => {
             举办地点 <strong>{{ activity.city }} · {{ activity.venue }}</strong>
           </div>
           <div v-if="engagement" class="activity-social-actions" aria-label="活动互动">
-            <button class="social-action" :class="{ active: engagement.liked }" :disabled="likeBusy" @click="toggleLike">
-              {{ engagement.liked ? '♥ 已点赞' : '♡ 点赞' }} · {{ engagement.likeCount }}
+            <button class="social-action" :class="{ active: engagement.liked }" :disabled="likeBusy || followBusy" :aria-pressed="engagement.liked" @click="toggleLike">
+              <SiteIcon name="heart" />{{ engagement.liked ? '已点赞' : '点赞' }}<span>{{ engagement.likeCount }}</span>
             </button>
-            <button class="social-action" :class="{ active: engagement.following }" :disabled="followBusy" @click="toggleFollow">
-              {{ engagement.following ? '✓ 已关注' : '+ 关注活动' }} · {{ engagement.followCount }}
+            <button class="social-action" :class="{ active: engagement.following }" :disabled="likeBusy || followBusy" :aria-pressed="engagement.following" @click="toggleFollow">
+              <SiteIcon name="bookmark" />{{ engagement.following ? '已关注' : '关注演出' }}<span>{{ engagement.followCount }}</span>
             </button>
           </div>
-          <p v-if="engagementError" class="social-error" role="status">{{ engagementError }}</p>
-          <span class="coming-label">选择场次 · 查看票档 · 预订现场</span>
+          <div v-if="engagementError" class="social-error" role="status">{{ engagementError }} <ElButton size="small" @click="refreshEngagement()">重试</ElButton></div>
+          <span class="coming-label">点赞表达喜欢，关注方便下次回看场次。</span>
         </div>
       </section>
       <div class="detail-columns">
         <section class="activity-description">
           <span class="section-kicker">关于这场相遇</span>
-          <h2>活动介绍</h2>
+          <h2>演出介绍</h2>
           <p>{{ activity.description }}</p>
         </section>
         <section class="session-section">
           <span class="section-kicker">选择你的现场</span>
-          <h2>活动场次 <small>以下均为北京时间</small></h2>
+          <h2>选择场次 <small>以下时间均为北京时间</small></h2>
           <p v-if="sessions.length === 0" class="content-state">
             场次正在筹备中，请稍后关注。
           </p>
@@ -201,7 +203,7 @@ onBeforeUnmount(() => {
           <div class="stage-notice" role="status">
             {{
               selected ? '已选择场次。' : '可选择正常场次查看安排。'
-            }}可选择正在售票的票档提交购票申请，订单创建成功后可体验模拟支付，不产生实际扣款。
+            }}选择后可查看票档与余票。
           </div>
         </section>
       </div>
