@@ -1,30 +1,61 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   categoryInfo,
+  followActivity,
+  getActivityEngagement,
   getActivity,
+  likeActivity,
   listSessions,
   sessionStatusText,
+  unlikeActivity,
+  unfollowActivity,
   type Activity,
+  type ActivityEngagement,
   type ActivitySession,
 } from '../api/activities'
 import ActivityCover from '../components/ActivityCover.vue'
 import TicketList from '../components/TicketList.vue'
+import { useAuthStore } from '../stores/auth'
 import { formatTime } from '../utils/date'
 const route = useRoute()
+const router = useRouter()
+const auth = useAuthStore()
 const activity = ref<Activity>()
 const sessions = ref<ActivitySession[]>([])
+const engagement = ref<ActivityEngagement>()
 const selected = ref('')
 const loading = ref(false)
 const error = ref('')
+const engagementError = ref('')
+const likeBusy = ref(false)
+const followBusy = ref(false)
 let controller: AbortController | undefined
+let engagementController: AbortController | undefined
+
+async function refreshEngagement(id = activity.value?.id) {
+  if (!id) return
+  engagementController?.abort()
+  const active = new AbortController()
+  engagementController = active
+  engagementError.value = ''
+  try {
+    engagement.value = await getActivityEngagement(id, active.signal)
+  } catch (failure) {
+    if (!active.signal.aborted)
+      engagementError.value = failure instanceof Error ? failure.message : '互动信息暂时无法加载'
+  }
+}
+
 async function load() {
   controller?.abort()
   const active = new AbortController()
   controller = active
   loading.value = true
   error.value = ''
+  engagement.value = undefined
+  engagementError.value = ''
   selected.value = ''
   try {
     const id = String(route.params.id)
@@ -34,6 +65,7 @@ async function load() {
     ])
     activity.value = detail
     sessions.value = rows
+    void refreshEngagement(id)
   } catch (failure) {
     if (!active.signal.aborted)
       error.value = failure instanceof Error ? failure.message : '活动加载失败'
@@ -41,8 +73,57 @@ async function load() {
     if (!active.signal.aborted) loading.value = false
   }
 }
+
+function guideLogin() {
+  return router.push({ path: '/login', query: { redirect: route.fullPath } })
+}
+
+async function toggleLike() {
+  if (!engagement.value || likeBusy.value) return
+  if (!auth.authenticated) {
+    await guideLogin()
+    return
+  }
+  likeBusy.value = true
+  engagementError.value = ''
+  try {
+    engagement.value = engagement.value.liked
+      ? await unlikeActivity(activity.value!.id)
+      : await likeActivity(activity.value!.id)
+  } catch (failure) {
+    engagementError.value = failure instanceof Error ? failure.message : '点赞操作失败，请重试'
+    await auth.restore(true)
+  } finally {
+    likeBusy.value = false
+  }
+}
+
+async function toggleFollow() {
+  if (!engagement.value || followBusy.value) return
+  if (!auth.authenticated) {
+    await guideLogin()
+    return
+  }
+  followBusy.value = true
+  engagementError.value = ''
+  try {
+    engagement.value = engagement.value.following
+      ? await unfollowActivity(activity.value!.id)
+      : await followActivity(activity.value!.id)
+  } catch (failure) {
+    engagementError.value = failure instanceof Error ? failure.message : '关注操作失败，请重试'
+    await auth.restore(true)
+  } finally {
+    followBusy.value = false
+  }
+}
+
 watch(() => route.params.id, load, { immediate: true })
-onBeforeUnmount(() => controller?.abort())
+watch(() => auth.authenticated, () => void refreshEngagement())
+onBeforeUnmount(() => {
+  controller?.abort()
+  engagementController?.abort()
+})
 </script>
 <template>
   <div class="detail-page">
@@ -72,6 +153,15 @@ onBeforeUnmount(() => controller?.abort())
           <div class="venue-note">
             举办地点 <strong>{{ activity.city }} · {{ activity.venue }}</strong>
           </div>
+          <div v-if="engagement" class="activity-social-actions" aria-label="活动互动">
+            <button class="social-action" :class="{ active: engagement.liked }" :disabled="likeBusy" @click="toggleLike">
+              {{ engagement.liked ? '♥ 已点赞' : '♡ 点赞' }} · {{ engagement.likeCount }}
+            </button>
+            <button class="social-action" :class="{ active: engagement.following }" :disabled="followBusy" @click="toggleFollow">
+              {{ engagement.following ? '✓ 已关注' : '+ 关注活动' }} · {{ engagement.followCount }}
+            </button>
+          </div>
+          <p v-if="engagementError" class="social-error" role="status">{{ engagementError }}</p>
           <span class="coming-label">选择场次 · 查看票档 · 预订现场</span>
         </div>
       </section>

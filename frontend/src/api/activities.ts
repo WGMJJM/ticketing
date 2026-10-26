@@ -1,4 +1,5 @@
 import { client } from './client'
+import { sessionRequest } from './auth'
 import type { ApiResponse } from './system'
 
 export const categories = [
@@ -50,6 +51,21 @@ export interface Page<T> {
   page: number
   size: number
 }
+export interface ActivityEngagement {
+  likeCount: number
+  followCount: number
+  liked: boolean
+  following: boolean
+}
+export interface PopularActivity {
+  rank: number
+  activity: Activity
+  likeCount: number
+}
+export interface FollowedActivity {
+  activity: Activity
+  sessions: ActivitySession[]
+}
 export type ActivityInput = Pick<
   Activity,
   'title' | 'category' | 'city' | 'venue' | 'summary' | 'description'
@@ -92,6 +108,58 @@ export async function listSessions(id: string, signal?: AbortSignal) {
     await client.get<ApiResponse<ActivitySession[]>>(
       `/activities/${id}/sessions`,
       { signal },
+    )
+  ).data.data
+}
+export async function getActivityEngagement(id: string, signal?: AbortSignal) {
+  return (
+    await client.get<ApiResponse<ActivityEngagement>>(
+      `/activities/${id}/engagement`,
+      { signal },
+    )
+  ).data.data
+}
+export async function listPopularActivities(limit = 10, signal?: AbortSignal) {
+  return (
+    await client.get<ApiResponse<PopularActivity[]>>('/activities/popular', {
+      params: { limit },
+      signal,
+    })
+  ).data.data
+}
+export function likeActivity(id: string) {
+  return sessionRequest<ActivityEngagement>({
+    method: 'PUT',
+    url: `/activities/${id}/like`,
+  })
+}
+export function unlikeActivity(id: string) {
+  return sessionRequest<ActivityEngagement>({
+    method: 'DELETE',
+    url: `/activities/${id}/like`,
+  })
+}
+export function followActivity(id: string) {
+  return sessionRequest<ActivityEngagement>({
+    method: 'PUT',
+    url: `/activities/${id}/follow`,
+  })
+}
+export function unfollowActivity(id: string) {
+  return sessionRequest<ActivityEngagement>({
+    method: 'DELETE',
+    url: `/activities/${id}/follow`,
+  })
+}
+export async function listFollowedActivities(
+  page = 1,
+  size = 12,
+  signal?: AbortSignal,
+) {
+  return (
+    await client.get<ApiResponse<Page<FollowedActivity>>>(
+      '/me/followed-activities',
+      { params: { page, size }, signal },
     )
   ).data.data
 }
