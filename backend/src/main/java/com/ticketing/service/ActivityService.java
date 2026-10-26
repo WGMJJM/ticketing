@@ -85,6 +85,13 @@ public class ActivityService {
         if (activity == null) throw new BusinessException(HttpStatus.NOT_FOUND, "ACTIVITY_NOT_FOUND", "活动不存在");
     }
 
+    /** 社交关系写入共享锁定活动，允许并行互动并与下架更新互斥。 */
+    public Activity lockActivityForShare(long id) {
+        Activity activity = mapper.selectByIdForShare(id);
+        if (activity == null) throw new BusinessException(HttpStatus.NOT_FOUND, "ACTIVITY_NOT_FOUND", "活动不存在或暂未开放");
+        return activity;
+    }
+
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public ActivityView create(ActivityWriteRequest request) {
         long operatorId = audit.begin();

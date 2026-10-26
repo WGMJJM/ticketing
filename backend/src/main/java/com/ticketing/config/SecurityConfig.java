@@ -60,14 +60,23 @@ public class SecurityConfig {
         var waitlistRequests = paths.matcher("/api/v1/waitlist/**");
         var ticketRequests = paths.matcher("/api/v1/tickets/**");
         var checkinRequests = paths.matcher("/api/v1/checkins/**");
+        var activityLikeRequests = new OrRequestMatcher(
+                paths.matcher(HttpMethod.PUT, "/api/v1/activities/*/like"),
+                paths.matcher(HttpMethod.DELETE, "/api/v1/activities/*/like"));
+        var activityFollowRequests = new OrRequestMatcher(
+                paths.matcher(HttpMethod.PUT, "/api/v1/activities/*/follow"),
+                paths.matcher(HttpMethod.DELETE, "/api/v1/activities/*/follow"));
+        var followedActivities = paths.matcher(HttpMethod.GET, "/api/v1/me/followed-activities");
         var protectedRequests = new OrRequestMatcher(currentUser, administration, orderRequests,
-                waitlistRequests, ticketRequests, checkinRequests, purchaseRequests);
+                waitlistRequests, ticketRequests, checkinRequests, purchaseRequests,
+                activityLikeRequests, activityFollowRequests, followedActivities);
         var contexts = new DelegatingSecurityContextRepository(
                 new RequestAttributeSecurityContextRepository(), new HttpSessionSecurityContextRepository());
         http
                 .authorizeHttpRequests(authorize -> authorize
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/system/status", "/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/activities/popular", "/api/v1/activities/*/engagement").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/activities", "/api/v1/activities/*", "/api/v1/activities/*/sessions").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/activities/*/sessions/*/tickets").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/csrf").permitAll()
@@ -77,6 +86,7 @@ public class SecurityConfig {
                         .requestMatchers(purchaseRequests).authenticated()
                         .requestMatchers(waitlistRequests).authenticated()
                         .requestMatchers(ticketRequests).authenticated()
+                        .requestMatchers(activityLikeRequests, activityFollowRequests, followedActivities).authenticated()
                         .requestMatchers(checkinRequests).hasAnyRole("ADMIN", "CHECKIN_STAFF")
                         .requestMatchers(administration).hasRole("ADMIN")
                         .requestMatchers("/error").permitAll()

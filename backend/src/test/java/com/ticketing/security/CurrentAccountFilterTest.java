@@ -16,6 +16,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.AuthorityUtils;
@@ -44,6 +45,11 @@ class CurrentAccountFilterTest {
                     PathPatternRequestMatcher.withDefaults().matcher("/api/v1/waitlist/**"),
                     PathPatternRequestMatcher.withDefaults().matcher("/api/v1/tickets/**"),
                     PathPatternRequestMatcher.withDefaults().matcher("/api/v1/checkins/**"),
+                    PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.PUT, "/api/v1/activities/*/like"),
+                    PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.DELETE, "/api/v1/activities/*/like"),
+                    PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.PUT, "/api/v1/activities/*/follow"),
+                    PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.DELETE, "/api/v1/activities/*/follow"),
+                    PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, "/api/v1/me/followed-activities"),
                     PathPatternRequestMatcher.withDefaults().matcher(org.springframework.http.HttpMethod.GET, "/api/v1/auth/me")),
             contexts, new ObjectMapper());
 
@@ -53,6 +59,7 @@ class CurrentAccountFilterTest {
     @ParameterizedTest
     @CsvSource({"GET,/api/v1/activities", "GET,/api/v1/activities/1", "GET,/api/v1/activities/1/sessions",
             "GET,/api/v1/activities/1/sessions/2/tickets", "GET,/api/v1/auth/csrf",
+            "GET,/api/v1/activities/popular", "GET,/api/v1/activities/1/engagement",
             "POST,/api/v1/auth/login", "POST,/api/v1/auth/register", "POST,/api/v1/auth/logout"})
     void publicAndAuthenticationRequestsNeverQueryAccountEvenWithOldIdentity(String method, String path) throws Exception {
         var identity = AccountPrincipal.forSession(account("ADMIN"));
@@ -105,6 +112,24 @@ class CurrentAccountFilterTest {
         assertThat(((AccountPrincipal) refreshed.getAuthentication().getPrincipal()).getPassword()).isNull();
         assertThat(original.getAuthentication().getAuthorities()).extracting("authority").containsExactly("ROLE_ADMIN");
         verify(contexts).saveContext(refreshed, request, response);
+        verify(chain).doFilter(request, response);
+    }
+
+    @ParameterizedTest
+    @CsvSource({"PUT,/api/v1/activities/1/like", "DELETE,/api/v1/activities/1/like",
+            "PUT,/api/v1/activities/1/follow", "DELETE,/api/v1/activities/1/follow",
+            "GET,/api/v1/me/followed-activities"})
+    void socialRequestsRefreshTheCurrentAccountBeforeAuthorization(String method, String path) throws Exception {
+        var identity = AccountPrincipal.forSession(account("USER"));
+        SecurityContextHolder.getContext().setAuthentication(UsernamePasswordAuthenticationToken.authenticated(
+                identity, null, identity.getAuthorities()));
+        when(accounts.selectOne(any())).thenReturn(account("USER"));
+        var request = new MockHttpServletRequest(method, path);
+        var response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, chain);
+
+        verify(accounts).selectOne(any());
         verify(chain).doFilter(request, response);
     }
 
