@@ -1,7 +1,6 @@
 package com.ticketing;
 
 import com.ticketing.dto.CreateOrderRequest;
-import com.ticketing.dto.RegisterRequest;
 import com.ticketing.mapper.PurchaseRequestMapper;
 import com.ticketing.service.AccountService;
 import com.ticketing.service.OrderService;
@@ -36,7 +35,7 @@ class SessionAftercareRecoveryIT {
                 cleanup = new JdbcTemplate(new DriverManagerDataSource(source.getUrl(),source.getUsername(),source.getPassword()));
                 JdbcTemplate db = first.getBean(JdbcTemplate.class);
                 String suffix = UUID.randomUUID().toString().replace("-","");
-                userId = Long.parseLong(first.getBean(AccountService.class).register(new RegisterRequest("acr_"+suffix.substring(0,20),UUID.randomUUID().toString())).id());
+                userId = Long.parseLong(AccountTestSupport.legacyUser(db,"acr_"+suffix.substring(0,20),UUID.randomUUID().toString()).id());
                 db.update("INSERT INTO activity(title,category,city,venue,status,published_at) VALUES(?,'CONCERT','上海','验收场馆','PUBLISHED',UTC_TIMESTAMP(6))","善后重启"+suffix);
                 activityId = db.queryForObject("SELECT id FROM activity WHERE title=?",Long.class,"善后重启"+suffix);
                 db.update("INSERT INTO activity_session(activity_id,title,starts_at,ends_at,sale_starts_at) VALUES(?,'善后重启场次',TIMESTAMPADD(DAY,1,UTC_TIMESTAMP(6)),TIMESTAMPADD(DAY,2,UTC_TIMESTAMP(6)),TIMESTAMPADD(DAY,-1,UTC_TIMESTAMP(6)))",activityId);

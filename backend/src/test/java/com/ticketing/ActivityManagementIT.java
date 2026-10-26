@@ -1,6 +1,5 @@
 package com.ticketing;
 
-import com.ticketing.dto.RegisterRequest;
 import com.ticketing.security.AccountPrincipal;
 import com.ticketing.service.AccountService;
 import com.ticketing.service.AccountUserDetailsService;
@@ -29,6 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Transactional
 class ActivityManagementIT {
     @Autowired private MockMvc mvc;
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbc;
     @Autowired private ObjectMapper json;
     @Autowired private AccountService accounts;
     @Autowired private AccountUserDetailsService identities;
@@ -37,7 +37,7 @@ class ActivityManagementIT {
     @BeforeEach
     void administrator() {
         String name = "event_" + UUID.randomUUID().toString().replace("-", "").substring(0, 24);
-        accounts.initializeAdmin(new RegisterRequest(name, UUID.randomUUID().toString()));
+        AccountTestSupport.legacyAdmin(jdbc, name, UUID.randomUUID().toString());
         administrator = identities.loadUserByUsername(name);
         administrator.eraseCredentials();
     }
@@ -130,7 +130,7 @@ class ActivityManagementIT {
     @Test
     void adminRequiresIdentityRoleAndCsrf() throws Exception {
         String name = "user_" + UUID.randomUUID().toString().replace("-", "").substring(0, 24);
-        accounts.register(new RegisterRequest(name, UUID.randomUUID().toString()));
+        AccountTestSupport.legacyUser(jdbc, name, UUID.randomUUID().toString());
         AccountPrincipal ordinary = identities.loadUserByUsername(name);
         ordinary.eraseCredentials();
         String body = json.writeValueAsString(activity("权限校验", "上海", "CONCERT", 0));

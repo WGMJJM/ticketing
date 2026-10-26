@@ -5,6 +5,21 @@ spring:
         size: 3
   application:
     name: ticketing
+  mail:
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    default-encoding: UTF-8
+    properties:
+      mail.smtp.auth: ${SMTP_AUTH:true}
+      mail.smtp.starttls.enable: ${SMTP_STARTTLS_ENABLED:true}
+      mail.smtp.starttls.required: ${SMTP_STARTTLS_ENABLED:true}
+      mail.smtp.ssl.enable: ${SMTP_SSL_ENABLED:false}
+      mail.smtp.ssl.checkserveridentity: true
+      mail.smtp.connectiontimeout: 3000
+      mail.smtp.timeout: 3000
+      mail.smtp.writetimeout: 3000
   datasource:
     url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3307}/${MYSQL_DATABASE:ticketing}?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&characterEncoding=UTF-8
     username: ${MYSQL_USER:ticketing}
@@ -69,6 +84,9 @@ server:
     include-stacktrace: never
     include-binding-errors: never
 management:
+  health:
+    mail:
+      enabled: ${REGISTRATION_EMAIL_ENABLED:false}
   endpoints:
     web:
       exposure:
@@ -82,6 +100,14 @@ mybatis-plus:
   global-config:
     banner: false
 ticketing:
+  registration:
+    email-enabled: ${REGISTRATION_EMAIL_ENABLED:false}
+    code-secret: ${REGISTRATION_CODE_SECRET:}
+    mail-from: ${SMTP_FROM:}
+    namespace: ${REGISTRATION_NAMESPACE:default}
+    bloom-enabled: ${REGISTRATION_BLOOM_ENABLED:true}
+    bloom-expected-accounts: ${REGISTRATION_BLOOM_EXPECTED_ACCOUNTS:1000000}
+    bloom-false-positive-rate: ${REGISTRATION_BLOOM_FALSE_POSITIVE_RATE:0.01}
   catalog-cache:
     enabled: ${CATALOG_CACHE_ENABLED:true}
     maximum-entries: ${CATALOG_CACHE_MAXIMUM_ENTRIES:2000}
@@ -137,6 +163,15 @@ ticketing:
       register-ip:
         limit: ${RATE_LIMIT_REGISTER_IP_LIMIT:10}
         window-seconds: ${RATE_LIMIT_REGISTER_IP_WINDOW_SECONDS:600}
+      email-code-ip:
+        limit: ${RATE_LIMIT_EMAIL_CODE_IP_LIMIT:10}
+        window-seconds: ${RATE_LIMIT_EMAIL_CODE_IP_WINDOW_SECONDS:600}
+      email-code-cooldown:
+        limit: 1
+        window-seconds: ${RATE_LIMIT_EMAIL_CODE_COOLDOWN_SECONDS:60}
+      email-code-daily:
+        limit: ${RATE_LIMIT_EMAIL_CODE_DAILY_LIMIT:5}
+        window-seconds: 86400
       order-user:
         limit: ${RATE_LIMIT_ORDER_USER_LIMIT:30}
         window-seconds: ${RATE_LIMIT_ORDER_USER_WINDOW_SECONDS:10}

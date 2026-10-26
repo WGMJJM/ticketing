@@ -1,7 +1,6 @@
 package com.ticketing;
 
 import com.ticketing.config.AdmissionLimitProperties;
-import com.ticketing.dto.RegisterRequest;
 import com.ticketing.exception.BusinessException;
 import com.ticketing.service.AccountService;
 import com.ticketing.service.PurchaseAdmission;
@@ -220,7 +219,7 @@ class TicketAdmissionIT {
     Map<String,Object> body(int quantity) { return Map.of("skuId", Long.toString(sku), "quantity", quantity); }
     Client client() throws Exception {
         String username = "gate_" + UUID.randomUUID().toString().replace("-", "").substring(0, 20), password = UUID.randomUUID().toString();
-        long id = Long.parseLong(accounts.register(new RegisterRequest(username, password)).id());
+        long id = Long.parseLong(AccountTestSupport.legacyUser(db, username, password).id());
         users.add(id);
         var client = new Client(id);
         client.csrf();

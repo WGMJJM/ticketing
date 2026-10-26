@@ -1,7 +1,7 @@
 package com.ticketing.messaging;
 
 import com.ticketing.config.OutboxProperties;
-import com.ticketing.dto.RegisterRequest;
+import com.ticketing.AccountTestSupport;
 import com.ticketing.entity.OutboxEvent;
 import com.ticketing.entity.PurchaseRequest;
 import com.ticketing.enums.InventoryChangeReason;
@@ -415,7 +415,7 @@ class AsyncPurchaseIT {
     void capacity(int value){assertThat(db.queryForObject("SELECT pending_count FROM purchase_capacity WHERE id=1",Integer.class)).isEqualTo(value);}
     Client client()throws Exception {
         String name="async_"+UUID.randomUUID().toString().replace("-","").substring(0,22),password=UUID.randomUUID().toString();
-        long id=Long.parseLong(accounts.register(new RegisterRequest(name,password)).id());users.add(id);
+        long id=Long.parseLong(AccountTestSupport.legacyUser(db,name,password).id());users.add(id);
         Client client=new Client();client.id=id;client.csrf();
         client.form("/auth/login","username="+name+"&password="+URLEncoder.encode(password,StandardCharsets.UTF_8));client.csrf();return client;
     }

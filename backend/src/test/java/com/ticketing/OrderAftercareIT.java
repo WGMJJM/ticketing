@@ -1,7 +1,7 @@
 package com.ticketing;
 
 import com.ticketing.config.AftercareProperties;
-import com.ticketing.dto.RegisterRequest;
+import com.ticketing.dto.AdminCredentials;
 import com.ticketing.enums.RefundReason;
 import com.ticketing.mapper.AftercareMapper;
 import com.ticketing.mapper.ElectronicTicketMapper;
@@ -374,7 +374,7 @@ class OrderAftercareIT {
     private Client client(boolean administrator) throws Exception {
         Client client=new Client(); String username="af_"+UUID.randomUUID().toString().replace("-","").substring(0,24); String password=UUID.randomUUID().toString();
         client.csrf();
-        if (administrator) accounts.initializeAdmin(new RegisterRequest(username,password));
+        if (administrator) accounts.initializeAdmin(new AdminCredentials(username,password));
         else client.call("POST","/auth/register",Map.of("username",username,"password",password),200);
         client.id=jdbc.queryForObject("SELECT id FROM user_account WHERE username=?",Long.class,username); users.add(client.id);
         client.username = username;

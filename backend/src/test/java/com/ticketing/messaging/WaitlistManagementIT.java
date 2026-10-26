@@ -3,7 +3,7 @@ package com.ticketing.messaging;
 import com.ticketing.config.OutboxProperties;
 import com.ticketing.config.WaitlistProperties;
 import com.ticketing.dto.JoinWaitlistRequest;
-import com.ticketing.dto.RegisterRequest;
+import com.ticketing.dto.AdminCredentials;
 import com.ticketing.entity.OutboxEvent;
 import com.ticketing.entity.WaitlistEntry;
 import com.ticketing.enums.InventoryChangeReason;
@@ -611,7 +611,7 @@ class WaitlistManagementIT {
     private Client client(boolean administrator) throws Exception {
         Client client=new Client(); String username="wait_"+UUID.randomUUID().toString().replace("-","").substring(0,24); String password=UUID.randomUUID().toString();
         client.csrf();
-        if (administrator) accounts.initializeAdmin(new RegisterRequest(username,password));
+        if (administrator) accounts.initializeAdmin(new AdminCredentials(username,password));
         else client.call("POST","/auth/register",Map.of("username",username,"password",password),200);
         client.id=jdbc.queryForObject("SELECT id FROM user_account WHERE username=?",Long.class,username); userIds.add(client.id);
         client.raw("POST","/auth/login","username="+username+"&password="+URLEncoder.encode(password,StandardCharsets.UTF_8),"application/x-www-form-urlencoded",null,200); client.csrf(); return client;

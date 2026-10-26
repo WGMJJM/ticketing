@@ -3,7 +3,7 @@ package com.ticketing;
 import com.ticketing.cache.CatalogCache;
 import com.ticketing.dto.ActivityQuery;
 import com.ticketing.dto.ActivityWriteRequest;
-import com.ticketing.dto.RegisterRequest;
+import com.ticketing.dto.AdminCredentials;
 import com.ticketing.dto.SessionWriteRequest;
 import com.ticketing.dto.TicketWriteRequest;
 import com.ticketing.dto.VersionRequest;
@@ -57,7 +57,7 @@ class CatalogCacheIT {
     @BeforeEach void fixture() {
         transaction = new TransactionTemplate(manager);
         String username = "cache_" + UUID.randomUUID().toString().replace("-", "").substring(0, 20);
-        accounts.initializeAdmin(new RegisterRequest(username, UUID.randomUUID().toString()));
+        accounts.initializeAdmin(new AdminCredentials(username, UUID.randomUUID().toString()));
         var principal = identities.loadUserByUsername(username);
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities()));
         activity = Long.parseLong(activities.create(request("缓存验收", null)).id());

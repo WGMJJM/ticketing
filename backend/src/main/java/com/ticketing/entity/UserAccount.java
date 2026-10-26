@@ -10,6 +10,8 @@ public class UserAccount {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String username;
+    private String email;
+    private LocalDateTime emailVerifiedAt;
     private String passwordHash;
     private String status;
     private String role;
@@ -20,6 +22,11 @@ public class UserAccount {
 
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
+
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
+    public LocalDateTime getEmailVerifiedAt() { return emailVerifiedAt; }
+    public void setEmailVerifiedAt(LocalDateTime emailVerifiedAt) { this.emailVerifiedAt = emailVerifiedAt; }
 
     public String getPasswordHash() { return passwordHash; }
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }

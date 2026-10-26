@@ -1,6 +1,6 @@
 package com.ticketing.config;
 
-import com.ticketing.dto.RegisterRequest;
+import com.ticketing.dto.AdminCredentials;
 import com.ticketing.service.AccountService;
 
 import jakarta.validation.Validator;
@@ -15,14 +15,14 @@ import org.springframework.stereotype.Component;
 public class AdminBootstrap implements ApplicationRunner {
     private final AccountService accounts;
     private final Validator validator;
-    private RegisterRequest credentials;
+    private AdminCredentials credentials;
 
     public AdminBootstrap(AccountService accounts, Validator validator,
             @Value("${ticketing.admin-bootstrap.username:}") String username,
             @Value("${ticketing.admin-bootstrap.password:}") String password) {
         this.accounts = accounts;
         this.validator = validator;
-        this.credentials = new RegisterRequest(username, password);
+        this.credentials = new AdminCredentials(username, password);
     }
 
     @Override

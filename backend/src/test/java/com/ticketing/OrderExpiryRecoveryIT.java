@@ -1,7 +1,6 @@
 package com.ticketing;
 
 import com.ticketing.dto.CreateOrderRequest;
-import com.ticketing.dto.RegisterRequest;
 import com.ticketing.mapper.PurchaseRequestMapper;
 import com.ticketing.service.AccountService;
 import com.ticketing.service.OrderService;
@@ -35,8 +34,8 @@ class OrderExpiryRecoveryIT {
                 cleanup = new JdbcTemplate(new DriverManagerDataSource(source.getUrl(), source.getUsername(), source.getPassword()));
                 JdbcTemplate jdbc = first.getBean(JdbcTemplate.class);
                 String suffix = UUID.randomUUID().toString().replace("-", "");
-                userId = Long.parseLong(first.getBean(AccountService.class)
-                        .register(new RegisterRequest("recover_" + suffix.substring(0, 20), UUID.randomUUID().toString())).id());
+                userId = Long.parseLong(AccountTestSupport.legacyUser(jdbc,
+                        "recover_" + suffix.substring(0, 20), UUID.randomUUID().toString()).id());
                 String title = "重启补偿验收" + suffix;
                 jdbc.update("INSERT INTO activity(title,category,city,venue,status,published_at) VALUES(?,'CONCERT','上海','测试场馆','PUBLISHED',UTC_TIMESTAMP(6))", title);
                 activityId = jdbc.queryForObject("SELECT id FROM activity WHERE title=?", Long.class, title);

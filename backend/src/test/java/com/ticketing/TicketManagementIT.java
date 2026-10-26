@@ -1,6 +1,5 @@
 package com.ticketing;
 
-import com.ticketing.dto.RegisterRequest;
 import com.ticketing.security.AccountPrincipal;
 import com.ticketing.service.AccountService;
 import com.ticketing.service.AccountUserDetailsService;
@@ -53,7 +52,7 @@ class TicketManagementIT {
     @BeforeEach
     void parents() throws Exception {
         String name = "ticket_" + UUID.randomUUID().toString().replace("-", "").substring(0, 24);
-        accounts.initializeAdmin(new RegisterRequest(name, UUID.randomUUID().toString()));
+        AccountTestSupport.legacyAdmin(jdbc, name, UUID.randomUUID().toString());
         administrator = identities.loadUserByUsername(name);
         administrator.eraseCredentials();
         var activity = mutate(post("/api/v1/admin/activities"), Map.of("title", "票档测试" + UUID.randomUUID(),
@@ -192,7 +191,7 @@ class TicketManagementIT {
     @Test
     void anonymousOrdinaryRoleAndMissingCsrfCannotMutateTickets() throws Exception {
         String name = "user_" + UUID.randomUUID().toString().replace("-", "").substring(0, 24);
-        accounts.register(new RegisterRequest(name, UUID.randomUUID().toString()));
+        AccountTestSupport.legacyUser(jdbc, name, UUID.randomUUID().toString());
         AccountPrincipal ordinary = identities.loadUserByUsername(name);
         ordinary.eraseCredentials();
         String body = json.writeValueAsString(payload("权限票", 0));

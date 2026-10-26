@@ -1,6 +1,6 @@
 package com.ticketing;
 
-import com.ticketing.dto.RegisterRequest;
+import com.ticketing.dto.AdminCredentials;
 import com.ticketing.service.AccountService;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -311,10 +311,10 @@ class AuthenticationIT {
     void adminInitializationCannotPromoteUserOrResetExistingAdminPassword() throws Exception {
         String username = name();
         register(new Browser(), username);
-        assertThatThrownBy(() -> accounts.initializeAdmin(new RegisterRequest(username, password))).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> accounts.initializeAdmin(new AdminCredentials(username, password))).isInstanceOf(IllegalStateException.class);
         assertThat(jdbc.queryForObject("SELECT role FROM user_account WHERE username=?", String.class, username)).isEqualTo("USER");
         String admin = admin();
-        accounts.initializeAdmin(new RegisterRequest(admin, UUID.randomUUID().toString()));
+        accounts.initializeAdmin(new AdminCredentials(admin, UUID.randomUUID().toString()));
         String hash = jdbc.queryForObject("SELECT password_hash FROM user_account WHERE username=?", String.class, admin);
         assertThat(passwords.matches(password, hash)).isTrue();
     }
@@ -330,7 +330,7 @@ class AuthenticationIT {
     }
     private String admin() {
         String name = name();
-        accounts.initializeAdmin(new RegisterRequest(name, password));
+        accounts.initializeAdmin(new AdminCredentials(name, password));
         userIds.add(jdbc.queryForObject("SELECT id FROM user_account WHERE username=?", Long.class, name));
         return name;
     }

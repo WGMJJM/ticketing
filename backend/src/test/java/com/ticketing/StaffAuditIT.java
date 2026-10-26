@@ -1,6 +1,6 @@
 package com.ticketing;
 
-import com.ticketing.dto.RegisterRequest;
+import com.ticketing.dto.AdminCredentials;
 import com.ticketing.mapper.AuditMapper;
 import com.ticketing.mapper.PurchaseRequestMapper;
 import com.ticketing.service.AccountService;
@@ -889,7 +889,7 @@ class StaffAuditIT {
         client.password = UUID.randomUUID().toString();
         client.csrf();
         if (administrator)
-            accounts.initializeAdmin(new RegisterRequest(client.username, client.password));
+            accounts.initializeAdmin(new AdminCredentials(client.username, client.password));
         else
             client.call(
                     "POST",
