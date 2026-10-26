@@ -1,5 +1,7 @@
 # Apache JMeter 购票验证
 
+活动详情热点读取的 RPS/P99 场景见 [ACTIVITY_RPS.md](ACTIVITY_RPS.md)。
+
 本目录只测异步普通购票链路。测试使用独立 Compose 项目 `ticketing-jmeter`、本机端口 13307/16379/15673/15674 和独立命名卷；应用库固定为 `ticketingjmeter`。不要连接根目录 `.env` 指向的 3307 `ticketing` 业务库。
 
 ## 准备隔离环境

@@ -5,7 +5,11 @@
 $ErrorActionPreference = 'Stop'
 
 if (Test-Path -LiteralPath $RuntimeDirectory) {
-    throw '隔离 JMeter 运行目录已存在；为避免覆盖已有凭据或测试数据，请先检查并手动处理该目录。'
+    $existingItems = @(Get-ChildItem -LiteralPath $RuntimeDirectory -Force)
+    $unexpectedItems = @($existingItems | Where-Object { $_.Name -ne 'rps-p99' -or -not $_.PSIsContainer })
+    if ($unexpectedItems.Count -gt 0) {
+        throw '隔离 JMeter 运行目录含有现存凭据或其他数据；为避免覆盖，请先检查并手动处理。'
+    }
 }
 
 foreach ($port in 13307, 16379, 15673, 15674, 18080) {
@@ -21,9 +25,11 @@ function New-UrlSafeSecret([int]$ByteCount) {
     return [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
 }
 
-New-Item -ItemType Directory -Path $RuntimeDirectory | Out-Null
+if (-not (Test-Path -LiteralPath $RuntimeDirectory)) {
+    New-Item -ItemType Directory -Path $RuntimeDirectory | Out-Null
+}
 $seedName = 'jmeter_seed_' + (New-UrlSafeSecret 6).Substring(0, 8)
-$rateLimitSecret = New-UrlSafeSecret 32
+$rateLimitSecret = (New-UrlSafeSecret 32).Replace('-', '+').Replace('_', '/') + '='
 $rateLimitNamespace = 'jmeter-' + (New-UrlSafeSecret 9).Substring(0, 10)
 $catalogNamespace = 'jmeter-' + (New-UrlSafeSecret 9).Substring(0, 10)
 $ticketKey = (New-UrlSafeSecret 32).Replace('-', '+').Replace('_', '/')
@@ -63,6 +69,7 @@ $lines = @(
     'RATE_LIMIT_LOGIN_ACCOUNT_IP_LIMIT=10'
     'RATE_LIMIT_ORDER_USER_LIMIT=30'
     ('CATALOG_CACHE_NAMESPACE=' + $catalogNamespace)
+    'CATALOG_CACHE_ENABLED=true'
     'PURCHASE_ADMISSION_LIMIT_ENABLED=false'
     'PURCHASE_CAPACITY=200'
     'PURCHASE_CONSUMER_CONCURRENCY=2'
