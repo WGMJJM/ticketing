@@ -1,6 +1,12 @@
 # 数据库设计与迁移历史
 
-V1～V11均为不可改写的历史迁移。V8引入普通购票申请，V10增加分桶兼容，V11将稳定Redis预扣token与申请关联。本轮六项定向修复仅调整代码，没有新增DDL或执行迁移。当前ticket_sku.version仅用于配置编辑；普通库存DML不再递增版本，历史版本值原样保留。
+V1～V11均为不可改写的历史迁移。V8引入普通购票申请，V10增加分桶兼容，V11将稳定Redis预扣token与申请关联。此前六项修复仅调整代码；本轮注册升级新增V12文件，尚未应用业务库。ticket_sku.version仅用于配置编辑，普通库存DML不再递增，历史值原样保留。
+
+## V12 注册邮箱与验证事实
+
+`V12__registration_verified_email.sql`新增可空`email VARCHAR(254)`、`email_verified_at DATETIME(6)`及唯一索引`uk_user_email`，保留原`uk_user_username`。邮箱列使用`utf8mb4_0900_as_ci`，大小写不敏感；公开请求只接受ASCII邮箱并去首尾空白、转小写。CHECK要求邮箱和验证时间同时为空或同时非空。历史用户、管理员和工作人员保留NULL，不补造邮箱或验证事实；仍使用用户名登录。新公开注册在验证码消费后创建USER/ACTIVE并写UTC验证时间。
+
+Bloom只优化预查询，MySQL唯一索引裁决并发冲突。本机业务库仍为V10，本轮未执行V11/V12；升级需要新的停写、备份和具体批准。不能直接启动应用代替审批，详见[注册升级说明](36-registration-four-points.md)。
 
 ## V11 Redis预扣与受理关联
 

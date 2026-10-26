@@ -65,12 +65,15 @@ version从0开始，成功更新递增；遗漏版本为400，陈旧版本或非
 | 方法与路径 | 请求和响应 |
 | --- | --- |
 | GET `/auth/csrf` | 公开，创建或读取会话CSRF；data为 `{headerName,token}` |
-| POST `/auth/register` | JSON `{username,password}`，需CSRF；返回 `{id,username,role}`，不自动登录 |
+| POST `/auth/email-code` | JSON `{email}`，需CSRF；真实SMTP发送并激活验证码后data=null，不返回验证码 |
+| POST `/auth/register` | JSON `{username,email,password,code}`，需CSRF；返回 `{id,username,role}`，不自动登录 |
 | POST `/auth/login` | `application/x-www-form-urlencoded`，字段username/password，需CSRF；成功返回当前用户并建立Session |
 | POST `/auth/logout` | 无业务请求体，需CSRF；销毁Session、清除Cookie，返回data=null；可幂等退出匿名会话 |
 | GET `/auth/me` | 当前登录用户 `{id,username,role}`，未登录401；不接受其他用户的身份选择 |
 
-用户名3至32位ASCII字母、数字、下划线，字母开头；大小写不敏感。密码8至72个字符且UTF-8编码不超过72字节，禁止控制字符；密码按原样验证，不自动去空格。注册只允许两个字段，携带role/status/id/userId等其他字段400；重复用户名409，固定创建USER/ACTIVE。成功注册不会自动创建已登录身份。
+用户名3至32位ASCII字母、数字、下划线，字母开头，统一转小写且大小写不敏感。邮箱必填、仅ASCII、最多254字符，去首尾空白并转小写。密码8至72个字符且UTF-8编码不超过72字节，禁止控制字符，不自动去空格。注册只允许四个字段，携带role/status/id/userId等其他字段400，旧用户名密码直注请求400。验证码为6位数字、激活后5分钟有效、最多错误5次；成功Lua删除后不能重用，重发旧码失效。固定创建USER/ACTIVE，成功不自动登录。
+
+验证码发送在CSRF后解析可信IP，使用原多KEY Lua同时执行IP限流（默认10次/600秒）、邮箱冷却（1次/60秒）和邮箱24小时窗口（5次/86400秒）；任一拒绝不扣其他维度，Key使用HMAC。注册POST保留原IP限流。429及503 RATE_LIMIT_UNAVAILABLE沿用Retry-After；验证码错误为400 EMAIL_CODE_INVALID，未配置或Redis故障503 REGISTRATION_EMAIL_UNAVAILABLE，SMTP失败503 EMAIL_SEND_FAILED。重复预查409 USERNAME_EXISTS/EMAIL_EXISTS，最终唯一键冲突统一409 ACCOUNT_EXISTS。验证码消费后数据库失败需重新领码。详见[注册升级说明](36-registration-four-points.md)。
 
 登录使用Spring Security标准表单过滤器；错误用户名和密码统一401及“用户名或密码不正确”，禁用账号401及中文禁用提示。成功登录更换Session ID并保存SecurityContext；后续只依靠Cookie恢复身份，Basic Authorization无效。role仅为USER或ADMIN，ID为字符串。后续服务通过AccountPrincipal获取用户ID，不能信任前端userId。
 
