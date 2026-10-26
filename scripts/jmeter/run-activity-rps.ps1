@@ -3,6 +3,7 @@
     [int]$RampUpSeconds = 30,
     [int]$WarmupSeconds = 60,
     [int]$MeasureSeconds = 120,
+    [switch]$DisableCache,
     [string]$JMeterHome = (Join-Path $env:TEMP 'apache-jmeter-5.6.3')
 )
 
@@ -28,8 +29,9 @@ $settings = @{}
 Get-Content -LiteralPath $envFile | ForEach-Object {
     if ($_ -match '^([A-Z][A-Z0-9_]*)=(.*)$') { $settings[$Matches[1]] = $Matches[2] }
 }
+$expectedCacheEnabled = if ($DisableCache) { 'false' } else { 'true' }
 if ($settings['MYSQL_DATABASE'] -ne 'ticketingjmeter' -or $settings['MYSQL_PORT'] -ne '13307' -or
-    $settings['SERVER_PORT'] -ne '18080' -or $settings['CATALOG_CACHE_ENABLED'] -ne 'true') {
+    $settings['SERVER_PORT'] -ne '18080' -or $settings['CATALOG_CACHE_ENABLED'] -ne $expectedCacheEnabled) {
     throw '隔离库、服务端口或活动目录缓存配置不匹配；拒绝启动负载。'
 }
 
@@ -61,7 +63,8 @@ function Read-RedisCacheStats {
 }
 $redisBefore = Read-RedisCacheStats
 
-$batch = 'activity-rps-' + $Threads + '-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + (Get-Random -Minimum 1000 -Maximum 9999)
+$scenarioPrefix = if ($DisableCache) { 'activity-rps-nocache-' } else { 'activity-rps-' }
+$batch = $scenarioPrefix + $Threads + '-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + (Get-Random -Minimum 1000 -Maximum 9999)
 $resultsRoot = Join-Path $runtime 'rps-p99'
 $resultDir = Join-Path $resultsRoot $batch
 New-Item -ItemType Directory -Path $resultDir -Force | Out-Null
@@ -95,7 +98,7 @@ $metadata = [ordered]@{
     processor = $cpu.Name
     docker = ($dockerInfo -join '').Trim()
     jmeterVersion = $version
-    cacheScenario = '同一 PUBLISHED 活动；启动预检 + 60 秒预热后测量；单后端实例，Caffeine L1 15 秒、Redis L2 120 秒。'
+    cacheScenario = if ($DisableCache) { "同一 PUBLISHED 活动；关闭活动目录 L1/L2 缓存，每次读取数据库；预热 $WarmupSeconds 秒。" } else { "同一 PUBLISHED 活动；预热 $WarmupSeconds 秒后测量；单后端实例，Caffeine L1 15 秒、Redis L2 120 秒。" }
     loadModel = 'JMeter 闭环并发线程，无节流 Timer；线程数不等于目标 RPS。'
 }
 $metadata | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $metadataPath -Encoding utf8

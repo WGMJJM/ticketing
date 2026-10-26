@@ -53,4 +53,6 @@ PowerShell 入口每档都生成唯一批次，预检只确认隔离服务健康
 
 缓存默认显式开启。当前实现为 Caffeine L1 15 秒、Redis L2 120 秒；每档固定一个活动，先预检并运行 60 秒预热。活动详情只读 `activity`，没有实时读取场次/票档，故热点命中不受库存变化查询干扰。每轮报告记录 Redis 命中计数差和 Docker 容器状态，用于辅助解释缓存和资源状况。
 
+需要快速对照每次读取数据库的表现时，在启动隔离后端前，将 `.local/jmeter/compose.env` 中的 `CATALOG_CACHE_ENABLED` 改为 `false`，然后加载配置并启动后端。运行入口增加 `-DisableCache`，会核对配置并用 `activity-rps-nocache-` 单独标记批次。例如 `-Threads 25 -RampUpSeconds 5 -WarmupSeconds 10 -MeasureSeconds 30 -DisableCache` 只做一次短测，不用于寻找最大稳定吞吐量。这里只关闭活动目录 Caffeine/Redis 缓存，MySQL 缓冲池仍正常工作。
+
 停止后端与专用 Compose 项目时，只对 `ticketing-jmeter` 使用 `down`。不要运行全局 prune；业务服务、业务库和业务数据卷保持不动。保留本次忽略目录中的原始 JTL 供复核，完成后删除其中凭据文件和临时 JMeter 下载。
