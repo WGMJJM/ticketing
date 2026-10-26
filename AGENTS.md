@@ -1,5 +1,8 @@
 # 票务交易平台开发规范
 
+- 当前普通购票以用户本次“购票模块完全重构”要求及 `docs/01-architecture.md` 为准：HTTP 仅执行 Redis Lua 预扣和 RabbitMQ 直接发布确认，不读写 MySQL 购票申请或购票 Outbox；消费者/过期仲裁以 requestId 唯一键和本地事务协调最终结果，提交后结算 Redis。后文旧阶段关于同步 MySQL 受理、购票 Outbox、处理租约及冻结重建的描述仅是历史记录，不得恢复为当前链路。
+- 通用库存 Outbox、MySQL 条件库存更新、原交易锁序、场次额度、订单生命周期、安全认证继续有效。库存维护在 SKU 锁内暂停入口，未完成普通预扣归零后才按 MySQL 绝对余额同步或分配候补；凭据/账本丢失停卖核对，不猜测重建。V1–V13 不变，本次新增 V14；业务库当前仍为 V13，未授权本次在业务库应用 V14。
+
 - 项目中文名称为「票务交易平台」，前台展示品牌统一为「票遇」，英文技术名为 `ticketing`，Java 根包统一为 `com.ticketing`。源码位于 `backend/src/main/java/com/ticketing`，测试位于 `backend/src/test/java/com/ticketing`，后续新增代码保持一致。
 - Java 21，遵循《阿里巴巴Java开发手册》；使用明确命名与必要的中文注释，DTO 优先使用 record。
 - 保持前后端分离、模块化单体架构，后端只有 `backend/pom.xml` 一个 Maven 模块。不得擅自引入微服务或额外基础设施。

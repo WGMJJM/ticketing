@@ -43,8 +43,8 @@ def main() -> int:
                 raise RuntimeError("当前 schema 不是 ticketingjmeter")
             cursor.execute("SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1")
             migration = cursor.fetchone()
-            if not migration or str(migration[0]) != "13":
-                raise RuntimeError("隔离应用迁移尚未完成 V13")
+            if not migration or str(migration[0]) != "14":
+                raise RuntimeError("隔离应用迁移尚未完成 V14")
         verify_guard(connection, env["JMETER_GUARD_TOKEN"])
         with connection.cursor() as cursor:
             cursor.execute("SELECT id,title FROM activity WHERE status='PUBLISHED' ORDER BY id LIMIT 1")
@@ -71,7 +71,7 @@ def main() -> int:
             "project": PROJECT,
             "database": database,
             "mysqlVersion": "8.4",
-            "flywayVersion": "13",
+            "flywayVersion": "14",
             "dockerContainerId": docker["containerId"],
             "dockerVolume": docker["volume"],
             "activityId": str(activity_id),

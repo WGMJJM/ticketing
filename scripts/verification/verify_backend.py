@@ -16,7 +16,7 @@ def main():
     args = parser.parse_args()
     if not re.fullmatch(r'[A-Za-z0-9_-]{1,40}', args.label):
         raise RuntimeError('标签格式错误')
-    if args.tests and not re.fullmatch(r'[A-Za-z0-9_,*]+', args.tests):
+    if args.tests and not re.fullmatch(r'[A-Za-z0-9_,*#+]+', args.tests):
         raise RuntimeError('测试筛选格式错误')
     cfg = verification.config()
     with verification.connect() as db, db.cursor() as cur:

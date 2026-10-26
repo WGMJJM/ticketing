@@ -13,7 +13,7 @@ SELECT
     SUM(status = 'SUCCEEDED') AS succeeded_requests,
     SUM(status = 'FAILED') AS failed_requests,
     SUM(status = 'EXPIRED') AS expired_requests,
-    SUM(status IN ('QUEUED', 'PROCESSING')) AS still_queued_after_drain
+    SUM(status = 'QUEUED') AS still_queued_after_drain
 FROM purchase_request
 WHERE idempotency_operation = 'CREATE_ORDER'
   AND idempotency_key LIKE CONCAT(@batch_prefix, '%')

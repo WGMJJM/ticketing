@@ -28,11 +28,11 @@ Get-Content .local/jmeter/compose.env | ForEach-Object {
 mvn -f backend/pom.xml spring-boot:run
 ```
 
-等待 `http://127.0.0.1:18080/actuator/health` 返回 `UP`。应用首次启动只会在这个隔离库运行 V1–V13 迁移，并使用临时随机口令初始化一个管理员种子账号。隔离买家复用该随机口令，初始化器从种子账号读取 BCrypt 哈希；CSV 和口令仅在 `.local/jmeter/`，不提交。
+等待 `http://127.0.0.1:18080/actuator/health` 返回 `UP`。应用首次启动只会在这个隔离库运行 V1–V14 迁移，并使用临时随机口令初始化一个管理员种子账号。隔离买家复用该随机口令，初始化器从种子账号读取 BCrypt 哈希；CSV 和口令仅在 `.local/jmeter/`，不提交。
 
 ## 建立测试数据
 
-需要 Python 及仓库既有 `PyMySQL` 依赖。脚本会核对 Docker 项目标签、MySQL 专用卷、schema 名和 V13，再验证随机 guard。它只接受空的隔离库和初始化管理员，创建 BCrypt 测试用户、邮箱已验证的本地账号、一个合法的已发布活动/未来场次/在售票档，并按账号数设置足量库存。不同账号每人只执行一笔订单；CSV 不循环，EOF 后停止线程。脚本不会创建订单、伪造支付或清理已有数据。
+需要 Python 及仓库既有 `PyMySQL` 依赖。脚本会核对 Docker 项目标签、MySQL 专用卷、schema 名和 V14，再验证随机 guard。它只接受空的隔离库和初始化管理员，创建 BCrypt 测试用户、邮箱已验证的本地账号、一个合法的已发布活动/未来场次/在售票档，并按账号数设置足量库存。不同账号每人只执行一笔订单；CSV 不循环，EOF 后停止线程。脚本不会创建订单、伪造支付或清理已有数据。
 
 ```powershell
 python -B scripts/jmeter/prepare-data.py --users 1
@@ -96,12 +96,12 @@ SET @window_end_utc = '<MySQL 返回的 UTC 终点>';
 测试结束只查看 Redis，不执行删除：
 
 ```powershell
-docker exec ticketing-jmeter-redis-1 redis-cli HGETALL "ticketing:seckill:v1:sku:<skuId>"
-docker exec ticketing-jmeter-redis-1 redis-cli ZCARD "ticketing:seckill:v1:sku-reservations:<skuId>"
-docker exec ticketing-jmeter-redis-1 redis-cli GET ticketing:seckill:v1:pending-count
+docker exec ticketing-jmeter-redis-1 redis-cli HGETALL "ticketing:seckill:v2:ticketingjmeter:sku:<skuId>"
+docker exec ticketing-jmeter-redis-1 redis-cli ZCARD "ticketing:seckill:v2:ticketingjmeter:recovery"
+docker exec ticketing-jmeter-redis-1 redis-cli GET ticketing:seckill:v2:ticketingjmeter:pending
 ```
 
-与 MySQL 库存比较 Redis 的 `available`、活动预扣集合和全局待处理数；矛盾时判定本轮无效，不清理后宣称一致。
+与 MySQL 库存比较 Redis 的 `available`、恢复集合和全局待处理数；集合成员为 `skuId:requestId`。新建票档由后台初始化完成后才开放普通购票；未初始化时只返回受控错误。矛盾时判定本轮无效，不清理后宣称一致。购票 TPS 与端到端 P95 的测量口径不变。
 
 ## 停止与清理
 

@@ -83,7 +83,7 @@ class Client:
 
     def resolve_purchase(self, accepted):
         deadline = time.monotonic() + 150
-        while accepted['status'] in ('QUEUED', 'PROCESSING') and time.monotonic() < deadline:
+        while accepted['status'] in ('QUEUED',) and time.monotonic() < deadline:
             time.sleep(0.25)
             accepted = self.request('GET', '/api/v1/purchase-requests/' + accepted['requestId'])
         if accepted['status'] != 'SUCCEEDED':
