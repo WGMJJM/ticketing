@@ -2,6 +2,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   listFollowedActivities,
+  sessionStatusText,
   unfollowActivity,
   type FollowedActivity,
 } from '../api/activities'
@@ -67,10 +68,10 @@ onBeforeUnmount(() => controller?.abort())
     <RouterLink to="/profile" class="back-link">← 返回个人中心</RouterLink>
     <div class="section-heading">
       <div>
-        <span class="section-kicker">留住下一次相遇</span>
-        <h1>我的关注<span class="heading-dot" aria-hidden="true">.</span></h1>
+        <span class="section-kicker">我关注的演出</span>
+        <h1>关注演出<span class="heading-dot" aria-hidden="true">.</span></h1>
       </div>
-      <span class="section-aside">共 {{ total }} 场活动</span>
+      <span class="section-aside">共 {{ total }} 场演出</span>
     </div>
     <div v-if="loading" class="content-state" role="status">正在读取你的关注…</div>
     <div v-else-if="error && items.length === 0" class="content-state error-state" role="alert">
@@ -101,14 +102,14 @@ onBeforeUnmount(() => controller?.abort())
         <div v-else class="followed-card-main offline">
           <ActivityCover :url="item.activity.coverUrl" :category="item.activity.category" :title="item.activity.title" />
           <div class="followed-copy">
-            <span class="offline-label">活动已下架</span>
+            <span class="offline-label">演出已下架</span>
             <h2>{{ item.activity.title }}</h2>
-            <p>活动已下架，当前没有可售场次；你仍可取消关注。</p>
+            <p>演出已下架，当前没有可售场次；你仍可取消关注。</p>
           </div>
         </div>
         <div v-if="item.sessions.length" class="followed-sessions">
           <div v-for="session in item.sessions" :key="session.id" class="followed-session">
-            <strong>{{ session.title }}</strong>
+            <strong>{{ session.title }}<small v-if="session.status !== 'SCHEDULED'"> · {{ sessionStatusText[session.status] }}</small></strong>
             <span>{{ formatTime(session.startsAt) }}</span>
             <small>开售 {{ formatTime(session.saleStartsAt) }}</small>
           </div>

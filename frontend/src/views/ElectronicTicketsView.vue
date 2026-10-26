@@ -66,12 +66,12 @@ function filterTickets() {
     <div class="order-top">
       <div>
         <span class="eyebrow"><span></span>你的入场凭证</span>
-        <h1>{{ id ? '电子票详情' : '我的电子票' }}</h1>
+        <h1>{{ id ? '电子票详情' : '我的票夹' }}</h1>
       </div>
       <ElButton :loading="loading" @click="load">刷新电子票</ElButton>
     </div>
     <RouterLink v-if="id" class="back-link" to="/tickets"
-      >← 返回我的电子票</RouterLink
+      >← 返回我的票夹</RouterLink
     >
     <p>
       每张电子票独立核销一次。已核销或已作废的票券不能再次入场，二维码请妥善保管。

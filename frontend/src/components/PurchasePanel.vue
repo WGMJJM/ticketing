@@ -65,7 +65,7 @@ async function purchase() {
       try {
         await ElMessageBox.confirm(
           `确认申请“${props.ticket.name}”${quantity.value}张？预计${estimate.value}，金额以正式订单为准。提交受理时会暂时预扣库存用于排队，但不代表购票成功；申请失败或超时会释放预扣。只有正式订单创建成功后，才能按订单截止时间完成模拟支付。`,
-          '确认购票申请', { confirmButtonText: '确认加入抢票排队', cancelButtonText: '再想想', closeOnClickModal: false, type: 'warning' },
+          '确认购票申请', { confirmButtonText: '提交购票申请', cancelButtonText: '再想想', closeOnClickModal: false, type: 'warning' },
         )
       } catch { return }
       if (active !== generation) return
@@ -132,8 +132,8 @@ async function purchase() {
     <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
     <ElButton type="primary" native-type="submit" :loading="busy"
       :disabled="!attempt && (maximum < 1 || (auth.authenticated && (!limit || loading)))">
-      {{ !auth.authenticated ? '登录后购票' : attempt?.requestId ? '查看该购票请求' : attempt ? '重试确认该申请' : '加入抢票排队' }}
+      {{ !auth.authenticated ? '登录后购票' : attempt?.requestId ? '查看购票进度' : attempt ? '重试确认该申请' : '提交购票申请' }}
     </ElButton>
-    <RouterLink v-if="auth.authenticated" to="/purchase-requests">查看我的抢票排队</RouterLink>
+    <RouterLink v-if="auth.authenticated" to="/purchase-requests">查看购票进度</RouterLink>
   </form>
 </template>

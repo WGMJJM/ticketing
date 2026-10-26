@@ -128,7 +128,7 @@ function changePage(value: number) {
     <p>
       模拟支付仅用于功能体验，不产生实际扣款。超时订单将自动关闭，可刷新查看最新状态。
     </p>
-    <RouterLink class="back-link" to="/purchase-requests">查看进行中的抢票排队 →</RouterLink>
+    <RouterLink class="back-link" to="/purchase-requests">查看购票进度 →</RouterLink>
     <p v-if="notice" class="success-notice" role="status">{{ notice }}</p>
     <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
     <div v-if="loading" class="content-state" role="status">正在加载订单…</div>

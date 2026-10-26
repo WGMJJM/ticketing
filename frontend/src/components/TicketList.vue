@@ -37,7 +37,7 @@ onBeforeUnmount(() => controller?.abort())
   <section class="ticket-section" aria-labelledby="ticket-heading">
     <div class="ticket-heading">
       <div>
-        <span class="section-kicker">为你的现场，找到合适的位置</span>
+        <span class="section-kicker">按预算与余票，选择适合的票档</span>
         <h2 id="ticket-heading">场次票档</h2>
       </div>
       <ElButton :loading="loading" @click="load">刷新票档</ElButton>
@@ -98,7 +98,7 @@ onBeforeUnmount(() => controller?.abort())
       </article>
     </div>
     <p class="ticket-query-note">
-      时间均为北京时间。提交购票申请后先排队，创建正式订单时再次校验库存与限购；订单支持模拟支付，超时自动关单。
+      时间均为北京时间。提交申请后，可在「购票进度」查看结果。订单支持模拟支付，超时将自动关闭。
     </p>
   </section>
 </template>

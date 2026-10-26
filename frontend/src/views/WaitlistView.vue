@@ -86,7 +86,7 @@ function changePage(value: number) {
     <div class="order-top">
       <div>
         <span class="eyebrow"><span></span>等待下一次相遇</span>
-        <h1>{{ id ? '候补详情' : '我的候补' }}</h1>
+        <h1>{{ id ? '候补详情' : '候补记录' }}</h1>
       </div>
       <ElButton :loading="loading" :disabled="busy" @click="load"
         >刷新候补</ElButton

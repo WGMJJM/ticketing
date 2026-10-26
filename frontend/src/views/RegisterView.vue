@@ -88,7 +88,7 @@ async function submit() {
 <template>
   <AuthLayout>
     <span class="eyebrow"><span></span>每份热爱，都值得抵达</span>
-    <h1>创建平台账号</h1>
+    <h1>注册账号</h1>
     <p>
       用户名为3至32位字母、数字或下划线，以字母开头，不区分大小写。密码为8至72个字符，UTF-8编码不超过72字节。
     </p>

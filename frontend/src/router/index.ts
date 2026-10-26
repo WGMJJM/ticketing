@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import { useAuthStore } from '../stores/auth'
+import { siteName } from '../config/site'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -100,5 +101,21 @@ router.beforeEach(async (to) => {
     return { path: '/profile', query: { denied: '1' } }
   if (to.meta.requiresCheckin && !auth.canCheckin)
     return { path: '/profile', query: { denied: '1' } }
+})
+const pageTitles: Record<string, string> = {
+  '/': '演出发现', '/about': '购票指南', '/activities/:id': '演出详情',
+  '/login': '登录', '/register': '注册账号', '/profile': '个人中心',
+  '/orders': '我的订单', '/orders/:id': '订单详情',
+  '/purchase-requests': '购票进度', '/purchase-requests/:id': '购票进度',
+  '/followed-activities': '关注演出', '/waitlist': '候补记录', '/waitlist/:id': '候补详情',
+  '/tickets': '我的票夹', '/tickets/:id': '电子票详情',
+  '/admin/login': '管理登录', '/admin/activities': '演出管理',
+  '/admin/orders': '订单管理', '/admin/orders/:id': '订单详情',
+  '/admin/checkins': '入场核销', '/staff/checkin': '入场核销',
+  '/admin/staff': '工作人员', '/admin/audit-logs': '操作记录',
+}
+router.afterEach((to) => {
+  const path = to.matched[to.matched.length - 1]?.path ?? '/'
+  document.title = (to.hash === '#popular' ? '人气榜单' : pageTitles[path] ?? '演出发现') + ' · ' + siteName
 })
 export default router
