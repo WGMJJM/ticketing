@@ -20,14 +20,12 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class PurchaseAdmission {
     private final PurchaseRequestMapper requests;
-    private final TicketInventory inventory;
     private final RedisStockReservationService stocks;
     private final PurchaseAdmissionTransaction transaction;
 
-    public PurchaseAdmission(PurchaseRequestMapper requests, TicketInventory inventory,
+    public PurchaseAdmission(PurchaseRequestMapper requests,
             RedisStockReservationService stocks, PurchaseAdmissionTransaction transaction) {
         this.requests = requests;
-        this.inventory = inventory;
         this.stocks = stocks;
         this.transaction = transaction;
     }
@@ -38,16 +36,15 @@ public class PurchaseAdmission {
         PurchaseRequestView existing = replay(userId, skuId, quantity, key);
         if (existing != null) return existing;
 
-        int version = inventory.requirePurchaseEligible(skuId);
         byte[] hash = hash(skuId, quantity);
         byte[] token = reservationToken(userId, key, hash);
         StockReservation reservation = new StockReservation(token, userId, skuId, quantity, key, hash);
-        stocks.reserve(reservation, version);
+        stocks.reserve(reservation);
 
         PurchaseRequestView accepted = transaction.accept(userId, skuId, quantity, key, hash, token);
         long requestId = Long.parseLong(accepted.requestId());
-        if (!stocks.bind(token, requestId)) stocks.synchronize(skuId);
-        if (accepted.terminal()) stocks.settle(token, accepted.status());
+        if (accepted.terminal()) stocks.settle(skuId, token, accepted.status());
+        else if (!stocks.bind(token, requestId)) stocks.synchronize(skuId);
         return accepted;
     }
 
@@ -75,7 +72,7 @@ public class PurchaseAdmission {
         return view(existing);
     }
 
-    /** 安全过滤器已校验可信用户；幂等查重在库存预扣和POST安全限流之前执行。 */
+    /** 安全过滤器已校验可信用户；幂等查重在库存预扣之前执行，POST安全限流仍先行。 */
     @Transactional(readOnly = true)
     public PurchaseRequestView replay(long userId, long skuId, int quantity, String key) {
         PurchaseRequest existing = requests.byKey(userId, key);

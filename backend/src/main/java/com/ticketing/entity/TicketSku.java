@@ -34,6 +34,7 @@ public class TicketSku {
 
     private String status;
 
+    /** 后台配置乐观锁版本；普通预占、支付、释放和退款不递增。 */
     private Integer version;
 
     private LocalDateTime createdAt;

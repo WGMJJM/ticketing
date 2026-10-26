@@ -13,6 +13,18 @@ import java.util.List;
 
 @Mapper
 public interface OutboxMapper extends BaseMapper<OutboxEvent> {
+    @Select("SELECT COALESCE(MAX(id),0) FROM outbox_event WHERE aggregate_type='TICKET_SKU' AND aggregate_id=#{skuId} AND event_type='WAITLIST_DISPATCH_REQUESTED'")
+    long latestInventorySequence(long skuId);
+
+    @Select("SELECT aggregate_id,MAX(id) AS id FROM outbox_event WHERE aggregate_type='TICKET_SKU' AND event_type='WAITLIST_DISPATCH_REQUESTED' AND aggregate_id>#{after} GROUP BY aggregate_id ORDER BY aggregate_id LIMIT #{size}")
+    List<OutboxEvent> inventorySignals(@Param("after") long after, @Param("size") int size);
+
+    @Select("SELECT t.id FROM ticket_sku t JOIN activity_session s ON s.id=t.session_id WHERE s.activity_id=#{activityId} ORDER BY t.id")
+    List<Long> inventorySkusForActivity(long activityId);
+
+    @Select("SELECT id FROM ticket_sku WHERE session_id=#{sessionId} ORDER BY id")
+    List<Long> inventorySkusForSession(long sessionId);
+
     @Insert("""
         INSERT INTO outbox_event(event_id,aggregate_type,aggregate_id,event_type,payload,status,retry_count)
         VALUES(#{eventId},#{aggregateType},#{aggregateId},#{eventType},#{payload},#{status},#{retryCount})

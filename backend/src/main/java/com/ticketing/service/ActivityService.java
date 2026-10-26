@@ -9,6 +9,7 @@ import com.ticketing.enums.ActivityStatus;
 import com.ticketing.enums.AuditAction;
 import com.ticketing.exception.BusinessException;
 import com.ticketing.mapper.ActivityMapper;
+import com.ticketing.messaging.InventoryEvents;
 import com.ticketing.vo.ActivityView;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -30,8 +31,11 @@ public class ActivityService {
     private final ActivityMapper mapper;
     private final AuditWriter audit;
     private final CatalogCache cache;
+    private final InventoryEvents inventoryEvents;
 
-    public ActivityService(ActivityMapper mapper, AuditWriter audit, CatalogCache cache) { this.mapper = mapper; this.audit = audit; this.cache = cache; }
+    public ActivityService(ActivityMapper mapper, AuditWriter audit, CatalogCache cache, InventoryEvents inventoryEvents) {
+        this.mapper = mapper; this.audit = audit; this.cache = cache; this.inventoryEvents = inventoryEvents;
+    }
 
     public PageResponse<ActivityView> list(ActivityQuery query, boolean publicOnly) {
         if (publicOnly && cache.cacheList(query)) {
@@ -150,6 +154,7 @@ public class ActivityService {
                 .set(Activity::getVersion, version + 1).set(Activity::getUpdatedAt, now);
         if (next == ActivityStatus.PUBLISHED) wrapper.set(Activity::getPublishedAt, now);
         if (mapper.update(null, wrapper) != 1) throw conflict("活动状态已变化，请刷新后重试");
+        inventoryEvents.activityConfigurationChanged(activity.getId());
         audit.record(operatorId, next == ActivityStatus.PUBLISHED ? AuditAction.ACTIVITY_PUBLISH : AuditAction.ACTIVITY_OFFLINE,
                 "ACTIVITY", activity.getId(), snapshot(activity), snapshot(mapper.selectById(activity.getId())));
         cache.invalidateAfterCommit();

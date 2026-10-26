@@ -4,7 +4,6 @@ import com.ticketing.entity.StockAllocation;
 import com.ticketing.entity.StockBucket;
 
 import java.util.List;
-import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -12,9 +11,6 @@ import org.apache.ibatis.annotations.Update;
 
 @Mapper
 public interface StockBucketMapper {
-    @Select("SELECT * FROM ticket_stock_bucket WHERE sku_id=#{sku} AND bucket_no=#{number}")
-    StockBucket find(@Param("sku") long sku, @Param("number") int number);
-
     @Select("SELECT * FROM ticket_stock_bucket WHERE sku_id=#{sku} ORDER BY bucket_no")
     List<StockBucket> list(long sku);
 
@@ -23,17 +19,6 @@ public interface StockBucketMapper {
 
     @Select("SELECT * FROM order_stock_allocation WHERE order_id=#{orderId} ORDER BY sku_id,bucket_no")
     List<StockAllocation> allocations(long orderId);
-
-    @Insert("INSERT INTO order_stock_allocation(order_id,sku_id,bucket_no,quantity) VALUES(#{order},#{sku},#{number},#{quantity})")
-    int allocate(@Param("order") long order, @Param("sku") long sku,
-                 @Param("number") int number, @Param("quantity") int quantity);
-
-    @Update("""
-            UPDATE ticket_stock_bucket SET locked_stock=locked_stock+#{quantity}
-            WHERE sku_id=#{sku} AND bucket_no=#{number}
-              AND CAST(total_stock AS SIGNED)-locked_stock-sold_stock>=#{quantity}
-            """)
-    int reserve(@Param("sku") long sku, @Param("number") int number, @Param("quantity") int quantity);
 
     @Update("""
             UPDATE ticket_stock_bucket SET locked_stock=locked_stock-#{quantity},sold_stock=sold_stock+#{quantity}
@@ -59,6 +44,4 @@ public interface StockBucketMapper {
             """)
     int resize(@Param("sku") long sku, @Param("number") int number, @Param("total") int total);
 
-    @Insert("INSERT INTO ticket_waitlist_gate(sku_id) VALUES(#{sku}) ON DUPLICATE KEY UPDATE sku_id=sku_id")
-    int waitlistGate(long sku);
 }

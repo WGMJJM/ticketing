@@ -8,15 +8,12 @@ import com.ticketing.exception.BusinessException;
 import com.ticketing.mapper.StockBucketMapper;
 import com.ticketing.mapper.TicketSkuMapper;
 
-import java.util.ArrayList;
 import java.util.List;
-import org.springframework.dao.CannotAcquireLockException;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.annotation.Isolation;
 
 /** SKU权威库存的事务写入口；调用方先遵守统一用户及父级锁序。 */
 @Service
@@ -30,59 +27,12 @@ public class TicketInventory {
         this.buckets = buckets;
     }
 
-    /** 独立短读事务及时释放连接；不锁库存，消费者在统一锁序中最终复核。 */
-    @Transactional(propagation = Propagation.REQUIRES_NEW, isolation = Isolation.READ_COMMITTED, readOnly = true)
-    public int requirePurchaseEligible(long skuId) {
-        Integer eligible = tickets.purchaseEligibility(skuId);
-        if (eligible == null) {
-            throw new BusinessException(HttpStatus.NOT_FOUND, "TICKET_NOT_FOUND", "票档不存在，请刷新活动页面");
+    /** 新订单统一使用SINGLE；分桶只保留已有订单的支付、关闭及退款能力。 */
+    public void reserve(TicketSale sale, int quantity) {
+        if (sale.bucketed()) {
+            throw new BusinessException(HttpStatus.CONFLICT, "TICKET_UNAVAILABLE", "历史分桶票档已停止新购票，请选择其他票档");
         }
-        if (eligible != 1) {
-            throw new BusinessException(HttpStatus.CONFLICT, "TICKET_UNAVAILABLE", "票档当前不在销售中，请刷新活动页面");
-        }
-        Integer version = tickets.purchaseVersion(skuId);
-        if (version == null) {
-            throw new BusinessException(HttpStatus.NOT_FOUND, "TICKET_NOT_FOUND", "票档不存在，请刷新活动页面");
-        }
-        return version;
-    }
-
-    /** 元信息已锁定；先形成计划，再按桶号升序加锁，绝不持有高号桶回锁低号桶。 */
-    public List<Allocation> reserve(TicketSale sale, int quantity, long route) {
-        if (!sale.bucketed()) {
-            if (tickets.reserve(sale.skuId(), quantity) != 1) throw unavailable();
-            return List.of();
-        }
-        int primary = Math.floorMod(Long.hashCode(route), sale.bucketCount());
-        StockBucket first = buckets.find(sale.skuId(), primary);
-        if (first == null) throw inconsistent();
-        List<Allocation> plan = new ArrayList<>();
-        if (first.available() >= quantity) plan.add(new Allocation(primary, quantity));
-        else {
-            int remaining = quantity;
-            for (StockBucket bucket : buckets.list(sale.skuId())) {
-                int taken = Math.min(remaining, bucket.available());
-                if (taken > 0) plan.add(new Allocation(bucket.bucketNo(), taken));
-                remaining -= taken;
-                if (remaining == 0) break;
-            }
-            if (remaining != 0) throw unavailable();
-        }
-        for (Allocation allocation : plan) {
-            StockBucket locked = buckets.lock(sale.skuId(), allocation.bucketNo());
-            if (locked == null) throw inconsistent();
-            if (locked.available() < allocation.quantity()) {
-                throw new CannotAcquireLockException("库存桶计划已变化，须回滚后重新选择");
-            }
-            requireChanged(buckets.reserve(sale.skuId(), allocation.bucketNo(), allocation.quantity()));
-        }
-        return List.copyOf(plan);
-    }
-
-    public void attach(long orderId, long skuId, List<Allocation> plan) {
-        for (Allocation allocation : plan) {
-            requireChanged(buckets.allocate(orderId, skuId, allocation.bucketNo(), allocation.quantity()));
-        }
+        if (tickets.reserve(sale.skuId(), quantity) != 1) throw unavailable();
     }
 
     /** 必须在已有订单UPDATE锁之前调用；不修改分配记录或根据订单ID重新Hash。 */
@@ -151,13 +101,6 @@ public class TicketInventory {
         return sku;
     }
 
-    public TicketSale lockWaitlist(TicketSale sale) {
-        if (!sale.bucketed()) return sale;
-        buckets.waitlistGate(sale.skuId());
-        TicketSku sku = balance(tickets.selectById(sale.skuId()));
-        return sale.withAvailableStock(Math.toIntExact((long) sku.getTotalStock() - sku.getLockedStock() - sku.getSoldStock()));
-    }
-
     /** 管理入口已持场次UPDATE，与所有交易的场次SHARE互斥；按升序只调整可用量。 */
     public void resize(TicketSku sku, int newTotal) {
         if (!sku.bucketed() || newTotal == sku.getTotalStock()) return;
@@ -191,6 +134,5 @@ public class TicketInventory {
         }
     }
 
-    public record Allocation(int bucketNo, int quantity) { }
     private enum Movement { SELL, RELEASE, REFUND }
 }

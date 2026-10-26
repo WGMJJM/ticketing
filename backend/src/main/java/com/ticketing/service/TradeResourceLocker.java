@@ -91,15 +91,11 @@ public class TradeResourceLocker {
     }
 
     public TradeContext lockWaitlistPurchase(long userId, long skuId, boolean requireActive) {
-        return waitlist(lockPurchase(userId, skuId, requireActive));
+        return lockPurchase(userId, skuId, requireActive);
     }
 
     public TradeContext lockWaitlistReservation(long userId, long skuId, boolean requireActive) {
-        return waitlist(lockReservation(userId, skuId, requireActive));
-    }
-
-    private TradeContext waitlist(TradeContext context) {
-        return new TradeContext(context.userId(), context.active(), context.admin(), inventory.lockWaitlist(context.sale()));
+        return lockReservation(userId, skuId, requireActive);
     }
 
     public TicketSale lockSaleForQuota(long userId, long skuId) {
@@ -148,15 +144,13 @@ public class TradeResourceLocker {
             throw new BusinessException(HttpStatus.CONFLICT, "TICKET_UNAVAILABLE", "票档所属活动或场次不存在");
         }
         if (quotaUser != null) quotas.lock(quotaUser, session.getId());
-        // 父场次锁稳定策略切换；选择锁类型前重新读取元信息，避免等待管理事务后的陈旧策略。
-        TicketSku policy = tickets.selectById(skuId);
         long started = System.nanoTime();
         TicketSku sku;
         try { sku =
                 tickets.selectOne(
                         new LambdaQueryWrapper<TicketSku>()
                                 .eq(TicketSku::getId, skuId)
-                                .last(policy.bucketed() ? "FOR SHARE" : "FOR UPDATE"));
+                                .last("FOR UPDATE"));
         } finally { meters.timer("ticketing.trade.lock.duration","resource","stock").record(System.nanoTime()-started,TimeUnit.NANOSECONDS); }
         if (sku == null || !sku.getSessionId().equals(session.getId()) || !session.getActivityId().equals(activity.getId())) {
             throw new BusinessException(HttpStatus.CONFLICT, "TICKET_UNAVAILABLE", "票档所属活动或场次不存在");

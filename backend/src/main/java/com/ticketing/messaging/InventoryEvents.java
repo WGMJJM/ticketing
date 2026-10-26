@@ -14,6 +14,8 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.OptionalLong;
+import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.UUID;
 
 @Component
@@ -29,6 +31,26 @@ public class InventoryEvents {
     @Transactional(propagation = Propagation.MANDATORY)
     public void append(long skuId, InventoryChangeReason reason) {
         append(skuId, reason, UUID.randomUUID().toString());
+    }
+
+    /** 父级销售资格变更与库存通知同事务持久化，不依赖目录缓存或提交后Redis调用。 */
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void activityConfigurationChanged(long activityId) {
+        outbox.inventorySkusForActivity(activityId)
+                .forEach(skuId -> append(skuId, InventoryChangeReason.SKU_CONFIGURATION_CHANGED));
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public void sessionConfigurationChanged(long sessionId) {
+        outbox.inventorySkusForSession(sessionId)
+                .forEach(skuId -> append(skuId, InventoryChangeReason.SKU_CONFIGURATION_CHANGED));
+    }
+
+    /** 以已提交库存事件为恢复事实；SENT只代表投递，不能替代库存已同步的证明。 */
+    public Map<Long, Long> latestSignals(long afterSku, int size) {
+        Map<Long, Long> signals = new LinkedHashMap<>();
+        outbox.inventorySignals(afterSku, size).forEach(event -> signals.put(event.getAggregateId(), event.getId()));
+        return signals;
     }
 
     /** 稳定事件ID使Redis预扣恢复可重复写入同一Outbox事实。 */

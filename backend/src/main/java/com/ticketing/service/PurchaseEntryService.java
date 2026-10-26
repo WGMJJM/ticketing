@@ -15,9 +15,6 @@ public class PurchaseEntryService {
     }
     @Transactional(propagation = Propagation.NEVER)
     public PurchaseRequestView accept(long userId, String sku, int quantity, String key) {
-        long skuId = admission.skuId(sku);
-        PurchaseRequestView existing = admission.replay(userId, skuId, quantity, key);
-        if (existing != null) return existing;
         return admission.accept(userId, sku, quantity, key);
     }
 }

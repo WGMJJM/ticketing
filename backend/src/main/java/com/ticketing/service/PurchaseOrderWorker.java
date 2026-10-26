@@ -63,13 +63,13 @@ public class PurchaseOrderWorker {
                     meters.counter("ticketing.trade.retry", "reason", "lock-or-bucket-plan").increment();
                 }
             }
-            stocks.settle(claim.stockReservationToken(), "SUCCEEDED");
+            stocks.settle(claim.skuId(), claim.stockReservationToken(), "SUCCEEDED");
             outcome="success";
             DeliveryObservation.record(deliveryKey, "order-transaction-commit");
         } catch(BusinessException exception) {
             if(!processing.deterministic(exception.getCode())) throw exception;
             // 订单事务已回滚；先提交数据库失败和库存事件，再结算Redis预扣。
-            if (processing.fail(claim,exception.getCode())) stocks.settle(claim.stockReservationToken(), "FAILED");
+            if (processing.fail(claim,exception.getCode())) stocks.settle(claim.skuId(), claim.stockReservationToken(), "FAILED");
             outcome="business-failure";
             DeliveryObservation.record(deliveryKey, "business-failure-commit");
         } finally {

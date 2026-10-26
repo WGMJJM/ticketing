@@ -23,8 +23,8 @@ public interface PurchaseRequestMapper {
     List<PurchaseRequest> active(long userId);
     @Select("SELECT " + COLUMNS + " FROM purchase_request WHERE sku_id=#{skuId} AND status IN('QUEUED','PROCESSING') ORDER BY id")
     List<PurchaseRequest> activeForSku(long skuId);
-    @Select("SELECT COUNT(*) FROM purchase_request WHERE status IN('QUEUED','PROCESSING')")
-    int activeCount();
+    @Select("SELECT " + COLUMNS + " FROM purchase_request WHERE status IN('QUEUED','PROCESSING') ORDER BY id LIMIT #{size}")
+    List<PurchaseRequest> activeReservations(@Param("size") int size);
     @Select("SELECT UTC_TIMESTAMP(6)") LocalDateTime now();
 
     @Insert("""

@@ -9,6 +9,8 @@ import io.micrometer.core.instrument.MeterRegistry;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
@@ -29,10 +31,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 public class RedisStockReservationService {
     private static final Logger LOG = LoggerFactory.getLogger(RedisStockReservationService.class);
     private static final String PREFIX = "ticketing:seckill:v1:";
-    private static final String TOKENS = PREFIX + "reservations";
     private static final String RECOVERY = PREFIX + "reservation-recovery";
     private static final String PENDING = PREFIX + "pending-count";
-    private static final String CAPACITY_INIT = PREFIX + "capacity-init";
+    private static final String CAPACITY_INIT_KEY = PREFIX + "capacity-init";
     private static final String FROZEN = PREFIX + "frozen-skus";
     private static final String FENCE = PREFIX + "freeze-fence";
     private static final long FREEZE_LEASE_MS = 300_000;
@@ -41,14 +42,13 @@ public class RedisStockReservationService {
     private static final long ORPHAN_GRACE_MS = 60_000;
     private static final int TOKEN_SCAN_LIMIT = 20_000;
     private static final int FREEZE_RECONCILE_ATTEMPTS = 5;
+    private static final long TERMINAL_RETENTION_SECONDS = Duration.ofDays(7).toSeconds();
 
     private static final DefaultRedisScript<List> RESERVE = listScript("seckill/stock-reserve-v1.lua");
     private static final DefaultRedisScript<List> FREEZE = listScript("seckill/stock-freeze-v1.lua");
-    private static final DefaultRedisScript<List> CLAIM_RECOVERY = listScript("seckill/stock-recovery-claim-v1.lua");
-    private static final DefaultRedisScript<List> RELEASE_RECOVERY = listScript("seckill/stock-recovery-release-v1.lua");
+    private static final DefaultRedisScript<Long> CLAIM_RECOVERY = longScript("seckill/stock-recovery-claim-v1.lua");
     private static final DefaultRedisScript<List> SETTLE = listScript("seckill/stock-settle-v1.lua");
     private static final DefaultRedisScript<Long> SNAPSHOT = longScript("seckill/stock-snapshot-v1.lua");
-    private static final DefaultRedisScript<Long> UNFREEZE = longScript("seckill/stock-unfreeze-v1.lua");
     private static final DefaultRedisScript<Long> CAPACITY_INIT = longScript("seckill/stock-capacity-init-v1.lua");
     private static final DefaultRedisScript<Long> CAPACITY_PUBLISH = longScript("seckill/stock-capacity-publish-v1.lua");
     private static final DefaultRedisScript<Long> BIND = longScript("seckill/stock-bind-v1.lua");
@@ -74,39 +74,37 @@ public class RedisStockReservationService {
     }
 
     /** 只允许在HTTP受理事务外运行；Redis失败时绝不退化成MySQL直售。 */
-    public void reserve(StockReservation reservation, int requestedVersion) {
+    public void reserve(StockReservation reservation) {
         requireOutsideTransaction();
         try {
             ensurePendingCounter();
-            int version = requestedVersion;
-            if (redis.opsForHash().get(skuKey(reservation.skuId()), "state") == null) {
-                StockSnapshotService.InventorySnapshot loaded = synchronize(reservation.skuId());
-                requireEligible(loaded);
-                version = loaded.version();
-            }
-            for (int attempt = 0; attempt < 3; attempt++) {
+            for (int attempt = 0; attempt < 2; attempt++) {
                 List<?> result = redis.execute(RESERVE,
                         List.of(skuKey(reservation.skuId()), tokenKey(reservation.token()), skuTokensKey(reservation.skuId()),
-                                TOKENS, RECOVERY, PENDING),
+                                RECOVERY, PENDING),
                         tokenHex(reservation.token()), Long.toString(reservation.userId()),
                         Long.toString(reservation.skuId()), Integer.toString(reservation.quantity()),
                         reservation.idempotencyKey(), HexFormat.of().formatHex(reservation.requestHash()),
-                        Integer.toString(version), Integer.toString(properties.capacity()), Long.toString(ORPHAN_GRACE_MS));
+                        Integer.toString(properties.capacity()), Long.toString(ORPHAN_GRACE_MS));
                 long code = first(result);
                 if (code == 1 || code == 2) {
                     meters.counter("ticketing.stock.reservation", "outcome", code == 1 ? "reserved" : "existing").increment();
                     return;
                 }
-                if (code == -3 || code == -4 || code == -9) {
-                    StockSnapshotService.InventorySnapshot loaded = synchronize(reservation.skuId());
-                    requireEligible(loaded);
-                    version = loaded.version();
+                if (code == -3 || code == -9) {
+                    synchronize(reservation.skuId());
                     continue;
                 }
+                if (code == -10) throw new BusinessException(HttpStatus.CONFLICT, "TICKET_UNAVAILABLE", "票档当前不在销售中，请刷新活动页面");
                 if (code == -1) throw new BusinessException(HttpStatus.CONFLICT, "TICKET_UNAVAILABLE", "该票档当前库存不足，请刷新后重试");
                 if (code == -2) throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, "PURCHASE_QUEUE_FULL",
                         "购票排队人数已达上限，请稍后重试", 2L);
-                if (code == -6 || code == -8) throw new BusinessException(HttpStatus.CONFLICT, "IDEMPOTENCY_CONFLICT", "该购票申请已处理或幂等参数不一致");
+                if (code == -8) {
+                    PurchaseRequest current = requests.byReservationToken(reservation.token());
+                    if (current != null && current.terminal()) return;
+                    throw unavailable(null);
+                }
+                if (code == -6) throw new BusinessException(HttpStatus.CONFLICT, "IDEMPOTENCY_CONFLICT", "该购票申请已处理或幂等参数不一致");
                 if (code == -7) throw unavailable(Math.max(1, (second(result) + 999) / 1000));
                 throw unavailable(null);
             }
@@ -146,32 +144,42 @@ public class RedisStockReservationService {
             throw unavailable(null);
         }
         ensurePendingCounter();
-        String token = tokenHex(request.stockReservationToken());
-        String tokenKey = tokenKey(token);
-        if (redis.opsForHash().get(tokenKey, "state") == null) synchronize(request.skuId());
-        String state = string(redis.opsForHash().get(tokenKey, "state"));
-        if (!"RESERVED".equals(state)) throw unavailable(null);
-        String boundId = string(redis.opsForHash().get(tokenKey, "requestId"));
-        if (!boundId.isBlank() && !boundId.equals(Long.toString(request.id()))) {
-            throw new IllegalStateException("Redis预扣已绑定其他购票申请");
+        Map<Object, Object> fields = redis.opsForHash().entries(tokenKey(request.stockReservationToken()));
+        if (fields.isEmpty()) {
+            synchronize(request.skuId());
+            fields = redis.opsForHash().entries(tokenKey(request.stockReservationToken()));
         }
-        if (boundId.isBlank() && !bind(request.stockReservationToken(), request.id())) {
+        if (!"RESERVED".equals(string(fields.get("state")))) throw unavailable(null);
+        try {
+            verify(request, request.stockReservationToken(), fields);
+        } catch (IllegalStateException inconsistency) {
+            acquireFreeze(request.skuId());
+            throw inconsistency;
+        }
+        if (string(fields.get("requestId")).isBlank() && !bind(request.stockReservationToken(), request.id())) {
             throw unavailable(null);
         }
-        verify(request, request.stockReservationToken());
     }
 
     /** 建单终态已经提交后再结算Redis；调用失败由同一恢复扫描重试。 */
-    public boolean settle(byte[] token, String terminalStatus) {
+    public boolean settle(long skuId, byte[] token, String terminalStatus) {
+        return settle(skuId, token, terminalStatus, "");
+    }
+
+    private boolean settle(long skuId, byte[] token, String terminalStatus, String recoveryOwner) {
         requireOutsideTransaction();
         String state = "SUCCEEDED".equals(terminalStatus) ? "CONSUMED" : "RELEASED";
         try {
             List<?> result = redis.execute(SETTLE,
-                    List.of(skuKeyFromToken(token), tokenKey(token), skuTokensKeyFromToken(token), TOKENS, RECOVERY, PENDING),
-                    tokenHex(token), state);
+                    List.of(skuKey(skuId), tokenKey(token), skuTokensKey(skuId), RECOVERY, PENDING),
+                    tokenHex(token), state, Long.toString(TERMINAL_RETENTION_SECONDS), Long.toString(skuId), recoveryOwner);
             long code = first(result);
-            if (code < 0) LOG.warn("Redis预扣终态待恢复，状态 {}，代码 {}", state, code);
-            return code == 1;
+            if (code == -5) LOG.warn("旧预扣恢复认领已失效，SKU {}", skuId);
+            else if (code < 0) {
+                LOG.error("Redis预扣结算不一致，SKU {}，状态 {}，代码 {}", skuId, state, code);
+                acquireFreeze(skuId);
+            }
+            return code >= 0;
         } catch (RuntimeException exception) {
             LOG.warn("Redis预扣终态待恢复，错误类型 {}", exception.getClass().getSimpleName());
             return false;
@@ -184,9 +192,9 @@ public class RedisStockReservationService {
         ensurePendingCounter();
         FreezeLease lease = acquireFreeze(skuId);
         try {
-            reconcileFrozen(skuId, lease);
+            reconcileFrozen(skuId, lease, false);
             int allocated = dispatch.applyAsInt(Math.toIntExact(currentAvailable(skuId)));
-            reconcileAndUnfreeze(skuId, lease);
+            reconcileFrozen(skuId, lease, true);
             return allocated;
         } catch (RuntimeException exception) {
             meters.counter("ticketing.stock.freeze", "outcome", "left-frozen").increment();
@@ -202,7 +210,7 @@ public class RedisStockReservationService {
         ensurePendingCounter();
         FreezeLease lease = acquireFreeze(skuId);
         try {
-            return reconcileAndUnfreeze(skuId, lease);
+            return reconcileFrozen(skuId, lease, true);
         } catch (RuntimeException exception) {
             meters.counter("ticketing.stock.freeze", "outcome", "left-frozen").increment();
             LOG.warn("Redis库存快照未完成，SKU {} 保持冻结，错误类型 {}", skuId, exception.getClass().getSimpleName());
@@ -249,6 +257,13 @@ public class RedisStockReservationService {
         }
     }
 
+    /** 数据库补偿与Rabbit消费共用同一快照；只在存在尚未协调的库存事件时触发。 */
+    public boolean needsInventoryReconciliation(long skuId, long inventorySequence) {
+        requireOutsideTransaction();
+        String applied = string(redis.opsForHash().get(skuKey(skuId), "inventorySequence"));
+        return applied.isBlank() || Long.parseLong(applied) < inventorySequence;
+    }
+
     private void recoverToken(String token) {
         byte[] tokenBytes;
         try { tokenBytes = HexFormat.of().parseHex(token); }
@@ -256,186 +271,150 @@ public class RedisStockReservationService {
             throw new IllegalStateException("Redis预扣恢复索引格式异常");
         }
         PurchaseRequest request = requests.byReservationToken(tokenBytes);
+        Map<Object, Object> values = redis.opsForHash().entries(tokenKey(tokenBytes));
         if (request != null) {
-            verify(request, tokenBytes);
+            if (values.isEmpty() && !request.terminal()) {
+                synchronize(request.skuId());
+                return;
+            }
+            try {
+                verify(request, tokenBytes, values);
+            } catch (IllegalStateException inconsistency) {
+                acquireFreeze(request.skuId());
+                throw inconsistency;
+            }
             if (request.terminal()) {
-                if (!settle(tokenBytes, request.status())) recoverTerminalSku(request.skuId());
+                settle(request.skuId(), tokenBytes, request.status());
             }
             else bind(tokenBytes, request.id());
             return;
         }
-        Map<Object, Object> values = redis.opsForHash().entries(tokenKey(tokenBytes));
         if (values.isEmpty()) throw new IllegalStateException("Redis预扣恢复索引缺少token凭据");
         if (!string(values.get("requestId")).isBlank()) {
             LOG.error("Redis预扣指向缺失的数据库申请，SKU {} 保持停卖并等待人工核对", values.get("skuId"));
-            try { synchronize(parseLong(values, "skuId")); }
-            catch (RuntimeException exception) {
-                LOG.warn("异常Redis预扣已维持冻结，SKU {}，错误类型 {}", values.get("skuId"), exception.getClass().getSimpleName());
-            }
             redis.execute(DEFER, List.of(tokenKey(tokenBytes), RECOVERY), token, Long.toString(System.currentTimeMillis() + ORPHAN_GRACE_MS));
+            synchronize(parseLong(values, "skuId"));
             return;
         }
         String owner = UUID.randomUUID().toString();
-        List<?> claim = redis.execute(CLAIM_RECOVERY, List.of(tokenKey(tokenBytes), RECOVERY),
+        Long claim = redis.execute(CLAIM_RECOVERY, List.of(tokenKey(tokenBytes), RECOVERY),
                 token, owner, Long.toString(System.currentTimeMillis()), Long.toString(RECOVERY_LEASE_MS));
-        if (first(claim) != 1) return;
+        if (claim == null || claim != 1) return;
         StockReservation reservation = reservation(tokenBytes, values);
         PurchaseAdmissionTransaction.OrphanResolution resolution = admission.recoverOrphan(reservation);
         if (resolution.release()) {
-            releaseRecovery(reservation, owner);
+            settle(reservation.skuId(), tokenBytes, "FAILED", owner);
         } else if (resolution.request() != null) {
             if (resolution.request().terminal()) {
-                if (!settle(tokenBytes, resolution.request().status())) recoverTerminalSku(resolution.request().skuId());
+                settle(resolution.request().skuId(), tokenBytes, resolution.request().status());
             }
             else bind(tokenBytes, resolution.request().id());
         }
     }
 
-    private void releaseRecovery(StockReservation reservation, String owner) {
-        try {
-            List<?> result = redis.execute(RELEASE_RECOVERY,
-                    List.of(skuKey(reservation.skuId()), tokenKey(reservation.token()), skuTokensKey(reservation.skuId()),
-                            TOKENS, RECOVERY, PENDING), tokenHex(reservation.token()), owner);
-            if (first(result) != 1) LOG.warn("Redis孤儿预扣释放待恢复，SKU {}", reservation.skuId());
-        } catch (RuntimeException exception) {
-            LOG.warn("Redis孤儿预扣释放待恢复，SKU {}，错误类型 {}", reservation.skuId(), exception.getClass().getSimpleName());
-        }
-    }
-
-    private void recoverTerminalSku(long skuId) {
-        try { synchronize(skuId); }
-        catch (RuntimeException exception) {
-            LOG.warn("终态Redis预扣恢复暂未完成，SKU {}，错误类型 {}", skuId, exception.getClass().getSimpleName());
-        }
-    }
-
-    private StockSnapshotService.InventorySnapshot reconcileAndUnfreeze(long skuId, FreezeLease lease) {
+    /** mutation先于MySQL快照读取；任何并发结算都会使本次发布失效，最多重读五次。 */
+    private StockSnapshotService.InventorySnapshot reconcileFrozen(long skuId, FreezeLease lease, boolean reopen) {
         for (int attempt = 0; attempt < FREEZE_RECONCILE_ATTEMPTS; attempt++) {
-            ReconciledSnapshot reconciled = reconcileFrozen(skuId, lease);
-            if (unfreeze(skuId, lease, reconciled.snapshot().eligible(), reconciled.mutation())) {
-                return reconciled.snapshot();
-            }
-        }
-        throw new IllegalStateException("Redis库存快照持续变化，SKU保持冻结并等待恢复扫描");
-    }
-
-    private ReconciledSnapshot reconcileFrozen(long skuId, FreezeLease lease) {
-        for (int attempt = 0; attempt < FREEZE_RECONCILE_ATTEMPTS; attempt++) {
-            StockSnapshotService.InventorySnapshot snapshot = snapshots.lockAndRead(skuId);
-            Set<String> indexed = redis.opsForZSet().range(skuTokensKey(skuId), 0, -1);
-            if (indexed == null) indexed = Set.of();
-            boolean staleDatabaseSnapshot = false;
-            for (PurchaseRequest active : snapshot.activeRequests()) {
-                if (active.stockReservationToken() == null || active.stockReservationToken().length != 32) {
-                    throw new IllegalStateException("数据库活动申请缺少有效Redis预扣token");
-                }
-                PurchaseRequest current = requests.byReservationToken(active.stockReservationToken());
-                if (current == null || current.terminal()) {
-                    staleDatabaseSnapshot = true;
-                    break;
-                }
-                String token = tokenHex(active.stockReservationToken());
-                if (!indexed.contains(token) || redis.opsForHash().get(tokenKey(token), "state") == null) {
-                    Map<Object, Object> existing = redis.opsForHash().entries(tokenKey(token));
-                    if (!existing.isEmpty()) verify(current, current.stockReservationToken());
-                    try {
-                        restore(current);
-                    } catch (IllegalStateException exception) {
-                        PurchaseRequest latest = requests.byReservationToken(active.stockReservationToken());
-                        if (latest == null || latest.terminal()) {
-                            staleDatabaseSnapshot = true;
-                            break;
-                        }
-                        throw exception;
-                    }
-                }
-            }
-            if (staleDatabaseSnapshot) continue;
-
             long expectedMutation = mutation(skuId);
+            StockSnapshotService.InventorySnapshot snapshot = snapshots.lockAndRead(skuId);
+            boolean changed = false;
             for (PurchaseRequest active : snapshot.activeRequests()) {
-                PurchaseRequest current = requests.byReservationToken(active.stockReservationToken());
-                if (current == null || current.terminal()) {
-                    staleDatabaseSnapshot = true;
-                    break;
+                String token = tokenHex(active.stockReservationToken());
+                Map<Object, Object> fields = redis.opsForHash().entries(tokenKey(token));
+                if (!fields.isEmpty()) verify(active, active.stockReservationToken(), fields);
+                if (fields.isEmpty() || redis.opsForZSet().score(skuTokensKey(skuId), token) == null) {
+                    if (!restore(active)) { changed = true; break; }
                 }
             }
-            if (staleDatabaseSnapshot) continue;
+            if (changed) continue;
+
             long held = 0;
             Set<String> members = redis.opsForZSet().range(skuTokensKey(skuId), 0, -1);
             if (members != null) {
                 for (String token : members) {
                     byte[] tokenBytes = HexFormat.of().parseHex(token);
-                    String state = string(redis.opsForHash().get(tokenKey(token), "state"));
-                    if (!"RESERVED".equals(state)) throw new IllegalStateException("Redis预扣索引包含非活动状态");
+                    Map<Object, Object> fields = redis.opsForHash().entries(tokenKey(token));
+                    if (!"RESERVED".equals(string(fields.get("state")))) {
+                        if (mutation(skuId) != expectedMutation) { changed = true; break; }
+                        throw new IllegalStateException("Redis活动预扣索引与凭据状态不一致，保持SKU冻结");
+                    }
                     PurchaseRequest request = requests.byReservationToken(tokenBytes);
                     if (request == null) {
-                        Map<Object, Object> values = redis.opsForHash().entries(tokenKey(token));
-                        if (!string(values.get("requestId")).isBlank()) {
+                        if (!string(fields.get("requestId")).isBlank()) {
                             throw new IllegalStateException("Redis预扣指向缺失数据库申请，保持SKU冻结");
                         }
-                        StockReservation orphan = reservation(tokenBytes, values);
+                        StockReservation orphan = reservation(tokenBytes, fields);
                         if (orphan.skuId() != skuId) throw new IllegalStateException("Redis孤儿token所属SKU不一致");
                         held = Math.addExact(held, orphan.quantity());
-                        continue;
-                    }
-                    if (request.skuId() != skuId || !token.equals(tokenHex(request.stockReservationToken()))) {
-                        throw new IllegalStateException("Redis预扣与MySQL申请的SKU关联异常");
-                    }
-                    verify(request, tokenBytes);
-                    if (request.terminal()) {
-                        if (!settle(tokenBytes, request.status())) {
-                            throw new IllegalStateException("MySQL终态预扣未能从Redis索引中结算");
-                        }
                     } else {
+                        verify(request, tokenBytes, fields);
+                        if (request.terminal()) {
+                            if (!settle(skuId, tokenBytes, request.status())) throw unavailable(null);
+                            changed = true;
+                            break;
+                        }
                         held = Math.addExact(held, request.quantity());
                     }
                 }
             }
+            if (changed || mutation(skuId) != expectedMutation) continue;
             long available = snapshot.databaseAvailable() - held;
             if (available < 0) throw new IllegalStateException("Redis预扣总量超过MySQL可售库存，保持SKU冻结");
-            Long written = redis.execute(SNAPSHOT, List.of(skuKey(skuId)), lease.owner(), Long.toString(lease.fence()),
-                    Long.toString(available), Integer.toString(snapshot.version()), snapshot.eligible() ? "1" : "0",
-                    Long.toString(expectedMutation));
-            if (written != null && written == 1) return new ReconciledSnapshot(snapshot, expectedMutation);
+            Long written = redis.execute(SNAPSHOT, List.of(skuKey(skuId), FROZEN), lease.owner(),
+                    Long.toString(lease.fence()), Long.toString(available), Integer.toString(snapshot.version()),
+                    snapshot.eligible() ? "1" : "0", Long.toString(expectedMutation),
+                    Long.toString(snapshot.saleStartsAt()), Long.toString(snapshot.saleEndsAt()), Long.toString(skuId),
+                    reopen ? "1" : "0", Long.toString(snapshot.inventorySequence()));
+            if (written != null && written == 1) return snapshot;
             if (written == null || written != -1) throw new IllegalStateException("Redis库存快照租约已失效");
         }
         throw new IllegalStateException("Redis预扣持续并发变化，SKU保持冻结并等待恢复扫描");
     }
 
-    private void restore(PurchaseRequest request) {
-        String token = tokenHex(request.stockReservationToken());
+    private boolean restore(PurchaseRequest request) {
         Long restored = redis.execute(RESTORE,
                 List.of(skuKey(request.skuId()), tokenKey(request.stockReservationToken()),
-                        skuTokensKey(request.skuId()), TOKENS, RECOVERY),
-                token, Long.toString(request.userId()), Long.toString(request.skuId()), Integer.toString(request.quantity()),
-                request.idempotencyKey(), HexFormat.of().formatHex(request.requestHash()), Long.toString(request.id()),
-                Long.toString(System.currentTimeMillis() + ORPHAN_GRACE_MS));
+                        skuTokensKey(request.skuId()), RECOVERY),
+                tokenHex(request.stockReservationToken()), Long.toString(request.userId()), Long.toString(request.skuId()),
+                Integer.toString(request.quantity()), request.idempotencyKey(), HexFormat.of().formatHex(request.requestHash()),
+                Long.toString(request.id()), Long.toString(System.currentTimeMillis() + ORPHAN_GRACE_MS));
+        if (restored != null && restored == 0) return false; // 快照读取后申请已完成，重读MySQL。
         if (restored == null || restored != 1) throw new IllegalStateException("无法从MySQL事实恢复Redis活动预扣");
+        return true;
     }
 
     private void ensurePendingCounter() {
         String owner = UUID.randomUUID().toString();
-        Long state = redis.execute(CAPACITY_INIT, List.of(PENDING, CAPACITY_INIT), owner, Long.toString(INIT_LEASE_MS));
+        Long state = redis.execute(CAPACITY_INIT, List.of(PENDING, CAPACITY_INIT_KEY), owner, Long.toString(INIT_LEASE_MS));
         if (state == null) throw unavailable(null);
         if (state == 0) return;
         if (state != 1) throw unavailable(1L);
 
-        long count = requests.activeCount();
-        Long tokenCount = redis.opsForZSet().zCard(TOKENS);
-        if (tokenCount != null && tokenCount > TOKEN_SCAN_LIMIT) {
-            throw new IllegalStateException("Redis活动token索引超出有界恢复范围");
+        // 计数缺失时结算Lua拒绝删除活动记录；先补齐SQL活动凭据，避免申请过期后留下无法释放的计数。
+        Set<String> pending = new HashSet<>();
+        Set<Long> frozenSkus = new HashSet<>();
+        List<PurchaseRequest> active = requests.activeReservations(TOKEN_SCAN_LIMIT + 1);
+        if (active.size() > TOKEN_SCAN_LIMIT) throw new IllegalStateException("MySQL活动申请超出有界恢复范围");
+        for (PurchaseRequest request : active) {
+            String token = tokenHex(request.stockReservationToken());
+            if (!Boolean.TRUE.equals(redis.hasKey(tokenKey(token)))) {
+                if (frozenSkus.add(request.skuId())) acquireFreeze(request.skuId());
+                if (!restore(request)) continue;
+            }
+            if ("RESERVED".equals(string(redis.opsForHash().get(tokenKey(token), "state")))) pending.add(token);
         }
-        Set<String> tokens = redis.opsForZSet().range(TOKENS, 0, TOKEN_SCAN_LIMIT - 1);
+        Long tokenCount = redis.opsForZSet().zCard(RECOVERY);
+        if (tokenCount != null && tokenCount > TOKEN_SCAN_LIMIT) throw new IllegalStateException("Redis活动token超出有界恢复范围");
+        Set<String> tokens = redis.opsForZSet().range(RECOVERY, 0, TOKEN_SCAN_LIMIT - 1);
         if (tokens != null) {
-            for (String member : tokens) {
-                String stateValue = string(redis.opsForHash().get(tokenKey(member), "state"));
-                if (!"RESERVED".equals(stateValue)) throw new IllegalStateException("Redis全局token索引状态异常");
-                PurchaseRequest request = requests.byReservationToken(HexFormat.of().parseHex(member));
-                if (request == null || request.terminal()) count++;
+            for (String token : tokens) {
+                if (!"RESERVED".equals(string(redis.opsForHash().get(tokenKey(token), "state")))) {
+                    throw new IllegalStateException("Redis恢复索引包含异常凭据，停止重建容量");
+                }
+                pending.add(token);
             }
         }
-        Long published = redis.execute(CAPACITY_PUBLISH, List.of(PENDING, CAPACITY_INIT), owner, Long.toString(count));
+        Long published = redis.execute(CAPACITY_PUBLISH, List.of(PENDING, CAPACITY_INIT_KEY), owner, Integer.toString(pending.size()));
         if (published == null || published != 1) throw unavailable(1L);
     }
 
@@ -445,14 +424,6 @@ public class RedisStockReservationService {
                 Long.toString(FREEZE_LEASE_MS), Long.toString(System.currentTimeMillis()));
         if (result == null || first(result) != 1) throw unavailable(1L);
         return new FreezeLease(owner, second(result));
-    }
-
-    private boolean unfreeze(long skuId, FreezeLease lease, boolean eligible, long expectedMutation) {
-        Long result = redis.execute(UNFREEZE, List.of(skuKey(skuId), FROZEN), Long.toString(skuId), lease.owner(),
-                Long.toString(lease.fence()), eligible ? "1" : "0", Long.toString(expectedMutation));
-        if (result != null && result == -1) return false;
-        if (result == null || result != 1) throw new IllegalStateException("Redis库存解冻租约已失效");
-        return true;
     }
 
     private long mutation(long skuId) {
@@ -476,12 +447,11 @@ public class RedisStockReservationService {
                 quantity, required(fields, "idempotencyKey"), hash);
     }
 
-    private void verify(PurchaseRequest request, byte[] token) {
+    private void verify(PurchaseRequest request, byte[] token, Map<Object, Object> fields) {
         if (request.stockReservationToken() == null || request.stockReservationToken().length != 32
                 || !MessageDigest.isEqual(request.stockReservationToken(), token)) {
             throw new IllegalStateException("MySQL购票申请token与恢复索引不一致");
         }
-        Map<Object, Object> fields = redis.opsForHash().entries(tokenKey(token));
         StockReservation reservation = reservation(token, fields);
         if (reservation.userId() != request.userId() || reservation.skuId() != request.skuId()
                 || reservation.quantity() != request.quantity()
@@ -492,12 +462,6 @@ public class RedisStockReservationService {
         String requestId = string(fields.get("requestId"));
         if (!requestId.isBlank() && !requestId.equals(Long.toString(request.id()))) {
             throw new IllegalStateException("Redis预扣绑定了不同的MySQL购票申请");
-        }
-    }
-
-    private static void requireEligible(StockSnapshotService.InventorySnapshot snapshot) {
-        if (!snapshot.eligible()) {
-            throw new BusinessException(HttpStatus.CONFLICT, "TICKET_UNAVAILABLE", "票档当前不在销售中，请刷新活动页面");
         }
     }
 
@@ -540,14 +504,6 @@ public class RedisStockReservationService {
     private static String tokenKey(String token) { return PREFIX + "reservation:" + token; }
     private static String skuKey(long skuId) { return PREFIX + "sku:" + skuId; }
     private static String skuTokensKey(long skuId) { return PREFIX + "sku-reservations:" + skuId; }
-    private static String skuKeyFromToken(byte[] token) { return skuKey(parseLong(redislessMetadata(token), "skuId")); }
-    private static String skuTokensKeyFromToken(byte[] token) { return PREFIX + "sku-reservations:" + parseLong(redislessMetadata(token), "skuId"); }
-    private Map<Object, Object> redislessMetadata(byte[] token) {
-        Map<Object, Object> values = redis.opsForHash().entries(tokenKey(token));
-        if (values.isEmpty()) throw new IllegalStateException("Redis预扣凭据不存在");
-        return values;
-    }
-
     private static DefaultRedisScript<List> listScript(String path) {
         DefaultRedisScript<List> script = new DefaultRedisScript<>();
         script.setLocation(new ClassPathResource(path));
@@ -562,5 +518,4 @@ public class RedisStockReservationService {
     }
 
     private record FreezeLease(String owner, long fence) { }
-    private record ReconciledSnapshot(StockSnapshotService.InventorySnapshot snapshot, long mutation) { }
 }

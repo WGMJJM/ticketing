@@ -81,7 +81,7 @@ public class OrderReservation {
     public boolean eligibleForWaitlist(TradeContext context, int quantity, LocalDateTime now) {
         TicketSale sale = context.sale();
         SaleStatus status = sale.statusAt(now);
-        if (!context.active()
+        if (!context.active() || sale.bucketed()
                 || (status != SaleStatus.SELLING && status != SaleStatus.SOLD_OUT)
                 || quantity < 1
                 || quantity > sale.maxQuantityPerOrder()
@@ -141,7 +141,7 @@ public class OrderReservation {
                     HttpStatus.BAD_REQUEST, "ORDER_AMOUNT_INVALID", "订单金额超出允许范围");
         }
         quotas.occupy(userId, sale.sessionId(), quantity);
-        var stock = inventory.reserve(sale, quantity, userId ^ (long) key.hashCode());
+        inventory.reserve(sale, quantity);
         TicketOrder order = new TicketOrder();
         order.setOrderNo(UUID.randomUUID().toString().replace("-", ""));
         order.setUserId(userId);
@@ -157,7 +157,6 @@ public class OrderReservation {
         order.setExpiresAt(created.plusMinutes(properties.paymentWindowMinutes()));
         orders.insert(order);
         orders.insertItem(order, sale, quantity);
-        inventory.attach(order.getId(), sale.skuId(), stock);
         return order.getId();
     }
 
