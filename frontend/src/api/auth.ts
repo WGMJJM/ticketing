@@ -22,11 +22,25 @@ export function loginAccount(username: string, password: string) {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
   })
 }
-export function registerAccount(username: string, password: string) {
+export interface RegistrationInput {
+  username: string
+  email: string
+  password: string
+  code: string
+}
+export function registerAccount(input: RegistrationInput) {
   return sessionRequest<CurrentUser>({
     method: 'POST',
     url: '/auth/register',
-    data: { username, password },
+    data: input,
+  })
+}
+export function sendRegistrationCode(email: string) {
+  return sessionRequest<void>({
+    method: 'POST',
+    url: '/auth/email-code',
+    data: { email },
+    timeout: 15000,
   })
 }
 export async function sessionRequest<T>(
