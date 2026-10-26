@@ -51,44 +51,6 @@ V1至V4逐文件与基准比较保持不变，V5只增加uk_item_order_sku(order
 
 首轮测试编译发现旧测试调用已移动的内部API，随后销售状态单测发现其原夹具缺少新不可变快照需要的ID/价格等事实；已修正测试入口及夹具并重新全量验证。以上失败未计为通过。既有Flyway对MySQL8.4的上游已测试版本提示仍存在，实际迁移及约束测试通过，没有为消除提示调整依赖或关闭校验。
 
-## 五个指定场景的对照
-
-复用第八阶段相同k6工程、10秒预热/20秒稳定、1000活动、相同用户数和64场次混合模型。Hikari10、JVM512m/1024m与G1、MySQL持久化设置、MQ配置及Outbox批量100不变；V5必需索引和外键的实际成本包含在新数据中。本轮[机器配置快照](architecture/results/hardware.json)单独保存，没有覆盖第八阶段环境文件。
-
-对照是第八阶段optimized原始数据，其生产源码对应2c7b086交付；旧environment.baseCommit的c0cd5d5是当时未提交工作区起点，实际运行jar SHA均另行记录。新结果位于docs/performance/results/stage9，补测位于stage9-repeat1、stage9-repeat2，历史原始目录与报告未改动。
-
-| 场景 | RPS前/后 | 下单TPS前/后 | P95毫秒前/后 | P99毫秒前/后 | 累计锁等待毫秒前/后 | 审计 |
-| --- | ---: | ---: | ---: | ---: | ---: | --- |
-| query-100 | 1169.3/1181.7 | 0.0/0.0 | 211.28/205.15 | 440.91/358.45 | 0/0 | 通过 |
-| hot-ample-100 | 57.6/56.5 | 26.1/26.1 | 3058.98/2947.54 | 3680.71/3759.38 | 246865/250297 | 通过 |
-| mixed-50 | 117.65/119.9 | 53.4/54.3 | 797.62/747.97 | 1061.93/1009.52 | 161075/145820 | 通过 |
-| waitlist-100 | 676.15/667.6 | 0.0/0.0 | 224.33/245.84 | 393.88/445.15 | 23673/25774 | 通过 |
-| checkin-100 | 161.85/194.2 | 0.0/0.0 | 1249.63/1194.94 | 1697.88/1888.97 | 119664/99809 | 通过 |
-
-全部5组的稳定及全HTTP阶段非预期错误率为0，MySQL快照审计均通过。100人候补均真实分配并支付100笔，同票100管理员竞争仅1次成功，其余为预期409。表中下单TPS只计普通下单，不把候补轮询RPS或重复扫码拒绝RPS当作分配/成功入场吞吐。累计锁等待覆盖预热及收尾，是多连接累计值，不是单请求延迟。
-
-首轮候补P95从224.33升至245.84毫秒，累计行锁等待从23673升至25774毫秒。保留该结果并以同代码、配置和数据规模补测两轮：
-
-| 候补100人 | RPS | P95毫秒 | P99毫秒 | 累计行锁等待毫秒 | 实际支付数 |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| stage9-repeat1 | 652.6 | 248.69 | 433.59 | 23399 | 100 |
-| stage9-repeat2 | 668.55 | 216.49 | 404.12 | 22838 | 100 |
-
-三轮新候补P95范围216.49至248.69毫秒，均无系统错误、重复订单或审计差异；各轮200条相关事件全部SENT，平均已投递等待分别约2.00/2.12/1.88秒。不能仅凭首轮尾延迟认定持续退化，也不把较快一轮替换原结果。核销首轮P99从1697.88升至1888.97毫秒，仍如实保留；其累计锁等待下降且吞吐上升，重复拒绝负载下的单轮尾部分位数不代表不同票券的入场容量。
-
-本轮没有出现明显整体吞吐下降，未据此承诺尾延迟均改善、统计显著收益、长稳表现或生产SLA。热点SKU仍受行锁串行化限制。详细值、构建SHA和两轮补测见[机器可读对照](architecture/results/performance-stage9.json)。7组均执行实际数据库审计；压力结束后的全局锁监测无死锁或超时，状态为enabled，数据见本轮环境快照。
-
-复现指定场景，在完成独立环境初始化及当前jar构建后执行，使用全新label保护历史：
-
-```powershell
-python scripts/performance/perf.py start --jar backend/target/ticketing-backend-0.1.0-SNAPSHOT.jar --pool-size 10 --outbox-batch-size 100
-python scripts/performance/suite.py --label new-stage9 --levels 100 --scenarios query,hot-ample,waitlist,checkin --warmup 10 --duration 20
-python scripts/performance/suite.py --label new-stage9 --levels 50 --scenarios mixed --warmup 10 --duration 20
-python scripts/performance/compare_refactor.py --label new-stage9
-```
-
-基线原始结果、SUM限购与锁协议不变；没有新增Redis库存、分布式锁、异步下单、连接池调参或未经测量的优化。
-
 ## Vue与浏览器真实联调
 
 实际拆出AdminSessionManager、TicketCredential及CheckinScanner，保持原样式、路由、API和Pinia/CSRF；PurchasePanel与OrdersView已有明确职责，不强行增加转发层。

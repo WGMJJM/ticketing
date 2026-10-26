@@ -28,9 +28,9 @@
 - 第十五阶段公开活动/场次展示使用有界Caffeine与Redis缓存，提交后换代防止旧查询回填当前代；管理、授权和交易权威查询绕过缓存，票档库存/销售状态/serverTime保持实时。启用新准入时，新购票先经原安全限流、只读幂等查重，再由Lua原子判断全局及SKU速率；Redis网络IO不得放入受理写事务，不预扣真实库存或替代MySQL容量。新增票档准入不收费既有请求回放，原用户安全限流仍独立生效。缓存默认开启；本机A/B显示准入未获稳定性能收益，准入默认关闭，仅显式启用并按负载验证。Redis查询故障受控回源，受保护购票写入故障关闭。V1至V8不可修改。
 - 第十六阶段仅新增V9，历史库必须停写→备份→执行scripts/audit-user-session-quota.sql及既有预检→显式ORDER_QUOTA_MIGRATION_APPROVED=true单次切换→逐项额度对账→放写，完成后撤销开关。历史异常或超限停止，DDL失败保留现场，不repair、不自动修复。开发库V7未授权升级。受理侧PurchaseAdmission及恢复仍保留账号UPDATE锁与原幂等/容量协议；不宣称该侧已去串行。取消响应投影在独立状态Bean事务提交后读取。票档条件UPDATE实验无一致收益，生产保留显式FOR UPDATE，不引入销售版本、库存分桶或Outbox异步确认。
 - Docker 优先复用已有兼容镜像。Compose 默认 `pull_policy: missing`，不要无故拉取或更新镜像；完全离线使用 `--pull never`。
-- 第八阶段压测只使用scripts/performance固定的ticketing-perf独立Compose、ticketing_perf库及随机环境标记，禁止对开发或真实业务库清理/注入故障。先保留基线，再用同场景、数据量和配置对照；没有稳定收益的调整不修改默认值。MySQL持久化、锁序、签名和鉴权不得为性能指标降级。
-- 压测稳定统计按请求完成时间截取预热后固定窗口，409须匹配预期业务错误码，5xx/超时/未知冲突单独失败。每轮一致性快照审计库存、订单、支付、限购、候补及电子票；报告同时记录Outbox积压和已投递延迟，不能用部分SENT样本掩盖积压。k6摘要必须删除setup_data，禁止导出Cookie、密码、有效凭证或签名密钥；业务标识不作为高基数标签。
-- Outbox健康批量默认100，可通过WAITLIST_OUTBOX_BATCH_SIZE配置1至100；消息投递故障后结束本轮，按既有退避/租约恢复，不连续认领大批故障事件。发布确认、递增认领令牌、至少一次与数据库幂等语义不变。后续工程调整必须保留第八阶段测量口径与原始结果，不自动开发真实支付或退款。
+- 用户已授权删除旧负载脚本、历史性能结果及可明确识别的独立测试资源，无需归档。性能测试后续统一使用Apache JMeter，重点为成功订单TPS和订单创建P95；本轮只清理，不实现新方案。功能验证保留在scripts/verification及原后端/前端测试中，禁止向业务库注入测试或删除业务数据卷。
+- `.local`仅保留当前运行确实需要的文件，临时验证完成后及时清理，不长期堆积多轮JAR、截图、日志、结果和备份；本轮已按用户明确要求删除全部旧阶段本地产物及备份，只保留当前前后端运行所需的7个小文件，不另行归档。
+- Outbox健康批量默认100，可通过WAITLIST_OUTBOX_BATCH_SIZE配置1至100；消息投递故障后结束本轮，按既有退避/租约恢复，不连续认领大批故障事件。发布确认、递增认领令牌、至少一次与数据库幂等语义不变。后续工程调整不自动开发真实支付或退款。
 - 第十六阶段后审查已明确授权有界批量认领和流水线Confirm；WAITLIST_OUTBOX_IN_FLIGHT_WINDOW默认16，可配置1至64且实际不超过健康批量。Rabbit回调只递交有界完成通知，落账由调度线程完成，禁止数据库事务内等待确认。单条失败不妨碍已在途健康消息，本轮不再认领新窗口；超时/关闭后的记录仍由持久租约及递增令牌恢复。普通新受理先读既有幂等事实，再做独立短只读事务销售预检；不得让非事务同步范围保留预检连接直到受理写事务。本人GET购票申请按键查询只恢复事实，不绕过POST安全限流。V1至V9均不可修改，开发库仍未授权升级。
 - 第十四阶段普通HTTP下单只负责可靠受理，请求与Outbox及容量预算同事务，返回202；普通建单仅由购票命令消费者驱动。TradeResourceLocker维护交易锁序，OrderReservation共用预占/限购/幂等，OrderStateService编排订单终态。候补与电子票实现OrderLifecycle，在当前事务中先候补后出票；不得改成提交后异步联动，异常必须回滚。
 - 技术分层下保留逻辑协作边界：候补与核销只使用交易公开契约、DTO、模型及OrderReservation/TradeResourceLocker，不访问交易内部服务、Mapper或实体；交易不依赖候补和核销实现。受理不依赖交易实现，交易通过受理协作边界原子写入最终状态。库存条件SQL由TicketSkuMapper/TicketInventory负责。所有生产类须在测试资源architecture-modules.properties登记业务归属，ArchitectureRulesTest分别检查技术包位置、分层依赖、归属完整、业务依赖无环及协作边界，不得关闭规则或用错误归属掩盖依赖。
@@ -50,10 +50,10 @@
 
 最新本机运行事实（2026年10月26日）：用户明确授权“不需要备份直接升级”，本次已将上述本机开发库从V10升级至V13，V11/V12/V13均登记成功；本次未新增备份。前置退款、候补关联、额度、受理及库存审计通过，原账号/活动/订单行数保持3/8/6。前端`127.0.0.1:5173`与后端`127.0.0.1:8080`已实际启动并保持运行，真实首页及查询接口验收通过。V10为此前阶段事实，当前版本以V13为准；授权仅覆盖本次本机升级，后续数据库变更仍须新的具体授权。详见`docs/37-local-v13-startup.md`。
 
-当前真实集成回归统一使用`python -B scripts/performance/verify_backend.py --label <唯一标签>`及固定`ticketing-perf`随机guard/schema。下面`-VerifyDatabase`是继承环境的底层入口，不得加载业务`.env`对原`ticketing`库运行测试或故障注入。
+功能集成回归入口为`python -B scripts/verification/verify_backend.py --label <唯一标签>`，仅连接另行配置的独立功能验收资源并核对随机guard，配置见`docs/40-functional-verification.md`。旧压测环境已经删除；不要将业务`.env`用于原`ticketing`库的测试或故障注入。
 
 普通后端测试：`mvn -f backend/pom.xml clean verify`，不依赖本地中间件。
 
-真实 MySQL 验证：先启动 Compose，再执行 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-backend.ps1 -VerifyDatabase`；该脚本导入 `.env` 并启用 `mysql-it` profile。
+真实 MySQL 验证：使用上述独立功能验收入口。`scripts/start-backend.ps1 -VerifyDatabase`只是继承环境的底层入口，不能在加载业务`.env`后对业务库运行。
 
 前端：`cd frontend` 后执行 `npm ci`、`npm run build`。构建包含严格 TypeScript 检查。不要把依赖安装当作构建完成。

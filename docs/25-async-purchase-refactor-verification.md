@@ -65,7 +65,6 @@ graph LR
 | `messaging/OutboxService.java`、`OutboxPublisher.java`、`PurchaseRabbitConfig.java` | 公平认领、独立路由、确认/退回、令牌、退避及有限消息寿命 |
 | `db/migration/V8__async_purchase_admission.sql` | 增量受理表、容量表、历史幂等登记和通道索引 |
 | `frontend/src/components/PurchasePanel.vue`、`views/PurchaseRequestsView.vue` | 提交、同键重试、状态恢复、有界轮询及真实订单跳转 |
-| `scripts/performance/async_faults.py`、`async_suite.py`、`audit-purchase.sql` | 专用环境真实故障、六轮测量和一致性审计 |
 
 除第一个完整路径及前端/脚本外，表内Java短路径均位于`backend/src/main/java/com/ticketing/`；迁移位于`backend/src/main/resources/`。V1～V7原文件保留。
 
@@ -104,47 +103,21 @@ stateDiagram-v2
 
 [20项浏览器检查](architecture/results/stage14-browser.json)全部通过：注册登录、排队页、刷新和本人列表恢复、390px布局、重启重新登录、异步跳转、取消、模拟支付及出票、非本人请求404、真实HTTP超时后的刷新与同键重试、双击确认保护、退出身份清理，以及失败和过期终态的中文提示。[数据库核对](architecture/results/stage14-browser-database.json)证明超时刷新重试只新增一个请求和一个订单。超时由独立连接暂持当前测试用户行锁产生，未Mock HTTP202或终态响应。
 
-浏览器生产预览仅连接固定ticketing-perf；演示活动明确为虚构数据，未读二维码完整凭证、未开摄像头、未发生真实支付。UI验证沿用既有配色，修正登录失效提示、可配置支付截止文案和双击误关确认框。截图：[桌面排队](images/stage14-queue-desktop.png)、[手机排队](images/stage14-queue-mobile.png)、[正式订单](images/stage14-order-desktop.png)、[出票列表](images/stage14-ticket-desktop.png)。
+浏览器生产预览仅连接当时的独立验收环境（现已退役）；演示活动明确为虚构数据，未读二维码完整凭证、未开摄像头、未发生真实支付。UI验证沿用既有配色，修正登录失效提示、可配置支付截止文案和双击误关确认框。截图：[桌面排队](images/stage14-queue-desktop.png)、[手机排队](images/stage14-queue-mobile.png)、[正式订单](images/stage14-order-desktop.png)、[出票列表](images/stage14-ticket-desktop.png)。
 
 ## 验证记录
 
 - 改动前普通测试：81 项通过，0 失败、0 跳过。
-- 改动前真实集成：173 项通过，0 失败、0 跳过，仅使用固定 `ticketing-perf` 及独立 `ticketing_stage14_it` 数据库；连同普通测试共 254 项。
-- 最终完整回归：`mvn -f backend/pom.xml clean verify -Pmysql-it`，84项普通测试及188项真实集成测试，共272项，失败、错误、跳过均为0。运行于Java 21及固定ticketing-perf的隔离schema `ticketing_stage14_final2_it`；日志结束于2026年10月24日00:02:30（北京时间）。测试环境使用独立连接配置和随机guard，未将开发库作为故障或清理目标。
+- 改动前真实集成：173 项通过，0 失败、0 跳过，仅使用当时的独立验收环境（现已退役） 及独立 `ticketing_stage14_it` 数据库；连同普通测试共 254 项。
+- 最终完整回归：`mvn -f backend/pom.xml clean verify -Pmysql-it`，84项普通测试及188项真实集成测试，共272项，失败、错误、跳过均为0。运行于Java 21及当时的独立验收环境（现已退役）的隔离schema `ticketing_stage14_final2_it`；日志结束于2026年10月24日00:02:30（北京时间）。测试环境使用独立连接配置和随机guard，未将开发库作为故障或清理目标。
 - `AsyncPurchaseMigrationIT`分别验证空库至V8，以及带真实历史订单的V7至V8增量升级；逐表核对历史业务数据和V1～V7校验和，原始迁移文件逐一对比基线未变。V8历史幂等映射和容量初值通过验证。
 - `AsyncPurchaseIT`的13项真实集成覆盖可靠受理、20并发同键、100买家争抢1张票、容量200满额、事务回滚、旧令牌及过期竞态、禁用账号/停售/跨SKU限购、Confirm及ACK丢失、重复投递、恢复复用、公平通道、消息TTL及真实死信；1张票的争抢结果为1笔成功、99笔明确失败。
 - `npm ci`及`npm run build`通过，构建包含`vue-tsc --noEmit`。20项真实浏览器检查及数据库核对全部通过，截图和结果见上文。
-- `python -B scripts/performance/async_faults.py --jar backend/target/ticketing-backend-0.1.0-SNAPSHOT.jar --label stage14-final`通过8项真实进程及中间件故障检查；[最终记录](architecture/results/async-faults-stage14-final.json)包含16条一致性审计，异常数均为0。[首次记录](architecture/results/async-faults-stage14-first.json)保留，不覆盖。
-- `python -B scripts/performance/async_suite.py --jar backend/target/ticketing-backend-0.1.0-SNAPSHOT.jar --label stage14-final`完成六轮；`python -B scripts/performance/test_safety.py`的7项隔离保护检查通过，`node --check scripts/performance/scenarios.js`通过。
 - 对话恢复后的局部复核：`mvn -f backend/pom.xml -Dtest=ArchitectureRulesTest,ConfigurationBindingTest test`的4项通过，再次执行前端构建和7项隔离保护检查均通过。沿用最终完整回归证据，未将局部复核数量累加为完整测试数量。
 
 [交付证据汇总](architecture/results/stage14-validation.json)登记测试数量、产物SHA-256及7份历史迁移摘要。完整回归日志、账号和环境凭据仅保留于已忽略的`.local`；共享结果只含脱敏聚合数据。真实集成命令必须先配置固定专用实例和匹配guard的隔离schema；普通`mvn -f backend/pom.xml clean verify`不需要中间件。
 
-
-## 实测性能与能力边界
-
-环境为i5-13400F、16逻辑处理器、31.82GiB主机内存，Docker分配约15.53GiB；MySQL8.4、Redis7、RabbitMQ4.1，单个Java应用使用512MiB初始堆和1024MiB最大堆。硬件、镜像摘要、运行JAR摘要及各轮配置保留于[最终原始结果](performance/results/stage14-final/comparison.json)和同目录的hardware/environment/monitoring/database/k6-summary文件。
-
-每轮1000活动，热点场景1场次，混合场景64场次；10秒预热、20秒稳定窗口、最多150秒请求收尾及30秒Outbox排空观察。稳定窗口按HTTP或终态查询完成时间截取，跨窗口请求可能令受理TPS和订单TPS略有差异。RPS包含查询和写请求，受理TPS只计新键首次202，订单TPS计查询到真实新订单成功；不与历史同步接口指标直接对比。
-
-| 场景 | VU | HTTP RPS | 受理TPS | 订单TPS | 受理P95 ms | 端到端P95 ms | Outbox采样峰值 |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| hot-ample | 10 | 53.20 | 9.10 | 9.10 | 75.09 | 1894.95 | 17 |
-| hot-ample | 25 | 106.65 | 8.60 | 8.70 | 85.16 | 3649.35 | 35 |
-| hot-ample | 50 | 196.85 | 8.55 | 8.60 | 78.67 | 9012.85 | 55 |
-| hot-ample | 100 | 331.80 | 6.65 | 6.70 | 267.55 | 20012.20 | 106 |
-| hot-scarce | 100 | 343.80 | 6.95 | 6.85 | 220.38 | 19471.40 | 106 |
-| mixed | 25 | 111.45 | 10.45 | 10.40 | 80.34 | 3467.25 | 42 |
-
-P50/P95/P99均保留在comparison.json；数据库行锁等待增量、Hikari池等待、RabbitMQ队列及消费者速率按轮记录。六轮服务器/传输错误均为0，库存及订单等16条审计均通过；最终Outbox全部SENT，无PENDING/PROCESSING残留。不能只用已发送样本代表积压：表内同时报告过程采样峰值，逐通道已投递延迟和最终积压另存原始结果。100VU充足库存轮购票命令投递平均约12.36秒、最大约18.64秒；候补通道平均约553毫秒、最大约2519毫秒，验证了通道公平性，但发布路径已是明显瓶颈。
-
-`hot-scarce`使用5张库存并在成功后取消释放，属于库存周转压测；本轮没有形成售罄业务失败，不能将其描述为100人只出售1张票。不可超卖的100人抢1张票由独立真实集成用例验证。六轮未达到容量拒绝条件，满额503和代理停机时的有界预算由专项测试及真实故障验证覆盖。
-
-[首次压测目录](performance/results/stage14/hot-ample-100/environment.json)保留前三轮通过和第四轮失败结果；第四轮k6退出99，全程HTTP失败8次，稳定窗口服务器/传输错误为0。当时仅给10秒收尾，端到端部分请求已超过20秒，截断可能影响结果，现有证据不足以逐一归因。随后把收尾观察延长至150秒并增加全程状态分类，保持零错误门禁，再以新目录完整运行六轮通过。首次失败不混入最终通过统计。
-
 ## 剩余限制及后续接口
-
-本阶段完成单实例可靠异步购票闭环，不宣称生产容量或吞吐提升。100VU的端到端P95已约20秒，受理快不代表交易快；单行持久容量、用户/SKU行锁、逐条Confirm发布及轮询均可能限制吞吐。本机短时测量没有逐项隔离这些因素的成本，不能凭总体指标证明单行容量完全没有热点。
 
 MySQL继续作为库存及限购权威，既有候补FIFO仅限同SKU候补内部。普通购票只经消费者调用OrderReservation，支付/取消/退款/出票及候补协作仍处于原事务边界。消息语义是至少一次加数据库幂等。死信、终态请求与Outbox历史仍需运营保留策略；浏览器仅验证内置浏览器及390px视口，未验证真实手机、Safari或摄像头；没有接入真实支付或退款。
 

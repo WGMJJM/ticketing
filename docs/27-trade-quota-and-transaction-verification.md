@@ -58,19 +58,9 @@ V9按所有PENDING/PAID明细分组回填，不把取消、超时、退款及未
 
 `quotaLimit`迁移占位符来自原`ORDER_SESSION_LIMIT`，SQL不硬编码4。已有业务数据而未应用V9时，启动预检默认`STOP_QUOTA_SWITCH`，在任何V9 DDL前停止。配置`ORDER_QUOTA_MIGRATION_APPROVED=false`不参与运行限额的计算，仅作为历史库切换门槛。
 
-受控部署必须依次执行：停止全部业务写入及后台工作→备份并验证可恢复→按实际部署限额运行`scripts/audit-user-session-quota.sql`及既有候补/退款/审计/受理预检→审计无异常时单次设置`ORDER_QUOTA_MIGRATION_APPROVED=true`并迁移→使用`scripts/performance/audit-quota.sql`在一致性快照内核对全部组及额外额度→撤销开关并放写。任何STOP或DDL失败只报告并停止，禁止自动恢复工具修改旧数据。
+受控部署必须依次执行：停止全部业务写入及后台工作→备份并验证可恢复→按实际部署限额运行`scripts/audit-user-session-quota.sql`及既有候补/退款/审计/受理预检→审计无异常时单次设置`ORDER_QUOTA_MIGRATION_APPROVED=true`并迁移→使用`scripts/verification/audit-quota.sql`在一致性快照内核对全部组及额外额度→撤销开关并放写。任何STOP或DDL失败只报告并停止，禁止自动恢复工具修改旧数据。
 
 只读审计需要在同一连接先`SET @ticketing_quota_limit=<实际ORDER_SESSION_LIMIT>`；未提供参数也会报告STOP。开发库[只读记录](architecture/results/stage16-development-readonly.json)仍为V7，未应用V8/V9。本阶段不替用户升级开发库。固定隔离性能脚本仅对匹配guard的ticketing_perf完成停写、备份、审计及单次切换，备份存入忽略的.local。
-
-## 观测与基准口径
-
-新增低基数指标：`ticketing.trade.quota`记录额度SQL占用/拒绝/释放/不一致尝试；占用和释放计数可能随后回滚，不能当作已提交额度账本。`ticketing.trade.transaction.duration`区分提交成功、确定业务失败及技术失败；失败包含回滚和必要的独立终态处理。`ticketing.trade.lock.duration`记录账号、额度、票档锁定查询的调用耗时，含数据库往返，不能当作纯锁等待。MySQL行锁等待、死锁、锁超时另读数据库指标。所有标签都不含用户、场次、票档、订单或幂等键。
-
-完整系统沿用10秒预热、20秒稳定、150秒graceful及原收尾审计：100VU充足、100VU稀缺、25VU/64场次混合及25VU共享一个账号跨64场次。新准入统一关闭、缓存开启，原安全限流开启且统一使用既有regression阈值，连接池10及JVM512MB～1GB保持一致。共享账号专项仅改变账号分布和目标轮转，基线与优化完全相同；受理侧账号UPDATE限制仍存在。
-
-`TradeKernelBenchmark`不提供生产端点。仅显式Failsafe指定，在固定13307及guard内先持久受理96笔请求并认领，再以1/4/8/16个有界线程调用生产worker.complete。计量包括交易提交，排除HTTP、claim及Outbox传输；逐笔保留耗时，核对96笔真实成功、库存、额度和容量。场景为96用户单票档、12用户各8场次、96用户同场次4票档。它是有限批次实验，不冒充稳定HTTP TPS；冷启动、JIT及本机I/O影响需与原始样本一起解释。
-
-三组内核分别归档原版本、额度+FOR UPDATE、额度+条件UPDATE。条件UPDATE尝试通过父级共享锁稳定配置，把库存排他锁推迟到条件写入，不使用库存version作为销售版本。实测热点部分档位锁等待下降，但低并发及多票档并无一致吞吐收益，因此已回退该实验代码，生产保留FOR UPDATE，不新增V10、销售版本或永久配置分支。
 
 ## 执行记录
 
@@ -81,62 +71,15 @@ V9按所有PENDING/PAID明细分组回填，不把取消、超时、退款及未
 - `npm ci`及`npm run build`通过，包含严格TypeScript检查。
 - 最终同JAR四轮闭环及18项数据不变量通过；另保留热点3轮复核（含1轮采样诊断），Redis/缓存故障10项、应用/MQ/数据库故障8项及浏览器25项通过。7项性能隔离检查通过。全部证据汇总见[机器验证记录](architecture/results/stage16-validation.json)。
 
-复现普通及真实集成使用`python -B scripts/performance/verify_backend.py --label <新标签>`。运行内核需先设置`TRADE_BENCH_RESULT`为未存在的绝对JSON路径，再加`--tests TradeKernelBenchmark`；数据库及guard由验证工具限定。闭环使用`python -B scripts/performance/trade_suite.py --jar <指定JAR> --label <新标签>`，不覆盖任何已有结果。故障脚本继续使用catalog_faults.py和async_faults.py，所有操作仅固定隔离环境。
-
 ## 边界与后续
 
 本阶段没有消除受理侧账号排他锁、全局持久容量行及Outbox逐条Confirm。交易内核收益不能直接外推端到端容量。第十七阶段只保留基于实际测量决定是否库存分桶的入口；本阶段不实现库存分桶、Redis额度、多实例、异步Confirm或真实支付退款。
 
 本阶段完成全部本地验收后，按交易额度与迁移、验证工具与实测证据、部署与验收文档三个功能点分别提交并依次推送main。
 
-
-## 实际性能对照
-
-完整系统同场景单变量对照，HTTP及终态按完成时间截取20秒稳定窗口。端到端时间包含Outbox与排队。
-
-| 场景 | 基线订单TPS | 额度版本订单TPS | 基线终态P95 ms | 额度版本终态P95 ms |
-| --- | ---: | ---: | ---: | ---: |
-| hot-ample | 10.10 | 7.45 | 10505.95 | 18286.20 |
-| hot-scarce | 7.05 | 7.60 | 20131.00 | 17450.60 |
-| mixed | 11.25 | 11.00 | 3167.80 | 3740.95 |
-| same-user-cross-session | 9.90 | 9.50 | 3028.80 | 3198.55 |
-
-[基线四轮](performance/results/stage16-system-baseline/comparison.json)与[最终四轮](performance/results/stage16-system-final/comparison.json)记录HTTP RPS、受理TPS、终态P50/P95/P99/最大值、数据库锁等待及最终各通道投递延迟和积压；每轮目录还包含全过程Hikari/JVM/MQ采样及数据审计。不能拿部分SENT样本代替积压，也不将整轮SELECT/锁等待直接除以稳定秒数。
-
-首轮热点出现明显回退，因此没有直接归因为交易改造或结束验收。先备份隔离V9现状，再从校验过的自有V8备份恢复固定ticketing_perf夹具，以相同工具复跑旧包、新包；开发实例和所有失败探针库均未参与，见[复核环境记录](architecture/results/stage16-regression-recheck-environment.json)。
-
-| 热点复核 | 订单TPS | 终态P95 ms | 说明 |
-| --- | ---: | ---: | --- |
-| stage16-hot-recheck-baseline | 7.45 | 18555.60 | 旧包，无额外快照 |
-| stage16-hot-recheck-quota | 7.15 | 19218.50 | 新包，含两次jcmd及只读SQL采样，仅作诊断 |
-| stage16-hot-recheck-quota-clean | 7.30 | 18735.25 | 新包，无额外快照 |
-
-旧包复核同样降至7.45TPS，证明不能将最初两轮全部差异归因于额度模型。等采样条件的复核为7.45对7.30TPS，P95约18.56对18.74秒，没有证明端到端提速。快照看到受理容量行锁等待，连接池等待同时阻塞状态查询、消费者和Outbox认领；第二个时刻也看到票档锁等待，未见额度行等待。[快照摘要](architecture/results/stage16-recheck-trace-summary.json)仅代表两个时刻，各只读查询不是同一原子快照，不能推断唯一瓶颈。原始SQL和线程在.local。已有全局容量、受理账号锁与逐条Confirm仍是后续限制，本阶段没有越界改造它们，也没有把波动包装成稳定收益。
-
-| 内核场景 | 并发 | 基线TPS | 额度FOR UPDATE TPS | 条件UPDATE实验TPS | 基线P95 ms | 额度FOR UPDATE P95 ms |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| hot | 1 | 22.20 | 21.95 | 17.57 | 99.48 | 106.44 |
-| hot | 4 | 34.83 | 28.47 | 38.99 | 232.99 | 245.42 |
-| hot | 8 | 35.12 | 38.24 | 41.17 | 442.40 | 389.52 |
-| hot | 16 | 38.54 | 41.00 | 44.76 | 892.21 | 621.71 |
-| same-user-cross-session | 1 | 34.02 | 32.32 | 31.42 | 38.92 | 67.82 |
-| same-user-cross-session | 4 | 51.60 | 67.19 | 67.81 | 170.31 | 114.31 |
-| same-user-cross-session | 8 | 67.79 | 80.39 | 83.32 | 226.05 | 145.02 |
-| same-user-cross-session | 16 | 67.00 | 76.30 | 73.37 | 436.75 | 319.80 |
-| multi-ticket | 1 | 38.40 | 39.39 | 29.86 | 36.66 | 32.03 |
-| multi-ticket | 4 | 84.32 | 77.01 | 77.69 | 74.70 | 74.96 |
-| multi-ticket | 8 | 76.93 | 80.04 | 75.50 | 162.92 | 119.86 |
-| multi-ticket | 16 | 80.05 | 77.64 | 75.34 | 289.44 | 389.93 |
-
-[内核基线](performance/results/stage16-kernel-baseline.json)、[额度FOR UPDATE](performance/results/stage16-kernel-quota-for-update.json)、[条件UPDATE实验](performance/results/stage16-kernel-quota-conditional.json)保存全部单次时长和锁等待，未筛选有利档位。[内核JAR记录](performance/results/stage16-kernel-artifacts.json)证明两种票档协议只有两个生产类不同，基准源相同；最终包所有生产类与选定FOR UPDATE内核JAR逐字节相同。全部8个历史迁移与起点提交字节相同，见[摘要](architecture/results/stage16-historical-migrations.json)。
-
-所有内核批次均成功96笔且无隐式技术重试；正常性能负载与刻意注入的死锁回滚测试分别统计。基线四轮未逐轮采集新增的InnoDB死锁计数；[累计补充快照](performance/results/stage16-baseline-lock-metrics-after.json)显示当时从服务启动累计死锁/锁超时仍为0，不能伪造为逐轮原始采样。最终四轮已逐轮采集这些指标。内核有限批次没有独立预热剔除，首组包含JIT/冷启动效应；少量百分比差异不视作稳定优化。
-
 ## 浏览器与环境收尾
 
 [浏览器步骤](architecture/results/stage16-browser.json)记录真实Session、CSRF、可靠受理、刷新、跨票档限额、跨场次独立额度、模拟支付、取消、电子票及运营模拟退款；HTTP无Mock。数据库事实另存独立记录，未展示完整入场凭证。
-
-最终归档时发现旧压测审计尚未覆盖整单退款，会把保留的支付流水及作废票券误报为异常；已补齐支付与退款快照、退款票券完整性和COMPLETED候补历史规则。新增[10项真实MySQL审计正反例](performance/results/stage16-final-refund-audit-probes.json)，验证合法退款通过，金额、缺流水、缺票、票券状态及候补关联异常仍被检出。反例仅在同连接事务中修改并回滚，前后完整18项审计和表计数一致。生产代码与受测JAR未改变，旧性能原始结果未覆盖。复现使用`python -B scripts/performance/refund_audit_probes.py --label <新标签>`，须先在固定隔离库通过模拟退款生成完整退款夹具；脚本停止专用应用后运行，不自动重启。
 
 ![第十六阶段浏览器验收](images/stage16-electronic-tickets.png)
 

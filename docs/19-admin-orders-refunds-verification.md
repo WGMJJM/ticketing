@@ -50,9 +50,7 @@ V1至V5逐文件与起点Git内容核对不变。V6对订单状态及paid_at CHE
 | npm ci / npm run build | 安装成功、审计0漏洞；严格TypeScript及Vite生产构建通过 |
 | 浏览器闭环与最终SQL审计 | 真实操作通过，退款/支付/库存/票券/候补审计0异常 |
 
-普通后端执行`mvn -f backend/pom.xml clean verify`。前端执行`npm ci`、`npm run build`，包含严格TypeScript检查。真实集成回归使用同一Docker专用ticketing-perf项目已有兼容镜像，`--pull never`，不拉取新镜像或重建卷。
-
-可复现入口为`python scripts/verify-aftercare.py`，需要先按既有scripts/performance说明准备带随机标记的本机专用环境及Python依赖。脚本验证performance_control.environment_guard后，固定13307与ticketing_perf_aftercare_it，清除进程中的数据源重定向，注入专用凭据并执行原命令：
+普通后端执行`mvn -f backend/pom.xml clean verify`。前端执行`npm ci`、`npm run build`，包含严格TypeScript检查。真实集成回归使用同一Docker专用独立功能验收环境已有兼容镜像，`--pull never`，不拉取新镜像或重建卷。
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-backend.ps1 -VerifyDatabase

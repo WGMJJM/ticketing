@@ -43,9 +43,9 @@
 | `cd frontend; npm run build` | 严格TypeScript检查和Vite生产构建成功，前端源码无变更 |
 | 新构建后端启动 | 复制构建jar到忽略目录启动，MySQL、RabbitMQ连接成功，真实HTTP及页面可访问 |
 
-集成测试在固定`ticketing-perf`实例的独立`ticketing_perf_aftercare_it`执行；迁移测试使用其原有随机测试schema，新建、历史升级及异常数据迁移用例通过。没有对开发库或历史业务库清理、迁移或注入故障。各测试套件数量及结果见[回归统计](engineering/results/flat-package-regression.json)。
+集成测试在当时的独立验收环境（现已退役）实例的独立`ticketing_perf_aftercare_it`执行；迁移测试使用其原有随机测试schema，新建、历史升级及异常数据迁移用例通过。没有对开发库或历史业务库清理、迁移或注入故障。各测试套件数量及结果见[回归统计](engineering/results/flat-package-regression.json)。
 
-本轮不重复性能压测，也不声称目录调整带来吞吐量提升。第八、九阶段的性能基线及原始统计保留。
+本轮不重复性能压测，也不声称目录调整带来吞吐量提升。旧性能基线与原始统计已按最新清理要求移除。
 
 ## 浏览器真实联调与数据库事实
 

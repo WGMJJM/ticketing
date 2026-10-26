@@ -35,7 +35,6 @@
 | `scripts/start-backend.ps1 -VerifyDatabase` | 通过；独立随机`_it`库执行55项基础测试及150项真实MySQL/RabbitMQ集成测试，共205项，失败0、错误0、跳过0 |
 | 普通数据库账号迁移探针 | 通过；无SUPER权限的应用账号在独立空库完成V1～V7，两个审计触发器均存在 |
 | V7部署只读检查 | 通过；分别识别失败Flyway历史、部分DDL遗留对象和成功应用V7的状态 |
-| `python -m unittest discover -s scripts/performance -p test_safety.py` | 通过；5项压测环境隔离安全测试 |
 | `cd frontend; npm ci` | 通过；安装143个包，npm报告0个漏洞 |
 | `cd frontend; npm run build` | 通过；`vue-tsc --noEmit`和Vite生产构建成功 |
 | `git diff --check` | 通过；仅有仓库现存CRLF行尾转换提示，没有空白错误 |
@@ -73,20 +72,6 @@
 
 本轮没有使用实体摄像头硬件；摄像头扫码不计为本轮已验证项。
 
-## 核销性能对照
-
-保留原`performance/results/stage11/before/checkin-100/`记录。本轮另从当前基准`96ec69f868e837e6692405b3b56e3095b94920b8`导出源码独立构建基准JAR，在相同机器、镜像、V7专用schema、1000活动/1场次/100用户、连接池10、Outbox批量100下依次比较基准ADMIN、阶段11 ADMIN、阶段11 STAFF。基准产物仍为阶段10代码，运行于同一个V7结构以控制数据库结构差异；没有回滚schema。每轮100 VU，预热10秒，按请求完成时间截取其后固定20秒。
-
-| 路径 | 稳定窗口请求数 | 请求/秒（数量÷20） | p50毫秒 | p95毫秒 | 预期409 |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| 基准ADMIN | 3038 | 151.9 | 534.20 | 1436.92 | 3037 |
-| 阶段11 ADMIN | 3890 | 194.5 | 362.63 | 1310.91 | 3889 |
-| 阶段11 STAFF | 3182 | 159.1 | 530.41 | 1176.36 | 3181 |
-
-三轮各一次真实核销成功；所有409均匹配预期业务码。5xx、传输错误、非预期错误及监测失败均为0，数据库一致性快照全部通过。每轮初末Outbox均无事件与积压，投递延迟没有样本，不能解释为零毫秒。稳定吞吐按固定20秒计算，未使用k6按整个运行时间计算的Counter rate冒充稳定吞吐。
-
-本轮未观察到核销路径退化，未调整连接池、锁序、签名或鉴权以追求指标。这是三次本机短窗口同票争抢对照，不能据此宣称稳定性能提升或生产容量。硬件、JAR SHA-256、聚合统计、监测、SQL诊断及审计结果见[本轮原始结果](performance/results/stage11/verification-20261023/)；原始JSON未包含setup_data、Cookie、密码、票券凭证或签名密钥。
-
 ## 复现步骤
 
 先在已有Flyway库只读执行`scripts/audit-staff-audit-readiness.sql`，检查迁移状态、触发器策略及当前账号权限。为全量集成测试创建独立的`_it`验收库，通过进程环境变量指定MYSQL连接；历史迁移探针须在隔离实例内拥有建schema权限。不修改开发.env，不使用开发业务库进行测试清理。再执行：
@@ -99,18 +84,6 @@ npm run build
 ```
 
 授权/审计页面复现按[本地开发第十一阶段](05-local-development.md#第十一阶段工作人员及管理审计)操作：先注册普通账号，再由显式初始化的ADMIN提升与授权；准备同窗口内两个场次的已付票，只授权其中之一，保持工作人员Cookie完成成功、未授权、撤权后拒绝及审计快照检查。
-
-性能环境仅使用固定`ticketing-perf`、`ticketing_perf`和随机标记。按[压测复现](performance/01-reproduce.md)准备或恢复专用环境后，对基准JAR和当前JAR分别执行以下命令，基准及当前ADMIN两轮不加`--staff-checkin`，STAFF轮才加；每轮使用新的label以保留原始结果：
-
-```powershell
-python scripts/performance/perf.py start --jar backend/target/ticketing-backend-0.1.0-SNAPSHOT.jar --pool-size 10 --outbox-batch-size 100
-python scripts/performance/perf.py prepare --scenario checkin --users 100 --staff-checkin
-python scripts/performance/perf.py run --scenario checkin --vus 100 --warmup 10 --duration 20 --label stage11-reproduce-staff
-python scripts/performance/perf.py audit
-python scripts/performance/perf.py stop
-```
-
-结果写到`docs/performance/results/<label>/checkin-100/`。基准源码可用`git archive --format=zip --output=<私有ZIP路径> 96ec69f`导出到新私有目录后以Maven打包，不覆盖当前工作区。基准仅用于对照，不将该版本未重新执行的测试算作本轮通过。
 
 ## Docker数据保留与收尾
 

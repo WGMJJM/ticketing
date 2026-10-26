@@ -24,10 +24,10 @@
 6. 撤销一次性批准，再启动验证健康、Session/CSRF、公开查询和受保护接口。确认审计及维护验收通过后才放写。`scripts/upgrade-v7-v10.py`提供已核对本机原开发库的受控执行入口，默认仅校验参数；它不是任意生产库的通用升级工具。
 7. 若失败，保持停写，保留现场、日志及原备份。在新的数据库恢复已验证备份并对账，由负责人决定连接切换和重新开放；不要对失败现场自动回退DDL、删除对象或强行降级。真实生产恢复切换需要另行授权。
 
-本次已批准原开发库的备份校验可安全复核，下面命令只读本地文件，不连接数据库；当前原库已经V10，不要再次执行升级：
+以下仅示意受控升级工具的只读参数检查，变量须指向另行授权维护窗口内有效的JAR、恢复报告及已验证备份。旧阶段临时文件已清理，不能继续照搬历史路径；当前本机版本为V13，见[本机启动记录](37-local-v13-startup.md)。
 
 ```powershell
-python scripts/upgrade-v7-v10.py --jar .local/stage19/candidate.jar --verified-report docs/architecture/results/stage19-v7copy-r2-migration.json --backup .local/stage19/stage19-v7copy-r2/source-v7.sql --backup-sha256 2bfe109dba1cf3bcb510eabe7058f3afd66a9be1d410bff5c1fcbd62e01f9330 --label stage19-drycheck
+python scripts/upgrade-v7-v10.py --jar $verifiedJar --verified-report $verifiedReport --backup $verifiedBackup --backup-sha256 $backupSha256 --label $runLabel
 ```
 
 实际变更入口额外要求`--apply --confirm-database ticketing --maintenance-confirmed`，并核对原库停写、原字段快照和迁移历史；这些参数不能代替负责人对具体窗口的批准。本轮两个续行参数只处理完整V7的启动预检失败或已完整V10的启动配置失败，拒绝失败DDL；它们不是通用故障修复开关。
@@ -36,7 +36,7 @@ python scripts/upgrade-v7-v10.py --jar .local/stage19/candidate.jar --verified-r
 
 正常关停由服务管理器向唯一 Java 进程发送终止信号并等待退出。Outbox未完成记录保留持久租约；候补本地队列只保存触发，WAITING事实在MySQL。异常中止后恢复中间件，再启动一个JAR；过期、售后、受理和候补任务会扫描数据库。不要用队列清空、改订单状态或修改库存账本来“恢复”。
 
-`python scripts/check-deployment.py --base-url http://127.0.0.1:8080 --output .local/deployment-check.json`执行只读业务/健康检查，结果文件须使用新名称。HTTPS部署增加`--require-https`。装配内部管理路径时使用`--performance`，并通过进程环境注入`TICKETING_SMOKE_USERNAME/PASSWORD`，不把口令放入参数；该选项仅用于有`ticketing-perf-only`标记的隔离验收。生产内部诊断使用现有管理员Session，沿用CSRF、最新账号/角色校验和网络边界。
+`python scripts/check-deployment.py --base-url http://127.0.0.1:8080 --output .local/deployment-check.json`执行只读业务/健康检查，结果文件须使用新名称。HTTPS部署增加`--require-https`。装配受保护管理诊断路径时增加`--admin-monitoring`，通过进程环境提供`TICKETING_SMOKE_USERNAME/PASSWORD`。生产内部诊断使用现有管理员Session，沿用CSRF、最新账号/角色校验和网络边界。
 
 原始默认配置的 `/actuator/health` 仅公开健康汇总，`/system/status` 只是进程响应，不能证明三个中间件可用。装配内部管理路径后健康也要求ADMIN。不要在互联网开放原始Actuator。
 
@@ -60,4 +60,4 @@ python scripts/upgrade-v7-v10.py --jar .local/stage19/candidate.jar --verified-r
 
 新增版本密钥并指定当前版本，保留所有仍有有效电子票的旧密钥；验证旧票和新票后再安排旧密钥退役。不更改历史摘要，不生成固定默认密钥。完整凭证只在持票页/核销提交期间存在，禁止放URL、日志或浏览器存储。
 
-`.github/workflows/ci.yml`只运行Java21普通测试/架构守卫及Node锁依赖和严格构建。真实MySQL/Rabbit/Redis、迁移、浏览器和性能由固定`ticketing-perf`及随机guard执行；远端CI是否实际运行通过，须以该次Actions结果为准，不能由本地构建推断。
+`.github/workflows/ci.yml`只运行Java21普通测试/架构守卫及Node锁依赖和严格构建。真实MySQL/Rabbit/Redis、迁移及浏览器功能验证须使用独立环境和随机guard，配置见[功能验证](40-functional-verification.md)；远端CI是否实际运行通过，须以该次Actions结果为准，不能由本地构建推断。

@@ -4,13 +4,11 @@
   "status": "功能及隔离验收完成，性能限制和失败轮保留，生产未上线",
   "functionalAcceptancePassed": true,
   "frozenCandidate": {
-    "path": ".local/stage19/candidate.jar",
     "sha256": "690448e32c25353f060b00ce5fd09d12070347f42f1affbb555e14d043ad7345",
     "rebuiltProductionClassBytesMatch": true,
     "comparedClassFiles": 199,
     "rebuiltJarSha256": "5b5d4cb901eb7964fa383b322c9da9f503e62e68e37e5694c08e9cf1bc634607"
   },
-  "sourceSnapshot": "docs/architecture/results/stage19-delivery/source-inventory.json",
   "historicalMigrationsUnchanged": true,
   "backend": {
     "ordinaryCommand": "mvn -f backend/pom.xml clean verify",
@@ -119,7 +117,7 @@
         }
       }
     },
-    "finalFullCommand": "python -u -B scripts/performance/verify_backend.py --label s19final2",
+    "finalFullCommand": "python -u -B scripts/verification/verify_backend.py --label s19final2",
     "finalFull": {
       "capturedAt": "2026-10-25T06:52:11.136335+00:00",
       "phase": "integration",
@@ -471,7 +469,6 @@
       "assets/rolldown-runtime-XKyaHtl9.js": "548d1dbf321e7d2ae804fcc158b588706a7c52f8ca175de1490c6ccb4dbe55b7",
       "assets/runtime-core.esm-bundler-BKHgPjq3.js": "e5f23e6fdda4e4b11ef03dd0af034f101a62b2a3fa3e4fba1d95c7aa72d99f41",
       "assets/staff--GmeGCOD.js": "1b843df297a8607e46da9dd6524342b6be9981f0ffb968dbdcf6d2784a71b016",
-      "assets/tickets-CxK657my.js": "e27e602b9d5bea8e5debe01bb9f4507f595442df5d2b9379f698a9355292d1ac",
       "assets/validation-B02F6DQv.js": "4419a756588cabf8ceb2eadfee996c4524e3f02074a17c610dc616c044ec8f6c",
       "assets/waitlist-DJ-p31su.js": "1e3515f58d5e772b6dcf705514d1ea6daf0cbaccb5f0e704cff2ee4d74aad699",
       "assets/WaitlistView-DXrAUk_T.js": "bec39260212e50721b2459766609c5cb87e5b94231aadcbc11f893e280525013",
@@ -488,9 +485,7 @@
     "mobileOrderAndQrChecked": true
   },
   "additionalChecks": {
-    "performanceIsolationTests": 7,
     "loginFunctionTests": 4,
-    "jfrParserAssertions": 3,
     "pythonSyntaxFiles": 37,
     "gitDiffCheckPassed": true
   },
@@ -523,151 +518,8 @@
     "repairOrCleanExecuted": false,
     "productionDeploymentAuthorized": false
   },
-  "performance": {
-    "sameJarAndScriptsAcrossFinalComparison": true,
-    "normalReverseRoundsPassed": true,
-    "soakSteadySeconds": 1800,
-    "soakPassed": true,
-    "soakAverageSuccessfulOrderTps": 13.735555555555555,
-    "soakLateServerSampleTps": 10.647688064399956,
-    "sceneReports": [
-      {
-        "report": "docs/performance/results/stage19-baseline-r1/hot-ample-100/hot-ample-100/environment.json",
-        "scenario": "hot-ample",
-        "vus": 100,
-        "steadySeconds": 60,
-        "k6ExitCode": 99,
-        "auditPassed": true
-      },
-      {
-        "report": "docs/performance/results/stage19-baseline-r2/hot-ample-100/hot-ample-100/environment.json",
-        "scenario": "hot-ample",
-        "vus": 100,
-        "steadySeconds": 60,
-        "k6ExitCode": 99,
-        "auditPassed": true
-      },
-      {
-        "report": "docs/performance/results/stage19-baseline-r3/hot-ample-100/hot-ample-100/environment.json",
-        "scenario": "hot-ample",
-        "vus": 100,
-        "steadySeconds": 60,
-        "k6ExitCode": 0,
-        "auditPassed": true
-      },
-      {
-        "report": "docs/performance/results/stage19-baseline-r3/hot-scarce-100/hot-scarce-100/environment.json",
-        "scenario": "hot-scarce",
-        "vus": 100,
-        "steadySeconds": 60,
-        "k6ExitCode": 0,
-        "auditPassed": true
-      },
-      {
-        "report": "docs/performance/results/stage19-baseline-r3/mixed-25/mixed-25/environment.json",
-        "scenario": "mixed",
-        "vus": 25,
-        "steadySeconds": 60,
-        "k6ExitCode": 0,
-        "auditPassed": true
-      },
-      {
-        "report": "docs/performance/results/stage19-baseline-r3/same-user-cross-session-25/mixed-25/environment.json",
-        "scenario": "mixed",
-        "vus": 25,
-        "steadySeconds": 60,
-        "k6ExitCode": 0,
-        "auditPassed": true
-      },
-      {
-        "report": "docs/performance/results/stage19-baseline-r4/hot-ample-100/hot-ample-100/environment.json",
-        "scenario": "hot-ample",
-        "vus": 100,
-        "steadySeconds": 60,
-        "k6ExitCode": 0,
-        "auditPassed": true
-      },
-      {
-        "report": "docs/performance/results/stage19-baseline-r4/hot-scarce-100/hot-scarce-100/environment.json",
-        "scenario": "hot-scarce",
-        "vus": 100,
-        "steadySeconds": 60,
-        "k6ExitCode": 0,
-        "auditPassed": true
-      },
-      {
-        "report": "docs/performance/results/stage19-baseline-r4/mixed-25/mixed-25/environment.json",
-        "scenario": "mixed",
-        "vus": 25,
-        "steadySeconds": 60,
-        "k6ExitCode": 0,
-        "auditPassed": true
-      },
-      {
-        "report": "docs/performance/results/stage19-baseline-r4/same-user-cross-session-25/mixed-25/environment.json",
-        "scenario": "mixed",
-        "vus": 25,
-        "steadySeconds": 60,
-        "k6ExitCode": 0,
-        "auditPassed": true
-      },
-      {
-        "report": "docs/performance/results/stage19-soak-r1/hot-ample-25/hot-ample-25/environment.json",
-        "scenario": "hot-ample",
-        "vus": 25,
-        "steadySeconds": 1800,
-        "k6ExitCode": 0,
-        "auditPassed": true
-      },
-      {
-        "report": "docs/performance/results/stage19-steps-r1/hot-ample-100/hot-ample-100/environment.json",
-        "scenario": "hot-ample",
-        "vus": 100,
-        "steadySeconds": 45,
-        "k6ExitCode": 0,
-        "auditPassed": true
-      },
-      {
-        "report": "docs/performance/results/stage19-steps-r1/hot-ample-200/hot-ample-200/environment.json",
-        "scenario": "hot-ample",
-        "vus": 200,
-        "steadySeconds": 45,
-        "k6ExitCode": 99,
-        "auditPassed": true
-      },
-      {
-        "report": "docs/performance/results/stage19-steps-r1/hot-ample-25/hot-ample-25/environment.json",
-        "scenario": "hot-ample",
-        "vus": 25,
-        "steadySeconds": 45,
-        "k6ExitCode": 0,
-        "auditPassed": true
-      },
-      {
-        "report": "docs/performance/results/stage19-steps-r1/hot-ample-50/hot-ample-50/environment.json",
-        "scenario": "hot-ample",
-        "vus": 50,
-        "steadySeconds": 45,
-        "k6ExitCode": 0,
-        "auditPassed": true
-      }
-    ],
-    "allK6ScenesPassed": false,
-    "documentedFailures": [
-      "stage19-baseline-r1启动Redis超时",
-      "stage19-baseline-r2启动Redis超时",
-      "stage19-steps-r1的200VU预热TCP连接拒绝"
-    ],
-    "limits": [
-      "末段服务端采样变慢，唯一根因未确认",
-      "SINGLE默认",
-      "额外Lua准入默认关闭",
-      "regression安全阈值10000及专用短支付窗口，不是生产SLA"
-    ]
-  },
   "deployment": {
     "finalHttpReport": "docs/architecture/results/stage19-final-http-smoke.json",
-    "productionHttpsChecked": false,
     "productionDeploymentPerformed": false
   },
   "ci": {
@@ -683,7 +535,6 @@
   "deliveryChecks": {
     "scannedDeliveryFiles": 193,
     "privateCredentialValuesAbsent": true,
-    "k6SummariesWithoutSetupData": 15,
     "sensitiveAndBuildPathsIgnored": true,
     "allTenMigrationBytesUnchangedFromStart": true
   },

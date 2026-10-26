@@ -188,7 +188,6 @@ Redis Key使用`ticketing:seckill:v1:`前缀。活动token无TTL；SKU token索�
 
 取消、超时、退款、票档库存/销售配置修改和购票失败仍由MySQL事务写既有库存Outbox；活动发布/下架及场次修改/取消也在原事务写所属SKU的资格同步事件。候补消费者及原周期补偿统一调用冻结仲裁，余额先扣除有效普通token，再由`WaitlistService`逐个处理MySQL队首，成功后重算并解冻。生产不再启用`WaitlistContinuationScheduler`内存续跑；FIFO达到单轮边界后由持久候补补偿扫描继续。订单交易、支付、退款、电子票签发与核销状态机保持现有MySQL实现。
 
-
 ## 配置版本、恢复事实与分桶兼容边界
 
 `ticket_sku.version`只表示票档配置版本。管理编辑、启停销售仍在原场次锁与版本条件内递增；普通预占、支付、取消和退款只改库存及updated_at。正常新购票不再逐次查询MySQL销售资格或版本，首次装载、配置事件及故障恢复才读MySQL快照。Lua用Redis时间检查快照中的开售/停售边界；消费者仍在原MySQL事务中最终检查账号、父资源、票档、窗口、库存和场次限额，事件同步前的旧资格不能产生违规正式订单。
@@ -204,7 +203,5 @@ flowchart LR
 ```
 
 `PurchaseRecoveryJob`统一接管未落库、已落库及终态未结算token；Outbox负责消息补发。候补及库存回补统一经过`dispatchFrozen`。现有`WaitlistCompensation`除了扫描WAITING，还按SKU有界扫描库存Outbox最大序号；只有Redis快照未覆盖该序号时才重新仲裁。快照在SKU锁内读取已提交事件序号并原子写入Redis，因此SENT但消费失败、进入死信且没有候补的释放事件也能补偿。没有新增任务类、表或每日Redis清理任务。超过单批候补边界后仍由WAITING扫描接续。
-
-新建票档固定SINGLE，新普通/候补订单只使用SKU条件UPDATE。`switch_stock.py`的命令行和导入调用均在访问数据库前停止；分桶新预占、分配写入及本地候补续跑代码已删除。V10的桶、订单分配及审计表不删除：历史BUCKETED订单继续按原分配记录支付、关闭、退款，余额查询和必要管理维护继续读取桶；不能直接改策略或删除分配记录。历史票档需要重新销售时，须在另行批准的停写窗口备份、执行现有只读库存/订单/额度/候补审计，明确处理全部有效订单后再制定迁移；当前代码不自动迁移。
 
 2026-10-26对本机`ticketing`的只读盘点：Flyway为V10，7个SKU均为SINGLE，`order_stock_allocation`和`stock_strategy_switch`均为0行，进行中购票申请为0。Redis旧全局索引和恢复索引均为空。本轮没有执行V11或其他数据库迁移，也不据此假设其他环境没有分桶历史。

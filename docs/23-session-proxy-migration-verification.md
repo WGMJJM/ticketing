@@ -30,7 +30,7 @@ DIRECT为默认模式，只认Servlet连接IP并忽略所有转发头。TRUSTED_
 
 部署顺序为：停止业务写入、确认备份 → 只读执行`audit-refund-readiness.sql`、`audit-waitlist-relations.sql`、`audit-staff-audit-readiness.sql` → 无异常后启动。STOP必须停止，不可通过禁用Flyway绕过。审计脚本兼容空库、V6、成功V7和失败现场，SET/PREPARE只影响当前连接。
 
-`scripts/recover-v7.py`仅用于人工明确授权的已核验失败分支：V1～V6成功且checksum匹配、唯一失败为V7、两表完整建立而两个审计触发器均缺失。默认audit以及不带--apply的recover只读。备份含所有表、逐行摘要及完整dump，须先在固定ticketing-perf实例验证恢复和原V7参考结构。执行恢复还必须同时提供数据库名、server UUID、维护窗口确认和已验证备份；数据相对备份变化立即停止。
+`scripts/recover-v7.py`仅用于人工明确授权的已核验失败分支：V1～V6成功且checksum匹配、唯一失败为V7、两表完整建立而两个审计触发器均缺失。默认audit以及不带--apply的recover只读。备份含所有表、逐行摘要及完整dump，须先在当时的独立验收环境（现已退役）实例验证恢复和原V7参考结构。执行恢复还必须同时提供数据库名、server UUID、维护窗口确认和已验证备份；数据相对备份变化立即停止。
 
 恢复命令中的显式确认是人工操作条件，不能加入启动脚本或无人值守任务：
 
@@ -52,26 +52,11 @@ MigrationSafetyIT只在固定13307端口、_it数据库和匹配随机guard下�
 
 ## 验证方式
 
-先局部复测，再完整验证。真实集成使用独立`ticketing_stage13_final_it`，MySQL/RabbitMQ/Redis均来自固定ticketing-perf Compose，沿用随机隔离标记；不清理开发库，不导出秘密。
-
-```powershell
-mvn -f backend/pom.xml "-Dtest=ClientAddressResolverTest,RateLimitConfigurationTest,ArchitectureRulesTest" test
-python -B scripts/test_v7_recovery.py
-python -O -B scripts/test_v7_recovery.py
-python -B scripts/performance/test_safety.py
-mvn -f backend/pom.xml clean verify
-# 预先通过进程环境注入独立_it库及专用中间件连接；策略探针另需上述guard参数。
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-backend.ps1 -VerifyDatabase
-cd frontend
-npm ci
-npm run build
-```
+先局部复测，再完整验证。真实集成使用独立`ticketing_stage13_final_it`，MySQL/RabbitMQ/Redis均来自当时的独立验收环境（现已退役），沿用随机隔离标记；不清理开发库，不导出秘密。
 
 性能继续按请求完成时间截取预热后固定窗口，保留409错误码分类、每轮MySQL快照审计、Outbox积压与投递延迟。baseline关闭限流，regression开启六类预算并显式放宽至10000；生产默认值不改。工具清除继承的CLIENT_ADDRESS_等参数，固定DIRECT模式。生产探针额外验证160次新会话请求、拒绝无Cookie、已有Session复用，以及真实Redis停止时匿名csrf为503而已有csrf为200。
 
 ## 本轮实际结果
-
-验收日期2026-10-23。[机器可读汇总](security/results/stage13-validation.json)保留测试类、性能对照、生产探针及浏览器结果；[环境快照](security/results/stage13-environment/hardware.json)记录运行环境。本轮先局部、再整体验证，未跳过已有业务测试。
 
 | 检查 | 实际结果 |
 | --- | --- |
@@ -85,48 +70,17 @@ npm run build
 | 性能隔离检查 | 7项通过，新增代理环境隔离及新会话预算的模式检查 |
 | 前端 | npm ci成功，安装143包，报告0漏洞；vue-tsc严格检查与Vite生产构建通过 |
 | 原开发库只读检查 | 三份脚本通过；V1～V7成功，0失败，2个触发器，全部业务行摘要与已恢复备份一致 |
-| k6及每轮数据库快照 | 六场景两组共12轮全部通过，50VU、预热10秒、固定稳定窗口20秒；系统/连接/未知错误均0 |
 | 生产阈值探针 | 注册160次精确10次进入Controller校验、150次429；订单30/10秒、候补10/60秒预算后拒绝，业务事实不变 |
 | 新会话生产阈值 | 160次并发中115次200、45次429；此前启动与探针已消耗5次预算。所有429均无Set-Cookie，已有Session取令牌200 |
 | 真实Redis停机及恢复 | 四类原写入口503，实测515/547/516/515毫秒；匿名csrf503且无Cookie，已有csrf、公开活动和本人订单均200，数据库事实不变；重启恢复到Controller校验400 |
 | 共享报告检查 | 不含setup_data、密码属性、有效电子票凭证或令牌属性；V1～V7与原提交一致，备份/凭据/私有日志未纳入交付 |
 
-基础81项包含在254项内，局部复测不重复叠加。CSRF集成中的客户端异常注入与专用环境实际停止Redis分别记录，不混同。原始[生产阈值记录](performance/results/stage13-production/rate-limits.json)保留预算消耗和恢复后的数据库审计。
-
 ### 浏览器联调
 
-真实Vue生产构建经本机5174代理到固定ticketing-perf的18080 API。另一次无Cookie160请求精确120次200、40次429且拒绝无Cookie后，首次登录显示中文等待秒数；实际停止专用Redis后显示中文503等待提示。恢复Redis后，通过页面创建随机测试账号、登录、刷新恢复身份、退出、再次登录，全部成功。未将密码、Cookie或CSRF写入浏览器存储或共享报告，聚合事实见[浏览器记录](security/results/stage13-browser.json)。
+真实Vue生产构建经本机5174代理到当时的独立验收环境（现已退役）的18080 API。另一次无Cookie160请求精确120次200、40次429且拒绝无Cookie后，首次登录显示中文等待秒数；实际停止专用Redis后显示中文503等待提示。恢复Redis后，通过页面创建随机测试账号、登录、刷新恢复身份、退出、再次登录，全部成功。未将密码、Cookie或CSRF写入浏览器存储或共享报告，聚合事实见[浏览器记录](security/results/stage13-browser.json)。
 
 ![新会话预算耗尽后的中文提示](images/stage13-csrf-session-limit.png)
 
 ![真实Redis停机后的首次登录反馈](images/stage13-csrf-redis-unavailable.png)
 
 ![恢复后登录及页面刷新保持身份](images/stage13-session-recovered.png)
-
-### 性能对照及限制
-
-两组同一JAR的SHA-256为`28266eea3f08c425ef54ff23354df230a34d3254b26bb463ec6484be4335bb7d`；metadata的baseCommit为运行前HEAD `1e0dc86`，JAR包含当时尚未提交的本阶段实现，以摘要核对实际产物。均为池10、Outbox批量100、1000活动、50用户，混合场景64场次、其他1场次。baseline关闭，regression开启六类预算且阈值显式放宽至10000，保留Redis执行成本。先完成关闭组，再完成开启组，不同时运行构建或其他压力测试。
-
-| 场景 | 关闭 请求/秒 | 开启 请求/秒 | 关闭p95毫秒 | 开启p95毫秒 |
-| --- | ---: | ---: | ---: | ---: |
-| query | 983.75 | 912.80 | 136.73 | 142.33 |
-| hot-ample | 52.05 | 49.05 | 1633.40 | 1532.36 |
-| hot-scarce | 146.90 | 129.15 | 586.16 | 652.83 |
-| mixed | 115.65 | 100.40 | 794.74 | 899.12 |
-| waitlist | 376.10 | 369.45 | 127.85 | 136.40 |
-| checkin | 152.10 | 157.55 | 762.15 | 736.08 |
-
-吞吐为稳定窗口完成请求数÷20秒。多数场景开启组吞吐较低，p95变化不一致；本轮单组对照不能给出稳定因果开销或容量结论，未据此调整默认阈值、连接池或Outbox。候补两组各50人均完成支付，核销两组均仅一次成功；预期409继续按业务码核对。
-
-以下每格均为关闭/开启，积压峰值为约2秒采样所得，延迟只描述SENT事件。每轮最终未投递数均为0，交易场景在负载期间仍存在明显积压，结束后排空不能解释为即时分发。
-
-| 场景 | 采样未投递峰值 | SENT平均延迟秒 | SENT最长延迟秒 |
-| --- | ---: | ---: | ---: |
-| hot-ample | 452 / 441 | 22.31 / 21.67 | 25.42 / 25.67 |
-| hot-scarce | 207 / 176 | 12.11 / 11.12 | 17.04 / 16.18 |
-| mixed | 756 / 583 | 22.89 / 22.05 | 28.50 / 26.37 |
-| waitlist | 18 / 18 | 1.26 / 1.19 | 3.00 / 2.72 |
-
-query和checkin没有本轮库存释放Outbox事件，延迟无样本，不按0毫秒解释。每轮environment和monitoring同时保留未投递状态、尝试次数、SENT延迟、连接池、锁等待、JVM和RabbitMQ指标，database保留归一化SQL及执行计划，k6保留稳定窗口聚合。全部原始结果分别位于`performance/results/stage13-baseline`和`stage13-regression`，未覆盖旧阶段数据。
-
-本阶段验证范围为本机隔离环境、HTTP会话、模拟交易及代理链解析。未在生产Nginx/TLS网络、多机Session共享或实体设备上部署，不宣称公网抗攻击容量、长时间稳定性、真实支付或真实退款能力。

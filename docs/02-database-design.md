@@ -50,7 +50,7 @@ order_aftercare按订单主键保存RETRY/MANUAL_REQUIRED/COMPLETED、受控中�
 
 `admin_audit_log`保存管理员、枚举动作、资源类型/ID、UTC发生时间、短摘要、明确的`before_values`/`after_values` JSON和请求关联UUID。操作人外键保留原账号记录；索引支持按操作人时间、资源时间和全局时间分页。V7为该表建立UPDATE/DELETE拒绝触发器，应用只开放ADMIN分页读取，没有改写/删除入口。业务代码只写字段白名单快照，日志不接收原始请求体，也不保存密码、Session/CSRF、凭证或签名密钥。审计插入与活动/场次/票档/工作人员/退款业务更新共用MySQL事务。
 
-升级已有库前只读执行`scripts/audit-staff-audit-readiness.sql`，检查Flyway历史、遗留V7对象、binlog触发器策略和当前迁移账号权限。开发与独立压测Compose启用`log_bin_trust_function_creators=1`，允许具有当前schema TRIGGER权限的非SUPER账号创建审计触发器；其他环境由数据库管理员安排等效权限。MySQL DDL可能部分提交，出现失败历史或遗留对象必须停止升级、保留现场并人工处理，不自动repair、删除表或清空数据卷。
+升级已有库前只读执行`scripts/audit-staff-audit-readiness.sql`，检查Flyway历史、遗留V7对象、binlog触发器策略和当前迁移账号权限。开发Compose启用`log_bin_trust_function_creators=1`，允许具有当前schema TRIGGER权限的非SUPER账号创建审计触发器；其他环境由数据库管理员安排等效权限。MySQL DDL可能部分提交，出现失败历史或遗留对象必须停止升级、保留现场并人工处理，不自动repair、删除表或清空数据卷。
 
 核销工作人员授权不是独立认证系统：Session仍只承载现有principal，`CurrentAccountFilter`每个受保护请求重读数据库账号；实际`(staff_id,session_id,revoked_at IS NULL)`权限在核销事务中复查。管理员授权/撤销、角色降级与禁用先取得目标工作人员账号行，再触碰权限/业务资源；核销按用户→活动→场次→SKU→订单→票券既定锁序进行。V7不更改库存、订单、支付、Outbox或电子票凭证结构。
 
@@ -135,14 +135,6 @@ Outbox与库存释放/管理员增库存同事务；候补入队/退出也写调
 
 核销先锁真实工作人员用户行并复查ADMIN，随后沿统一父级锁序锁SKU及订单，最后条件更新电子票。SQL要求UNUSED、关联订单PAID、场次SCHEDULED和MySQL UTC时间处于 `[starts_at-配置分钟,ends_at)`，默认提前60分钟。成功转USED，同语句记录used_at和checked_by，受影响行为1才算首次成功；重复扫描409且不改原记录。VOID拒绝入场，本阶段无公开作废或删除接口。核销不改库存、订单或支付。活动下架本身不自动作废已付票，场次取消/结束则拒绝核销。数据库CHECK继续强制USED必须同时有时间和人员。
 
-## 第八阶段性能审计
-
-本阶段未增加业务表、字段或索引，V1至V4及全部外键、唯一约束、库存CHECK保持不变。热点等待实际发生在SKU主键行锁上，限购、FIFO、Outbox和列表已有索引的执行计划及归一化SQL耗时保存在 `docs/performance/results/`，不以新增索引代替锁竞争分析。
-
-压测运行于独立ticketing-perf MySQL实例，ticketing_perf业务库仍由原Flyway迁移生成；performance_control.environment_guard仅为工具的隔离标记，位于其他schema，不进入产品模型或迁移。工具在清理前验证随机标记，不读取开发库凭据。压测结束使用一致性快照，核对SKU库存与本夹具全部PENDING/PAID明细汇总，以及支付快照、限额、候补关系、FIFO、电子票数量和核销元数据。该汇总等式只用于零历史差额的专用夹具。
-
-MySQL的innodb_flush_log_at_trx_commit和sync_binlog均保留1，未关闭持久化换取吞吐。生产连接池保持原默认10；Outbox仅调整健康批量和故障时结束当轮，库存及订单事务锁序、条件更新均不变。复现与边界见 [性能测试说明](performance/01-reproduce.md)。
-
 ## 第九阶段候补关联修复
 
 V5__waitlist_order_sku_reference.sql仅新增两项必需索引和一个外键，不重建表，不修改V1至V4。ticket_order_item原有uk_item_order(order_id)与uk_item_ticket_reference(id,order_id,sku_id)不能提供MySQL8.4所需的精确(order_id,sku_id)唯一引用键，因此增加uk_item_order_sku(order_id,sku_id)。waitlist_entry增加idx_waitlist_order_sku(reserved_order_id,sku_id)及fk_waitlist_order_sku，引用该复合唯一键。
@@ -150,8 +142,6 @@ V5__waitlist_order_sku_reference.sql仅新增两项必需索引和一个外键�
 reserved_order_id为NULL的WAITING记录继续允许存在；分配后对应订单必须真正包含该SKU，不能把另一票档的订单挂在候补下。原fk_waitlist_order_user、预留订单唯一键、FIFO索引、库存CHECK及电子票外键全部保留。数量相等和WAITLIST_CONFIRM幂等域/键继续由同步事务协作检查，不借本次修复扩大数据模型。
 
 迁移前在目标库只读执行scripts/audit-waitlist-relations.sql，核对SKU、用户、场次和数量。结果非空就停止升级并保留异常事实，不自动删除、覆盖或repair；迁移时暂停业务写入，防止预检与DDL之间产生新记录。MySQL DDL并非整文件原子回滚，若异常中断，需核对Flyway和已执行DDL再受控处理，脚本不自动重建库。
-
-独立探针使用scripts/performance/verify_migrations.py，在随机隔离标记对应的专用MySQL内新建临时测试schema，分别用基准V4产物和当前产物启动真实Flyway：空库V1至V5、保留历史预留记录的V4至V5升级，以及错误SKU关联只审计并停止，最后仅清理本探针创建的schema。正常ticketing_perf及开发库不删除或重建。DatabaseMigrationIT另验证新外键拒绝错误关联及反向修改明细、原用户外键和完整引用索引。
 
 本轮没有新增性能索引；V5索引仅为业务关联约束所需。性能复测保留其真实写入成本，不通过关闭外键、唯一约束或持久化获得指标。实际结果见[第九阶段验收](16-architecture-verification.md)。
 

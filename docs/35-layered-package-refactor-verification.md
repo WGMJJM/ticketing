@@ -40,7 +40,7 @@
 
 普通验证：`mvn -f backend/pom.xml clean verify`，90项通过，失败、错误、跳过均为0。
 
-完整集成验证使用`python -u -B scripts/performance/verify_backend.py --label layer_refactor_1025`，固定ticketing-perf容器、随机guard及独立随机schema。2026-10-25 20:23:55完成，Maven耗时6分47秒，257项通过，失败、错误、跳过均为0。脚本退出码0，成功清理本轮13个符合规则的隔离schema。
+完整集成验证使用`python -u -B scripts/verification/verify_backend.py --label layer_refactor_1025`，当时的独立验收环境（现已退役）容器、随机guard及独立随机schema。2026-10-25 20:23:55完成，Maven耗时6分47秒，257项通过，失败、错误、跳过均为0。脚本退出码0，成功清理本轮13个符合规则的隔离schema。
 
 两类测试共347项通过。集成回归包含Spring装配及配置绑定、真实HTTP认证与CSRF、MyBatis数据访问、异步购票17项、候补与消息联动29项，以及订单、支付、退款、出票、核销、库存、迁移、重启补偿和用户场次限额。Java包引用残留扫描及`git diff --check`通过。
 

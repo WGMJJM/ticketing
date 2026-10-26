@@ -17,7 +17,7 @@ macOS/Linux 使用同样的 Compose 命令，后端执行 `bash scripts/start-ba
 
 ## 配置
 
-注册现要求真实邮箱验证码。SMTP或独立验证码密钥未配置时发送/验证返回503，既有用户登录不受开关影响。配置项和V12升级前提见[注册升级说明](36-registration-four-points.md)；当前业务库仍为V10，本轮没有执行V11/V12，不能直接启动触发未经批准的升级。
+注册现要求真实邮箱验证码。SMTP或独立验证码密钥未配置时发送/验证返回503，既有用户登录不受开关影响。配置项和V12升级前提见[注册升级说明](36-registration-four-points.md)；当前本机业务库已在另行授权后升级至V13，见[本机启动记录](37-local-v13-startup.md)；其他环境仍须按实际版本取得具体迁移授权。
 
 从 `.env.example` 生成 `.env` 并配置三个密码；本次初始化已生成随机本地密码。`.env`、`.local`、构建目录被忽略。不要把 `docker compose config` 的完整输出贴到公开日志，它会展开凭据；日常使用 `config --quiet`。
 
@@ -30,8 +30,8 @@ PowerShell 脚本为 UTF-8 BOM，Bash 为 LF UTF-8。脚本读取 `.env` 而不�
 1. `docker compose --env-file .env -f deploy/compose.yml config --quiet`。
 2. `docker compose --env-file .env -f deploy/compose.yml up -d --pull never --wait`，核对三个容器健康，镜像必须事先存在。
 3. `mvn -f backend/pom.xml clean verify`，检查不依赖中间件的响应与 MVC/Security 测试。
-4. `python -B scripts/performance/perf.py init`启动固定`ticketing-perf`环境，再执行`python -B scripts/performance/verify_backend.py --label <本轮唯一标签>`。脚本核对随机guard并新建随机schema，执行完整`clean verify -Pmysql-it`；成功清理仅本轮合规schema，失败保留现场。不会用H2替代，也不会向原开发库注入测试数据。`-VerifyDatabase`/`--verify-database`是直接继承环境的底层入口，不能在加载业务`.env`时对原`ticketing`库运行它。
-5. 启动后端和前端，检查状态接口、Actuator 与 Vite 代理，确认首页为「服务运行正常」。
+4. 需要真实集成验证时，先另行配置独立功能验收资源，再使用[功能验证入口](40-functional-verification.md)；不能向业务库加载测试夹具。
+5. 启动后端和前端，检查健康状态、Vite代理、首页演出列表和人气榜。
 6. 暂停后端，检查活动加载错误和状态连接失败；恢复后端再重试。
 7. 检查 `/about`、活动详情、场次选择及运营管理。按最新要求，页面使用正常产品文案；支付与退款确认时说明模拟处理和不发生实际资金往来。登录后下单、支付、查看成功流水，再创建一单等待自动过期，核对库存及限额恢复。当前展示文案调整见[正常展示文案验收](38-normal-display-copy.md)。
 8. `npm run build` 同时完成 TypeScript 检查和生产打包。
@@ -113,48 +113,23 @@ TICKET_BACKFILL_ENABLED默认false；只有明确需要时在本地私有环境�
 
 第七阶段验收时42项基础测试加108项真实集成测试共150项，包含ElectronicTicketIT的24项新用例及签名/轮换配置测试，详见docs/14-electronic-ticket-verification.md。测试结束清理的是本用例生成的票券夹具，不提供产品删除票券能力。数据库测试会调用真实支付出票，必须停止运行中的本地后端再执行，避免后台任务和随机测试密钥处理真实订单。
 
-## 第八阶段性能验证
-
-压测与故障注入只使用固定ticketing-perf项目、13307端口的ticketing_perf库和独立MQ，不导入开发.env。准备、等价重建、六类k6场景、监测、审计和恢复命令见[压测复现](performance/01-reproduce.md)，实际结果见[第八阶段验收](15-performance-verification.md)。清理前必须核对专用库随机环境标记，不允许对真实业务库运行这些工具。
-
-本轮45项基础测试加108项真实MySQL/RabbitMQ集成共153项全部通过，前端npm ci与build通过。52组短时压力、10类恢复检查、4项审计反例及5项隔离边界测试均通过；这些数量不合并冒充后端JUnit数量。原集成验证脚本本轮通过进程变量连接专用测试环境，未改动脚本或根.env。
-
-WAITLIST_OUTBOX_BATCH_SIZE默认100（1至100）；健康时增加每轮发布量，一次故障后结束本轮，继续按既有退避/租约恢复。连接池默认仍为10，无新索引、迁移或Redis库存。不要将本机20秒稳定窗口的数据当作生产容量。
-
 ## 第九阶段架构与迁移验收
 
 订单写事务仍由OrderService入口开启，候补及核销走TradeResourceLocker公开锁API，库存使用TicketInventory，同步OrderLifecycle参与者不可改成提交后异步处理。四组非敏感配置集中绑定，旧环境变量及属性名继续使用；消息包迁到messaging不会改变MQ交换机、队列或历史消息。
 
 上线V5之前暂停业务写入，只读执行scripts/audit-waitlist-relations.sql，发现SKU、用户、数量或场次差异只报告并停止，不能删除历史记录或自动repair。已有V1至V4不改，V5在原表添加复合引用索引及外键。独立探针复现命令：
 
-```powershell
-python scripts/performance/verify_migrations.py --legacy-jar .local/performance/optimized.jar --jar backend/target/ticketing-backend-0.1.0-SNAPSHOT.jar --label new-validation
-```
-
-legacy-jar应为基准2c7b086对应的V4产物；本机保留第八阶段产物，其他环境可在私有目录用git archive导出该版本构建，不覆盖当前工作区。探针仅使用已标记ticketing-perf实例内本次生成的临时schema，并在结束后只清理这些schema，不重建原数据库。标签不能覆盖旧结果。
-
 本轮普通Maven为50项，真实集成111项，失败/错误/跳过均0；前端npm ci及构建通过。指定性能复测、浏览器组件与凭证清理验收的实际结果见[第九阶段记录](16-architecture-verification.md)。
 
 ## 第十一阶段工作人员及管理审计
 
-本节记录第十一阶段权限和V7迁移协议。先在已有Flyway库中只读执行`scripts/audit-staff-audit-readiness.sql`；STOP结果必须停止升级并人工核对。当前真实集成统一使用固定perf实例与随机guard，运行`python -u -B scripts/performance/verify_backend.py --label <新标签>`，不要用会导入根.env的`start-backend.ps1 -VerifyDatabase`替代隔离。迁移探针需要在独立验收实例中创建随机schema的权限，运行应用的普通账号不需要全局建库权限。本地MySQL启用binlog时，Compose设置`log_bin_trust_function_creators=1`，让具备当前schema TRIGGER权限的迁移账号创建仅追加审计触发器；部署环境须由数据库管理员按本地权限策略配置等效权限。历史V1～V10均不可改写；迁移失败保留数据库现场，不自动repair或清库。
+本节记录第十一阶段权限和V7迁移协议。先在已有Flyway库中只读执行`scripts/audit-staff-audit-readiness.sql`；STOP结果必须停止升级并人工核对。当前真实集成统一使用固定perf实例与随机guard，运行`python -u -B scripts/verification/verify_backend.py --label <新标签>`，不要用会导入根.env的`start-backend.ps1 -VerifyDatabase`替代隔离。迁移探针需要在独立验收实例中创建随机schema的权限，运行应用的普通账号不需要全局建库权限。本地MySQL启用binlog时，Compose设置`log_bin_trust_function_creators=1`，让具备当前schema TRIGGER权限的迁移账号创建仅追加审计触发器；部署环境须由数据库管理员按本地权限策略配置等效权限。历史V1～V10均不可改写；迁移失败保留数据库现场，不自动repair或清库。
 
 运营管理员登录`/admin/staff`，从已注册的普通ACTIVE账号中选择工作人员并提升为CHECKIN_STAFF；选择正常场次授予核销权限。工作人员登录`/staff/checkin`后只会看到自己的有效场次。用普通用户在真实演出窗口内购买并模拟支付，再以工作人员账号扫码；有效授权的票核销成功，未授权场次返回无权提示，重复核销显示已核销且不会覆盖原工作人员和时间。管理员继续从运营后台核销入口处理任意场次，现有`/api/v1/admin/checkins`行为不变。
 
 在工作人员仍保持登录时，管理员从`/admin/staff`撤销其场次权限，再用原Cookie重试同一测试场次：服务端须返回403，工作人员页面场次列表同时不再包含该场次。降级到USER或停用账号会撤销全部有效授权；下一次受保护请求按数据库最新角色刷新身份或使会话失效。工作人员访问订单、退款、活动/票档管理和`/admin/audit-logs`应为403；USER不能管理或核销，管理员才能管理授权和查看审计。
 
 审计检查从`/admin/audit-logs`按操作人、动作、资源或时间筛选，确认活动/场次/票档/库存、工作人员角色/授权、管理员退款均记录了相应旧值和新值。核销人员与时间从电子票事实查看。审计不包含凭证、密码、Cookie或CSRF。失败业务事务不能留下一条成功审计记录；并发修改须核对每条记录的前后快照与实际提交顺序，这些行为由`StaffAuditIT`和真实MySQL集成验收覆盖，不要用手改数据库代替。
-
-原核销基线保留于`docs/performance/results/stage11/before/checkin-100`；本轮重新构建96ec69f基准并与当前ADMIN/STAFF路径对照，原始结果在`stage11/verification-20261023`。复现只启动`ticketing-perf`专用Compose并验证环境标记，使用工作人员路径准备并运行同等100 VU、10秒预热、20秒稳定窗口：
-
-```powershell
-python scripts/performance/perf.py start --jar backend/target/ticketing-backend-0.1.0-SNAPSHOT.jar --pool-size 10 --outbox-batch-size 100
-python scripts/performance/perf.py prepare --scenario checkin --users 100 --staff-checkin
-python scripts/performance/perf.py run --scenario checkin --vus 100 --warmup 10 --duration 20 --label stage11-staff-after
-python scripts/performance/perf.py audit
-```
-
-该轮写入`docs/performance/results/stage11-staff-after/checkin-100/`，不会覆盖既有基线；先检查结果脱敏和一致性审计，再比较同场景窗口。不要连接开发库、删除历史结果或把凭证复制到报告。完整运行约束见[压测复现](performance/01-reproduce.md)，阶段实际结果见[第十一阶段验收记录](21-staff-audit-checkin-verification.md)。
 
 ## Git 与本地文件
 
@@ -200,12 +175,9 @@ try {
 
 普通后端回归在测试资源中显式关闭限流，不连接Redis；`mysql-it`中的`RateLimitIT`、`CsrfSessionIT`和`TrustedProxyIT`显式开启，默认使用本机16379，`RATE_LIMIT_TEST_REDIS_PORT`可指定隔离Redis，只清理各自随机命名空间，不执行FLUSHDB/FLUSHALL。真实MySQL测试须使用独立验收库。原开发库已在第十三阶段按单次明确授权完成受控V7恢复；历史证据保留，部署仍须先只读执行三个审计脚本，STOP时禁止自动repair或继续部署。恢复工具和权限探针的使用条件见[阶段十三验收](23-session-proxy-migration-verification.md)。
 
-性能工具新增`--rate-limit-mode baseline|regression|production`，仅固定ticketing-perf环境有效。baseline显式关闭用于旧口径对照；regression开启Lua、阈值统一放宽为10000以保持既有场景；production使用默认阈值，并运行`verify_rate_limits.py`验证保护与真实Redis故障。测试密钥由工具随机生成，仅传入子进程，不进入共享报告。完整复现见[阶段十二验收](22-redis-security-rate-limits-verification.md)。
 ## 第十五阶段目录缓存及票档准入
 
 公开活动/场次缓存由`CATALOG_CACHE_ENABLED`控制，默认开启；L1最多2000项/15秒，L2为120秒加至多约10%抖动，负缓存5秒。有界列表为无关键词、常用城市、前3页、12/20条，其他组合直接查库。票档库存、销售窗口和serverTime保持实时。管理提交后换代失效，Redis故障受控回源；相关阈值见`.env.example`及`ticketing.catalog-cache`。
-
-新购票前置速率由`PURCHASE_ADMISSION_LIMIT_ENABLED`控制，默认关闭；本机初次A/B中开启后热点订单TPS下降、终态P95上升，因此只提供显式启用的保护能力，不将其作为默认性能优化。开启时`PURCHASE_ADMISSION_GLOBAL_RATE/GLOBAL_BURST`默认20/40，`PURCHASE_ADMISSION_TICKET_RATE/TICKET_BURST`默认10/20，须按负载目标验证。只控制新受理速率，不代表库存；同键只读查重先于新增Lua，原安全限流仍在更前面。429携带具体全局/票档繁忙码，Redis故障503。数据库排队容量200和其他原配置含义不变。不能关闭原安全限流作为故障兜底。
 
 本阶段不新增Flyway迁移；开发库仍须完成V8部署预检再升级。详细协议及验证见[第十五阶段记录](26-redis-catalog-and-ticket-admission-verification.md)。
 
