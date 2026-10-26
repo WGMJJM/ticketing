@@ -1,6 +1,6 @@
 # 票务交易平台开发规范
 
-- 项目中文名称为「票务交易平台」，英文技术名为 `ticketing`，Java 根包统一为 `com.ticketing`。源码位于 `backend/src/main/java/com/ticketing`，测试位于 `backend/src/test/java/com/ticketing`，后续新增代码保持一致。
+- 项目中文名称为「票务交易平台」，前台展示品牌统一为「票遇」，英文技术名为 `ticketing`，Java 根包统一为 `com.ticketing`。源码位于 `backend/src/main/java/com/ticketing`，测试位于 `backend/src/test/java/com/ticketing`，后续新增代码保持一致。
 - Java 21，遵循《阿里巴巴Java开发手册》；使用明确命名与必要的中文注释，DTO 优先使用 record。
 - 保持前后端分离、模块化单体架构，后端只有 `backend/pom.xml` 一个 Maven 模块。不得擅自引入微服务或额外基础设施。
 - 按用户最新要求采用黑马点评风格的技术分层包，仍保留一个Maven模块和唯一Spring Boot应用。顶层包为`controller`、`service`、`mapper`、`entity`、`dto`、`vo`、`config`、`enums`、`security`、`task`、`messaging`、`cache`、`exception`、`common`。请求及查询参数归`dto`，响应视图归`vo`，数据库模型归`entity`，定时任务归`task`；已有服务保留具体实现，不为目录形式增加空接口。业务归属作为架构测试中的逻辑边界保留，不再作为物理包目录。

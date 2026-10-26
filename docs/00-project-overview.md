@@ -1,5 +1,7 @@
 # 票务交易平台
 
+前台展示品牌为「票遇」，品牌标语为「好演出，在票遇」。项目技术名、仓库名与 Java 根包继续使用 `ticketing` / `com.ticketing`。
+
 `ticketing`是一个可本地演示、审计和恢复的单实例票务交易平台。Java21 / Spring Boot3后端仅一个Maven模块，Vue3 / TypeScript前端独立构建，MySQL8保存权威交易事实，Redis提供公开目录缓存和真实库存预扣，RabbitMQ传递可靠异步命令。它不接入真实资金、实名或选座。
 
 ```mermaid
