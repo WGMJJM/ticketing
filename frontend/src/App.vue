@@ -70,7 +70,7 @@ function closeOperations(event: MouseEvent) {
       <footer class="site-footer">
         <div><RouterLink class="footer-brand" to="/">{{ siteName }}</RouterLink><p>从一场演出，开始一段回忆。</p></div>
         <nav aria-label="页脚导航"><RouterLink to="/">演出发现</RouterLink><RouterLink to="/about">购票指南</RouterLink><RouterLink to="/profile">个人中心</RouterLink></nav>
-        <span class="footer-note">演示体验 · 模拟支付不产生实际扣款</span>
+        <span class="footer-note">好演出，随时发现</span>
       </footer>
     </div>
   </ElConfigProvider>

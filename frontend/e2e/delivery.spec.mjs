@@ -47,9 +47,9 @@ async function purchase(page) {
 }
 async function pay(page) {
   await page.getByRole('button', { name: '立即支付', exact: true }).click()
-  await page.getByRole('button', { name: '确认模拟支付', exact: true }).click()
+  await page.getByRole('button', { name: '确认支付', exact: true }).click()
   await expect(page.locator('.order-card')).toHaveAttribute('data-status', 'PAID')
-  await expect(page.getByRole('heading', { name: '模拟支付流水' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '支付流水' })).toBeVisible()
 }
 async function cancel(page) {
   await page.getByRole('button', { name: '取消订单', exact: true }).click()
@@ -214,18 +214,18 @@ test('05 管理订单退款及已核销人工待办 买家回看支付事实', a
   await pay(page)
   await login(page, fixture.admin, true)
   await page.goto('/admin/orders/' + refundOrder)
-  await page.getByRole('button', { name: '整单模拟退款', exact: true }).click()
-  await page.getByRole('button', { name: '确认模拟退款', exact: true }).click()
+  await page.getByRole('button', { name: '整单退款', exact: true }).click()
+  await page.getByRole('button', { name: '确认退款', exact: true }).click()
   await expect(page.locator('.order-card')).toHaveAttribute('data-status', 'REFUNDED')
   await page.goto('/admin/orders/' + orderId)
-  await page.getByRole('button', { name: '整单模拟退款', exact: true }).click()
-  await page.getByRole('button', { name: '确认模拟退款', exact: true }).click()
+  await page.getByRole('button', { name: '整单退款', exact: true }).click()
+  await page.getByRole('button', { name: '确认退款', exact: true }).click()
   await expect(page.locator('.aftercare-state')).toHaveAttribute('data-status', 'MANUAL_REQUIRED')
   await expect(page.locator('.order-card')).toHaveAttribute('data-status', 'PAID')
   await login(page)
   await page.goto('/orders/' + refundOrder)
-  await expect(page.getByRole('heading', { name: '整单模拟退款已完成' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: '模拟支付流水' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '整单退款已完成' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '支付流水' })).toBeVisible()
 })
 
 test('06 真实候补入队 队首不足不越过 释放后FIFO分配并支付', async ({ page, browser }) => {
@@ -257,7 +257,7 @@ test('06 真实候补入队 队首不足不越过 释放后FIFO分配并支付',
     await page.getByRole('link', { name: /查看候补订单/ }).click()
     await pay(page)
     await page.goto('/waitlist/' + waitId)
-    await expect(page.getByText('候补订单已完成模拟支付', { exact: false })).toBeVisible()
+    await expect(page.getByText('候补订单已支付', { exact: false })).toBeVisible()
     await login(second, fixture.users[2])
     await second.goto('/waitlist/' + secondId)
     await expect(second.getByRole('button', { name: '取消候补', exact: true })).toBeVisible()

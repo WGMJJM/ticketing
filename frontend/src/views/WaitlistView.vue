@@ -96,7 +96,7 @@ function changePage(value: number) {
       >← 返回我的候补</RouterLink
     >
     <p>
-      候补不保证成功。等待期间不占库存或购票额度，分配时重新校验；获得订单后请及时完成模拟支付。可刷新查看最新状态。
+      候补不保证成功。等待期间不占库存或购票额度，分配时重新校验；获得订单后请及时完成支付。可刷新查看最新状态。
     </p>
     <p v-if="notice" class="success-notice" role="status">{{ notice }}</p>
     <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
@@ -145,7 +145,7 @@ function changePage(value: number) {
           }}（北京时间）。
         </p>
         <p v-if="entry.status === 'COMPLETED'" class="order-note">
-          候补订单已完成模拟支付，未产生实际扣款。
+          候补订单已支付，可前往「我的票夹」查看电子票。
         </p>
         <p v-if="entry.status === 'EXPIRED'">
           候补已过期、不再符合条件，或对应订单已取消/过期。可查看订单了解当前状态。

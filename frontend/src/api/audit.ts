@@ -5,7 +5,7 @@ export const auditActionText: Record<string, string> = {
   SESSION_CREATE: '新增场次', SESSION_UPDATE: '修改场次', SESSION_CANCEL: '取消场次',
   TICKET_CREATE: '新增票档', TICKET_UPDATE: '修改票档', STOCK_ADJUST: '调整总库存', TICKET_PUBLISH: '上架票档', TICKET_OFFLINE: '下架票档',
   STAFF_PROMOTE: '授权工作人员角色', STAFF_DEMOTE: '撤销工作人员角色', STAFF_DISABLE: '停用工作人员',
-  SESSION_GRANT: '授权核销场次', SESSION_REVOKE: '撤销核销场次', ORDER_REFUND: '处理整单模拟退款',
+  SESSION_GRANT: '授权核销场次', SESSION_REVOKE: '撤销核销场次', ORDER_REFUND: '处理整单退款',
 }
 export const auditResourceText: Record<string, string> = { ACTIVITY: '活动', SESSION: '场次', TICKET_SKU: '票档', STAFF: '工作人员', ORDER: '订单' }
 export interface AuditRecord { id: string; operatorId: string; operatorName: string; action: string; resourceType: string; resourceId: string; occurredAt: string; summary: string; beforeValues: string; afterValues: string; requestId: string }

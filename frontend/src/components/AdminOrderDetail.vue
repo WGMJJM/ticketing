@@ -40,13 +40,13 @@ async function refund() {
   const id = props.id
   try {
     try {
-      await ElMessageBox.confirm(`对订单 ${detail.value.summary.order.orderNo} 整单模拟退款 ${formatCents(detail.value.summary.order.totalAmountCents)}？仅全部电子票未核销时可完成，成功后票券作废。不发生实际资金退回。`, '确认整单模拟退款', {
-        confirmButtonText: '确认模拟退款', cancelButtonText: '暂不处理', type: 'warning',
+      await ElMessageBox.confirm(`对订单 ${detail.value.summary.order.orderNo} 整单退款 ${formatCents(detail.value.summary.order.totalAmountCents)}？仅全部电子票未核销时可完成，成功后票券作废。当前为模拟退款，不发生实际资金退回。`, '确认整单退款', {
+        confirmButtonText: '确认退款', cancelButtonText: '暂不处理', type: 'warning',
       })
     } catch { return }
     const result = await adminOrdersApi.refund(id, reason.value)
     if (id !== props.id) return
-    notice.value = result.status === 'SUCCEEDED' ? '整单模拟退款已完成，未发生实际资金退回。' : result.aftercare?.message ?? '此订单需要人工处理'
+    notice.value = result.status === 'SUCCEEDED' ? '整单退款已完成，票券已作废。' : result.aftercare?.message ?? '此订单需要人工处理'
     await load()
   } catch (failure) {
     if (id === props.id) {
@@ -74,8 +74,8 @@ async function refund() {
           <small>最近尝试 {{ formatTime(detail.aftercare.lastAttemptAt) }} · 共 {{ detail.aftercare.attemptCount }} 次<span v-if="detail.aftercare.nextRetryAt"> · 下次重试 {{ formatTime(detail.aftercare.nextRetryAt) }}</span></small>
         </div>
         <form v-if="detail.summary.order.status === 'PAID'" class="refund-form" @submit.prevent="refund">
-          <label>模拟退款原因<select v-model="reason" :disabled="busy"><option v-for="(label, value) in refundReasonText" :key="value" :value="value">{{ label }}</option></select></label>
-          <ElButton type="primary" native-type="submit" :loading="busy" :disabled="loading">整单模拟退款</ElButton>
+          <label>退款原因<select v-model="reason" :disabled="busy"><option v-for="(label, value) in refundReasonText" :key="value" :value="value">{{ label }}</option></select></label>
+          <ElButton type="primary" native-type="submit" :loading="busy" :disabled="loading">整单退款</ElButton>
           <p>仅全部电子票未核销且关联完整时可自动处理。已核销及异常订单保留原票券和支付事实，记录待人工处理。</p>
         </form>
       </section>

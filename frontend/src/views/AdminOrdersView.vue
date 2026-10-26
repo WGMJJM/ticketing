@@ -44,7 +44,7 @@ function changePage(value: number) { query.page = value; void load() }
 <template>
   <section class="admin-orders-page">
     <header class="order-top"><div><span class="eyebrow"><span></span>运营工作台</span><h1>{{ id ? '运营订单详情' : '订单运营' }}</h1></div><RouterLink class="back-link" to="/admin/activities">活动与场次管理 ↗</RouterLink></header>
-    <p class="admin-order-intro">从订单到票券，核对每一笔现场安排。售后仅为模拟退款，不产生实际资金退回。</p>
+    <p class="admin-order-intro">从订单到票券，核对每一笔现场安排，跟进退款与售后处理进度。</p>
     <AdminOrderDetail v-if="id" :id="id" />
     <template v-else>
       <form class="admin-order-filters" @submit.prevent="load(true)" @invalid.capture="chineseValidation" @input.capture="clearValidation">

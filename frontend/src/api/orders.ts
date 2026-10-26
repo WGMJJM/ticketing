@@ -85,7 +85,7 @@ export const orderStatusText = {
   PAID: '已支付',
   CANCELLED: '已取消',
   EXPIRED: '已过期',
-  REFUNDED: '已模拟退款',
+  REFUNDED: '已退款',
 }
 export const orderApi = {
   limits: (sessionId: string) =>

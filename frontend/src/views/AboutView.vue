@@ -13,7 +13,6 @@ import { siteName } from '../config/site'
       <section class="about-card"><SiteIcon name="ticket" /><span class="section-kicker">03 · 准备入场</span><h2>电子票，收在我的票夹</h2><p>支付成功后生成独立电子票。入场时出示对应场次的二维码；已核销或已作废的票券不能再次使用。</p></section>
       <section class="about-card"><SiteIcon name="bookmark" /><span class="section-kicker">也可以，先留一份期待</span><h2>关注演出，或申请候补</h2><p>点赞参与人气排名，关注方便回看场次和开售安排。缺票时可申请候补，等待期间不占库存或购票额度，也不保证分配成功。</p></section>
     </div>
-    <aside class="demo-notice"><strong>演示体验说明</strong><p>当前支付与退款均为模拟操作，不产生实际资金往来。标记为「演示」的活动为虚构示例，演示电子票不对应真实演出。请勿据此安排行程。</p></aside>
     <RouterLink class="primary-link" to="/">去发现演出<SiteIcon name="arrow" /></RouterLink>
   </div>
 </template>

@@ -71,13 +71,13 @@ const deadlinePassed = computed(
         deadlinePassed
           ? '支付已截止，系统将自动关闭订单并释放库存，请刷新查看最新状态。'
           : order.canPay
-            ? '库存已预占。请在截止前完成模拟支付，不产生实际扣款。'
+            ? '库存已预占。请在截止前完成支付。'
             : '当前活动或场次不可支付，可主动取消释放库存。'
       }}
     </p>
     <section v-if="order.payment" class="payment-info">
-      <h3>模拟支付流水</h3>
-      <p>模拟支付成功，未产生实际扣款。</p>
+      <h3>支付流水</h3>
+      <p v-if="order.payment.simulated">本次支付未产生实际扣款。</p>
       <dl>
         <div>
           <dt>支付流水号</dt>
@@ -93,12 +93,12 @@ const deadlinePassed = computed(
         </div>
       </dl>
     </section>
-    <section v-if="order.refund" class="payment-info refund-info" aria-label="模拟退款结果">
-      <h3>整单模拟退款已完成</h3>
-      <p>未发生实际资金退回。原模拟支付记录保留，本单电子票已作废。</p>
+    <section v-if="order.refund" class="payment-info refund-info" aria-label="退款结果">
+      <h3>整单退款已完成</h3>
+      <p>原支付记录保留，本单电子票已作废。<template v-if="order.refund.simulated">本次处理未发生实际资金退回。</template></p>
       <dl>
         <div><dt>退款流水号</dt><dd>{{ order.refund.refundNo }}</dd></div>
-        <div><dt>模拟退款金额</dt><dd>{{ formatCents(order.refund.amountCents) }}</dd></div>
+        <div><dt>退款金额</dt><dd>{{ formatCents(order.refund.amountCents) }}</dd></div>
         <div><dt>处理原因</dt><dd>{{ refundReasonText[order.refund.reason] }}</dd></div>
         <div><dt>处理时间</dt><dd>{{ formatTime(order.refund.refundedAt) }}（北京时间）</dd></div>
       </dl>

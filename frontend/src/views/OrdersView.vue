@@ -84,9 +84,9 @@ async function pay(order: Order) {
     try {
       await ElMessageBox.confirm(
         `${current.activityTitle}，${current.sessionTitle}，${current.skuName} ${current.quantity}张，应付${formatCents(current.totalAmountCents)}。这是模拟支付，不会产生实际扣款。确认继续吗？`,
-        '确认模拟支付',
+        '确认支付',
         {
-          confirmButtonText: '确认模拟支付',
+          confirmButtonText: '确认支付',
           cancelButtonText: '暂不支付',
           type: 'warning',
         },
@@ -95,11 +95,11 @@ async function pay(order: Order) {
       return
     }
     const payment = await orderApi.pay(order.id)
-    notice.value = '模拟支付成功，未产生实际扣款。流水号 ' + payment.paymentNo
+    notice.value = '支付成功。流水号 ' + payment.paymentNo
     await load()
   } catch (failure) {
     const message =
-      failure instanceof Error ? failure.message : '模拟支付失败，请刷新后重试'
+      failure instanceof Error ? failure.message : '支付失败，请刷新后重试'
     await load()
     error.value = message
   } finally {
@@ -126,7 +126,7 @@ function changePage(value: number) {
       >← 返回我的订单</RouterLink
     >
     <p>
-      模拟支付仅用于功能体验，不产生实际扣款。超时订单将自动关闭，可刷新查看最新状态。
+      在这里查看订单、完成支付或取消待支付订单。超时订单将自动关闭，可刷新查看最新状态。
     </p>
     <RouterLink class="back-link" to="/purchase-requests">查看购票进度 →</RouterLink>
     <p v-if="notice" class="success-notice" role="status">{{ notice }}</p>

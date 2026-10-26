@@ -88,7 +88,7 @@ async function saveSession() {
 async function cancelSession(session: ActivitySession) {
   try {
     await ElMessageBox.confirm(
-      `确定取消“${session.title}”吗？取消后不可恢复。系统将逐单关闭待支付订单，并对未核销的已付订单整单模拟退款；已核销或异常订单需人工处理，不发生实际资金退回。`,
+      `确定取消“${session.title}”吗？取消后不可恢复。系统将逐单关闭待支付订单，并对未核销的已付订单整单退款；已核销或异常订单需人工处理。当前退款为模拟操作，不发生实际资金退回。`,
       '取消场次',
       {
         confirmButtonText: '确认取消场次',

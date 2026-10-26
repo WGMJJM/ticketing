@@ -98,7 +98,7 @@ onBeforeUnmount(() => controller?.abort())
       </article>
     </div>
     <p class="ticket-query-note">
-      时间均为北京时间。提交申请后，可在「购票进度」查看结果。订单支持模拟支付，超时将自动关闭。
+      时间均为北京时间。提交申请后，可在「购票进度」查看结果。请在订单截止时间前支付，超时将自动关闭。
     </p>
   </section>
 </template>

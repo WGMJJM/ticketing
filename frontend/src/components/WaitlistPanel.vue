@@ -58,7 +58,7 @@ async function join() {
   try {
     try {
       await ElMessageBox.confirm(
-        `申请“${props.ticket.name}”${quantity.value}张候补？等待期间不占库存或购票额度，不保证分配。分配后需在对应订单截止前完成模拟支付，金额以订单为准。`,
+        `申请“${props.ticket.name}”${quantity.value}张候补？等待期间不占库存或购票额度，不保证分配。分配后需在对应订单截止前完成支付，金额以订单为准。`,
         '确认候补申请',
         {
           confirmButtonText: '确认申请候补',

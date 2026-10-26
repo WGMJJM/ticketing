@@ -30,7 +30,7 @@ async function load(reset = false) {
   finally { if (current === generation) loading.value = false }
 }
 const fieldText: Record<string, string> = { status: '状态', title: '名称', summary: '简介', description: '活动详情', coverUrl: '封面地址', name: '票档名称', category: '类别', city: '城市', venue: '场馆', version: '版本', startsAt: '开始时间', endsAt: '结束时间', saleStartsAt: '开售时间', saleEndsAt: '停售时间', priceCents: '票价', totalStock: '总库存', maxQuantityPerOrder: '单笔限购', role: '账号角色', sessionId: '场次编号', active: '有效授权', revokedPermissions: '已撤销授权数量', orderStatus: '订单状态', result: '处理结果', reason: '处理原因' }
-const valueText: Record<string, string> = { USER: '普通用户', ADMIN: '管理员', CHECKIN_STAFF: '核销工作人员', ACTIVE: '正常', DISABLED: '已停用', DRAFT: '草稿', PUBLISHED: '已发布', OFFLINE: '已下架', SCHEDULED: '正常', CANCELLED: '已取消', ENDED: '已结束', ON_SALE: '已启用销售', OFF_SALE: '已下架', PAID: '已支付', REFUNDED: '已模拟退款', SUCCEEDED: '处理成功', MANUAL_REQUIRED: '待人工核对', CUSTOMER_REQUEST: '用户诉求售后', SERVICE_ADJUSTMENT: '运营服务调整', SESSION_CANCELLED: '场次取消善后', CONCERT: '演唱会', FESTIVAL: '音乐节', STAGE: '舞台演出', EXHIBITION: '展览', ESPORTS: '电竞赛事' }
+const valueText: Record<string, string> = { USER: '普通用户', ADMIN: '管理员', CHECKIN_STAFF: '核销工作人员', ACTIVE: '正常', DISABLED: '已停用', DRAFT: '草稿', PUBLISHED: '已发布', OFFLINE: '已下架', SCHEDULED: '正常', CANCELLED: '已取消', ENDED: '已结束', ON_SALE: '已启用销售', OFF_SALE: '已下架', PAID: '已支付', REFUNDED: '已退款', SUCCEEDED: '处理成功', MANUAL_REQUIRED: '待人工核对', CUSTOMER_REQUEST: '用户诉求售后', SERVICE_ADJUSTMENT: '运营服务调整', SESSION_CANCELLED: '场次取消善后', CONCERT: '演唱会', FESTIVAL: '音乐节', STAGE: '舞台演出', EXHIBITION: '展览', ESPORTS: '电竞赛事' }
 function snapshot(raw: string) {
   const values = JSON.parse(raw) as Record<string, unknown>
   return Object.entries(values).map(([key, value]) => {

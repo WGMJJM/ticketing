@@ -331,7 +331,7 @@ async function transition(ticket: TicketSku) {
       </table>
     </div>
     <p class="form-hint">
-      可售库存＝总库存－锁定库存－已售库存；锁定和已售库存不可由管理员修改。订单、模拟支付及关闭操作自动维护库存。
+      可售库存＝总库存－锁定库存－已售库存；锁定和已售库存不可由管理员修改。下单、支付及关闭操作自动维护库存。
     </p>
   </ElDialog>
 </template>
