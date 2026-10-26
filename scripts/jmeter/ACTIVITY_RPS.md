@@ -27,7 +27,7 @@ mvn -f backend/pom.xml spring-boot:run
 python -B scripts/jmeter/prepare-activity.py
 ```
 
-夹具脚本验证 Compose 项目标签、MySQL 专用卷、`ticketingjmeter`、V14 与随机 guard。若已有已发布活动则复用；若数据库为空则只创建一条活动记录，因为详情端点只读取 `activity`，不依赖场次或票档。它拒绝清理或覆盖其他数据。
+夹具脚本验证 Compose 项目标签、MySQL 专用卷、`ticketingjmeter`、V15 与随机 guard。若已有已发布活动则复用；若数据库为空则只创建一条活动记录，因为详情端点只读取 `activity`，不依赖场次或票档。它拒绝清理或覆盖其他数据。
 
 ## JMeter 与负载
 

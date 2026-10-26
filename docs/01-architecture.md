@@ -1,6 +1,6 @@
 # 架构与模块协作
 
-本文描述当前源码。2026-10-26 的普通购票重构替代旧 MySQL 受理、购票 Outbox、处理租约和 Redis 冻结重建协议；阶段验收文档（如 25、27、33、34）保留为历史记录。
+本文描述当前源码。2026-10-27 候补已复用统一购票链路；2026-10-26 的普通购票重构替代旧 MySQL 受理、购票 Outbox、处理租约和 Redis 冻结重建协议；阶段验收文档（如 25、27、33、34）保留为历史记录。
 
 ## 项目结构
 
@@ -12,7 +12,9 @@ Java 21、Spring Boot 3、MyBatis-Plus、MySQL、Redis、RabbitMQ、Spring Secur
 
 ```mermaid
 flowchart LR
-    H[认证与原安全限流] --> R[Redis Lua 原子校验和预扣]
+    H[普通购票与安全限流] --> P[PurchaseAdmission.submit]
+    W[候补持久 FIFO 队首] --> P
+    P --> R[同一 Redis Lua 原子预扣]
     R --> Q[RabbitMQ 直接发布]
     Q --> A[Confirm ACK 且未退回后 HTTP 202]
     Q --> C[消费者执行 MySQL 本地事务]
@@ -36,7 +38,7 @@ Lua 一次完成销售资格、Redis 时间窗口、单笔数量、场次内用�
 
 确定业务错误先使整个建单事务回滚，再重新锁同一 requestId 登记 FAILED/EXPIRED；若重复消费者或仲裁已经先提交，采用其原终态。数据库连接、死锁等技术故障不记为确定业务失败，交给有限延迟重试及统一补偿。消费返回后的 AUTO ACK 发生在 SQL 提交之后；Redis 结算暂时失败可先 ACK，由恢复索引补齐。重复消息不会再次占库存或创建订单。
 
-1. Redis 入口：用户 + CREATE_ORDER + 幂等键，验证请求摘要并复用 requestId。
+1. Redis 入口：用户 + 服务端操作域 CREATE_ORDER / WAITLIST_CONFIRM + 幂等键，验证请求摘要并复用 requestId。
 2. MySQL 消费：requestId 主键、用户/操作域/幂等键唯一约束、订单关联唯一约束和本地事务。
 3. Redis 结算：RESERVED 只能一次转为 CONSUMED 或 RELEASED。成功不再次扣减，失败只返还一次；取消成功订单不重置购票凭据。
 
@@ -59,23 +61,33 @@ Redis 继续使用 AOF、`appendfsync always` 和 `noeviction`。Redis、RabbitM
 
 首次初始化或库存事件到来时，先暂停 SKU 新受理。有未完成普通预扣就等待结算；归零后，在 SKU 行锁内读取 MySQL 已提交的总量、locked、sold、销售资格，发布绝对可售余额与最新库存事件序号。消费者可以继续处理已经受理的凭据，避免暂停阻塞自身恢复。Redis 余额同步不使用数量累加，重复释放事件只会再次读取同一数据库事实，不会重复加票。
 
-候补逐笔取得用户→活动→场次→额度→SKU 锁并重新确认 FIFO 队首。SKU 锁内暂停普通入口，尚有普通预扣就返回 BLOCKED；归零后才使用 MySQL 可售量。候补通过原 `OrderReservation` 创建订单、更新 ALLOCATED，再发布减少后的 Redis 余额；事务回滚最多临时低估余额，既有 WAITING 补偿/重同步继续恢复，不会多分票额。每单释放全部锁后再处理下一用户，库存不足不跳过队首。FIFO 只承诺同 SKU 候补内部，不保证优先于普通购票。
+候补现在只负责持久 FIFO 与优先级调度，不创建订单、不另扣 MySQL 库存。旧 `allocateHead()`、`reserveWaitlist()`、`pauseForWaitlist()` 路径已删除。`PurchaseAdmission.submit(PurchaseIntent)` 由普通 HTTP 与可信候补调度共同调用，来源贯通 Redis、申请终态与正式订单；HTTP DTO 不能指定 WAITLIST_CONFIRM。
+
+同 SKU 入队、挑选队首、取消/过期与清空门禁都使用原账号→父资源→SKU 锁序。入队持 SKU 锁，在 Lua 中原子检查真实 Redis 可预扣余额并先开启 `waitlistPriority`，之后提交 WAITING；回滚只可能留下保守门禁，由同一 SKU 恢复扫描确认空队列后关闭。普通 Lua 先处理幂等重放，再检查门禁，开启前已预扣请求继续有效。关门禁也必须在 SKU 锁内重查没有 WAITING/PROCESSING，且 Redis waitlistPending 为零。队首重查禁用 MyBatis 本地查询缓存，不能把加锁前的空结果用于加锁后的判断。
+
+`WaitlistDispatcher` 在短事务中以最小 ID 选择 WAITING/PROCESSING；合格 WAITING 变 PROCESSING，绑定持久 attemptNo、requestId 和 `waitlist-{id}-{attemptNo}` 键。事务外才调用统一入口并等待同一个 MQ 发布确认。可信候补预扣也使用同一份 purchase-reserve.lua，校验 SKU 上所选队首/尝试，不绕过销售窗口、容量、限额或 MySQL 条件预占。库存不足不跳队，PROCESSING 未决时不能分配下一位，前端显示“分配中”且不可直接取消。
+
+同一消费者取得请求协调锁和原交易资源锁，`WaitlistPurchaseLifecycle` 在 SKU 锁后再次确认队首；统一 `OrderReservation.reservePurchase()` 完成建单后，在同一事务写 SUCCEEDED/orderId 及 PROCESSING→ALLOCATED。临时 SQL 故障全部回滚并重试；确定失效在最终结果仲裁内变 EXPIRED。库存不足/排队超时等可重试失败保持 PROCESSING，只有 SQL 终态与 Redis 结算完成后才恢复 WAITING、递增 attemptNo。没有预扣的明确无票拒绝也先在同一 Lua 中使旧尝试失效，防止迟到并发提交与尝试推进交叉；回滚由原 PROCESSING 事实重新发布所选队首。
+
+ALLOCATED 支付后 COMPLETED，取消/订单超时后 EXPIRED，退款保留已完成历史。历史分配无 purchase_request_id 时继续验证原 `waitlist-{id}` 键；新尝试一律使用代数键。Redis waitlistPending 在购票结算完成前阻止下一队首预扣或清空门禁，避免 SQL 已终结而 Redis 尚未结算时越队。
+
+`WaitlistCompensation` 仅有一项有界 SKU 游标扫描，覆盖 WAITING、PROCESSING 及空队列残留门禁；扫描全部 SKU 是为了恢复“Redis 已开门禁但入队事务回滚、数据库没有队列记录”的情况。消息丢失、未知发布和 SQL/Redis 结算恢复仍由唯一 PurchaseRecoveryJob 处理。没有新增候补建单队列、消费者、Outbox 或定时器。
 
 ## 通用库存 Outbox
 
 Outbox 只服务仍在使用它的库存释放、库存/销售配置变更和候补事件；普通购票不写、不读购票 Outbox。删除 PurchaseCommands、购票发布分支、recover/close/failed SQL 及废弃命令类型；保留库存事件载荷 eventId/skuId/reason、现有交换机/队列和独立事件 ID。
 
-`InventoryEvents` 与取消、超时、退款或管理更新在同一个事务写事件。`OutboxService` 在短事务中 SKIP LOCKED 认领，递增投递令牌和持久租约防迟到回调覆盖；发布器事务外使用有界窗口、Confirm、mandatory，失败退避与死信保持。`InventoryConsumer` 验证数据库已提交事件后调用候补/库存同步。既有 `WaitlistCompensation` 根据 WAITING 和库存事件序号有界补偿，不能将 SENT 视为库存同步完成。
+`InventoryEvents` 与取消、超时、退款或管理更新在同一个事务写事件。`OutboxService` 在短事务中 SKIP LOCKED 认领，递增投递令牌和持久租约防迟到回调覆盖；发布器事务外使用有界窗口、Confirm、mandatory，失败退避与死信保持。`InventoryConsumer` 验证数据库已提交事件后调用候补/库存同步。既有 `WaitlistCompensation` 按 SKU 有界补偿队首、未决尝试和门禁，不能将 SENT 视为库存同步完成。
 
 ## 原业务边界
 
-交易锁序继续为账号 SHARE→活动 SHARE→场次 SHARE→需要写额度时的用户场次额度 UPDATE→SKU UPDATE→已有订单→候补→电子票。消费的请求唯一键协调先于这条资源锁链；仲裁只锁请求事实，不反向获取订单或 SKU 锁。管理员/多账号操作及退款保持原升序账号协议，核销不占买家额度。
+交易锁序继续为账号 SHARE→活动 SHARE→场次 SHARE→需要写额度时的用户场次额度 UPDATE→SKU UPDATE→已有订单→候补→电子票。消费的请求唯一键协调先于这条资源锁链；候补失效仲裁在请求锁后按相同资源顺序锁账号、父资源和 SKU，再更新候补。管理员/多账号操作及退款保持原升序账号协议，核销不占买家额度。
 
 MySQL 是订单和最终库存权威。默认每用户每场四张，PENDING/PAID 占额，取消/到期/退款条件释放，支付不重复占额。金额由服务端人民币分整数乘算并保存快照。订单截止、状态条件更新、整单模拟退款、场次取消善后、原 paid_at 和核销历史保持。
 
 `OrderLifecycle` 在同一 MySQL 事务先候补再出票，不改为提交后异步联动。电子票签名、摘要存储、密钥轮换、工作人员角色和场次授权、最多一次核销、CSRF、Session/BCrypt 均保持。候补与核销只访问交易公开契约；架构检查继续生效。
 
-公开目录仍用 Caffeine/Redis，交易与授权查询绕过展示缓存，实时票档库存/销售状态/serverTime 仍由 MySQL 返回。客户端查询 Redis QUEUED 或 MySQL 最终结果，显示“已受理”后轮询真实订单。lookup、详情和本人活动申请列表保留原路径和所有权校验；数据库暂时没有申请行时不会误报不存在。前端移除废弃 PROCESSING 展示，保留原键恢复、支付、取消、候补、票券和核销流程。
+公开目录仍用 Caffeine/Redis，交易与授权查询绕过展示缓存，实时票档库存/销售状态/serverTime 仍由 MySQL 返回。客户端查询 Redis QUEUED 或 MySQL 最终结果，显示“已受理”后轮询真实订单。lookup、详情和本人活动申请列表保留原路径和所有权校验；数据库暂时没有申请行时不会误报不存在。普通购票只有 QUEUED/终态；候补新增 PROCESSING“分配中”展示，保留原键恢复、支付、取消、候补、票券和核销流程。
 
 ## 配置和迁移
 
@@ -83,12 +95,14 @@ MySQL 是订单和最终库存权威。默认每用户每场四张，PENDING/PAI
 
 V1–V13 不变；V14 在任何破坏性 DDL 前拒绝仍有 QUEUED/PROCESSING 的旧库，要求先停写、停止旧发布/消费者并排空旧链路。迁移保留所有订单、支付、候补和历史申请终态，删除废弃 purchase_capacity、购票 Outbox 记录及申请处理租约/token 等字段，增加首次库存初始化标记。已有业务库升级仍须具体授权，不自动 repair、清库或降级。
 
-本次仅在随机 guard 保护的独立功能验证资源应用 V14；本机业务库仍是 V13，未升级或重启部署。正式发布前还需按目标环境完成停写/排空和明确授权的迁移。
+V15 扩展 purchase_request 的 WAITLIST_CONFIRM 来源与 waitlist_entry_id，候补增加 attempt_no、purchase_request_id 和 PROCESSING 活跃唯一约束。没有新增请求表；不在请求插入时增加候补外键行锁，候补关联由 SKU 协调、事务参与者和审计验证，避免倒置订单→候补锁序。V1–V14 保持不变。
+
+用户于 2026-10-27 明确授权更新本机开发库。已停止旧后端，复核无 QUEUED/PROCESSING 申请、无未完成购票消息，退款/候补/额度预检通过后，将 127.0.0.1:3307/ticketing 从 V13 升级至 V15，两项迁移登记成功，未新增备份。新版后端8080与前端5173返回正常；升级后库存、订单、支付、候补、电子票、额度及申请审计全部零偏差，7个Redis账本与MySQL一致。原账号/活动/订单/候补行数保留3/8/6/1，没有在业务库注入测试。仅本机开发库授权，不包含生产部署或以后迁移。
 
 ## 验证范围
 
 使用现有 `scripts/verification/verify_backend.py`，只连接独立 13307 MySQL、16379 Redis、15673 RabbitMQ 和随机 schema，不加载业务 .env。`--tests` 支持 Failsafe 类与方法筛选（#、+），避免无关全量运行。
 
-新 `AsyncPurchaseIT` 八个真实中间件场景全部通过：正常 HTTP→MQ→建单，最后一张票并发竞争，同键重放/异参冲突，重复消息及丢失凭据停卖，发布失败/确认未知后的恢复，数据库回滚/提交后结算失败，过期仲裁与迟到消费，取消释放与 FIFO 候补协调。另有八个相关既有回归通过，覆盖跨票档场次额度、订单快照、支付重试、过期支付限制、整单退款、核销和候补分配/超时。
+本轮最终运行18个集成用例全部通过：`WaitlistManagementIT`七个候补场景，`AsyncPurchaseIT`八个统一购票场景，以及场次额度/候补退款、整单退款、核销各一个既有回归。覆盖候补优先和旧普通预扣、三人FIFO队首不足两张、统一MQ建单、重复库存事件、PROCESSING与未知发布、SQL回滚/确定失败/结算恢复及尝试号、并发入队与清空门禁、支付出票和订单超时。测试仅使用独立端口13307/16379/15673、随机schema和guard，V15新迁移在独立库先验证。
 
-架构、配置和通用库存 Outbox 的十个普通测试通过。前端严格类型检查和生产构建通过。未做性能测试、全仓库压力回归或生产部署；不从本次功能验证推导吞吐量。
+Maven自带98个普通测试全部通过，包括架构、配置、库存Outbox、安全与凭证；前端严格类型检查及生产构建通过。新版后端启动时再次完成编译，迁移后执行本机只读健康与数据审计。没有新增测试框架，没有性能测试或浏览器端到端回归，不从功能验证推导RPS/P99。独立验证容器、数据卷和私有临时配置在交付前清理，业务容器与卷保留。

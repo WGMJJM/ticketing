@@ -24,16 +24,16 @@ SELECT 'waitlist_relation' AS invariant, COUNT(*) AS violation_count FROM waitli
  LEFT JOIN ticket_order o ON o.id=w.reserved_order_id LEFT JOIN ticket_order_item i ON i.order_id=o.id
  JOIN ticket_sku t ON t.id=w.sku_id
  WHERE (w.status IN ('ALLOCATED','COMPLETED') AND o.id IS NULL)
- OR (w.status IN ('WAITING','CANCELLED') AND w.reserved_order_id IS NOT NULL)
+ OR (w.status IN ('WAITING','PROCESSING','CANCELLED') AND w.reserved_order_id IS NOT NULL)
  OR (w.reserved_order_id IS NOT NULL AND (o.id IS NULL OR o.user_id<>w.user_id OR o.session_id<>t.session_id
  OR i.sku_id<>w.sku_id OR i.quantity<>w.quantity OR o.idempotency_operation<>'WAITLIST_CONFIRM'
- OR o.idempotency_key<>CONCAT('waitlist-',w.id)
+ OR o.idempotency_key<>IF(w.purchase_request_id IS NULL,CONCAT('waitlist-',w.id),CONCAT('waitlist-',w.id,'-',w.attempt_no))
  OR (w.status='ALLOCATED' AND o.status<>'PENDING') OR (w.status='COMPLETED' AND o.status NOT IN ('PAID','REFUNDED'))
  OR (w.status='EXPIRED' AND o.status NOT IN ('CANCELLED','EXPIRED'))));
 SELECT 'fifo_allocation_order' AS invariant, COUNT(*) AS violation_count FROM waitlist_entry a
  JOIN waitlist_entry b ON b.sku_id=a.sku_id AND b.id>a.id
  WHERE b.reserved_order_id IS NOT NULL AND
- ((a.reserved_order_id IS NOT NULL AND a.reserved_order_id>b.reserved_order_id) OR a.status='WAITING');
+ ((a.reserved_order_id IS NOT NULL AND a.reserved_order_id>b.reserved_order_id) OR a.status IN ('WAITING','PROCESSING'));
 SELECT 'ticket_quantity' AS invariant, COUNT(*) AS violation_count FROM ticket_order_item i
  JOIN ticket_order o ON o.id=i.order_id LEFT JOIN
  (SELECT order_item_id,COUNT(*) n,MIN(sequence_no) lo,MAX(sequence_no) hi FROM electronic_ticket GROUP BY order_item_id) t ON t.order_item_id=i.id
@@ -48,4 +48,13 @@ SELECT 'ticket_relation' AS invariant, COUNT(*) AS violation_count FROM electron
 SELECT 'duplicate_payment_effect' AS invariant, COUNT(*) AS violation_count FROM
  (SELECT order_id FROM payment_record WHERE status='SUCCEEDED' GROUP BY order_id HAVING COUNT(*)>1) p;
 SELECT 'duplicate_active_waitlist' AS invariant, COUNT(*) AS violation_count FROM
- (SELECT user_id,sku_id FROM waitlist_entry WHERE status IN ('WAITING','ALLOCATED') GROUP BY user_id,sku_id HAVING COUNT(*)>1) w;
+ (SELECT user_id,sku_id FROM waitlist_entry WHERE status IN ('WAITING','PROCESSING','ALLOCATED') GROUP BY user_id,sku_id HAVING COUNT(*)>1) w;
+
+SELECT 'waitlist_purchase_link' AS invariant, COUNT(*) AS violation_count
+FROM waitlist_entry w LEFT JOIN purchase_request p ON p.id=w.purchase_request_id
+WHERE (w.status='PROCESSING' AND w.purchase_request_id IS NULL)
+ OR (w.purchase_request_id IS NOT NULL AND p.id IS NOT NULL AND
+ (p.waitlist_entry_id<>w.id OR p.user_id<>w.user_id OR p.sku_id<>w.sku_id OR p.quantity<>w.quantity
+ OR p.idempotency_operation<>'WAITLIST_CONFIRM'
+ OR p.idempotency_key<>CONCAT('waitlist-',w.id,'-',w.attempt_no)
+ OR (w.status IN ('ALLOCATED','COMPLETED') AND (p.status<>'SUCCEEDED' OR p.order_id<>w.reserved_order_id))));

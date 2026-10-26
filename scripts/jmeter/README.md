@@ -28,11 +28,11 @@ Get-Content .local/jmeter/compose.env | ForEach-Object {
 mvn -f backend/pom.xml spring-boot:run
 ```
 
-等待 `http://127.0.0.1:18080/actuator/health` 返回 `UP`。应用首次启动只会在这个隔离库运行 V1–V14 迁移，并使用临时随机口令初始化一个管理员种子账号。隔离买家复用该随机口令，初始化器从种子账号读取 BCrypt 哈希；CSV 和口令仅在 `.local/jmeter/`，不提交。
+等待 `http://127.0.0.1:18080/actuator/health` 返回 `UP`。应用首次启动只会在这个隔离库运行 V1–V15 迁移，并使用临时随机口令初始化一个管理员种子账号。隔离买家复用该随机口令，初始化器从种子账号读取 BCrypt 哈希；CSV 和口令仅在 `.local/jmeter/`，不提交。
 
 ## 建立测试数据
 
-需要 Python 及仓库既有 `PyMySQL` 依赖。脚本会核对 Docker 项目标签、MySQL 专用卷、schema 名和 V14，再验证随机 guard。它只接受空的隔离库和初始化管理员，创建 BCrypt 测试用户、邮箱已验证的本地账号、一个合法的已发布活动/未来场次/在售票档，并按账号数设置足量库存。不同账号每人只执行一笔订单；CSV 不循环，EOF 后停止线程。脚本不会创建订单、伪造支付或清理已有数据。
+需要 Python 及仓库既有 `PyMySQL` 依赖。脚本会核对 Docker 项目标签、MySQL 专用卷、schema 名和 V15，再验证随机 guard。它只接受空的隔离库和初始化管理员，创建 BCrypt 测试用户、邮箱已验证的本地账号、一个合法的已发布活动/未来场次/在售票档，并按账号数设置足量库存。不同账号每人只执行一笔订单；CSV 不循环，EOF 后停止线程。脚本不会创建订单、伪造支付或清理已有数据。
 
 ```powershell
 python -B scripts/jmeter/prepare-data.py --users 1
