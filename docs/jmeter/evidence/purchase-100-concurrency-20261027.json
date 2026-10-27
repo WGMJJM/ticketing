@@ -1,0 +1,1604 @@
+{
+  "version": 1,
+  "date": "2026-10-27",
+  "timezone": "Asia/Shanghai",
+  "scope": "100个完整建单并发用户，单热点SINGLE票档，60秒固定时间窗口，无目标RPS",
+  "timingDefinitions": {
+    "postToSettledMs": "实际POST开始至MySQL提交且Redis结算成功",
+    "postToClientObservedMs": "实际POST开始至测试线程通过诊断观察器确认自己的终态"
+  },
+  "caveats": [
+    "阶段统计覆盖正式前至排空，滚动分位数可能包含预热",
+    "2消费者组与4/8组使用不同隔离批次，单轮变化不等于长期收益",
+    "未测关闭仪表的开销A/B；未测试前台状态轮询、支付或多SKU容量"
+  ],
+  "groups": [
+    {
+      "localEvidenceDirectory": ".local/jmeter/concurrent100-20261027/c2-p10-w100-dc62a0",
+      "run": {
+        "batch": "diag-46af8ba1aa66790b",
+        "concurrency": 2,
+        "pool": 10,
+        "offeredRps": null,
+        "inflight": 100,
+        "loadModel": "completion-closed-loop",
+        "skuId": "1",
+        "threads": 100,
+        "startMs": 1793093766309,
+        "endMs": 1793093826309,
+        "clocks": [
+          {
+            "offsetMs": -0.79345703125,
+            "rttMs": 3.43994140625
+          },
+          {
+            "offsetMs": 0.35205078125,
+            "rttMs": 1.490234375
+          },
+          {
+            "offsetMs": 0.20654296875,
+            "rttMs": 0.799560546875
+          }
+        ],
+        "mysql": {
+          "max_connections": 151,
+          "sql_mode": "ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION",
+          "version": "8.4.13"
+        },
+        "artifactSha256": "e25b0aaf5bad07fc4377abb734809b5843dbb0b08a929d669b3c235824857964"
+      },
+      "summary": {
+        "windowStartMs": 1793093766309,
+        "windowEndMs": 1793093826309,
+        "seconds": 60.0,
+        "attempted": 3023,
+        "attemptedRps": 50.38333333333333,
+        "httpCounts": {
+          "202": 3023
+        },
+        "accepted": 3023,
+        "acceptedRps": 50.38333333333333,
+        "failureCodes": {},
+        "httpMs": {
+          "p50": 18.0,
+          "p95": 29.0,
+          "p99": 48.0
+        },
+        "httpAcceptedMs": {
+          "p50": 18.0,
+          "p95": 29.0,
+          "p99": 48.0
+        },
+        "arrivalLatenessMs": {
+          "p50": 0,
+          "p95": 1,
+          "p99": 1
+        },
+        "orderCount": 2927,
+        "orderTps": 48.78333333333333,
+        "orderTpsBy5Seconds": [
+          {
+            "startMs": 1793093766309,
+            "endMs": 1793093771309,
+            "orders": 178,
+            "tps": 35.6
+          },
+          {
+            "startMs": 1793093771309,
+            "endMs": 1793093776309,
+            "orders": 233,
+            "tps": 46.6
+          },
+          {
+            "startMs": 1793093776309,
+            "endMs": 1793093781309,
+            "orders": 235,
+            "tps": 47.0
+          },
+          {
+            "startMs": 1793093781309,
+            "endMs": 1793093786309,
+            "orders": 240,
+            "tps": 48.0
+          },
+          {
+            "startMs": 1793093786309,
+            "endMs": 1793093791309,
+            "orders": 257,
+            "tps": 51.4
+          },
+          {
+            "startMs": 1793093791309,
+            "endMs": 1793093796309,
+            "orders": 259,
+            "tps": 51.8
+          },
+          {
+            "startMs": 1793093796309,
+            "endMs": 1793093801309,
+            "orders": 261,
+            "tps": 52.2
+          },
+          {
+            "startMs": 1793093801309,
+            "endMs": 1793093806309,
+            "orders": 260,
+            "tps": 52.0
+          },
+          {
+            "startMs": 1793093806309,
+            "endMs": 1793093811309,
+            "orders": 266,
+            "tps": 53.2
+          },
+          {
+            "startMs": 1793093811309,
+            "endMs": 1793093816309,
+            "orders": 263,
+            "tps": 52.6
+          },
+          {
+            "startMs": 1793093816309,
+            "endMs": 1793093821309,
+            "orders": 255,
+            "tps": 51.0
+          },
+          {
+            "startMs": 1793093821309,
+            "endMs": 1793093826309,
+            "orders": 220,
+            "tps": 44.0
+          }
+        ],
+        "drainOrders": 96,
+        "beforeWindowOrders": 0,
+        "duplicatePostKeys": 0,
+        "acceptedMissingRequestId": 0,
+        "serverQueueAndCreateMs": {
+          "p50": 1885.69189453125,
+          "p95": 2214.342041015625,
+          "p99": 2559.31103515625
+        },
+        "successfulAcceptedSamples": 3023,
+        "incompleteAccepted": 0,
+        "failedAccepted": {},
+        "successfulDbWithout202": 0,
+        "completeAccepted": true,
+        "clientEndToEndP99": "未采集，DB时间不能替代客户端首次观察时间",
+        "batch": "diag-46af8ba1aa66790b",
+        "offeredRps": null,
+        "inflight": 100,
+        "loadModel": "completion-closed-loop",
+        "concurrency": 2,
+        "pool": 10,
+        "checks": {
+          "linkErrors": 0,
+          "quotaErrors": 0,
+          "duplicateOrders": 0,
+          "orphanOrders": 0,
+          "mysql": {
+            "total": 10000,
+            "locked": 6117,
+            "sold": 0,
+            "available": 3883
+          },
+          "redis": {
+            "available": "3883",
+            "eligible": "1",
+            "saleStartsAt": "1793092917371",
+            "saleEndsAt": "1793697957371",
+            "maxQuantity": "1",
+            "sessionId": "1",
+            "inventorySequence": "0",
+            "pending": "0",
+            "ready": "1",
+            "waitlistPending": "0",
+            "waitlistPriority": "0",
+            "waitlistHead": ""
+          },
+          "dead": 0,
+          "stockFromOrders": {
+            "locked": "6117",
+            "sold": "0"
+          },
+          "valid": true
+        },
+        "drained": {
+          "mq": {
+            "ready": 0,
+            "unacked": 0,
+            "consumers": 2,
+            "ack": 6117,
+            "ackRate": 0.0,
+            "delivered": 6117,
+            "published": 6117,
+            "redelivered": 0
+          },
+          "pending": 0,
+          "recovery": 0,
+          "complete": true
+        },
+        "fuseReason": null,
+        "noEscalation": false,
+        "jmeterExit": 0,
+        "postsAfterStop": 0,
+        "postsAfterDeadline": 0,
+        "selftestPassed": false,
+        "accountBudgetExhausted": false,
+        "completedWorkerCalls": 3023,
+        "maxGrantedOutstanding": 100,
+        "completionObserverMs": {
+          "p50": 7.226999994600192,
+          "p95": 20.702800014987588,
+          "p99": 23.524400021415204
+        },
+        "completionFeedMaxGapMs": 93,
+        "fullChainSuccessfulSamples": 3023,
+        "postToSettledMs": {
+          "p50": 1913,
+          "p95": 2244,
+          "p99": 2599
+        },
+        "postToClientObservedMs": {
+          "p50": 1969,
+          "p95": 2317,
+          "p99": 2658
+        },
+        "flowReadRetries": 0,
+        "valid": true
+      },
+      "resources": {
+        "cpuMean": 50.30573174023633,
+        "cpuMax": 83.95989974937343,
+        "freeGiBMin": 5.399055480957031,
+        "backendWorkingMiBMax": 430.23828125,
+        "jmeterWorkingMiBMax": 317.984375,
+        "poolPendingMax": 0,
+        "poolActiveMax": 2,
+        "readyMax": 95,
+        "readyMinAfter5Seconds": 0,
+        "redisPendingMax": 98,
+        "redisPendingMinAfter5Seconds": 31,
+        "redisPendingSlopeAfter5Seconds": -0.29232418569867585,
+        "unackedMax": 2,
+        "ledgerNotReadySamples": 0,
+        "readySlopePerSecond": 1.251671373844166,
+        "mysqlThreadsRunningMax": 5,
+        "sampleGapMax": 3.063,
+        "rowLockWaitsDelta": 473,
+        "rowLockTimeMsDelta": 1236,
+        "deadlocksDelta": 0
+      },
+      "stages": [
+        {
+          "name": "ticketing.diagnostics.duration",
+          "tags": {
+            "role": "consumer",
+            "stage": "redis.require"
+          },
+          "count": 3023,
+          "totalMs": 6756.8291,
+          "meanMs": 2.2351402911015548,
+          "rollingPercentilesMs": {
+            "0.5": 1.6384,
+            "0.95": 4.9152,
+            "0.99": 8.323072
+          }
+        },
+        {
+          "name": "ticketing.diagnostics.duration",
+          "tags": {
+            "role": "consumer",
+            "stage": "stock.held.client"
+          },
+          "count": 3023,
+          "totalMs": 46565.394199999995,
+          "meanMs": 15.403703010254713,
+          "rollingPercentilesMs": {
+            "0.5": 13.631488,
+            "0.95": 21.495808,
+            "0.99": 25.690112
+          }
+        },
+        {
+          "name": "ticketing.diagnostics.duration",
+          "tags": {
+            "role": "consumer",
+            "stage": "worker.process"
+          },
+          "count": 3023,
+          "totalMs": 119629.1136,
+          "meanMs": 39.57297836586172,
+          "rollingPercentilesMs": {
+            "0.5": 36.70016,
+            "0.95": 51.380224,
+            "0.99": 63.963136
+          }
+        },
+        {
+          "name": "ticketing.diagnostics.duration",
+          "tags": {
+            "role": "consumer",
+            "stage": "mapper.TicketSkuMapper.selectWithCursor"
+          },
+          "count": 3023,
+          "totalMs": 4451.6404,
+          "meanMs": 1.4725902745616937,
+          "rollingPercentilesMs": {
+            "0.5": 0.950272,
+            "0.95": 4.030464,
+            "0.99": 9.928704
+          }
+        },
+        {
+          "name": "ticketing.diagnostics.duration",
+          "tags": {
+            "role": "consumer",
+            "stage": "redis.settle"
+          },
+          "count": 3023,
+          "totalMs": 17333.5782,
+          "meanMs": 5.733899503804168,
+          "rollingPercentilesMs": {
+            "0.5": 4.58752,
+            "0.95": 9.8304,
+            "0.99": 16.121856
+          }
+        },
+        {
+          "name": "ticketing.diagnostics.duration",
+          "tags": {
+            "role": "consumer",
+            "stage": "transaction.total"
+          },
+          "count": 3023,
+          "totalMs": 92080.0992,
+          "meanMs": 30.459840952695995,
+          "rollingPercentilesMs": {
+            "0.5": 27.262976,
+            "0.95": 38.797312,
+            "0.99": 45.088768
+          }
+        },
+        {
+          "name": "ticketing.diagnostics.duration",
+          "tags": {
+            "role": "consumer",
+            "stage": "reservation"
+          },
+          "count": 3023,
+          "totalMs": 23108.137300000002,
+          "meanMs": 7.644107608336091,
+          "rollingPercentilesMs": {
+            "0.5": 6.815744,
+            "0.95": 9.699328,
+            "0.99": 13.893632
+          }
+        },
+        {
+          "name": "hikaricp.connections.acquire",
+          "tags": {
+            "pool": "HikariPool-1"
+          },
+          "count": 9295,
+          "totalMs": 70.5806,
+          "meanMs": 0.007593394298009683,
+          "rollingPercentilesMs": {
+            "0.5": 0.000828,
+            "0.95": 0.00134,
+            "0.99": 0.003068
+          }
+        },
+        {
+          "name": "ticketing.diagnostics.duration",
+          "tags": {
+            "role": "consumer",
+            "stage": "transaction.commit"
+          },
+          "count": 3023,
+          "totalMs": 18284.8075,
+          "meanMs": 6.04856351306649,
+          "rollingPercentilesMs": {
+            "0.5": 5.373952,
+            "0.95": 12.45184,
+            "0.99": 16.121856
+          }
+        }
+      ],
+      "publisherResults": {
+        "ack": 3023.0
+      },
+      "sampledLockWaitKeys": {},
+      "threadBorrowSnapshots": {},
+      "statementDigestDeltas": [
+        {
+          "sql": "COMMIT",
+          "count": 3106,
+          "totalMs": 10895.529134,
+          "meanMs": 3.507897338699292
+        },
+        {
+          "sql": "SELECT `id` , `session_id` , NAME , `price_cents` , `total_stock` , `locked_stock` , `sold_stock` , `inventory_strategy` , `bucket_count` , `sale_starts_at` , `sale_ends_at` , `max_quantity_per_order` , STATUS , `version` , `created_at` , `updated_at` FROM `ticket_sku` WHERE ( `id` = ? ) FOR UPDATE",
+          "count": 3025,
+          "totalMs": 1893.782148,
+          "meanMs": 0.6260436852892562
+        }
+      ],
+      "rawFileSha256": {
+        "run.json": "d2e30654617a12bb8a7097b5e6c3c570bd92f50c0c45b877598c39ec48744fee",
+        "summary.json": "7c6b71d29696a1ae1ffd71826a28ecaf718f6a7137c69618416bb91de6d1cc47",
+        "orders.json": "8d78187b8165bf734d87a669744c1b6781347ee60acf0caf0a4881a63fc53c82",
+        "post.jtl": "80a8331b9ec69df0d5ce320763fbbb9783883c7b15804d3d7c5dabe652cbd1a5",
+        "metrics.json": "8c9978a9e2f1aa78187a1611902af5abd4d012c56c071a69827d6b00ef825aa9",
+        "digests.json": "f675575bda33fdb8f301120e557f75ba0593bc3c3924b385033def259643382d",
+        "resources.jsonl": "c151c0720be889422e812eb6a0be5119dc306f27948ddf9425d959db07d647f2",
+        "completed-requests.json": "886c3e8378e99872005de9e492daf8f7f43252c03507f06460be5506bb336da5",
+        "shutdown.json": "83a2a3f163f24318cedcdf7b1bf0bd59309849980a8795afe970c3277c924b47"
+      }
+    },
+    {
+      "localEvidenceDirectory": ".local/jmeter/concurrent100-compare-20261027/c4-p10-w100-ca5ba8",
+      "run": {
+        "batch": "diag-83c4d56e74eeac4a",
+        "concurrency": 4,
+        "pool": 10,
+        "offeredRps": null,
+        "inflight": 100,
+        "loadModel": "completion-closed-loop",
+        "skuId": "1",
+        "threads": 100,
+        "startMs": 1793094085063,
+        "endMs": 1793094145063,
+        "clocks": [
+          {
+            "offsetMs": -0.156494140625,
+            "rttMs": 0.9267578125
+          },
+          {
+            "offsetMs": -0.188232421875,
+            "rttMs": 1.109375
+          },
+          {
+            "offsetMs": -0.139892578125,
+            "rttMs": 0.754638671875
+          }
+        ],
+        "mysql": {
+          "max_connections": 151,
+          "sql_mode": "ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION",
+          "version": "8.4.13"
+        },
+        "artifactSha256": "e25b0aaf5bad07fc4377abb734809b5843dbb0b08a929d669b3c235824857964"
+      },
+      "summary": {
+        "windowStartMs": 1793094085063,
+        "windowEndMs": 1793094145063,
+        "seconds": 60.0,
+        "attempted": 3038,
+        "attemptedRps": 50.63333333333333,
+        "httpCounts": {
+          "202": 3038
+        },
+        "accepted": 3038,
+        "acceptedRps": 50.63333333333333,
+        "failureCodes": {},
+        "httpMs": {
+          "p50": 26.0,
+          "p95": 56.0,
+          "p99": 70.0
+        },
+        "httpAcceptedMs": {
+          "p50": 26.0,
+          "p95": 56.0,
+          "p99": 70.0
+        },
+        "arrivalLatenessMs": {
+          "p50": 0,
+          "p95": 1,
+          "p99": 2
+        },
+        "orderCount": 2943,
+        "orderTps": 49.05,
+        "orderTpsBy5Seconds": [
+          {
+            "startMs": 1793094085063,
+            "endMs": 1793094090063,
+            "orders": 227,
+            "tps": 45.4
+          },
+          {
+            "startMs": 1793094090063,
+            "endMs": 1793094095063,
+            "orders": 283,
+            "tps": 56.6
+          },
+          {
+            "startMs": 1793094095063,
+            "endMs": 1793094100063,
+            "orders": 298,
+            "tps": 59.6
+          },
+          {
+            "startMs": 1793094100063,
+            "endMs": 1793094105063,
+            "orders": 301,
+            "tps": 60.2
+          },
+          {
+            "startMs": 1793094105063,
+            "endMs": 1793094110063,
+            "orders": 327,
+            "tps": 65.4
+          },
+          {
+            "startMs": 1793094110063,
+            "endMs": 1793094115063,
+            "orders": 276,
+            "tps": 55.2
+          },
+          {
+            "startMs": 1793094115063,
+            "endMs": 1793094120063,
+            "orders": 205,
+            "tps": 41.0
+          },
+          {
+            "startMs": 1793094120063,
+            "endMs": 1793094125063,
+            "orders": 205,
+            "tps": 41.0
+          },
+          {
+            "startMs": 1793094125063,
+            "endMs": 1793094130063,
+            "orders": 206,
+            "tps": 41.2
+          },
+          {
+            "startMs": 1793094130063,
+            "endMs": 1793094135063,
+            "orders": 206,
+            "tps": 41.2
+          },
+          {
+            "startMs": 1793094135063,
+            "endMs": 1793094140063,
+            "orders": 203,
+            "tps": 40.6
+          },
+          {
+            "startMs": 1793094140063,
+            "endMs": 1793094145063,
+            "orders": 206,
+            "tps": 41.2
+          }
+        ],
+        "drainOrders": 95,
+        "beforeWindowOrders": 0,
+        "duplicatePostKeys": 0,
+        "acceptedMissingRequestId": 0,
+        "serverQueueAndCreateMs": {
+          "p50": 1742.318115234375,
+          "p95": 2383.18798828125,
+          "p99": 2423.051025390625
+        },
+        "successfulAcceptedSamples": 3038,
+        "incompleteAccepted": 0,
+        "failedAccepted": {},
+        "successfulDbWithout202": 0,
+        "completeAccepted": true,
+        "clientEndToEndP99": "未采集，DB时间不能替代客户端首次观察时间",
+        "batch": "diag-83c4d56e74eeac4a",
+        "offeredRps": null,
+        "inflight": 100,
+        "loadModel": "completion-closed-loop",
+        "concurrency": 4,
+        "pool": 10,
+        "checks": {
+          "linkErrors": 0,
+          "quotaErrors": 0,
+          "duplicateOrders": 0,
+          "orphanOrders": 0,
+          "mysql": {
+            "total": 10000,
+            "locked": 3058,
+            "sold": 0,
+            "available": 6942
+          },
+          "redis": {
+            "available": "6942",
+            "eligible": "1",
+            "saleStartsAt": "1793093618010",
+            "saleEndsAt": "1793698658010",
+            "maxQuantity": "1",
+            "sessionId": "1",
+            "inventorySequence": "0",
+            "pending": "0",
+            "ready": "1",
+            "waitlistPending": "0",
+            "waitlistPriority": "0",
+            "waitlistHead": ""
+          },
+          "dead": 0,
+          "stockFromOrders": {
+            "locked": "3058",
+            "sold": "0"
+          },
+          "valid": true
+        },
+        "drained": {
+          "mq": {
+            "ready": 0,
+            "unacked": 0,
+            "consumers": 4,
+            "ack": 3058,
+            "ackRate": 43.2,
+            "delivered": 3058,
+            "published": 3058,
+            "redelivered": 0
+          },
+          "pending": 0,
+          "recovery": 0,
+          "complete": true
+        },
+        "fuseReason": null,
+        "noEscalation": false,
+        "jmeterExit": 0,
+        "postsAfterStop": 0,
+        "postsAfterDeadline": 0,
+        "selftestPassed": false,
+        "accountBudgetExhausted": false,
+        "completedWorkerCalls": 3038,
+        "maxGrantedOutstanding": 100,
+        "completionObserverMs": {
+          "p50": 7.497499987948686,
+          "p95": 20.905000012135133,
+          "p99": 25.392100011231378
+        },
+        "completionFeedMaxGapMs": 91,
+        "fullChainSuccessfulSamples": 3038,
+        "postToSettledMs": {
+          "p50": 1777,
+          "p95": 2445,
+          "p99": 2486
+        },
+        "postToClientObservedMs": {
+          "p50": 1845,
+          "p95": 2516,
+          "p99": 2546
+        },
+        "flowReadRetries": 0,
+        "valid": true
+      },
+      "resources": {
+        "cpuMean": 51.02507256126858,
+        "cpuMax": 80.72390572390572,
+        "freeGiBMin": 4.9558563232421875,
+        "backendWorkingMiBMax": 443.4609375,
+        "jmeterWorkingMiBMax": 300.09765625,
+        "poolPendingMax": 0,
+        "poolActiveMax": 7,
+        "readyMax": 93,
+        "readyMinAfter5Seconds": 0,
+        "redisPendingMax": 98,
+        "redisPendingMinAfter5Seconds": 56,
+        "redisPendingSlopeAfter5Seconds": -0.1413799921655299,
+        "unackedMax": 4,
+        "ledgerNotReadySamples": 0,
+        "readySlopePerSecond": 0.9761480642872225,
+        "mysqlThreadsRunningMax": 6,
+        "sampleGapMax": 3.085,
+        "rowLockWaitsDelta": 2894,
+        "rowLockTimeMsDelta": 81241,
+        "deadlocksDelta": 0
+      },
+      "stages": [
+        {
+          "name": "ticketing.diagnostics.duration",
+          "tags": {
+            "role": "consumer",
+            "stage": "redis.require"
+          },
+          "count": 3038,
+          "totalMs": 12462.5696,
+          "meanMs": 4.102228308097433,
+          "rollingPercentilesMs": {
+            "0.5": 2.031616,
+            "0.95": 16.187392,
+            "0.99": 26.148864
+          }
+        },
+        {
+          "name": "ticketing.diagnostics.duration",
+          "tags": {
+            "role": "consumer",
+            "stage": "stock.held.client"
+          },
+          "count": 3038,
+          "totalMs": 61592.536400000005,
+          "meanMs": 20.274040947992102,
+          "rollingPercentilesMs": {
+            "0.5": 22.544384,
+            "0.95": 30.932992,
+            "0.99": 39.3216
+          }
+        },
+        {
+          "name": "ticketing.diagnostics.duration",
+          "tags": {
+            "role": "consumer",
+            "stage": "worker.process"
+          },
+          "count": 3038,
+          "totalMs": 242831.0115,
+          "meanMs": 79.93120852534562,
+          "rollingPercentilesMs": {
+            "0.5": 90.177536,
+            "0.95": 115.34336,
+            "0.99": 127.926272
+          }
+        },
+        {
+          "name": "ticketing.diagnostics.duration",
+          "tags": {
+            "role": "consumer",
+            "stage": "mapper.TicketSkuMapper.selectWithCursor"
+          },
+          "count": 3038,
+          "totalMs": 89980.139,
+          "meanMs": 29.61821560236998,
+          "rollingPercentilesMs": {
+            "0.5": 35.618816,
+            "0.95": 52.396032,
+            "0.99": 62.881792
+          }
+        },
+        {
+          "name": "ticketing.diagnostics.duration",
+          "tags": {
+            "role": "consumer",
+            "stage": "redis.settle"
+          },
+          "count": 3038,
+          "totalMs": 31769.865,
+          "meanMs": 10.457493416721528,
+          "rollingPercentilesMs": {
+            "0.5": 11.403264,
+            "0.95": 29.229056,
+            "0.99": 35.520512
+          }
+        },
+        {
+          "name": "ticketing.diagnostics.duration",
+          "tags": {
+            "role": "consumer",
+            "stage": "transaction.total"
+          },
+          "count": 3038,
+          "totalMs": 194944.1904,
+          "meanMs": 64.16859460171165,
+          "rollingPercentilesMs": {
+            "0.5": 70.254592,
+            "0.95": 91.226112,
+            "0.99": 108.003328
+          }
+        },
+        {
+          "name": "ticketing.diagnostics.duration",
+          "tags": {
+            "role": "consumer",
+            "stage": "reservation"
+          },
+          "count": 3038,
+          "totalMs": 24852.9022,
+          "meanMs": 8.180678801843317,
+          "rollingPercentilesMs": {
+            "0.5": 6.815744,
+            "0.95": 9.699328,
+            "0.99": 15.990784
+          }
+        },
+        {
+          "name": "hikaricp.connections.acquire",
+          "tags": {
+            "pool": "HikariPool-1"
+          },
+          "count": 9347,
+          "totalMs": 64.71140000000001,
+          "meanMs": 0.006923226703755217,
+          "rollingPercentilesMs": {
+            "0.5": 0.000828,
+            "0.95": 0.00134,
+            "0.99": 0.00166
+          }
+        },
+        {
+          "name": "ticketing.diagnostics.duration",
+          "tags": {
+            "role": "consumer",
+            "stage": "transaction.commit"
+          },
+          "count": 3038,
+          "totalMs": 31465.6387,
+          "meanMs": 10.357353094140882,
+          "rollingPercentilesMs": {
+            "0.5": 13.893632,
+            "0.95": 21.757952,
+            "0.99": 25.952256
+          }
+        }
+      ],
+      "publisherResults": {
+        "ack": 3038.0
+      },
+      "sampledLockWaitKeys": {
+        "ticket_sku|PRIMARY|1": 39
+      },
+      "threadBorrowSnapshots": {},
+      "statementDigestDeltas": [
+        {
+          "sql": "COMMIT",
+          "count": 3123,
+          "totalMs": 23507.356375,
+          "meanMs": 7.527171429715017
+        },
+        {
+          "sql": "SELECT `id` , `session_id` , NAME , `price_cents` , `total_stock` , `locked_stock` , `sold_stock` , `inventory_strategy` , `bucket_count` , `sale_starts_at` , `sale_ends_at` , `max_quantity_per_order` , STATUS , `version` , `created_at` , `updated_at` FROM `ticket_sku` WHERE ( `id` = ? ) FOR UPDATE",
+          "count": 3042,
+          "totalMs": 87298.095427,
+          "meanMs": 28.697598759697566
+        }
+      ],
+      "rawFileSha256": {
+        "run.json": "f698bbd471170ce4092afca60c1ea9dcfe93b738f2667308326ad0eebc7d139f",
+        "summary.json": "1377c5901153f7c2cfae926812a161fa8416c7fd04c855769dabc186a652291a",
+        "orders.json": "678498bc6b762db925fb8f0dbb2c9fc69fb11335114e5181a9296f6338e39933",
+        "post.jtl": "fd2abb06e6208f574f212b7f567697e23bb81191725469f224801298c7d7b2a6",
+        "metrics.json": "b16ff6d501c56d7ba84860c8931e769caede6cb4f5d377f80ad7fa120681fcc9",
+        "digests.json": "0446c4618cdcf50fd6aa4249284a0f2051d3c25bc1bdff017013cf3cbf265a0e",
+        "resources.jsonl": "89168332c4d8b2e56e507250d1d77e092c38a8f99d7520ce28d026662664d5e9",
+        "completed-requests.json": "a92592e6cb587ec86b876efd9a7a838c401355f63752b398885b049169b8f616",
+        "shutdown.json": "f4fe2c3f1f6c77eeee388427297d98fdd3c2b1296390380a8eec0a6146d6ad5d"
+      }
+    },
+    {
+      "localEvidenceDirectory": ".local/jmeter/concurrent100-compare-20261027/c8-p10-w100-3135fe",
+      "run": {
+        "batch": "diag-4c3f977ef0b62e0a",
+        "concurrency": 8,
+        "pool": 10,
+        "offeredRps": null,
+        "inflight": 100,
+        "loadModel": "completion-closed-loop",
+        "skuId": "1",
+        "threads": 100,
+        "startMs": 1793094371347,
+        "endMs": 1793094431347,
+        "clocks": [
+          {
+            "offsetMs": -0.929443359375,
+            "rttMs": 0.82421875
+          },
+          {
+            "offsetMs": -0.90380859375,
+            "rttMs": 0.71826171875
+          },
+          {
+            "offsetMs": -0.904296875,
+            "rttMs": 0.699951171875
+          }
+        ],
+        "mysql": {
+          "max_connections": 151,
+          "sql_mode": "ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION",
+          "version": "8.4.13"
+        },
+        "artifactSha256": "e25b0aaf5bad07fc4377abb734809b5843dbb0b08a929d669b3c235824857964"
+      },
+      "summary": {
+        "windowStartMs": 1793094371347,
+        "windowEndMs": 1793094431347,
+        "seconds": 60.0,
+        "attempted": 3571,
+        "attemptedRps": 59.516666666666666,
+        "httpCounts": {
+          "202": 3571
+        },
+        "accepted": 3571,
+        "acceptedRps": 59.516666666666666,
+        "failureCodes": {},
+        "httpMs": {
+          "p50": 21.0,
+          "p95": 46.0,
+          "p99": 68.0
+        },
+        "httpAcceptedMs": {
+          "p50": 21.0,
+          "p95": 46.0,
+          "p99": 68.0
+        },
+        "arrivalLatenessMs": {
+          "p50": 0,
+          "p95": 1,
+          "p99": 2
+        },
+        "orderCount": 3475,
+        "orderTps": 57.916666666666664,
+        "orderTpsBy5Seconds": [
+          {
+            "startMs": 1793094371347,
+            "endMs": 1793094376347,
+            "orders": 236,
+            "tps": 47.2
+          },
+          {
+            "startMs": 1793094376347,
+            "endMs": 1793094381347,
+            "orders": 288,
+            "tps": 57.6
+          },
+          {
+            "startMs": 1793094381347,
+            "endMs": 1793094386347,
+            "orders": 304,
+            "tps": 60.8
+          },
+          {
+            "startMs": 1793094386347,
+            "endMs": 1793094391347,
+            "orders": 310,
+            "tps": 62.0
+          },
+          {
+            "startMs": 1793094391347,
+            "endMs": 1793094396347,
+            "orders": 316,
+            "tps": 63.2
+          },
+          {
+            "startMs": 1793094396347,
+            "endMs": 1793094401347,
+            "orders": 328,
+            "tps": 65.6
+          },
+          {
+            "startMs": 1793094401347,
+            "endMs": 1793094406347,
+            "orders": 320,
+            "tps": 64.0
+          },
+          {
+            "startMs": 1793094406347,
+            "endMs": 1793094411347,
+            "orders": 334,
+            "tps": 66.8
+          },
+          {
+            "startMs": 1793094411347,
+            "endMs": 1793094416347,
+            "orders": 318,
+            "tps": 63.6
+          },
+          {
+            "startMs": 1793094416347,
+            "endMs": 1793094421347,
+            "orders": 311,
+            "tps": 62.2
+          },
+          {
+            "startMs": 1793094421347,
+            "endMs": 1793094426347,
+            "orders": 210,
+            "tps": 42.0
+          },
+          {
+            "startMs": 1793094426347,
+            "endMs": 1793094431347,
+            "orders": 200,
+            "tps": 40.0
+          }
+        ],
+        "drainOrders": 96,
+        "beforeWindowOrders": 0,
+        "duplicatePostKeys": 0,
+        "acceptedMissingRequestId": 0,
+        "serverQueueAndCreateMs": {
+          "p50": 1504.35302734375,
+          "p95": 2306.635986328125,
+          "p99": 2420.47900390625
+        },
+        "successfulAcceptedSamples": 3571,
+        "incompleteAccepted": 0,
+        "failedAccepted": {},
+        "successfulDbWithout202": 0,
+        "completeAccepted": true,
+        "clientEndToEndP99": "未采集，DB时间不能替代客户端首次观察时间",
+        "batch": "diag-4c3f977ef0b62e0a",
+        "offeredRps": null,
+        "inflight": 100,
+        "loadModel": "completion-closed-loop",
+        "concurrency": 8,
+        "pool": 10,
+        "checks": {
+          "linkErrors": 0,
+          "quotaErrors": 0,
+          "duplicateOrders": 0,
+          "orphanOrders": 0,
+          "mysql": {
+            "total": 10000,
+            "locked": 6649,
+            "sold": 0,
+            "available": 3351
+          },
+          "redis": {
+            "available": "3351",
+            "eligible": "1",
+            "saleStartsAt": "1793093618010",
+            "saleEndsAt": "1793698658010",
+            "maxQuantity": "1",
+            "sessionId": "1",
+            "inventorySequence": "0",
+            "pending": "0",
+            "ready": "1",
+            "waitlistPending": "0",
+            "waitlistPriority": "0",
+            "waitlistHead": ""
+          },
+          "dead": 0,
+          "stockFromOrders": {
+            "locked": "6649",
+            "sold": "0"
+          },
+          "valid": true
+        },
+        "drained": {
+          "mq": {
+            "ready": 0,
+            "unacked": 0,
+            "consumers": 8,
+            "ack": 6649,
+            "ackRate": 14.2,
+            "delivered": 6649,
+            "published": 6649,
+            "redelivered": 0
+          },
+          "pending": 0,
+          "recovery": 0,
+          "complete": true
+        },
+        "fuseReason": null,
+        "noEscalation": false,
+        "jmeterExit": 0,
+        "postsAfterStop": 0,
+        "postsAfterDeadline": 0,
+        "selftestPassed": false,
+        "accountBudgetExhausted": false,
+        "completedWorkerCalls": 3571,
+        "maxGrantedOutstanding": 100,
+        "completionObserverMs": {
+          "p50": 7.7074999862816185,
+          "p95": 21.097099990583956,
+          "p99": 24.87619998282753
+        },
+        "completionFeedMaxGapMs": 91,
+        "fullChainSuccessfulSamples": 3571,
+        "postToSettledMs": {
+          "p50": 1533,
+          "p95": 2365,
+          "p99": 2484
+        },
+        "postToClientObservedMs": {
+          "p50": 1599,
+          "p95": 2432,
+          "p99": 2561
+        },
+        "flowReadRetries": 0,
+        "valid": true
+      },
+      "resources": {
+        "cpuMean": 59.37838038914333,
+        "cpuMax": 76.04166666666666,
+        "freeGiBMin": 4.901561737060547,
+        "backendWorkingMiBMax": 443.50390625,
+        "jmeterWorkingMiBMax": 312.8828125,
+        "poolPendingMax": 0,
+        "poolActiveMax": 10,
+        "readyMax": 88,
+        "readyMinAfter5Seconds": 85,
+        "redisPendingMax": 97,
+        "redisPendingMinAfter5Seconds": 87,
+        "redisPendingSlopeAfter5Seconds": -0.04437005700401448,
+        "unackedMax": 8,
+        "ledgerNotReadySamples": 0,
+        "readySlopePerSecond": 0.7412063341661348,
+        "mysqlThreadsRunningMax": 9,
+        "sampleGapMax": 3.046,
+        "rowLockWaitsDelta": 3348,
+        "rowLockTimeMsDelta": 301822,
+        "deadlocksDelta": 0
+      },
+      "stages": [
+        {
+          "name": "ticketing.diagnostics.duration",
+          "tags": {
+            "role": "consumer",
+            "stage": "redis.require"
+          },
+          "count": 3571,
+          "totalMs": 10536.304,
+          "meanMs": 2.950519182301876,
+          "rollingPercentilesMs": {
+            "0.5": 1.769472,
+            "0.95": 9.371648,
+            "0.99": 18.808832
+          }
+        },
+        {
+          "name": "ticketing.diagnostics.duration",
+          "tags": {
+            "role": "consumer",
+            "stage": "stock.held.client"
+          },
+          "count": 3571,
+          "totalMs": 61552.8985,
+          "meanMs": 17.23688000560067,
+          "rollingPercentilesMs": {
+            "0.5": 15.204352,
+            "0.95": 26.738688,
+            "0.99": 33.030144
+          }
+        },
+        {
+          "name": "ticketing.diagnostics.duration",
+          "tags": {
+            "role": "consumer",
+            "stage": "worker.process"
+          },
+          "count": 3571,
+          "totalMs": 488935.7007,
+          "meanMs": 136.91842640716885,
+          "rollingPercentilesMs": {
+            "0.5": 121.634816,
+            "0.95": 205.520896,
+            "0.99": 239.075328
+          }
+        },
+        {
+          "name": "ticketing.diagnostics.duration",
+          "tags": {
+            "role": "consumer",
+            "stage": "mapper.TicketSkuMapper.selectWithCursor"
+          },
+          "count": 3571,
+          "totalMs": 334415.696,
+          "meanMs": 93.6476325959115,
+          "rollingPercentilesMs": {
+            "0.5": 83.88608,
+            "0.95": 138.412032,
+            "0.99": 163.577856
+          }
+        },
+        {
+          "name": "ticketing.diagnostics.duration",
+          "tags": {
+            "role": "consumer",
+            "stage": "redis.settle"
+          },
+          "count": 3571,
+          "totalMs": 26744.5539,
+          "meanMs": 7.489373816858023,
+          "rollingPercentilesMs": {
+            "0.5": 5.636096,
+            "0.95": 21.889024,
+            "0.99": 32.374784
+          }
+        },
+        {
+          "name": "ticketing.diagnostics.duration",
+          "tags": {
+            "role": "consumer",
+            "stage": "transaction.total"
+          },
+          "count": 3571,
+          "totalMs": 447408.4836,
+          "meanMs": 125.28941013721646,
+          "rollingPercentilesMs": {
+            "0.5": 113.246208,
+            "0.95": 180.355072,
+            "0.99": 213.909504
+          }
+        },
+        {
+          "name": "ticketing.diagnostics.duration",
+          "tags": {
+            "role": "consumer",
+            "stage": "reservation"
+          },
+          "count": 3571,
+          "totalMs": 29097.9623,
+          "meanMs": 8.148407252870344,
+          "rollingPercentilesMs": {
+            "0.5": 7.077888,
+            "0.95": 10.223616,
+            "0.99": 13.893632
+          }
+        },
+        {
+          "name": "hikaricp.connections.acquire",
+          "tags": {
+            "pool": "HikariPool-1"
+          },
+          "count": 10939,
+          "totalMs": 1022.1076999999999,
+          "meanMs": 0.09343703263552426,
+          "rollingPercentilesMs": {
+            "0.5": 0.000828,
+            "0.95": 0.9175,
+            "0.99": 1.310716
+          }
+        },
+        {
+          "name": "ticketing.diagnostics.duration",
+          "tags": {
+            "role": "consumer",
+            "stage": "transaction.commit"
+          },
+          "count": 3571,
+          "totalMs": 26092.601,
+          "meanMs": 7.306805096611593,
+          "rollingPercentilesMs": {
+            "0.5": 5.767168,
+            "0.95": 17.563648,
+            "0.99": 22.806528
+          }
+        }
+      ],
+      "publisherResults": {
+        "ack": 3571.0
+      },
+      "sampledLockWaitKeys": {
+        "ticket_sku|PRIMARY|1": 393
+      },
+      "threadBorrowSnapshots": {},
+      "statementDigestDeltas": [
+        {
+          "sql": "COMMIT",
+          "count": 3653,
+          "totalMs": 16703.739422,
+          "meanMs": 4.572608656446755
+        },
+        {
+          "sql": "SELECT `id` , `session_id` , NAME , `price_cents` , `total_stock` , `locked_stock` , `sold_stock` , `inventory_strategy` , `bucket_count` , `sale_starts_at` , `sale_ends_at` , `max_quantity_per_order` , STATUS , `version` , `created_at` , `updated_at` FROM `ticket_sku` WHERE ( `id` = ? ) FOR UPDATE",
+          "count": 3575,
+          "totalMs": 331386.878747,
+          "meanMs": 92.69563041874126
+        }
+      ],
+      "rawFileSha256": {
+        "run.json": "e4aff9db0ea5cd6d9391e2b490f8c2d039b1813cf01643e4b81b58305e731229",
+        "summary.json": "10cf6c4d82f12a146bfd18b6e9450194cc299e59729bae95dbca88b3da43ebb9",
+        "orders.json": "f7e376eb5fc03109ac0be10afc8031196e7e85ca744bfee1741667601d299315",
+        "post.jtl": "cd543692aed17a287cf8d89aa4f864623e7503f68b2fa2ed52d661ae1b2dbe85",
+        "metrics.json": "ac0965008737c4367f326d2ace4ed9c6ee713fb0ab12a2d30a982f4aa2eb6435",
+        "digests.json": "dd1368b74a9fe29ff93cd90eaf85503f0d462facda068468aa0e31520302caf1",
+        "resources.jsonl": "04040381872a7d002ef7e60f7561c6745d7bb0f4df95b6f7f6c63fd26cb87236",
+        "completed-requests.json": "33f0f671ab8bfb448f5c57d9ce382776240de3ffb8052900cb7dbfe84d60573e",
+        "shutdown.json": "2967816e0a6e4d68f300899ea00a182cbb1449ba925457b94ac508c4831c6404"
+      }
+    }
+  ],
+  "publisherSlotProbe": {
+    "purpose": "有界失败归因复现，不用于容量",
+    "summary": {
+      "windowStartMs": 1793092216838,
+      "windowEndMs": 1793092246838,
+      "seconds": 30.0,
+      "attempted": 64,
+      "attemptedRps": 2.1333333333333333,
+      "httpCounts": {
+        "503": 13,
+        "202": 51
+      },
+      "accepted": 51,
+      "acceptedRps": 1.7,
+      "failureCodes": {
+        "PURCHASE_PUBLISH_UNCONFIRMED": 13
+      },
+      "httpMs": {
+        "p50": 99.0,
+        "p95": 297.0,
+        "p99": 297.0
+      },
+      "httpAcceptedMs": {
+        "p50": 96.0,
+        "p95": 297.0,
+        "p99": 297.0
+      },
+      "arrivalLatenessMs": {
+        "p50": 1,
+        "p95": 60,
+        "p99": 61
+      },
+      "orderCount": 64,
+      "orderTps": 2.1333333333333333,
+      "orderTpsBy5Seconds": [
+        {
+          "startMs": 1793092216838,
+          "endMs": 1793092221838,
+          "orders": 51,
+          "tps": 10.2
+        },
+        {
+          "startMs": 1793092221838,
+          "endMs": 1793092226838,
+          "orders": 0,
+          "tps": 0.0
+        },
+        {
+          "startMs": 1793092226838,
+          "endMs": 1793092231838,
+          "orders": 13,
+          "tps": 2.6
+        },
+        {
+          "startMs": 1793092231838,
+          "endMs": 1793092236838,
+          "orders": 0,
+          "tps": 0.0
+        },
+        {
+          "startMs": 1793092236838,
+          "endMs": 1793092241838,
+          "orders": 0,
+          "tps": 0.0
+        },
+        {
+          "startMs": 1793092241838,
+          "endMs": 1793092246838,
+          "orders": 0,
+          "tps": 0.0
+        }
+      ],
+      "drainOrders": 0,
+      "beforeWindowOrders": 0,
+      "duplicatePostKeys": 0,
+      "acceptedMissingRequestId": 0,
+      "serverQueueAndCreateMs": {
+        "p50": 639.801025390625,
+        "p95": 1140.18896484375,
+        "p99": 1179.759033203125
+      },
+      "successfulAcceptedSamples": 51,
+      "incompleteAccepted": 0,
+      "failedAccepted": {},
+      "successfulDbWithout202": 13,
+      "completeAccepted": true,
+      "clientEndToEndP99": "未采集，DB时间不能替代客户端首次观察时间",
+      "batch": "diag-fab164eab501e932",
+      "offeredRps": null,
+      "inflight": 64,
+      "loadModel": "completion-closed-loop",
+      "concurrency": 2,
+      "pool": 10,
+      "checks": {
+        "linkErrors": 0,
+        "quotaErrors": 0,
+        "duplicateOrders": 0,
+        "orphanOrders": 0,
+        "mysql": {
+          "total": 10000,
+          "locked": 1303,
+          "sold": 0,
+          "available": 8697
+        },
+        "redis": {
+          "available": "8697",
+          "eligible": "1",
+          "saleStartsAt": "1793091506669",
+          "saleEndsAt": "1793696546669",
+          "maxQuantity": "1",
+          "sessionId": "1",
+          "inventorySequence": "0",
+          "pending": "0",
+          "ready": "1",
+          "waitlistPending": "0",
+          "waitlistPriority": "0",
+          "waitlistHead": ""
+        },
+        "dead": 0,
+        "stockFromOrders": {
+          "locked": "1303",
+          "sold": "0"
+        },
+        "valid": true
+      },
+      "drained": {
+        "mq": {
+          "ready": 0,
+          "unacked": 0,
+          "consumers": 2,
+          "ack": 1290,
+          "ackRate": 0.0,
+          "delivered": 1290,
+          "published": 1290,
+          "redelivered": 0
+        },
+        "pending": 0,
+        "recovery": 0,
+        "complete": true
+      },
+      "fuseReason": "recent_rejections_at_least_five_and_5_percent",
+      "noEscalation": false,
+      "jmeterExit": 0,
+      "postsAfterStop": 0,
+      "postsAfterDeadline": 0,
+      "selftestPassed": false,
+      "accountBudgetExhausted": true,
+      "completedWorkerCalls": 64,
+      "maxGrantedOutstanding": 64,
+      "completionObserverMs": {
+        "p50": 7.317199982935563,
+        "p95": 22.202700027264655,
+        "p99": 27.70289999898523
+      },
+      "completionFeedMaxGapMs": 531,
+      "valid": false
+    },
+    "publisherResults": {
+      "slot_full": 13.0,
+      "ack": 64.0
+    }
+  },
+  "finalAudits": [
+    {
+      "localEvidenceDirectory": ".local/jmeter/concurrent100-20261027",
+      "facts": {
+        "user_account": 10001,
+        "ticket_order_item": 6117,
+        "payment_record": 0,
+        "waitlist_entry": 0,
+        "electronic_ticket": 0,
+        "ticket_stock_bucket": 0,
+        "order_stock_allocation": 0,
+        "ticket_order": [
+          {
+            "status": "PENDING",
+            "n": 6117
+          }
+        ],
+        "purchase_request": [
+          {
+            "status": "SUCCEEDED",
+            "n": 6117
+          }
+        ],
+        "outbox_event": [],
+        "mysql": {
+          "global_tz": "+00:00",
+          "session_tz": "+00:00",
+          "flush_commit": 1,
+          "sync_binlog": 1,
+          "max_connections": 151
+        },
+        "skus": [
+          {
+            "id": 1,
+            "total_stock": 10000,
+            "locked_stock": 6117,
+            "sold_stock": 0,
+            "inventory_strategy": "SINGLE"
+          }
+        ],
+        "otherActiveTransactions": 0,
+        "outboxDeliveredCount": 0,
+        "outboxDeliveredLatencyMs": {
+          "p50": null,
+          "p95": null,
+          "p99": null
+        },
+        "outboxBacklog": {
+          "n": 0,
+          "oldest_ms": null
+        },
+        "allOrphanOrders": 0,
+        "badQuotaBounds": 0,
+        "notSuccessfulRequests": 0,
+        "auditUtc": "2026-10-27 09:37:51.526796"
+      },
+      "drained": {
+        "mq": {
+          "ready": 0,
+          "unacked": 0,
+          "consumers": 0,
+          "ack": 6117,
+          "ackRate": 0.0,
+          "delivered": 6117,
+          "published": 6117,
+          "redelivered": 0
+        },
+        "pending": 0,
+        "recovery": 0,
+        "complete": true
+      },
+      "allDataAuditsPassed": true
+    },
+    {
+      "localEvidenceDirectory": ".local/jmeter/concurrent100-compare-20261027",
+      "facts": {
+        "user_account": 10001,
+        "ticket_order_item": 6649,
+        "payment_record": 0,
+        "waitlist_entry": 0,
+        "electronic_ticket": 0,
+        "ticket_stock_bucket": 0,
+        "order_stock_allocation": 0,
+        "ticket_order": [
+          {
+            "status": "PENDING",
+            "n": 6649
+          }
+        ],
+        "purchase_request": [
+          {
+            "status": "SUCCEEDED",
+            "n": 6649
+          }
+        ],
+        "outbox_event": [],
+        "mysql": {
+          "global_tz": "+00:00",
+          "session_tz": "+00:00",
+          "flush_commit": 1,
+          "sync_binlog": 1,
+          "max_connections": 151
+        },
+        "skus": [
+          {
+            "id": 1,
+            "total_stock": 10000,
+            "locked_stock": 6649,
+            "sold_stock": 0,
+            "inventory_strategy": "SINGLE"
+          }
+        ],
+        "otherActiveTransactions": 0,
+        "outboxDeliveredCount": 0,
+        "outboxDeliveredLatencyMs": {
+          "p50": null,
+          "p95": null,
+          "p99": null
+        },
+        "outboxBacklog": {
+          "n": 0,
+          "oldest_ms": null
+        },
+        "allOrphanOrders": 0,
+        "badQuotaBounds": 0,
+        "notSuccessfulRequests": 0,
+        "auditUtc": "2026-10-27 09:50:46.351892"
+      },
+      "drained": {
+        "mq": {
+          "ready": 0,
+          "unacked": 0,
+          "consumers": 0,
+          "ack": 6649,
+          "ackRate": 0.0,
+          "delivered": 6649,
+          "published": 6649,
+          "redelivered": 0
+        },
+        "pending": 0,
+        "recovery": 0,
+        "complete": true
+      },
+      "allDataAuditsPassed": true
+    }
+  ],
+  "validation": {
+    "mavenTests": 108,
+    "pythonTests": 11,
+    "frontendBuildRun": false,
+    "fullMysqlIntegrationSuiteRun": false
+  }
+}
