@@ -1,0 +1,43 @@
+# 本机 500 线程异步购票测试
+
+2026-10-27 使用业务代码提交 `e4797b00d984f772aee05e8910bdcf34b42e6c45`，在 Windows 本机运行一轮；当前报告和压测工具修正在该提交之后。i5-13400F、16 逻辑处理器、约 31.8 GiB 物理内存，Docker 可用约 15.53 GiB。Java 21.0.10，JMeter 5.6.3 CLI；单后端实例与 JMeter、MySQL 8.4.11、Redis 和 RabbitMQ 同机。后端 JVM 使用 G1、默认最大堆约 8 GiB；JMeter 启动脚本默认 `-Xms1g -Xmx1g -XX:MaxMetaspaceSize=256m`。结果不能代表生产部署或系统峰值。
+
+环境为独立 Compose `ticketing-jmeter`、数据库 `127.0.0.1:13307/ticketingjmeter`、Redis 16379、RabbitMQ 15673 和后端 18080；项目标签、独立卷、随机 guard 和 V15 均已核验。未使用业务环境 `.env`。隔离后端启动命令显式设置 `--ticketing.purchase.capacity=1000`，通过 JVM 启动参数及该隔离环境配置确认；队列期限 120 秒、发布确认窗口 16、确认超时 3 秒、消费者 2 个、prefetch 1，均保持默认。客户端轮询间隔 250 ms、最长 60 秒。
+
+准备独立账号 25 个用于预检，9,975 个用于正式批次，库存 10,000，每账号单笔单票。5 线程预检 25 笔全部成功，库存及 Redis 待处理数一致。正式测试 500 线程、60 秒爬坡、10 秒额外稳定时间，线程组总时长 115 秒。JTL 首个采样开始为 UTC `04:26:33.663`，预先固定其后 70 至 100 秒作为正式窗口，即 **2026-10-27 04:27:43.663 至 04:28:13.663 UTC**；非按结果挑选。正式窗口各秒 HTTP 样本均显示 500 个活动线程，账号未耗尽。客户端和 MySQL 时钟三次测量偏差小于 1 ms、往返小于 2 ms；直接按相同 UTC 时间边界对账。500 活动线程包含登录、CSRF、提交和轮询，不等于 500 个同时建单请求。
+
+## 指标及完整性
+
+- 固定窗口内 MySQL 按正式批次 `CREATE_ORDER` 和 `ticket_order.created_at` 查询到 **699 笔成功订单，23.300 TPS**。窗口前 1,673 笔，窗口后创建 826 笔；窗口后订单未计入 TPS。每笔订单对应真实 `SUCCEEDED` 申请。
+- 窗口内 JMeter 发起购票 POST 698 次，均返回 202，约 23.27 次/秒；MySQL `accepted_at` 在窗口内的申请为 697。计数边界因客户端与服务端处理时间不同而不完全一致，不用 202 代替订单数。
+- 按窗口内 POST 开始、最终成功并取得有效 `orderId` 的完整事务，得到 **536 个样本，成功样本 P99 21,774 ms，P95 21,572 ms**，均为最近秩；包含 250 ms 轮询等待，不包含登录和 CSRF。
+- **P99 目标未达成**：窗口内另有 162 次提交未留下完整客户端事务样本。线程组在 115 秒到期时停止了仍在轮询的线程，数据库最终成功不能补出客户端首次观察成功的时间。因此 21,774 ms 是有截尾偏差的成功样本 P99，不能代表全部窗口请求的 P99。后续应给窗口后观察预留足够时间，并按幂等键确认每个窗口 POST 均有完整事务结果。这里没有重跑或挑选窗口。
+- 全批次 HTTP POST 3,198 次，均返回 202；有完整事务样本 2,703 个，其余 495 个缺失完整样本。JTL 中已记录的 HTTP/事务失败、客户端轮询超时和排队过期均为 0；缺失样本不算作已观察到的成功或失败。数据库排空后 3,198 个正式申请均为 `SUCCEEDED`，无 `FAILED`、`EXPIRED` 或未完成。预检批次另有 25 笔成功。
+
+## 一致性和资源
+
+排空后正式申请与订单用户、票档、数量、幂等键关联异常 0，正式订单缺申请 0，订单项异常 0，重复幂等键及重复关联 0。MySQL 总库存 10,000、锁定 3,223、已售 0、可售 6,777；Redis 可售 6,777，SKU 待处理、全局待处理和恢复索引均为 0；购票队列及死信队列均为空。没有失败/过期申请，本轮不能验证失败预扣释放。数据库未发现超卖；未修改数据来消除异常。
+
+正式窗口采样主机总 CPU 63.1%–69.0%，全程采样峰值 70.5%；后端工作集约 556–616 MiB，JMeter 工作集约 922–950 MiB，MySQL 容器约 475 MiB。后端 G1 的采样未见 Full GC；JMeter GC 和压测期间交换量未采集，不能判断其影响。MySQL 观察到约 11 个连接（包括监测连接）；正式窗口中的一次后端线程快照未见 Hikari 连接等待，但这不是连续的连接池等待统计。期间未记录 OOM 或连接失败。
+
+购票队列采样最高约 498 条，窗口内约 494–497 条，RabbitMQ 采样消费速率约 23–47 条/秒，结束后排空。队列持续积压与较长端到端等待说明消费跟不上受理；同机资源竞争也可能影响结果，但凭本轮数据不能断言唯一瓶颈或容量上限。未观测到需要中断的持续全机 CPU 饱和。
+
+## 运行与材料
+
+以下为实际运行方式的关键参数；凭据由准备脚本生成，未写入命令或 JTL。临时账号配置在测试后移除；JMeter 临时发行包删除操作被自动审核拦截，仍保留在系统临时目录。复跑需重新准备隔离环境。
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/jmeter/prepare-environment.ps1
+# 仅将隔离 compose.env 的 PURCHASE_CAPACITY 设为 1000。
+docker compose --project-name ticketing-jmeter --env-file .local/jmeter/compose.env --file deploy/compose.yml up --pull never -d
+# 在不加载业务 .env 的独立进程中加载 compose.env：
+java -jar backend/target/ticketing-backend-0.1.0-SNAPSHOT.jar --ticketing.purchase.capacity=1000
+python -B scripts/jmeter/prepare-data.py --warmup-users 25 --users 9975
+# 预检另用 warmup-users.csv、独立 batchId 和 5 线程。
+jmeter -n -t scripts/jmeter/purchase.jmx -Jhost=127.0.0.1 -Jport=18080 -JusersCsv=<measure-users.csv绝对路径> -JskuId=1 -JbatchId=measure50020261027a -Jthreads=500 -JrampUpSeconds=60 -JdurationSeconds=115 -JpollIntervalMs=250 -JmaxPollSeconds=60 -Jsample_variables=testBatch,requestId,orderId,terminalStatus,purchaseOutcome,failureCode,idempotencyKey -Jjmeter.save.saveservice.output_format=csv -Jjmeter.save.saveservice.print_field_names=true -Jjmeter.save.saveservice.response_data=false -Jjmeter.save.saveservice.samplerData=false -l <本轮目录>/measure.jtl -j <本轮目录>/jmeter.log
+python -B scripts/jmeter/summarize-jtl.py <本轮目录>/measure.jtl --window-start-ms 1793075263663 --window-end-ms 1793075293663
+```
+
+原始 JTL、应用与 JMeter 日志、资源采样及对账摘要保存在 Git 忽略的 `.local/jmeter/purchase-500-20261027-a/`；未保存响应正文、Cookie、CSRF 或口令。隔离测试的临时账号 CSV 和配置在验收后删除，独立容器及其专用卷清理，不影响业务数据。
+
+可用于简历的真实描述：在本机独立环境使用 JMeter 对异步购票链路完成 500 活动线程、30 秒窗口测试，实测数据库创建订单 23.3 TPS，并核对订单关联、库存与消息队列一致性；该次客户端 P99 样本不完整，未作为性能结论。
