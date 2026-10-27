@@ -33,7 +33,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
 
-/** 八个针对性场景：真实 Redis Lua、Rabbit Confirm/消费与 MySQL 本地事务。 */
+/** 真实 Redis Lua、Rabbit Confirm/消费与 MySQL 本地事务的针对性场景。 */
 @SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,properties={
     "server.servlet.session.cookie.secure=false", "ticketing.admin-bootstrap.enabled=false",
     "ticketing.purchase.queue-seconds=5", "ticketing.purchase.confirm-timeout-ms=500",
@@ -50,6 +50,7 @@ class AsyncPurchaseIT {
     @Autowired PurchaseOrderWorker worker;
     @Autowired StockSnapshotService inventory;
     @Autowired PurchaseProperties properties;
+    @Autowired com.ticketing.config.OrderProperties orderProperties;
     @Autowired OrderService orderService;
     @Autowired WaitlistService waitlists;
     @Autowired WaitlistDispatcher dispatcher;
@@ -102,6 +103,9 @@ class AsyncPurchaseIT {
         start();var done=await(buyer,id);assertThat(done.path("status").asText()).isEqualTo("SUCCEEDED");
         long orderId=done.path("orderId").asLong();
         assertThat(db.queryForObject("SELECT total_amount_cents FROM ticket_order WHERE id=?",Long.class,orderId)).isEqualTo(24690);
+        assertThat(db.queryForObject("SELECT TIMESTAMPDIFF(MICROSECOND,created_at,expires_at) FROM ticket_order WHERE id=?",Long.class,orderId))
+                .isEqualTo(Duration.ofMinutes(orderProperties.paymentWindowMinutes()).toNanos() / 1000);
+        assertThat(db.queryForObject("SELECT created_at=updated_at FROM ticket_order WHERE id=?",Integer.class,orderId)).isEqualTo(1);
         assertThat(orderService.pay(buyer.id,orderId)).isNotNull();
         assertThat(db.queryForObject("SELECT COUNT(*) FROM electronic_ticket WHERE order_id=?",Integer.class,orderId)).isEqualTo(2);
         stock(0,2);assertThat(stocks.find(id).status()).isEqualTo("SUCCEEDED");
@@ -115,6 +119,48 @@ class AsyncPurchaseIT {
             gate.countDown();List<PurchaseRequest> winners=new ArrayList<>();
             for(var future:futures){var r=future.get(10,TimeUnit.SECONDS);if(r!=null)winners.add(r);}
             assertThat(winners).hasSize(1);worker.process(winners.getFirst().id());stock(1,0);assertThat(available()).isZero();
+        }
+    }
+
+    @Test void distinctBuyersCannotOversellThroughHttpAndConfirmedMessaging() throws Exception {
+        assertThat(properties.inFlightWindow()).isEqualTo(
+                Integer.parseInt(System.getenv().getOrDefault("PURCHASE_IN_FLIGHT_WINDOW", "32")));
+        db.update("UPDATE ticket_sku SET total_stock=32 WHERE id=?", sku);
+        assertThat(inventory.synchronize(sku)).isTrue();
+        List<Client> buyers = new ArrayList<>(List.of(buyer, other));
+        for (int i = 2; i < 100; i++) buyers.add(client());
+        start();
+        try (var pool = Executors.newFixedThreadPool(buyers.size())) {
+            var gate = new CountDownLatch(1);
+            var responses = new ArrayList<Future<HttpResponse<String>>>();
+            for (Client customer : buyers) {
+                responses.add(pool.submit(() -> {
+                    gate.await();
+                    return customer.send("POST", "/orders", Map.of("skuId", Long.toString(sku), "quantity", 1), "one-ticket");
+                }));
+            }
+            gate.countDown();
+            var accepted = new ArrayList<Map.Entry<Client, Long>>();
+            int soldOut = 0;
+            for (int i = 0; i < responses.size(); i++) {
+                var response = responses.get(i).get(30, TimeUnit.SECONDS);
+                var body = json.readTree(response.body());
+                if (response.statusCode() == 202) {
+                    accepted.add(Map.entry(buyers.get(i), body.path("data").path("requestId").asLong()));
+                } else {
+                    assertThat(response.statusCode()).isEqualTo(409);
+                    assertThat(body.path("code").asText()).isEqualTo("TICKET_UNAVAILABLE");
+                    soldOut++;
+                }
+            }
+            assertThat(accepted).hasSize(32);
+            assertThat(soldOut).isEqualTo(68);
+            for (var request : accepted) {
+                assertThat(await(request.getKey(), request.getValue()).path("status").asText()).isEqualTo("SUCCEEDED");
+            }
+            assertThat(orderCount()).isEqualTo(32);
+            stock(32, 0);
+            assertThat(available()).isZero();
         }
     }
 
@@ -173,6 +219,21 @@ class AsyncPurchaseIT {
         assertThat(inventory.synchronize(sku)).isFalse();
         assertThat(redis.opsForHash().get(stocks.skuKey(sku),"ready")).isEqualTo("0");
         assertThat(available()).isEqualTo(6); // 丢失凭据不能通过重同步凭空返票。
+    }
+
+    @Test void failedSuccessUpdateRollsBackOrderAndCanRecoverTheSameReservation() {
+        PurchaseRequest held = stocks.reserve(buyer.id, sku, 1, "finish-fault");
+        doReturn(0).when(requests).finishSuccess(eq(held.id()), anyLong());
+        assertThatThrownBy(() -> worker.process(held.id())).isInstanceOf(IllegalStateException.class);
+        assertThat(requests.find(held.id())).isNull();
+        assertThat(orderCount()).isZero();
+        stock(0, 0);
+        assertThat(stocks.find(held.id()).status()).isEqualTo("QUEUED");
+        reset(requests);
+        worker.process(held.id());
+        assertThat(requests.find(held.id()).status()).isEqualTo("SUCCEEDED");
+        assertThat(orderCount()).isEqualTo(1);
+        stock(1, 0);
     }
 
     @Test void expiryArbitrationRacesLateConsumerWithoutSuccessfulOrderAndReturnedStockTogether() throws Exception {

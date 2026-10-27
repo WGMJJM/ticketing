@@ -135,11 +135,7 @@ public class OrderReservation {
         order.setIdempotencyOperation(operation.name());
         order.setIdempotencyKey(key);
         order.setRequestHash(hash);
-        LocalDateTime created = orders.databaseNow();
-        order.setCreatedAt(created);
-        order.setUpdatedAt(created);
-        order.setExpiresAt(created.plusMinutes(properties.paymentWindowMinutes()));
-        orders.insert(order);
+        orders.insertPurchase(order, properties.paymentWindowMinutes());
         orders.insertItem(order, sale, quantity);
         return order.getId();
     }

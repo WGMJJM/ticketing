@@ -28,6 +28,12 @@ public interface PurchaseRequestMapper {
         """)
     int finish(@Param("id") long id, @Param("status") String status,
             @Param("orderId") Long orderId, @Param("code") String code);
+    /** 成功终态与数据库截止时间检查在同一条条件更新中完成。 */
+    @Update("""
+        UPDATE purchase_request SET status='SUCCEEDED',order_id=#{orderId},failure_code=NULL,updated_at=UTC_TIMESTAMP(6)
+        WHERE id=#{id} AND status='QUEUED' AND deadline_at>UTC_TIMESTAMP(6)
+        """)
+    int finishSuccess(@Param("id") long id, @Param("orderId") long orderId);
     @Select("SELECT UTC_TIMESTAMP(6)")
     LocalDateTime now();
     @Select("SELECT " + COLUMNS + " FROM purchase_request WHERE sku_id=#{skuId} AND id>#{after} ORDER BY id LIMIT 200")

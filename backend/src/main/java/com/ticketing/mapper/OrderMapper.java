@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
@@ -58,6 +59,17 @@ public interface OrderMapper extends BaseMapper<TicketOrder> {
 
     @Select("SELECT UTC_TIMESTAMP(6)")
     LocalDateTime databaseNow();
+
+    /** 创建与支付截止时间由同一条写入语句使用数据库时间确定。 */
+    @Insert("""
+            INSERT INTO ticket_order(order_no,user_id,session_id,status,total_amount_cents,
+                    idempotency_operation,idempotency_key,request_hash,created_at,updated_at,expires_at)
+            VALUES(#{order.orderNo},#{order.userId},#{order.sessionId},#{order.status},#{order.totalAmountCents},
+                    #{order.idempotencyOperation},#{order.idempotencyKey},#{order.requestHash},
+                    UTC_TIMESTAMP(6),UTC_TIMESTAMP(6),TIMESTAMPADD(MINUTE,#{paymentWindowMinutes},UTC_TIMESTAMP(6)))
+            """)
+    @Options(useGeneratedKeys = true, keyProperty = "order.id", keyColumn = "id")
+    int insertPurchase(@Param("order") TicketOrder order, @Param("paymentWindowMinutes") int paymentWindowMinutes);
 
     @Select(
             """

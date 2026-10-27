@@ -79,10 +79,7 @@ public class PurchaseOrderWorker {
             participants.forEach(p -> p.validate(current));
             long orderId = reservation.reservePurchase(context, current.quantity(),
                     OrderOperation.valueOf(current.idempotencyOperation()), current.idempotencyKey());
-            if (!current.deadlineAt().isAfter(requests.now())) {
-                throw new BusinessException(org.springframework.http.HttpStatus.CONFLICT, "QUEUE_EXPIRED", "购票申请已过期");
-            }
-            PurchaseRequest result = finish(current, "SUCCEEDED", orderId, null);
+            PurchaseRequest result = finishSuccess(current, orderId);
             participants.forEach(p -> p.allocated(result));
             return result;
             });
@@ -123,6 +120,16 @@ public class PurchaseOrderWorker {
 
     private PurchaseRequest finish(PurchaseRequest request, String status, Long orderId, String failure) {
         if (requests.finish(request.id(), status, orderId, failure) != 1) throw new IllegalStateException("购票终态未能保存");
+        return requests.find(request.id());
+    }
+
+    private PurchaseRequest finishSuccess(PurchaseRequest request, long orderId) {
+        if (requests.finishSuccess(request.id(), orderId) != 1) {
+            if (!request.deadlineAt().isAfter(requests.now())) {
+                throw new BusinessException(org.springframework.http.HttpStatus.CONFLICT, "QUEUE_EXPIRED", "购票申请已过期");
+            }
+            throw new IllegalStateException("购票终态未能保存");
+        }
         return requests.find(request.id());
     }
 }
