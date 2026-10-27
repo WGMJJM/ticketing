@@ -53,10 +53,11 @@ $users = (Resolve-Path .local/jmeter/measure-users.csv).Path
 $skuId = (Get-Content .local/jmeter/prepared-data.json -Raw | ConvertFrom-Json).skuId
 $batchId = 'smoke-' + (Get-Date -Format 'yyyyMMddHHmmss') + '-' + (Get-Random -Minimum 100000 -Maximum 999999)
 $jtl = (Join-Path (Resolve-Path .local/jmeter).Path "$batchId.jtl")
+$stopNewOrdersMs = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() + 30000
 & $jmeter -n -t scripts/jmeter/purchase.jmx `
   -Jhost=127.0.0.1 -Jport=18080 -Jprotocol=http `
   "-JusersCsv=$users" "-JskuId=$skuId" "-JbatchId=$batchId" `
-  -Jthreads=1 -JrampUpSeconds=1 -JdurationSeconds=30 `
+  -Jthreads=1 -JrampUpSeconds=1 "-JstopNewOrdersMs=$stopNewOrdersMs" `
   -JpollIntervalMs=250 -JmaxPollSeconds=60 `
   -Jsample_variables=testBatch,requestId,orderId,terminalStatus,purchaseOutcome,failureCode,idempotencyKey `
   -Jjmeter.save.saveservice.output_format=csv `
@@ -70,17 +71,17 @@ $jtl = (Join-Path (Resolve-Path .local/jmeter).Path "$batchId.jtl")
 python -B scripts/jmeter/summarize-jtl.py $jtl --poll-interval-ms 250
 ```
 
-`purchase.jmx` 先获取 CSRF、表单登录、登录后重新获取 CSRF；这三步不进入购票端到端事务。每次交易通过 `Idempotency-Key: jmeter-<batchId>-...` 受理普通购票申请，再按固定间隔轮询到成功/失败/超时。登录、Cookie、CSRF 和响应正文都不写入 JTL。`durationSeconds` 是时长上限；CSV 提前耗尽时线程会结束，不会复用账号或幂等键。
+`purchase.jmx` 先获取 CSRF、表单登录、登录后重新获取 CSRF；这三步不进入购票端到端事务。每次交易通过 `Idempotency-Key: jmeter-<batchId>-...` 受理普通购票申请，再按固定间隔轮询到成功/失败/超时。登录、Cookie、CSRF 和响应正文都不写入 JTL。必需的 `stopNewOrdersMs` 是 Unix 绝对毫秒截止时间：截止后不再提交新购票，已提交事务继续观察并写出汇总；可选 `stopFile` 在资源保护时提前停止新提交。CSV 提前耗尽时线程会结束，不会复用账号或幂等键。
 
 ## 指标口径与 SQL 核验
 
 - **成功订单 TPS**：以唯一批次幂等键前缀筛选 `CREATE_ORDER` 普通订单，统计 `ticket_order.created_at` 落入 MySQL UTC 正式窗口的订单数，再除以固定窗口秒数。包含创建后仍为 `PENDING` 或之后超时的订单；不把 202 受理、支付、候补订单或窗口外排空订单算入。预热用另一批次，正式窗口结束后的订单另列。
-- **订单创建端到端 P99**：从 JMeter 购票 POST 前到首次观察到 `SUCCEEDED` 且 `orderId` 非空的 Transaction Controller 样本；只对成功样本按最近秩计算 P99，同时报告失败和样本数。事务显式包含定时器与每次状态轮询等待，因此结果受 `pollIntervalMs` 影响，不是 MySQL 提交耗时。登录与 CSRF 不在此样本内。使用 `--window-start-ms` 和 `--window-end-ms` 按事务发起时间筛选窗口，窗口内开始而窗口后完成的事务也计入。
+- **订单创建端到端 P99**：从 JMeter 购票 POST 开始到首次轮询观察到 `SUCCEEDED` 且 `orderId` 非空；按幂等键关联 POST、轮询和 Transaction Controller 汇总，只对完整成功样本按最近秩计算 P99，同时报告失败和样本数。结果包含轮询间隔，不是 MySQL 提交耗时。登录与 CSRF 不在此样本内。使用 `--window-start-ms` 和 `--window-end-ms` 按 POST 发起时间筛选窗口，窗口内提交而窗口后完成的事务也计入；`--json` 和 `--cohort-csv` 可保存逐笔汇总。
 - JMeter HTTP 吞吐量只代表请求速率。`summarize-jtl.py` 输出成功链路 P99、P95 和失败类别；最终成功订单 TPS 必须由下列 SQL 对账，不可从 JMeter RPS 推算。
 
 正式负载先单独预热，再在稳定负载阶段记录固定窗口的起止 UTC 时间，并校验 MySQL 与客户端时钟偏差。让压测至少持续“爬坡 + 预热 + 正式窗口”。窗口结束后等待购票申请、Redis 恢复索引和 RabbitMQ 队列排空，再执行对账。把 `-JbatchId` 写入 `@batch_prefix` 时加 `jmeter-` 前缀与结尾 `-`，并填写实际 `skuId`、MySQL UTC 起止时间，再只读执行：
 
-线程组的 `durationSeconds` 到期会停止仍在轮询的线程。应为窗口后的观察预留足够时间，并检查窗口内每次 POST 是否有对应的完整事务样本；如有缺失，成功样本 P99 存在截尾偏差，不能作为完整窗口 P99 报告。
+不要重新开启线程组的统一定时停止，它会截断正在轮询的事务。应为窗口后的观察预留足够时间，并检查窗口内每次 POST 是否有对应的完整事务样本；如有缺失，成功样本 P99 存在截尾偏差，不能作为完整窗口 P99 报告。
 
 ```powershell
 docker exec ticketing-jmeter-mysql-1 sh -lc 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot --batch --skip-column-names -e "SELECT UTC_TIMESTAMP(6)"'

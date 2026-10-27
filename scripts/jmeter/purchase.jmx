@@ -2,7 +2,7 @@
 <jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
   <hashTree>
     <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="票务购票端到端性能测试" enabled="true">
-      <stringProp name="TestPlan.comments">独立测试库使用。订单 TPS 由 verify-orders.sql 核对；仅成功交易样本参与端到端 P95。</stringProp>
+      <stringProp name="TestPlan.comments">独立测试库使用。截止后不再开始购票，已提交请求继续轮询；订单 TPS 由 MySQL 核对。</stringProp>
       <boolProp name="TestPlan.functional_mode">false</boolProp>
       <boolProp name="TestPlan.serialize_threadgroups">true</boolProp>
       <elementProp name="TestPlan.user_defined_variables" elementType="Arguments" guiclass="ArgumentsPanel" testclass="Arguments" testname="用户定义变量" enabled="true">
@@ -39,7 +39,7 @@
         <stringProp name="ThreadGroup.num_threads">${__P(threads,1)}</stringProp>
         <stringProp name="ThreadGroup.ramp_time">${__P(rampUpSeconds,1)}</stringProp>
         <boolProp name="ThreadGroup.same_user_on_next_iteration">false</boolProp>
-        <boolProp name="ThreadGroup.scheduler">true</boolProp>
+        <boolProp name="ThreadGroup.scheduler">false</boolProp>
         <stringProp name="ThreadGroup.duration">${__P(durationSeconds,60)}</stringProp>
         <stringProp name="ThreadGroup.delay">0</stringProp>
         <boolProp name="ThreadGroup.delayedStart">false</boolProp>
@@ -77,6 +77,16 @@
               <stringProp name="scriptLanguage">groovy</stringProp>
               <stringProp name="script"><![CDATA[
 def batch = props.getProperty('batchId', '')
+def deadline = Long.parseLong(props.getProperty('stopNewOrdersMs', '0'))
+def stopFile = props.getProperty('stopFile', '')
+if (deadline <= 0L) {
+    ctx.getThread().stop()
+    throw new IllegalArgumentException('必须提供 -JstopNewOrdersMs 绝对截止毫秒')
+}
+if (System.currentTimeMillis() >= deadline || (stopFile && new File(stopFile).exists())) {
+    ctx.getThread().stop()
+    return
+}
 if (!(batch ==~ /[A-Za-z0-9_-]{8,60}/)) {
     throw new IllegalArgumentException('必须通过 -JbatchId 提供本轮唯一批次标识')
 }
@@ -202,8 +212,8 @@ try {
               <hashTree/>
             </hashTree>
             <IfController guiclass="IfControllerPanel" testclass="IfController" testname="凭据就绪后执行购票" enabled="true">
-              <stringProp name="IfController.condition">${__groovy(vars.get('loginOk') == 'true' &amp;&amp; vars.get('csrfToken') != null &amp;&amp; !vars.get('csrfToken').isEmpty())}</stringProp>
-              <boolProp name="IfController.evaluateAll">true</boolProp>
+              <stringProp name="IfController.condition">${__groovy(vars.get('loginOk') == 'true' &amp;&amp; vars.get('csrfToken') != null &amp;&amp; !vars.get('csrfToken').isEmpty() &amp;&amp; System.currentTimeMillis() &lt; Long.parseLong(props.getProperty('stopNewOrdersMs'\,'0')) &amp;&amp; (props.getProperty('stopFile'\,'').isEmpty() || !new File(props.getProperty('stopFile')).exists()))}</stringProp>
+              <boolProp name="IfController.evaluateAll">false</boolProp>
               <boolProp name="IfController.useExpression">true</boolProp>
             </IfController>
             <hashTree>
@@ -347,6 +357,12 @@ try {
               </hashTree>
             </hashTree>
           </hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="完成事务汇总" enabled="true">
+          <stringProp name="cacheKey">true</stringProp>
+          <stringProp name="scriptLanguage">groovy</stringProp>
+          <stringProp name="script">SampleResult.setIgnore()</stringProp>
+        </JSR223Sampler>
+        <hashTree/>
         </hashTree>
     </hashTree>
   </hashTree>
