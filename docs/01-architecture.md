@@ -91,7 +91,7 @@ MySQL 是订单和最终库存权威。默认每用户每场四张，PENDING/PAI
 
 ## 配置和迁移
 
-普通启动方式、绝对路径、API 路径及单模块结构保持。新增 `PURCHASE_IN_FLIGHT_WINDOW`（默认 16，1–64）和 `PURCHASE_CONFIRM_TIMEOUT_MS`（默认 3000ms）；命名空间默认取 MYSQL_DATABASE。保留容量、排队截止、消费者并发/预取、安全限流、库存 Outbox 配置，删除旧购票处理租约和无调用的购票双桶限速器配置。
+普通启动方式、绝对路径、API 路径及单模块结构保持。`PURCHASE_IN_FLIGHT_WINDOW` 默认 32，可配置 1–64；`PURCHASE_CONFIRM_TIMEOUT_MS` 默认 3000ms。命名空间默认取 MYSQL_DATABASE。保留容量、排队截止、消费者并发/预取、安全限流、库存 Outbox 配置，删除旧购票处理租约和无调用的购票双桶限速器配置。
 
 V1–V13 不变；V14 在任何破坏性 DDL 前拒绝仍有 QUEUED/PROCESSING 的旧库，要求先停写、停止旧发布/消费者并排空旧链路。迁移保留所有订单、支付、候补和历史申请终态，删除废弃 purchase_capacity、购票 Outbox 记录及申请处理租约/token 等字段，增加首次库存初始化标记。已有业务库升级仍须具体授权，不自动 repair、清库或降级。
 
