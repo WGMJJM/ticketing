@@ -112,7 +112,8 @@ class PurchaseDiagnosticsConfigTest {
         var connection = mock(java.sql.Connection.class);
         when(source.getConnection()).thenReturn(connection);
         when(connection.getAutoCommit()).thenReturn(true);
-        Object proxy = PurchaseDiagnosticsConfig.purchaseStageDiagnostics(factory.getBeanProvider(io.micrometer.core.instrument.MeterRegistry.class), environment)
+        Object proxy = PurchaseDiagnosticsConfig.purchaseStageDiagnostics(factory.getBeanProvider(io.micrometer.core.instrument.MeterRegistry.class), environment,
+                factory.getBeanProvider(PurchaseDiagnosticsConfig.CompletionLog.class))
                 .postProcessAfterInitialization(new org.springframework.jdbc.datasource.DataSourceTransactionManager(source), "transactionManager");
         assertThat(org.springframework.aop.support.AopUtils.isJdkDynamicProxy(proxy)).isTrue();
         var template = new org.springframework.transaction.support.TransactionTemplate((org.springframework.transaction.PlatformTransactionManager) proxy);
@@ -120,6 +121,22 @@ class PurchaseDiagnosticsConfigTest {
         assertThat(result).isEqualTo("unchanged");
         verify(connection).commit();
         assertThat(registry.find("ticketing.diagnostics.duration").tag("stage", "transaction.total").timer().count()).isEqualTo(1);
+    }
+
+    @Test
+    void completionObservationIsBoundedDeduplicatedAndKeepsOnlyTerminalFacts() {
+        var log = new PurchaseDiagnosticsConfig.CompletionLog();
+        log.add(new com.ticketing.entity.PurchaseRequest(1, 1, 1, 1, "k", new byte[0], "QUEUED", null, null, null, null, null), 5);
+        assertThat(log.snapshot().get("count")).isEqualTo(0L);
+        for (long id=1; id<=513; id++) {
+            var request = new com.ticketing.entity.PurchaseRequest(id, 1, 1, 1, "k", new byte[0], "SUCCEEDED", id, null, null, null, null);
+            log.add(request, id+100);
+            log.add(request, id+200);
+        }
+        assertThat(log.snapshot().get("count")).isEqualTo(513L);
+        var recent = (java.util.Map<?,?>)log.snapshot().get("recent");
+        assertThat(recent).hasSize(512);
+        assertThat(recent.containsKey("1")).isFalse();
     }
 
     @Test

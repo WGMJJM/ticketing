@@ -1,6 +1,7 @@
 package com.ticketing.config;
 
 import com.zaxxer.hikari.HikariDataSource;
+import com.ticketing.entity.PurchaseRequest;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -50,6 +51,28 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 public class PurchaseDiagnosticsConfig {
     private static final ThreadLocal<String> ROLE = new ThreadLocal<>();
     private static final String PREFIX = "ticketing.diagnostics.";
+
+    @Bean
+    CompletionLog purchaseCompletionLog() { return new CompletionLog(); }
+
+    /** 仅保存最近512条无凭据终态时间，用于测试线程等待完整建单，不轮询业务数据库。 */
+    static class CompletionLog {
+        private final Map<String, Map<String, Object>> recent = new LinkedHashMap<>();
+        private long count;
+
+        synchronized void add(PurchaseRequest request, long completedMs) {
+            String id = Long.toString(request.id());
+            if (!request.terminal() || recent.containsKey(id)) return;
+            recent.put(id, Map.of("requestId", id, "status", request.status(), "orderId",
+                    request.orderId() == null ? "" : request.orderId().toString(), "completedMs", completedMs));
+            count++;
+            if (recent.size() > 512) recent.remove(recent.keySet().iterator().next());
+        }
+
+        synchronized Map<String, Object> snapshot() {
+            return Map.of("count", count, "recent", new LinkedHashMap<>(recent));
+        }
+    }
 
     @Bean
     Object purchaseDiagnosticsIsolation(Environment environment) {
@@ -168,7 +191,8 @@ public class PurchaseDiagnosticsConfig {
     }
 
     @Bean
-    static BeanPostProcessor purchaseStageDiagnostics(ObjectProvider<MeterRegistry> registries, Environment environment) {
+    static BeanPostProcessor purchaseStageDiagnostics(ObjectProvider<MeterRegistry> registries, Environment environment,
+            ObjectProvider<CompletionLog> completions) {
         // BeanPostProcessor先于数据源/迁移初始化，错误环境必须在任何业务SQL前拒绝。
         validateIsolation(environment);
         return new BeanPostProcessor() {
@@ -198,6 +222,9 @@ public class PurchaseDiagnosticsConfig {
                             || ((TransactionStatus) invocation.getArguments()[0]).isNewTransaction();
                     try {
                         Object result = invocation.proceed();
+                        if (name.equals("redisStockReservationService") && method.equals("settle") && Boolean.TRUE.equals(result)) {
+                            completions.getObject().add((PurchaseRequest) invocation.getArguments()[0], System.currentTimeMillis());
+                        }
                         if (name.equals("transactionManager") && method.equals("getTransaction")) {
                             realTransaction = ((TransactionStatus) result).isNewTransaction();
                             if (realTransaction) starts.get().put((TransactionStatus) result, start);
@@ -227,8 +254,8 @@ public class PurchaseDiagnosticsConfig {
 
     @Bean
     DiagnosticsEndpoint purchaseDiagnosticsEndpoint(MeterRegistry registry, DataSource source,
-            RabbitListenerEndpointRegistry listeners, Environment environment) {
-        return new DiagnosticsEndpoint(registry, source, listeners, environment);
+            RabbitListenerEndpointRegistry listeners, Environment environment, CompletionLog completions) {
+        return new DiagnosticsEndpoint(registry, source, listeners, environment, completions);
     }
 
     @Endpoint(id = "purchaseDiagnostics")
@@ -237,10 +264,12 @@ public class PurchaseDiagnosticsConfig {
         private final DataSource source;
         private final RabbitListenerEndpointRegistry listeners;
         private final Environment environment;
+        private final CompletionLog completions;
 
         DiagnosticsEndpoint(MeterRegistry registry, DataSource source, RabbitListenerEndpointRegistry listeners,
-                Environment environment) {
+                Environment environment, CompletionLog completions) {
             this.registry = registry; this.source = source; this.listeners = listeners; this.environment = environment;
+            this.completions = completions;
         }
 
         @ReadOperation
@@ -281,7 +310,8 @@ public class PurchaseDiagnosticsConfig {
                     "consumer", Map.of("configured", new org.springframework.beans.DirectFieldAccessor(consumer).getPropertyValue("concurrentConsumers"),
                             "active", consumer.getActiveConsumerCount(),
                             "prefetch", new org.springframework.beans.DirectFieldAccessor(consumer).getPropertyValue("prefetchCount")),
-                    "capacity", environment.getRequiredProperty("ticketing.purchase.capacity"), "metrics", metrics);
+                    "capacity", environment.getRequiredProperty("ticketing.purchase.capacity"), "metrics", metrics,
+                    "completions", completions.snapshot());
         }
     }
 }

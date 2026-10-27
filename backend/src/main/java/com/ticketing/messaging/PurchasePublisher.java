@@ -2,6 +2,7 @@ package com.ticketing.messaging;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -22,21 +23,30 @@ public class PurchasePublisher {
     private final String ttl;
     private final Semaphore slots;
     private final int timeoutMs;
+    private final MeterRegistry metrics;
+    private final boolean diagnosticsEnabled;
 
     public PurchasePublisher(RabbitTemplate rabbit, ObjectMapper json,
             @Value("${ticketing.purchase.exchange:ticketing.purchase}") String exchange,
             @Value("${ticketing.purchase.queue-seconds:120}") int seconds,
             @Value("${ticketing.purchase.in-flight-window:16}") int window,
-            @Value("${ticketing.purchase.confirm-timeout-ms:3000}") int timeoutMs) {
+            @Value("${ticketing.purchase.confirm-timeout-ms:3000}") int timeoutMs,
+            MeterRegistry metrics, @Value("${ticketing.diagnostics.enabled:false}") boolean diagnosticsEnabled) {
         this.rabbit = rabbit; this.json = json; this.exchange = exchange;
         this.ttl = Long.toString(seconds * 1000L); this.slots = new Semaphore(window); this.timeoutMs = timeoutMs;
+        this.metrics = metrics; this.diagnosticsEnabled = diagnosticsEnabled;
     }
 
     public CompletableFuture<Boolean> publish(long requestId, long skuId) {
-        if (!slots.tryAcquire()) return CompletableFuture.completedFuture(false);
+        if (!slots.tryAcquire()) {
+            observe("slot_full");
+            return CompletableFuture.completedFuture(false);
+        }
         CorrelationData correlation = new CorrelationData();
         CompletableFuture<Boolean> result = correlation.getFuture().handle((confirm, failure) -> {
             slots.release();
+            observe(failure != null ? "callback_failure" : confirm == null ? "missing_confirm"
+                    : !confirm.isAck() ? "nack" : correlation.getReturned() != null ? "returned" : "ack");
             return failure == null && confirm != null && confirm.isAck() && correlation.getReturned() == null;
         });
         try {
@@ -55,7 +65,12 @@ public class PurchasePublisher {
 
     public boolean confirm(long requestId, long skuId) {
         try { return publish(requestId, skuId).get(timeoutMs, TimeUnit.MILLISECONDS); }
-        catch (InterruptedException exception) { Thread.currentThread().interrupt(); return false; }
-        catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException exception) { return false; }
+        catch (InterruptedException exception) { observe("interrupted"); Thread.currentThread().interrupt(); return false; }
+        catch (java.util.concurrent.ExecutionException exception) { observe("execution_failure"); return false; }
+        catch (java.util.concurrent.TimeoutException exception) { observe("confirm_timeout"); return false; }
+    }
+
+    private void observe(String reason) {
+        if (diagnosticsEnabled) metrics.counter("ticketing.diagnostics.publisher.result", "reason", reason).increment();
     }
 }
