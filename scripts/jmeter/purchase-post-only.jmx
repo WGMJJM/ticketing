@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
+  <hashTree>
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="预登录固定到达率购票诊断" enabled="true">
+      <elementProp name="TestPlan.user_defined_variables" elementType="Arguments"><collectionProp name="Arguments.arguments"/></elementProp>
+    </TestPlan>
+    <hashTree>
+      <ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="只发购票POST" enabled="true">
+        <stringProp name="ThreadGroup.on_sample_error">continue</stringProp>
+        <elementProp name="ThreadGroup.main_controller" elementType="LoopController">
+          <boolProp name="LoopController.continue_forever">true</boolProp><intProp name="LoopController.loops">-1</intProp>
+        </elementProp>
+        <stringProp name="ThreadGroup.num_threads">${__P(threads,24)}</stringProp>
+        <stringProp name="ThreadGroup.ramp_time">1</stringProp>
+        <boolProp name="ThreadGroup.scheduler">false</boolProp>
+      </ThreadGroup>
+      <hashTree>
+        <JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="purchase-post" enabled="true">
+          <stringProp name="scriptLanguage">groovy</stringProp><stringProp name="cacheKey">true</stringProp>
+          <stringProp name="filename"></stringProp><stringProp name="parameters"></stringProp>
+          <stringProp name="script"><![CDATA[
+def state
+synchronized (props) {
+    state = props.get('diagnosisState')
+    if (state == null) {
+        def config = new groovy.json.JsonSlurper().parse(new File(props.getProperty('sessionsFile')), 'UTF-8')
+        if (config.target != 'http://127.0.0.1:18080/api/v1/orders' || !(config.batch ==~ /[A-Za-z0-9_-]{8,60}/)
+            || config.rps <= 0 || config.endMs <= config.startMs || config.sessions.size() > 10000) {
+            throw new IllegalArgumentException('隔离POST运行配置不合法')
+        }
+        state = [config:config, next:new java.util.concurrent.atomic.AtomicInteger(),
+                 client:java.net.http.HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(3)).build()]
+        props.put('diagnosisState', state)
+    }
+}
+def config = state.config
+def stop = new File(props.getProperty('stopFile'))
+int index = state.next.getAndIncrement()
+long scheduled = (long)config.startMs + (long)(index * 1000.0d / (double)config.rps)
+if (index >= config.sessions.size() || scheduled >= (long)config.endMs) {
+    SampleResult.setIgnore(); ctx.getThread().stop(); return
+}
+while (System.currentTimeMillis() < scheduled && !stop.exists()) {
+    Thread.sleep(Math.max(1L, Math.min(25L, scheduled - System.currentTimeMillis())))
+}
+if (stop.exists() || System.currentTimeMillis() >= (long)config.endMs) {
+    SampleResult.setIgnore(); ctx.getThread().stop(); return
+}
+def session = config.sessions[index]
+def key = "jmeter-${config.batch}-${index}"
+vars.put('idempotencyKey', key); vars.put('requestId', ''); vars.put('failureCode', '')
+vars.put('batch', config.batch); vars.put('scheduledMs', Long.toString(scheduled))
+def request = java.net.http.HttpRequest.newBuilder(java.net.URI.create(config.target))
+    .timeout(java.time.Duration.ofSeconds(15)).header('Content-Type', 'application/json')
+    .header('Cookie', session.cookie).header(session.csrfHeader, session.csrfToken)
+    .header('Idempotency-Key', key)
+    .POST(java.net.http.HttpRequest.BodyPublishers.ofString('{"skuId":"' + config.skuId + '","quantity":1}')).build()
+// 第二次检查紧邻 send；资源保护只阻止新POST，不中断已经发出的请求。
+if (stop.exists() || System.currentTimeMillis() >= (long)config.endMs) {
+    SampleResult.setIgnore(); ctx.getThread().stop(); return
+}
+long start = System.currentTimeMillis()
+long monotonic = System.nanoTime()
+vars.put('postStartMs', Long.toString(start))
+try {
+    def response = state.client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString())
+    vars.put('postElapsedMs', Long.toString(java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - monotonic)))
+    SampleResult.setResponseCode(Integer.toString(response.statusCode()))
+    try {
+        def body = new groovy.json.JsonSlurper().parseText(response.body())
+        vars.put('requestId', body?.data?.requestId?.toString() ?: '')
+        vars.put('failureCode', body?.code?.toString() ?: '')
+    } catch (Exception invalidBody) {
+        vars.put('failureCode', 'INVALID_JSON_RESPONSE')
+    }
+    SampleResult.setSuccessful(response.statusCode() == 202 && vars.get('requestId').isLong())
+} catch (Exception failure) {
+    vars.put('postElapsedMs', Long.toString(java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - monotonic)))
+    SampleResult.setResponseCode('NETWORK_ERROR'); SampleResult.setSuccessful(false)
+    vars.put('failureCode', failure.getClass().getSimpleName())
+}
+SampleResult.setResponseMessage('purchase-post-only')
+SampleResult.setResponseData(new byte[0])
+          ]]></stringProp>
+        </JSR223Sampler>
+        <hashTree/>
+        <ResultCollector guiclass="SimpleDataWriter" testclass="ResultCollector" testname="由CLI保存无凭据JTL" enabled="false"><stringProp name="filename"></stringProp></ResultCollector><hashTree/>
+      </hashTree>
+    </hashTree>
+  </hashTree>
+</jmeterTestPlan>

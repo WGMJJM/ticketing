@@ -2,6 +2,8 @@
 
 活动详情热点读取的 RPS/P99 场景见 [ACTIVITY_RPS.md](ACTIVITY_RPS.md)。
 
+预登录、正式窗口只发 POST 的购票瓶颈诊断及资源熔断见 [DIAGNOSIS.md](DIAGNOSIS.md)。定位消费能力时优先使用此入口，避免大量状态轮询争抢连接池。
+
 本目录只测异步普通购票链路。测试使用独立 Compose 项目 `ticketing-jmeter`、本机端口 13307/16379/15673/15674 和独立命名卷；应用库固定为 `ticketingjmeter`。不要连接根目录 `.env` 指向的 3307 `ticketing` 业务库。
 
 ## 准备隔离环境
