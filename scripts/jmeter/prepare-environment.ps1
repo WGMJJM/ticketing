@@ -6,7 +6,10 @@ $ErrorActionPreference = 'Stop'
 
 if (Test-Path -LiteralPath $RuntimeDirectory) {
     $existingItems = @(Get-ChildItem -LiteralPath $RuntimeDirectory -Force)
-    $unexpectedItems = @($existingItems | Where-Object { $_.Name -ne 'rps-p99' -or -not $_.PSIsContainer })
+    $unexpectedItems = @($existingItems | Where-Object {
+        -not ($_.PSIsContainer -and -not ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -and
+            ($_.Name -eq 'rps-p99' -or $_.Name -match '^purchase-500-[A-Za-z0-9_-]+$'))
+    })
     if ($unexpectedItems.Count -gt 0) {
         throw '隔离 JMeter 运行目录含有现存凭据或其他数据；为避免覆盖，请先检查并手动处理。'
     }

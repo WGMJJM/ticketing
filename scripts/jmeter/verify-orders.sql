@@ -67,11 +67,13 @@ ORDER BY status, failure_code;
 SELECT COUNT(*) AS success_link_mismatch_count
 FROM purchase_request p
 LEFT JOIN ticket_order o ON o.id = p.order_id
+LEFT JOIN ticket_order_item i ON i.order_id = o.id AND i.sku_id = p.sku_id
 WHERE p.idempotency_operation = 'CREATE_ORDER'
   AND p.idempotency_key LIKE CONCAT(@batch_prefix, '%')
   AND p.sku_id = @sku_id
   AND ((p.status = 'SUCCEEDED' AND (o.id IS NULL OR o.user_id <> p.user_id
-       OR o.idempotency_operation <> 'CREATE_ORDER' OR o.idempotency_key <> p.idempotency_key))
+       OR o.idempotency_operation <> 'CREATE_ORDER' OR o.idempotency_key <> p.idempotency_key
+       OR i.id IS NULL OR i.quantity <> p.quantity))
        OR (p.status <> 'SUCCEEDED' AND p.order_id IS NOT NULL));
 
 -- 正式订单幂等键重复数；数据库唯一约束下正常结果必须为 0。
@@ -85,17 +87,8 @@ FROM (
     HAVING COUNT(*) > 1
 ) duplicates;
 
--- MySQL 权威库存约束与本轮申请关联的 Outbox 投递状态。
+-- MySQL 权威库存约束。Redis 预扣、恢复索引和 RabbitMQ 队列需另行只读核对。
 SELECT id AS sku_id, total_stock, locked_stock, sold_stock,
        (CAST(locked_stock AS SIGNED) + sold_stock <= total_stock) AS stock_invariant_holds
 FROM ticket_sku
 WHERE id = @sku_id;
-
-SELECT e.status, COUNT(*) AS outbox_event_count
-FROM purchase_request p
-JOIN outbox_event e ON e.event_id = CONCAT('purchase-', p.id)
-WHERE p.idempotency_operation = 'CREATE_ORDER'
-  AND p.idempotency_key LIKE CONCAT(@batch_prefix, '%')
-  AND p.sku_id = @sku_id
-GROUP BY e.status
-ORDER BY e.status;

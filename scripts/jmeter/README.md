@@ -75,16 +75,18 @@ python -B scripts/jmeter/summarize-jtl.py $jtl --poll-interval-ms 250
 ## 指标口径与 SQL 核验
 
 - **成功订单 TPS**：以唯一批次幂等键前缀筛选 `CREATE_ORDER` 普通订单，统计 `ticket_order.created_at` 落入 MySQL UTC 正式窗口的订单数，再除以固定窗口秒数。包含创建后仍为 `PENDING` 或之后超时的订单；不把 202 受理、支付、候补订单或窗口外排空订单算入。预热用另一批次，正式窗口结束后的订单另列。
-- **订单创建端到端 P95**：从 JMeter 购票 POST 前到首次观察到 `SUCCEEDED` 且 `orderId` 非空的 Transaction Controller 样本；只对成功样本按最近秩计算 P95。事务显式包含定时器与每次状态轮询等待，因此结果受 `pollIntervalMs` 影响，不是 MySQL 提交耗时。登录与 CSRF 不在此样本内。
-- JMeter HTTP 吞吐量只代表请求速率。`summarize-jtl.py` 输出成功链路 P95 和失败类别；最终成功订单 TPS 必须由下列 SQL 对账，不可从 JMeter RPS 推算。
+- **订单创建端到端 P99**：从 JMeter 购票 POST 前到首次观察到 `SUCCEEDED` 且 `orderId` 非空的 Transaction Controller 样本；只对成功样本按最近秩计算 P99，同时报告失败和样本数。事务显式包含定时器与每次状态轮询等待，因此结果受 `pollIntervalMs` 影响，不是 MySQL 提交耗时。登录与 CSRF 不在此样本内。使用 `--window-start-ms` 和 `--window-end-ms` 按事务发起时间筛选窗口，窗口内开始而窗口后完成的事务也计入。
+- JMeter HTTP 吞吐量只代表请求速率。`summarize-jtl.py` 输出成功链路 P99、P95 和失败类别；最终成功订单 TPS 必须由下列 SQL 对账，不可从 JMeter RPS 推算。
 
-正式负载先单独预热，再在稳定负载阶段用 MySQL 服务器分别查询并记录固定窗口的起止 UTC 时间。让压测至少持续“爬坡 + 预热 + 正式窗口”，在正式窗口内取时间，不要用启动前/结束后的本机时钟代替。窗口结束后继续等待购票申请与 Outbox 排空，再执行对账。把 `-JbatchId` 写入 `@batch_prefix` 时加 `jmeter-` 前缀与结尾 `-`，并填写实际 `skuId`、MySQL UTC 起止时间，再只读执行：
+正式负载先单独预热，再在稳定负载阶段记录固定窗口的起止 UTC 时间，并校验 MySQL 与客户端时钟偏差。让压测至少持续“爬坡 + 预热 + 正式窗口”。窗口结束后等待购票申请、Redis 恢复索引和 RabbitMQ 队列排空，再执行对账。把 `-JbatchId` 写入 `@batch_prefix` 时加 `jmeter-` 前缀与结尾 `-`，并填写实际 `skuId`、MySQL UTC 起止时间，再只读执行：
+
+线程组的 `durationSeconds` 到期会停止仍在轮询的线程。应为窗口后的观察预留足够时间，并检查窗口内每次 POST 是否有对应的完整事务样本；如有缺失，成功样本 P99 存在截尾偏差，不能作为完整窗口 P99 报告。
 
 ```powershell
 docker exec ticketing-jmeter-mysql-1 sh -lc 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot --batch --skip-column-names -e "SELECT UTC_TIMESTAMP(6)"'
 ```
 
-将以下变量替换后执行 `scripts/jmeter/verify-orders.sql`。脚本另报申请终态、排空订单、幂等关联、库存不变量及 Outbox 状态；受理成功和正式订单不一致、超卖、窗口末尾仍排队或发布器积压均须披露。
+将以下变量替换后执行 `scripts/jmeter/verify-orders.sql`。脚本另报申请终态、排空订单、幂等关联和库存不变量；受理成功和正式订单不一致、超卖、窗口末尾仍排队或消息积压均须披露。
 
 ```sql
 SET @batch_prefix = 'jmeter-<batchId>-';
@@ -101,7 +103,7 @@ docker exec ticketing-jmeter-redis-1 redis-cli ZCARD "ticketing:seckill:v2:ticke
 docker exec ticketing-jmeter-redis-1 redis-cli GET ticketing:seckill:v2:ticketingjmeter:pending
 ```
 
-与 MySQL 库存比较 Redis 的 `available`、恢复集合和全局待处理数；集合成员为 `skuId:requestId`。新建票档由后台初始化完成后才开放普通购票；未初始化时只返回受控错误。矛盾时判定本轮无效，不清理后宣称一致。购票 TPS 与端到端 P95 的测量口径不变。
+与 MySQL 库存比较 Redis 的 `available`、恢复集合和全局待处理数；集合成员为 `skuId:requestId`。新建票档由后台初始化完成后才开放普通购票；未初始化时只返回受控错误。矛盾时判定本轮无效，不清理后宣称一致。
 
 ## 停止与清理
 
