@@ -42,6 +42,8 @@ python -u -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java
 
 此模式不设置到达速率。仅在 MySQL 已提交且 Redis `settle` 返回成功后，诊断记录无凭据的申请ID、订单ID、终态和完成时间，最近记录上限512。观察器每50ms读取 loopback 内存指标，不查询购票状态或借数据库连接；JMeter 每个线程必须看到自己的终态才进入下一次请求，HTTP 202 不代表完成。最初一批在2秒内启动，之后完全随建单完成速度补入，不设置RPS。窗口上限限制未完成申请数；将 `--threads` 与 `--inflight` 都设为100，即100并发用户的完整建单闭环。
 
+启动阶段按实际发单时间错开请求，已经等待的线程继续按间隔发送，不会在启动窗口结束时集中追赶；之后不限制发单速率。`--publisher-window` 可在隔离应用中选择 16、32 或 64 个发布确认槽位，默认 32，并记录在运行证明和结果中。比较优化前后的 SKU 锁时必须使用相同槽位数，不能把调整窗口的影响归为 SQL 优化。
+
 JTL 保存每笔发放时的完成计数、`orderCompletedMs/orderObservedMs/orderStatus`，结果验证实际在途未超限、完整成功样本与全部202一致。`postToSettledMs` 为HTTP提交到SQL提交且Redis结算成功的完整链路耗时；`postToClientObservedMs` 为测试线程通过诊断观察器看到自己终态的耗时，包含本机观测传播，不能冒充前台状态查询接口的延迟。观察器异常或超过2秒未更新即停新POST；2秒资源监控与原资源/容量熔断保留。观察器请求耗时和实际最大采样间隔单列，未做关闭仪表的开销A/B。
 
 直接测试100线程的示例：

@@ -368,7 +368,7 @@ class Monitor:
         if self.thread and self.thread.is_alive(): self.trip('monitor_did_not_finish')
 
 
-def start_backend(runtime, directory, java, concurrency, pool, bootstrap=False):
+def start_backend(runtime, directory, java, concurrency, pool, bootstrap=False, publisher_window=32):
     env, evidence = docker_guard(runtime)
     with db_connect(env) as db:
         if bootstrap:
@@ -386,6 +386,7 @@ def start_backend(runtime, directory, java, concurrency, pool, bootstrap=False):
     args = [java, '-Xms128m', '-Xmx512m', '-XX:+UseG1GC', f'-Xlog:gc:file={directory / "backend-gc.log"}',
             '-jar', str(ROOT / 'backend/target/ticketing-backend-0.1.0-SNAPSHOT.jar'),
             f'--ticketing.purchase.consumer.concurrency={concurrency}', '--ticketing.purchase.consumer.prefetch=1',
+            f'--ticketing.purchase.in-flight-window={publisher_window}',
             f'--spring.datasource.hikari.maximum-pool-size={pool}', '--ticketing.diagnostics.enabled=true',
             '--management.server.address=127.0.0.1', '--management.server.port=18081',
             '--management.endpoints.web.exposure.include=health,purchaseDiagnostics,shutdown',
@@ -543,7 +544,8 @@ def run_round(args):
     if SafetyGate().update(baseline):
         raise RuntimeError('资源预检不通过；未启动后端或发压')
     metadata = json.loads((runtime / 'prepared-data.json').read_text(encoding='utf-8'))
-    backend, logfile = start_backend(runtime, directory, args.java, args.concurrency, args.pool)
+    backend, logfile = start_backend(runtime, directory, args.java, args.concurrency, args.pool,
+                                    publisher_window=args.publisher_window)
     monitor = Monitor(env, directory, backend.pid, metadata['skuId'])
     monitor.start()
     jmeter = None
@@ -617,9 +619,11 @@ def run_round(args):
         monitor.jmeter_process = jmeter
         monitor.jmeter_pid = jmeter.pid
         save(directory/'run.json', dict(batch=batch, concurrency=args.concurrency, pool=args.pool,
+                                      publisherWindow=args.publisher_window,
                                       offeredRps=None if args.inflight else args.rps, inflight=args.inflight,
                                       loadModel='completion-closed-loop' if args.inflight else 'paced-arrivals', skuId=metadata['skuId'],
                                       threads=args.threads, startMs=start, endMs=end, clocks=clocks, mysql=mysql,
+                                      planSha256=hashlib.sha256(PLAN.read_bytes()).hexdigest(),
                                       artifactSha256=hashlib.sha256((ROOT/'backend/target/ticketing-backend-0.1.0-SNAPSHOT.jar').read_bytes()).hexdigest()))
         snapshots = set()
         while jmeter.poll() is None:
@@ -647,7 +651,7 @@ def run_round(args):
         result = summarize(posts, orders, start, end)
         result.update(batch=batch, offeredRps=None if args.inflight else args.rps, inflight=args.inflight,
                       loadModel='completion-closed-loop' if args.inflight else 'paced-arrivals',
-                      concurrency=args.concurrency, pool=args.pool,
+                      concurrency=args.concurrency, pool=args.pool, publisherWindow=args.publisher_window,
                       checks=checks, drained=drained, fuseReason=monitor.failure,
                       noEscalation=monitor.gate.no_escalation, jmeterExit=jmeter.returncode)
         stop_time = json.loads(monitor.stop.read_text())['timeMs'] if monitor.stop.exists() else None
@@ -798,6 +802,8 @@ def main():
     parser.add_argument('--jmeter-jar', required=True)
     parser.add_argument('--concurrency', type=int, choices=(2,4,8), default=2)
     parser.add_argument('--pool', type=int, choices=(10,16,20), default=10)
+    parser.add_argument('--publisher-window', type=int, choices=(16,32,64), default=32,
+                        help='隔离应用中同时等待购票消息确认的槽位数')
     parser.add_argument('--rps', type=float, default=10)
     parser.add_argument('--inflight', type=int, choices=(2,16,32,64,96,100), default=0,
                         help='按消费者完成数补发的闭环在途窗口，启用后不限制RPS')

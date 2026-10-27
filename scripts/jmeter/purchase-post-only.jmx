@@ -29,6 +29,7 @@ synchronized (props) {
             throw new IllegalArgumentException('隔离POST运行配置不合法')
         }
         state = [config:config, next:new java.util.concurrent.atomic.AtomicInteger(), flow:null, flowReadMs:0L,
+                 nextInitialSendMs:null, rampEndMs:null, nextRampPostMs:null,
                  flowRetries:new java.util.concurrent.atomic.AtomicInteger(),
                  client:java.net.http.HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(3)).build()]
         props.put('diagnosisState', state)
@@ -49,6 +50,8 @@ def readFlow = {
 }
 def stop = new File(props.getProperty('stopFile'))
 int index = -1
+long closedLoopScheduled = -1L
+int threadCount = Integer.parseInt(props.getProperty('threads','12'))
 if (config.inflight) {
     // 共享完成窗口，HTTP 202不返还额度；消费者整段返回后才允许补入下一请求。
     while (index < 0 && !stop.exists() && System.currentTimeMillis() < (long)config.endMs) {
@@ -65,6 +68,14 @@ if (config.inflight) {
                 }
                 if (state.next.get() - (long)state.flow.completed < (int)config.inflight) {
                     index = state.next.getAndIncrement()
+                    if (index < threadCount) {
+                        // 启动延迟后顺延首批间隔，避免已错过的计划时间一起追赶发出。
+                        long nextSlot = state.nextInitialSendMs == null ? (long)config.startMs : (long)state.nextInitialSendMs
+                        closedLoopScheduled = Math.max(now, nextSlot)
+                        state.nextInitialSendMs = closedLoopScheduled + Math.max(1L, 2000L.intdiv(threadCount))
+                    } else {
+                        closedLoopScheduled = now
+                    }
                     vars.put('completionCredit', state.flow.completed.toString())
                 }
             }
@@ -75,8 +86,7 @@ if (config.inflight) {
 } else {
     index = state.next.getAndIncrement()
 }
-long scheduled = config.inflight ? (index < Integer.parseInt(props.getProperty('threads','12')) ?
-    (long)config.startMs + (long)(index*2000.0d/Integer.parseInt(props.getProperty('threads','12'))) : System.currentTimeMillis()) :
+long scheduled = config.inflight ? closedLoopScheduled :
     (long)config.startMs + (long)(index * 1000.0d / (double)config.rps)
 if (index >= config.sessions.size() || scheduled >= (long)config.endMs) {
     SampleResult.setIgnore(); ctx.getThread().stop(); return
@@ -99,6 +109,31 @@ def request = java.net.http.HttpRequest.newBuilder(java.net.URI.create(config.ta
     .header('Cookie', session.cookie).header(session.csrfHeader, session.csrfToken)
     .header('Idempotency-Key', key)
     .POST(java.net.http.HttpRequest.BodyPublishers.ofString('{"skuId":"' + config.skuId + '","quantity":1}')).build()
+// 首两秒内进入的请求逐个放行；已等待的线程不能在启动结束时一起追赶。
+if (config.inflight) {
+    boolean admitted = false
+    boolean pace = false
+    synchronized (state) {
+        long now = System.currentTimeMillis()
+        if (state.rampEndMs == null) {
+            state.rampEndMs = now + 2000L
+            state.nextRampPostMs = now
+        }
+        pace = now < (long)state.rampEndMs
+    }
+    if (!pace) admitted = true
+    while (!admitted && !stop.exists() && System.currentTimeMillis() < (long)config.endMs) {
+        synchronized (state) {
+            long now = System.currentTimeMillis()
+            if (now >= (long)state.nextRampPostMs) {
+                state.nextRampPostMs = now + Math.max(1L, 2000L.intdiv(threadCount))
+                admitted = true
+            }
+        }
+        if (!admitted) Thread.sleep(5L)
+    }
+    if (!admitted) { SampleResult.setIgnore(); ctx.getThread().stop(); return }
+}
 // 第二次检查紧邻 send；资源保护只阻止新POST，不中断已经发出的请求。
 if (stop.exists() || System.currentTimeMillis() >= (long)config.endMs) {
     SampleResult.setIgnore(); ctx.getThread().stop(); return
