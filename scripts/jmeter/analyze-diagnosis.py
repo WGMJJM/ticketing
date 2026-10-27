@@ -34,7 +34,11 @@ def analyze(directory):
     metrics = json.loads((directory / 'metrics.json').read_text(encoding='utf-8'))
     before = {metric_key(m): m for m in metrics['before']['metrics']}
     timers = []
+    publisher_results = {}
     for row in metrics['after']['metrics']:
+        if row['name'] == 'ticketing.diagnostics.publisher.result':
+            old = before.get(metric_key(row), {})
+            publisher_results[row['tags']['reason']] = row['measurements']['COUNT'] - old.get('measurements', {}).get('COUNT', 0)
         if 'count' not in row:
             continue
         old = before.get(metric_key(row), {})
@@ -54,7 +58,7 @@ def analyze(directory):
                 role = 'consumer' if 'purchaseOrders' in name else 'http' if 'http' in name else 'other'
                 borrowers[role] += 1
     result = dict(directory=directory.name, summary=summary, run=run, windowSamples=len(window),
-                  timers=timers, sampledLockWaitRows=dict(waits), sampledLockWaitKeys=dict(wait_keys), threadBorrowSnapshots=dict(borrowers))
+                  timers=timers, publisherResults=publisher_results, sampledLockWaitRows=dict(waits), sampledLockWaitKeys=dict(wait_keys), threadBorrowSnapshots=dict(borrowers))
     if window:
         result['resources'] = dict(cpuMean=mean(s['cpu'] for s in window), cpuMax=max(s['cpu'] for s in window),
             freeGiBMin=min(s['freeGiB'] for s in window),
@@ -63,6 +67,10 @@ def analyze(directory):
             poolPendingMax=max(s['diagnostics']['pool']['pending'] for s in window),
             poolActiveMax=max(s['diagnostics']['pool']['active'] for s in window),
             readyMax=max(s['mq']['ready'] for s in window),
+            readyMinAfter5Seconds=min((s['mq']['ready'] for s in window if s['timeMs'] >= run['startMs']+5000), default=None),
+            redisPendingMax=max((s.get('redisPending', 0) for s in window), default=0),
+            redisPendingMinAfter5Seconds=min((s.get('redisPending',0) for s in window if s['timeMs'] >= run['startMs']+5000), default=None),
+            redisPendingSlopeAfter5Seconds=slope([(s['timeMs'],s.get('redisPending',0)) for s in window if s['timeMs'] >= run['startMs']+5000]),
             unackedMax=max(s['mq']['unacked'] for s in window),
             ledgerNotReadySamples=sum(stock_ledger(s).get('ready') != '1' for s in window if stock_ledger(s) is not None)
                 if any(stock_ledger(s) is not None for s in window) else None,

@@ -31,6 +31,39 @@ python -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java --
 
 ## 逐档运行
 
+### 不限制 RPS 的闭环饱和诊断
+
+需要寻找当前机器与当前业务链路的吞吐平台时，使用 `--inflight`，不要把 `--rps` 当作 TPS 上限：
+
+```powershell
+python -u -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java --jmeter-jar $jmeterJar --concurrency 2 --inflight 64 --max-posts 2400 --seconds 30
+# 根据资源、对账、队列和上一档结果，逐次测试 4/8 消费者及 96 在途窗口。
+```
+
+此模式不设置到达速率。仅在 MySQL 已提交且 Redis `settle` 返回成功后，诊断记录无凭据的申请ID、订单ID、终态和完成时间，最近记录上限512。观察器每50ms读取 loopback 内存指标，不查询购票状态或借数据库连接；JMeter 每个线程必须看到自己的终态才进入下一次请求，HTTP 202 不代表完成。最初一批在2秒内启动，之后完全随建单完成速度补入，不设置RPS。窗口上限限制未完成申请数；将 `--threads` 与 `--inflight` 都设为100，即100并发用户的完整建单闭环。
+
+JTL 保存每笔发放时的完成计数、`orderCompletedMs/orderObservedMs/orderStatus`，结果验证实际在途未超限、完整成功样本与全部202一致。`postToSettledMs` 为HTTP提交到SQL提交且Redis结算成功的完整链路耗时；`postToClientObservedMs` 为测试线程通过诊断观察器看到自己终态的耗时，包含本机观测传播，不能冒充前台状态查询接口的延迟。观察器异常或超过2秒未更新即停新POST；2秒资源监控与原资源/容量熔断保留。观察器请求耗时和实际最大采样间隔单列，未做关闭仪表的开销A/B。
+
+直接测试100线程的示例：
+
+```powershell
+python -u -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java --jmeter-jar $jmeterJar --concurrency 2 --threads 100 --inflight 100 --max-posts 4300 --seconds 60
+```
+
+固定的是测量时间和在途请求上限，不是 RPS/TPS。比较 64→96 在途请求而 TPS 不再增长、队列持续有待处理消息、消费者确实忙碌，可以判断该配置出现吞吐平台；不能仅因某个窗口得到一个数就声称机器极限。闭环各组的实际输入率会随完成率变化，不能冒充相同 offered RPS 的开放到达因果对照。CPU 没有满载也可能已受消费者槽位或 SKU 串行锁约束。
+
+`--max-posts` 只限制本轮独立账号预算，不限制发压速率。若账号提前耗尽，`accountBudgetExhausted=true`，该轮不具备容量结论。每轮仍提前登录全部预算账号；未使用账号也不跨轮复用。先预算每批最多 10000 账号。
+
+旧批次余额不足时，可在应用已正常关闭、无在途购票和其他数据库事务后轮换独立批次：
+
+```powershell
+python -B scripts/jmeter/diagnose-purchase.py --runtime .local/jmeter/capacity-next/runtime --java $java --jmeter-jar $jmeterJar --initialize --previous-runtime $runtime
+```
+
+轮换须核验旧库随机 guard、项目全部容器、每个卷标签、loopback 端口和消息排空；只停止并移除该项目三个已核验的中间件容器。旧卷、凭据、元数据和测量结果全部保留，新批次使用新命名卷，未执行删库或删卷。`retained-previous-batch.json` 保存旧卷名称，新的 `volumes.override.json` 保存新卷映射；失败保留现场，不自动重试清理。新批次仍是唯一 `ticketing-jmeter` 项目、`ticketingjmeter` schema 和原隔离端口。
+
+### 可复现的开放到达对照
+
 ```powershell
 python -u -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java --jmeter-jar $jmeterJar --concurrency 2 --pool 10 --rps 10 --seconds 30
 # 仅在上一档安全且对账通过后提高负载。固定负载对照只改变 concurrency。
@@ -40,13 +73,13 @@ python -B scripts/jmeter/analyze-diagnosis.py .local/jmeter/diagnosis-new
 python -B -m unittest discover -s scripts/jmeter -p 'test_*.py'
 ```
 
-每档先预登录，再以 20 个独立账号预热并排空；之后 JMeter 24 个线程只向固定 loopback 地址发 POST，按绝对到达时间与绝对截止时间调度，不执行登录、CSRF 获取或状态轮询。每笔使用独立 Session/CSRF/账号/幂等键，失败账号也不再复用。`next-account.json` 是本地独占执行的账号游标，不支持多运行器并发。
+每档先预登录，再以 20 个独立账号预热并排空；之后 JMeter 默认12个HTTP发送线程（可通过 `--threads` 调整）只向固定 loopback 地址发 POST，按绝对到达时间或完成闭环及绝对截止时间调度，不执行登录、CSRF 获取或状态轮询。每笔使用独立 Session/CSRF/账号/幂等键，失败账号也不再复用。`next-account.json` 是本地独占执行的账号游标，不支持多运行器并发。
 
 初始预热只能消除部分冷启动影响，不能保证 JVM 已达长期稳态。正式窗口最少 30 秒；30 秒结果只属于短窗口诊断。不要把所有档位串成一个无人监督的自动增压循环。`noEscalation=true` 后不得继续增压。只有发现池等待证据后，才考虑同负载的 `--pool 16` 对照。
 
 ## 熔断和排空
 
-采样目标间隔 2 秒，间隔超过 5 秒失败关闭。CPU >85% 连续 15 秒禁止增档；>95% 连续 5 秒停止新 POST。可用内存 <4 GiB 或占用 >85% 直接停止，比需求更保守。其他停止条件包括后端工作集 >1 GiB、JMeter >768 MiB、后端堆 >85%、GC 暂停占比 >10%、容器内存风险、队列/Redis 在途达到容量的 75%、约 10 秒持续队列增长超过 30 条、近期大量拒绝/网络失败、监控异常。
+资源采样目标间隔 2 秒，间隔超过 5 秒失败关闭。CPU >85% 连续 15 秒禁止增档；>95% 连续 5 秒停止新 POST。可用内存 <4 GiB 或占用 >85% 直接停止，比需求更保守。其他停止条件包括后端工作集 >1 GiB、JMeter >768 MiB、后端堆 >85%、GC 暂停占比 >10%、容器内存风险、队列/Redis 在途达到容量的 75%、约 10 秒实时Redis在途持续增长超过30条、近期大量拒绝/网络失败、监控异常。Rabbit管理统计延迟刷新不能单独作为持续增长证据。近期拒绝除最后20笔中的5笔外，还检查近4秒内至少5笔且不低于5%的拒绝。
 
 Rabbit 管理统计存在刷新延迟，所以同时读取实时 Redis 在途量。停止文件在 `HttpClient.send()` 前检查，已发请求继续返回；之后有界等待 MQ、Redis pending、recovery 归零。未排空则保留本轮 JVM，不终止中间件、不破坏事务。每次停止都应检查 `stop.flag` 和原始资源样本。修复诊断工具后再运行也使用新账号，不抹掉失败轮次。
 

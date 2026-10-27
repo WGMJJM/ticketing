@@ -9,6 +9,12 @@ def quantiles(values):
             for p in (.5, .95, .99)}
 
 
+def has_persistent_pending_growth(samples):
+    """实时预扣积压持续增长；Rabbit管理统计的刷新跳变不能替代实时证据。"""
+    return (len(samples) >= 5 and samples[-1]['redisPending'] > samples[0]['redisPending']+30
+            and all(b['redisPending'] >= a['redisPending'] for a,b in zip(samples,samples[1:])))
+
+
 def summarize(posts, orders, start_ms, end_ms):
     if end_ms <= start_ms:
         raise ValueError('固定窗口结束须晚于开始')
@@ -41,6 +47,10 @@ def summarize(posts, orders, start_ms, end_ms):
                 httpAcceptedMs=quantiles(float(p['postElapsedMs']) for p in accepted),
                 arrivalLatenessMs=quantiles(max(0, int(p['postStartMs'])-int(p.get('scheduledMs', p['postStartMs']))) for p in window),
                 orderCount=len(in_window), orderTps=len(in_window) / seconds,
+                orderTpsBy5Seconds=[dict(startMs=left, endMs=min(left+5000,end_ms),
+                    orders=sum(left <= float(row['created_ms']) < min(left+5000,end_ms) for row in in_window),
+                    tps=sum(left <= float(row['created_ms']) < min(left+5000,end_ms) for row in in_window)
+                        / ((min(left+5000,end_ms)-left)/1000)) for left in range(start_ms,end_ms,5000)],
                 drainOrders=sum(float(row['created_ms']) >= end_ms for row in success.values()),
                 beforeWindowOrders=sum(float(row['created_ms']) < start_ms for row in success.values()),
                 duplicatePostKeys=len(keys) - len(set(keys)),

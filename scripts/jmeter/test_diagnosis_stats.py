@@ -1,8 +1,14 @@
 import unittest
-from diagnosis_stats import SafetyGate, summarize
+from diagnosis_stats import SafetyGate, summarize, has_persistent_pending_growth
 
 
 class DiagnosisStatsTest(unittest.TestCase):
+    def test_delayed_rabbit_statistics_do_not_stop_bounded_closed_loop(self):
+        observed = [dict(redisPending=p, mq={'ready':q}) for p,q in zip((58,58,57,58,59,60),(0,0,49,49,50,50))]
+        self.assertFalse(has_persistent_pending_growth(observed))
+        self.assertTrue(has_persistent_pending_growth([dict(redisPending=p) for p in (10,20,30,40,50)]))
+        self.assertFalse(has_persistent_pending_growth([dict(redisPending=p) for p in (10,30,20,40,50)]))
+
     def test_boundaries_drain_rejection_and_missing_id(self):
         posts = [dict(postStartMs=t, idempotencyKey=str(t), requestId=str(t), postElapsedMs=10, responseCode=code)
                  for t, code in [(999, '202'), (1000, '202'), (1999, '503'), (2000, '202')]]
@@ -31,6 +37,7 @@ class DiagnosisStatsTest(unittest.TestCase):
                       created_ms=2000, accepted_ms=1900)
         result = summarize(posts, [first, first, at_end], 1000, 2000)
         self.assertEqual(result['orderTps'], 1)
+        self.assertEqual(result['orderTpsBy5Seconds'], [dict(startMs=1000,endMs=2000,orders=1,tps=1)])
         self.assertEqual(result['acceptedRps'], 0)
         self.assertEqual(result['drainOrders'], 1)
         self.assertEqual(result['successfulDbWithout202'], 2)

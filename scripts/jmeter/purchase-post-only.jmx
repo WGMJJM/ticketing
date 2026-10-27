@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3">
   <hashTree>
-    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="预登录固定到达率购票诊断" enabled="true">
+    <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="预登录购票发压与完整建单并发诊断" enabled="true">
       <elementProp name="TestPlan.user_defined_variables" elementType="Arguments"><collectionProp name="Arguments.arguments"/></elementProp>
     </TestPlan>
     <hashTree>
@@ -28,15 +28,56 @@ synchronized (props) {
             || config.rps <= 0 || config.endMs <= config.startMs || config.sessions.size() > 10000) {
             throw new IllegalArgumentException('隔离POST运行配置不合法')
         }
-        state = [config:config, next:new java.util.concurrent.atomic.AtomicInteger(),
+        state = [config:config, next:new java.util.concurrent.atomic.AtomicInteger(), flow:null, flowReadMs:0L,
+                 flowRetries:new java.util.concurrent.atomic.AtomicInteger(),
                  client:java.net.http.HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(3)).build()]
         props.put('diagnosisState', state)
     }
 }
 def config = state.config
+def readFlow = {
+    for (int attempt=0; attempt<3; attempt++) {
+        try {
+            // 在同一个打开的文件句柄内读取完整内容，避免文件换代时长度与内容不属于同一版。
+            def content = java.nio.file.Files.readString(new File(config.flowFile).toPath(), java.nio.charset.StandardCharsets.UTF_8)
+            return new groovy.json.JsonSlurper().parseText(content)
+        } catch (Exception failure) {
+            if (!(failure instanceof java.io.IOException || failure instanceof groovy.json.JsonException) || attempt==2) throw failure
+            state.flowRetries.incrementAndGet(); Thread.sleep(5L)
+        }
+    }
+}
 def stop = new File(props.getProperty('stopFile'))
-int index = state.next.getAndIncrement()
-long scheduled = (long)config.startMs + (long)(index * 1000.0d / (double)config.rps)
+int index = -1
+if (config.inflight) {
+    // 共享完成窗口，HTTP 202不返还额度；消费者整段返回后才允许补入下一请求。
+    while (index < 0 && !stop.exists() && System.currentTimeMillis() < (long)config.endMs) {
+        synchronized (state) {
+            long now = System.currentTimeMillis()
+            if (now >= (long)config.startMs) {
+                if (now - state.flowReadMs >= 50L) {
+                    state.flow = readFlow()
+                    state.flowReadMs = now
+                }
+                if (now - (long)state.flow.timeMs > 2000L) {
+                    if (!stop.exists()) stop.setText('{"reason":"completion_feed_stale","timeMs":'+now+'}', 'UTF-8')
+                    throw new IllegalStateException('完成观测超过2秒未更新，停止新POST')
+                }
+                if (state.next.get() - (long)state.flow.completed < (int)config.inflight) {
+                    index = state.next.getAndIncrement()
+                    vars.put('completionCredit', state.flow.completed.toString())
+                }
+            }
+        }
+        if (index < 0) Thread.sleep(10L)
+    }
+    if (index < 0) { SampleResult.setIgnore(); ctx.getThread().stop(); return }
+} else {
+    index = state.next.getAndIncrement()
+}
+long scheduled = config.inflight ? (index < Integer.parseInt(props.getProperty('threads','12')) ?
+    (long)config.startMs + (long)(index*2000.0d/Integer.parseInt(props.getProperty('threads','12'))) : System.currentTimeMillis()) :
+    (long)config.startMs + (long)(index * 1000.0d / (double)config.rps)
 if (index >= config.sessions.size() || scheduled >= (long)config.endMs) {
     SampleResult.setIgnore(); ctx.getThread().stop(); return
 }
@@ -47,8 +88,11 @@ if (stop.exists() || System.currentTimeMillis() >= (long)config.endMs) {
     SampleResult.setIgnore(); ctx.getThread().stop(); return
 }
 def session = config.sessions[index]
+vars.put('requestIndex', Integer.toString(index))
 def key = "jmeter-${config.batch}-${index}"
 vars.put('idempotencyKey', key); vars.put('requestId', ''); vars.put('failureCode', '')
+vars.put('orderCompletedMs',''); vars.put('orderObservedMs',''); vars.put('orderStatus','')
+vars.put('flowReadRetries',state.flowRetries.toString())
 vars.put('batch', config.batch); vars.put('scheduledMs', Long.toString(scheduled))
 def request = java.net.http.HttpRequest.newBuilder(java.net.URI.create(config.target))
     .timeout(java.time.Duration.ofSeconds(15)).header('Content-Type', 'application/json')
@@ -61,6 +105,7 @@ if (stop.exists() || System.currentTimeMillis() >= (long)config.endMs) {
 }
 long start = System.currentTimeMillis()
 long monotonic = System.nanoTime()
+String phase = 'HTTP'
 vars.put('postStartMs', Long.toString(start))
 try {
     def response = state.client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString())
@@ -74,11 +119,36 @@ try {
         vars.put('failureCode', 'INVALID_JSON_RESPONSE')
     }
     SampleResult.setSuccessful(response.statusCode() == 202 && vars.get('requestId').isLong())
+    phase = 'OBSERVATION'
+    if (config.inflight && response.statusCode() == 202 && vars.get('requestId').isLong()) {
+        // 每个线程等待自己的订单终态，再开始下一用户；观测走诊断内存，不轮询业务DB。
+        while (System.currentTimeMillis() < (long)config.endMs+20000L) {
+            def terminal = null
+            synchronized (state) {
+                long now = System.currentTimeMillis()
+                if (now-state.flowReadMs >= 25L) {
+                    state.flow = readFlow()
+                    state.flowReadMs = now
+                }
+                terminal = state.flow.terminal[vars.get('requestId')]
+            }
+            if (terminal != null) {
+                vars.put('orderCompletedMs', terminal.completedMs.toString())
+                vars.put('orderObservedMs', Long.toString(System.currentTimeMillis()))
+                vars.put('orderStatus', terminal.status.toString())
+                SampleResult.setSuccessful(terminal.status == 'SUCCEEDED')
+                break
+            }
+            Thread.sleep(10L)
+        }
+        if (!vars.get('orderStatus')) { vars.put('orderStatus','NOT_OBSERVED'); SampleResult.setSuccessful(false) }
+    }
 } catch (Exception failure) {
-    vars.put('postElapsedMs', Long.toString(java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - monotonic)))
-    SampleResult.setResponseCode('NETWORK_ERROR'); SampleResult.setSuccessful(false)
-    vars.put('failureCode', failure.getClass().getSimpleName())
+    if (phase=='HTTP') vars.put('postElapsedMs', Long.toString(java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - monotonic)))
+    SampleResult.setResponseCode(phase=='HTTP' ? 'NETWORK_ERROR' : 'OBSERVATION_ERROR'); SampleResult.setSuccessful(false)
+    vars.put('failureCode', phase+'_'+failure.getClass().getSimpleName())
 }
+vars.put('flowReadRetries',state.flowRetries.toString())
 SampleResult.setResponseMessage('purchase-post-only')
 SampleResult.setResponseData(new byte[0])
           ]]></stringProp>

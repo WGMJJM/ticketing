@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import socket
 import subprocess
 import sys
 import threading
@@ -20,7 +21,7 @@ import time
 
 import pymysql
 import requests
-from diagnosis_stats import SafetyGate, summarize
+from diagnosis_stats import SafetyGate, summarize, quantiles, has_persistent_pending_growth
 
 ROOT = Path(__file__).resolve().parents[2]
 PLAN = Path(__file__).with_name('purchase-post-only.jmx')
@@ -33,6 +34,63 @@ GIB = 1024 ** 3
 def save(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2, default=str), encoding='utf-8')
+
+
+def completed_workers(snapshot):
+    return sum(m['count'] for m in snapshot['metrics']
+               if m['name'] == 'ticketing.diagnostics.duration'
+               and m['tags'] == {'role': 'consumer', 'stage': 'worker.process'})
+
+
+def publish_flow(path, value):
+    temporary = path.with_suffix('.tmp')
+    save(temporary, value)
+    # Windows读取者短暂持有不允许删除的句柄；最多重试100ms，仍失败则保持失败关闭。
+    for attempt in range(10):
+        try:
+            os.replace(temporary, path)
+            return
+        except PermissionError:
+            if attempt == 9: raise
+            time.sleep(.01)
+
+
+class CompletionFeed:
+    """只读本机内存指标，不查询业务状态、不借数据库连接；完成多少才补多少。"""
+    def __init__(self, directory, monitor, baseline):
+        self.directory, self.monitor, self.baseline = directory, monitor, baseline
+        self.done = threading.Event()
+        self.thread = None
+        self.completed = {}
+
+    def start(self):
+        self.thread = threading.Thread(target=self.loop, daemon=True)
+        self.thread.start()
+
+    def loop(self):
+        try:
+            with (self.directory / 'completion-feed.jsonl').open('w', encoding='utf-8') as out:
+                while not self.done.is_set():
+                    began = time.monotonic()
+                    snapshot = diag()
+                    now = int(time.time()*1000)
+                    terminal = snapshot['completions']
+                    for key,row in terminal['recent'].items():
+                        if key not in self.completed:
+                            self.completed[key] = dict(row, observerMs=now)
+                    value = dict(timeMs=now, completed=terminal['count']-self.baseline,
+                                 terminal=terminal['recent'],
+                                 observerMs=(time.monotonic()-began)*1000)
+                    publish_flow(self.directory / 'flow.json', value)
+                    out.write(json.dumps(value)+'\n'); out.flush()
+                    self.done.wait(max(0, .05-(time.monotonic()-began)))
+        except Exception as error:
+            self.monitor.trip('completion_feed_failure_'+type(error).__name__)
+
+    def close(self):
+        self.done.set()
+        if self.thread: self.thread.join(4)
+        save(self.directory/'completed-requests.json', self.completed)
 
 
 def command(args, timeout=30):
@@ -206,6 +264,7 @@ class Monitor:
         self.fuse_after = None
         self.jmeter_process = None
         self.sku_id = sku_id
+        self.measurement_start_ms = None
 
     def trip(self, reason):
         if not self.stop.exists():
@@ -262,9 +321,12 @@ class Monitor:
                         if heap['usedBytes'] > heap['maxBytes'] * .85:
                             sample['unsafe'] = 'backend_heap_over_85_percent'
                     recent = [s for s in self.samples if sample['monotonic'] - s['monotonic'] <= 12]
-                    if len(recent) >= 5 and recent[-1]['mq']['ready'] > recent[0]['mq']['ready'] + 30:
-                        if all(b['mq']['ready'] >= a['mq']['ready'] for a, b in zip(recent, recent[1:])):
-                            sample['unsafe'] = 'persistent_queue_growth'
+                    pressure = [s for s in recent if self.measurement_start_ms is not None
+                                and s['timeMs'] >= self.measurement_start_ms + 2000]
+                    # Rabbit管理统计有数秒滞后，闭环初次填充会被误判为持续增长。
+                    # 用同次采样的Redis实时未完成数判定持续增长，MQ曲线仍完整保留。
+                    if has_persistent_pending_growth(pressure):
+                        sample['unsafe'] = 'persistent_queue_growth'
                     if recent and self.backend_pid:
                         def gc_ms(s):
                             return sum(m.get('sumMs', 0) for m in s['diagnostics']['metrics'] if m['name'] == 'jvm.gc.pause')
@@ -281,11 +343,16 @@ class Monitor:
                         path = self.directory / 'post.jtl'
                         if path.exists():
                             with path.open(encoding='utf-8-sig', newline='') as stream:
-                                last_posts = list(csv.DictReader(stream))[-20:]
+                                all_posts = list(csv.DictReader(stream))
+                                last_posts = all_posts[-20:]
                             if len(last_posts) >= 10 and sum(p['responseCode'] != '202' for p in last_posts) >= 5:
                                 sample['unsafe'] = 'five_rejections_in_last_twenty_posts'
                             if sum(p['responseCode'] == 'NETWORK_ERROR' for p in last_posts) >= 2:
                                 sample['unsafe'] = 'repeated_network_failure'
+                            recent_posts = [p for p in all_posts if int(p['postStartMs']) >= sample['timeMs']-4000]
+                            rejected = sum(p['responseCode'] != '202' for p in recent_posts)
+                            if rejected >= 5 and rejected / len(recent_posts) >= .05:
+                                sample['unsafe'] = 'recent_rejections_at_least_five_and_5_percent'
                     reason = self.gate.update(sample)
                     self.samples.append(sample)
                     out.write(json.dumps(sample, default=str) + '\n'); out.flush()
@@ -469,7 +536,8 @@ def run_round(args):
     if not runtime.is_relative_to((ROOT / '.local/jmeter').resolve()): raise RuntimeError('运行目录须在.local/jmeter')
     env, evidence = docker_guard(runtime)
     native = WindowsResources(); baseline = native.host(); time.sleep(1); baseline = native.host()
-    directory = runtime.parent / f'c{args.concurrency}-p{args.pool}-r{args.rps:g}-{secrets.token_hex(3)}'
+    load_name = f'w{args.inflight}' if args.inflight else f'r{args.rps:g}'
+    directory = runtime.parent / f'c{args.concurrency}-p{args.pool}-{load_name}-{secrets.token_hex(3)}'
     directory.mkdir()
     save(directory / 'preflight.json', dict(host=baseline, docker=evidence, source=command(['git', 'rev-parse', 'HEAD'])))
     if SafetyGate().update(baseline):
@@ -479,6 +547,7 @@ def run_round(args):
     monitor = Monitor(env, directory, backend.pid, metadata['skuId'])
     monitor.start()
     jmeter = None
+    feed = None
     try:
         previous_drain = drain(env, 20)
         if not previous_drain['complete']: raise RuntimeError('上一批未排空，拒绝发单')
@@ -486,13 +555,13 @@ def run_round(args):
             accounts = list(csv.DictReader(stream))
         cursor_path = runtime / 'next-account.json'
         offset = json.loads(cursor_path.read_text()) if cursor_path.exists() else 0
-        count = int(args.rps * args.seconds)
+        count = args.max_posts if args.inflight else int(args.rps * args.seconds)
         warmup_count = 10 if args.selftest else 20
         if count + warmup_count + offset > len(accounts): raise RuntimeError('独立账号余额不足，不复用已有账号')
         selected = accounts[offset:offset + count + warmup_count]
         save(cursor_path, offset + count + warmup_count)  # 失败账号也不再用于其他档位。
         sessions = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=args.login_workers) as executor:
             for value in executor.map(login, selected):
                 sessions.append(value)
                 if monitor.stop.exists(): raise RuntimeError('预登录期间资源/监测保护触发；未发购票')
@@ -511,9 +580,11 @@ def run_round(args):
         batch = 'diag-' + secrets.token_hex(8)
         start = int(time.time() * 1000) + 12000
         end = start + args.seconds * 1000
+        monitor.measurement_start_ms = start
         sessions_path = directory / 'sessions.json'
         save(sessions_path, dict(target='http://127.0.0.1:18080/api/v1/orders', batch=batch,
-                                 skuId=metadata['skuId'], rps=args.rps, startMs=start, endMs=end, sessions=sessions))
+                                 skuId=metadata['skuId'], rps=args.rps, inflight=args.inflight,
+                                 flowFile=str(directory/'flow.json'), startMs=start, endMs=end, sessions=sessions))
         with db_connect(env) as db:
             db_guard(db, env)
             cur = db.cursor()
@@ -527,10 +598,13 @@ def run_round(args):
             cur.execute('SELECT @@max_connections max_connections,@@sql_mode sql_mode,VERSION() version')
             mysql = cur.fetchone()
         before_metrics = diag()
+        if args.inflight:
+            feed = CompletionFeed(directory, monitor, before_metrics['completions']['count'])
+            feed.start()
         jmeter_args = [args.java, '-Xms64m', '-Xmx256m', '-XX:+UseG1GC',
                        f'-Xlog:gc:file={directory / "jmeter-gc.log"}', '-jar', args.jmeter_jar,
                        '-n', '-t', str(PLAN), f'-JsessionsFile={sessions_path}', f'-JstopFile={monitor.stop}',
-                       '-Jthreads=24', '-Jsample_variables=batch,idempotencyKey,requestId,failureCode,scheduledMs,postStartMs,postElapsedMs',
+                       f'-Jthreads={args.threads}', '-Jsample_variables=batch,idempotencyKey,requestId,failureCode,scheduledMs,postStartMs,postElapsedMs,requestIndex,completionCredit,orderCompletedMs,orderObservedMs,orderStatus,flowReadRetries',
                        '-Jjmeter.save.saveservice.output_format=csv', '-Jjmeter.save.saveservice.print_field_names=true',
                        '-Jjmeter.save.saveservice.autoflush=true', '-Jjmeter.save.saveservice.response_data=false',
                        '-Jjmeter.save.saveservice.samplerData=false', '-Jjmeter.save.saveservice.responseHeaders=false',
@@ -542,8 +616,10 @@ def run_round(args):
                                   creationflags=subprocess.CREATE_NO_WINDOW)
         monitor.jmeter_process = jmeter
         monitor.jmeter_pid = jmeter.pid
-        save(directory/'run.json', dict(batch=batch, concurrency=args.concurrency, pool=args.pool, offeredRps=args.rps, skuId=metadata['skuId'],
-                                      threads=24, startMs=start, endMs=end, clocks=clocks, mysql=mysql,
+        save(directory/'run.json', dict(batch=batch, concurrency=args.concurrency, pool=args.pool,
+                                      offeredRps=None if args.inflight else args.rps, inflight=args.inflight,
+                                      loadModel='completion-closed-loop' if args.inflight else 'paced-arrivals', skuId=metadata['skuId'],
+                                      threads=args.threads, startMs=start, endMs=end, clocks=clocks, mysql=mysql,
                                       artifactSha256=hashlib.sha256((ROOT/'backend/target/ticketing-backend-0.1.0-SNAPSHOT.jar').read_bytes()).hexdigest()))
         snapshots = set()
         while jmeter.poll() is None:
@@ -560,6 +636,7 @@ def run_round(args):
         monitor.jmeter_pid = None
         stdout.close()
         drained = drain(env)
+        if feed: feed.close()
         after_metrics = diag()
         with db_connect(env) as db:
             db_guard(db, env)
@@ -568,19 +645,42 @@ def run_round(args):
         with (directory/'post.jtl').open(encoding='utf-8-sig', newline='') as stream:
             posts = list(csv.DictReader(stream))
         result = summarize(posts, orders, start, end)
-        result.update(batch=batch, offeredRps=args.rps, concurrency=args.concurrency, pool=args.pool,
+        result.update(batch=batch, offeredRps=None if args.inflight else args.rps, inflight=args.inflight,
+                      loadModel='completion-closed-loop' if args.inflight else 'paced-arrivals',
+                      concurrency=args.concurrency, pool=args.pool,
                       checks=checks, drained=drained, fuseReason=monitor.failure,
                       noEscalation=monitor.gate.no_escalation, jmeterExit=jmeter.returncode)
         stop_time = json.loads(monitor.stop.read_text())['timeMs'] if monitor.stop.exists() else None
+        if monitor.stop.exists() and not monitor.failure:
+            result['fuseReason'] = json.loads(monitor.stop.read_text())['reason']
         result['postsAfterStop'] = sum(int(p['postStartMs']) > stop_time for p in posts) if stop_time else 0
         result['postsAfterDeadline'] = sum(int(p['postStartMs']) >= end for p in posts)
         result['selftestPassed'] = bool(args.selftest and monitor.failure == 'selftest_stop_after_five_posts'
                                        and 5 <= len(posts) <= 10 and not result['postsAfterStop']
                                        and checks['valid'] and drained['complete'] and result['completeAccepted'])
-        result['valid'] = bool(checks['valid'] and drained['complete'] and not monitor.failure
+        result['accountBudgetExhausted'] = bool(args.inflight and len(posts) >= count)
+        result['completedWorkerCalls'] = completed_workers(after_metrics)-completed_workers(before_metrics)
+        if args.inflight:
+            # 自检与每个正式档都验证实际JTL的发放额度，防止闭环退化成只等HTTP 202。
+            result['maxGrantedOutstanding'] = max((int(p['requestIndex'])+1-int(p['completionCredit']) for p in posts), default=0)
+            observations = [json.loads(line) for line in (directory/'completion-feed.jsonl').read_text().splitlines()]
+            result['completionObserverMs'] = quantiles(o['observerMs'] for o in observations)
+            result['completionFeedMaxGapMs'] = max((b['timeMs']-a['timeMs'] for a,b in zip(observations,observations[1:])), default=0)
+            finished = [p for p in posts if p.get('orderStatus') == 'SUCCEEDED']
+            result['fullChainSuccessfulSamples'] = len(finished)
+            result['postToSettledMs'] = quantiles(int(p['orderCompletedMs'])-int(p['postStartMs']) for p in finished)
+            result['postToClientObservedMs'] = quantiles(int(p['orderObservedMs'])-int(p['postStartMs']) for p in finished)
+            result['flowReadRetries'] = max((int(p.get('flowReadRetries') or 0) for p in posts), default=0)
+        result['valid'] = bool(checks['valid'] and drained['complete'] and not monitor.stop.exists()
                                and not result['duplicatePostKeys'] and result['completeAccepted']
                                and not result['acceptedMissingRequestId'] and jmeter.returncode == 0
-                               and result['accepted'] == result['attempted'] == count
+                               and result['accepted'] == result['attempted']
+                               and (not args.inflight and result['attempted'] == count
+                                    or args.inflight and result['attempted'] > 0 and not result['accountBudgetExhausted']
+                                    and result['completedWorkerCalls'] == result['accepted'])
+                               and (not args.inflight or result['maxGrantedOutstanding'] <= args.inflight
+                                    and result['completionFeedMaxGapMs'] < 2000
+                                    and result['fullChainSuccessfulSamples'] == result['accepted'])
                                and not result['postsAfterDeadline'])
         save(directory/'summary.json', result)
         save(directory/'orders.json', orders)
@@ -597,6 +697,7 @@ def run_round(args):
                 jmeter.wait(timeout=20)
             except subprocess.TimeoutExpired:
                 print('发压进程尚未退出，保留后端及停止文件供核对', file=sys.stderr)
+        if feed: feed.close()
         monitor.close()
         # 只结束本函数启动且已确认排空的隔离JVM；未排空时保留后端继续恢复。
         if (jmeter is None or jmeter.poll() is not None) and drain(env, 10)['complete']:
@@ -608,9 +709,11 @@ def run_round(args):
 def initialize(args):
     runtime = args.runtime.resolve()
     if not runtime.is_relative_to((ROOT / '.local/jmeter').resolve()): raise RuntimeError('初始化须在.local/jmeter')
-    if command(['docker', 'ps', '-a', '-q', '--filter', 'label=com.docker.compose.project=ticketing-jmeter']):
+    if args.previous_runtime:
+        rotate_previous(args)
+    elif command(['docker', 'ps', '-a', '-q', '--filter', 'label=com.docker.compose.project=ticketing-jmeter']):
         raise RuntimeError('已有同名隔离容器，不覆盖或重建')
-    if command(['docker', 'volume', 'ls', '-q', '--filter', 'label=com.docker.compose.project=ticketing-jmeter']):
+    if not args.previous_runtime and command(['docker', 'volume', 'ls', '-q', '--filter', 'label=com.docker.compose.project=ticketing-jmeter']):
         raise RuntimeError('已有同名隔离卷，不复用或清空')
     native = WindowsResources(); native.host(); time.sleep(2)
     host = native.host()
@@ -619,8 +722,15 @@ def initialize(args):
     if SafetyGate().update(host): raise RuntimeError('主机资源不满足安全底线')
     command(['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
              ROOT/'scripts/jmeter/prepare-environment.ps1', '-RuntimeDirectory', runtime])
-    command(['docker', 'compose', '--project-name', 'ticketing-jmeter', '--env-file', runtime/'compose.env',
-             '--file', ROOT/'deploy/compose.yml', 'up', '--pull', 'never', '-d', '--wait'], timeout=150)
+    compose = ['docker', 'compose', '--project-name', 'ticketing-jmeter', '--env-file', runtime/'compose.env',
+               '--file', ROOT/'deploy/compose.yml']
+    if args.previous_runtime:
+        suffix = secrets.token_hex(6)
+        override = runtime/'volumes.override.json'
+        save(override, {'volumes': {f'{s}_data': {'name': f'ticketing-jmeter_{s}_capacity_{suffix}'}
+                                    for s in ('mysql', 'redis', 'rabbitmq')}})
+        compose += ['--file', override]
+    command(compose + ['up', '--pull', 'never', '-d', '--wait'], timeout=150)
     env, proof = docker_guard(runtime)
     with db_connect(env) as db, db.cursor() as cur:
         # 初次迁移前保持schema为空，随机标记先绑定同项目Redis，建数前再落DB guard。
@@ -647,6 +757,40 @@ def initialize(args):
         if not stop_backend(backend, logfile, directory): raise RuntimeError('引导后端正常关闭未完成，现场已保留')
 
 
+def rotate_previous(args):
+    """核验旧guard且排空后仅移除三个隔离容器，保留旧卷/凭据/结果，以新命名卷建批。"""
+    previous = args.previous_runtime.resolve()
+    if (not previous.is_relative_to((ROOT/'.local/jmeter').resolve()) or previous == args.runtime
+            or args.runtime.exists()):
+        raise RuntimeError('旧运行目录或新批次目录不合法；拒绝覆盖')
+    for port in (18080, 18081):
+        with socket.socket() as probe:
+            if probe.connect_ex(('127.0.0.1', port)) == 0:
+                raise RuntimeError('旧压测应用仍运行，拒绝轮换中间件')
+    env, proof = docker_guard(previous)
+    ids = command(['docker', 'ps', '-a', '--format', '{{.Names}}', '--filter',
+                   'label=com.docker.compose.project=ticketing-jmeter']).splitlines()
+    expected = {f'ticketing-jmeter-{s}-1' for s in ('mysql', 'redis', 'rabbitmq')}
+    if set(ids) != expected: raise RuntimeError('隔离项目存在未知容器，拒绝轮换')
+    if not drain(env, 10)['complete']: raise RuntimeError('旧批次购票未排空，拒绝轮换')
+    with db_connect(env) as db, db.cursor() as cur:
+        db_guard(db, env)
+        cur.execute('SELECT COUNT(*) n FROM information_schema.innodb_trx WHERE trx_mysql_thread_id<>CONNECTION_ID()')
+        if cur.fetchone()['n']: raise RuntimeError('仍有其他事务，拒绝轮换')
+    volumes = []
+    for item in proof:
+        volume = json.loads(command(['docker', 'volume', 'inspect', item['volume']]))[0]
+        if volume.get('Labels', {}).get('com.docker.compose.project') != 'ticketing-jmeter':
+            raise RuntimeError('旧卷项目标签不符，拒绝轮换')
+        volumes.append(item['volume'])
+    args.runtime.parent.mkdir(parents=True, exist_ok=True)
+    save(args.runtime.parent/'retained-previous-batch.json', dict(previousRuntime=str(previous),
+          docker=proof, retainedVolumes=volumes, guardVerified=True, pendingDrained=True))
+    command(['docker', 'stop', *sorted(expected)], timeout=60)
+    command(['docker', 'rm', *sorted(expected)])
+    print('旧隔离批次guard及排空已核验；仅移除其三个容器，旧数据卷全部保留')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--runtime', type=Path, required=True)
@@ -655,15 +799,24 @@ def main():
     parser.add_argument('--concurrency', type=int, choices=(2,4,8), default=2)
     parser.add_argument('--pool', type=int, choices=(10,16,20), default=10)
     parser.add_argument('--rps', type=float, default=10)
+    parser.add_argument('--inflight', type=int, choices=(2,16,32,64,96,100), default=0,
+                        help='按消费者完成数补发的闭环在途窗口，启用后不限制RPS')
+    parser.add_argument('--max-posts', type=int, default=2400, help='闭环独立账号预算，耗尽则本轮不能认定容量')
+    parser.add_argument('--threads', type=int, default=12, help='仅HTTP发送线程，不等于在途申请或消费者数量')
+    parser.add_argument('--login-workers', type=int, choices=(1,2,4), default=4, help='测量窗口外的预登录并行度')
     parser.add_argument('--seconds', type=int, default=30)
     parser.add_argument('--selftest', action='store_true')
     parser.add_argument('--host-only', action='store_true')
     parser.add_argument('--initialize', action='store_true')
+    parser.add_argument('--previous-runtime', type=Path, help='初始化新批次前核验并轮换旧隔离容器，保留全部旧卷')
     parser.add_argument('--fresh-sku', action='store_true', help='只在已有guard隔离库添加正常SINGLE测试票档，不清理旧数据')
     args = parser.parse_args()
     args.runtime = args.runtime.resolve()
     if not args.runtime.is_relative_to((ROOT / '.local/jmeter').resolve()): parser.error('运行目录必须在.local/jmeter')
     if args.rps <= 0 or args.seconds < (10 if args.selftest else 30): parser.error('正式窗口至少30秒；熔断自检至少10秒')
+    if args.inflight and not 10 <= args.max_posts <= 10000: parser.error('闭环独立账号预算须在10至10000')
+    if not 1 <= args.threads <= 500: parser.error('发压线程必须在1至500')
+    if args.previous_runtime and not args.initialize: parser.error('旧批次轮换只可与initialize一起使用')
     if args.host_only:
         native = WindowsResources(); samples = []
         for _ in range(3):
