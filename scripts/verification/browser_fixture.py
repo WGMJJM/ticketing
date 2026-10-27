@@ -2,8 +2,10 @@
 import argparse
 from datetime import datetime, timedelta, timezone
 import json
+import hashlib
 import secrets
 import re
+import time
 import uuid
 import environment as verification
 
@@ -45,9 +47,14 @@ def main():
     verification.app_start(args.jar, rate_limit_mode='regression', ORDER_PAYMENT_WINDOW_MINUTES='15')
     operator = verification.admin()
     run = uuid.uuid4().hex[:8]
-    users = [{'username': 's19_' + run + '_' + str(i), 'password': secrets.token_urlsafe(20)} for i in range(5)]
+    users = [{'username': 's19_' + run + '_' + str(i), 'email': f's19_{run}_{i}@example.test',
+              'password': secrets.token_urlsafe(20)} for i in range(5)]
     for account in users[1:]:
-        verification.Client(account, register=True)
+        client = verification.Client()
+        client.request('POST', '/api/v1/auth/email-code', {'email': account['email']})
+        mailbox = verification.PRIVATE / 'mail' / (hashlib.sha256(account['email'].encode()).hexdigest() + '.code')
+        code = mailbox.read_text(encoding='ascii')
+        client.request('POST', '/api/v1/auth/register', {**account, 'code': code})
     now = datetime.now(timezone.utc)
     activity = operator.request('POST', '/api/v1/admin/activities', {
         'title': '第十九阶段浏览器演示 ' + run, 'category': 'CONCERT', 'city': '上海',
@@ -66,6 +73,17 @@ def main():
     main = target('正常购票场次', 20)
     waitlist = target('FIFO候补场次', 2)
     aftercare = target('取消善后场次', 10)
+    # 新票档由既有库存同步任务初始化；在真实购票前等待三个隔离票档就绪。
+    deadline = time.monotonic() + 20
+    while True:
+        with verification.connect() as db, db.cursor() as cur:
+            cur.execute('SELECT COUNT(*) n FROM ticket_sku WHERE id IN (%s,%s,%s) AND redis_inventory_initialized=1',
+                        (main['skuId'], waitlist['skuId'], aftercare['skuId']))
+            if cur.fetchone()['n'] == 3:
+                break
+        if time.monotonic() >= deadline:
+            raise RuntimeError('隔离票档库存初始化超时')
+        time.sleep(0.2)
     holder = verification.Client(users[3])
     holders = [holder.order(waitlist['skuId'])['id'] for _ in range(2)]
     aftercare_order = holder.order(aftercare['skuId'])['id']

@@ -44,6 +44,6 @@ python -B scripts/verification/verify_backend.py --label functional_run
 
 只有显式执行验证时才生成临时文件，验证完成后清理不再需要的夹具、日志、截图、JAR和结果，不在`.local`保存多轮历史。本次没有保留旧验证产物或另行归档。
 
-既有浏览器夹具的旧注册流程仍需按V12邮箱验证码要求另行适配，见[注册升级说明](36-registration-four-points.md)。本次仅解除旧负载工具依赖，不改注册业务，也不声称这些旧端到端断言已经通过。
+浏览器夹具使用注册邮箱验证码。隔离配置还须包含随机 `registrationSecret`（32 字节 Base64）和空闲本地 `smtpPort`；先在独立环境启动 `python -B scripts/verification/mail_sink.py --port <smtpPort>`，该测试收件箱只监听 127.0.0.1，验证码只写入忽略目录，不发送外部邮件。随后运行 `python -B scripts/verification/browser_fixture.py --jar backend/target/ticketing-backend-0.1.0-SNAPSHOT.jar --action prepare`。在 `frontend/` 设置唯一 `TICKETING_E2E_LABEL` 并执行 `npm run e2e`；完成后运行 `python -B scripts/verification/browser_fixture.py --action audit --label <唯一标签>`。全部服务均使用隔离端口和 guard，测试结束停止隔离进程并清理临时凭据。
 
 业务部署健康检查仍使用`scripts/check-deployment.py --base-url <来源地址> --output <本地报告>`；旧负载环境专用选项已移除。加载受保护管理诊断配置时，沿用现有管理员会话与网络边界。

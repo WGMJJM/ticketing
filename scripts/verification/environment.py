@@ -114,7 +114,7 @@ def app_start(jar, rate_limit_mode='regression', **overrides):
         raise RuntimeError('先运行 stop，避免两个功能验收进程共用端口')
     # 不继承可能重定向数据源/端口或注入JVM参数的开发环境；只在子进程中隔离。
     prefixes = ('SPRING_','MANAGEMENT_','TICKETING_','MYSQL_','RABBITMQ_','REDIS_','SERVER_',
-                'ORDER_','WAITLIST_','PURCHASE_','OUTBOX_','CATALOG_','ADMIN_','SESSION_','TICKET_','CHECKIN_','LOGGING_','RATE_LIMIT_','VERIFY_','CLIENT_ADDRESS_')
+                'ORDER_','WAITLIST_','PURCHASE_','OUTBOX_','CATALOG_','ADMIN_','SESSION_','TICKET_','CHECKIN_','LOGGING_','RATE_LIMIT_','VERIFY_','CLIENT_ADDRESS_','SMTP_','REGISTRATION_')
     env = {key:value for key,value in os.environ.items()
            if not key.upper().replace('.','_').replace('-','_').startswith(prefixes)
            and key.upper() not in ('JAVA_TOOL_OPTIONS','JDK_JAVA_OPTIONS','_JAVA_OPTIONS')}
@@ -122,6 +122,11 @@ def app_start(jar, rate_limit_mode='regression', **overrides):
                VERIFY_ADMIN_PASSWORD=cfg['adminPassword'], VERIFY_TICKET_KEYS=cfg['ticketKeys'],
                MYSQL_PASSWORD=cfg['dbPassword'], RABBITMQ_PASSWORD=cfg['mqPassword'],
                SPRING_FLYWAY_USER='root', SPRING_FLYWAY_PASSWORD=cfg['rootPassword'])
+    if cfg.get('smtpPort') and cfg.get('registrationSecret'):
+        env.update(REGISTRATION_EMAIL_ENABLED='true', REGISTRATION_CODE_SECRET=cfg['registrationSecret'],
+                   REGISTRATION_NAMESPACE='verification', SMTP_HOST='127.0.0.1', SMTP_PORT=str(cfg['smtpPort']),
+                   SMTP_FROM='verification@example.test', SMTP_AUTH='false', SMTP_STARTTLS_ENABLED='false',
+                   SMTP_SSL_ENABLED='false', RATE_LIMIT_EMAIL_CODE_IP_LIMIT='10000')
     env.update(rate_limit_environment(rate_limit_mode))
     # 仅专用实例的迁移连接使用管理账号；运行连接池沿用迁移测试约定的受限账号。
     env.update({key: str(value) for key, value in overrides.items()})
