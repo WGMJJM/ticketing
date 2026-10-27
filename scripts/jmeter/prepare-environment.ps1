@@ -28,7 +28,7 @@ function New-UrlSafeSecret([int]$ByteCount) {
 if (-not (Test-Path -LiteralPath $RuntimeDirectory)) {
     New-Item -ItemType Directory -Path $RuntimeDirectory | Out-Null
 }
-$seedName = 'jmeter_seed_' + (New-UrlSafeSecret 6).Substring(0, 8)
+$seedName = 'jmeter_seed_' + (New-UrlSafeSecret 6).Substring(0, 8).Replace('-', 'a').Replace('_', 'b')
 $rateLimitSecret = (New-UrlSafeSecret 32).Replace('-', '+').Replace('_', '/') + '='
 $rateLimitNamespace = 'jmeter-' + (New-UrlSafeSecret 9).Substring(0, 10)
 $catalogNamespace = 'jmeter-' + (New-UrlSafeSecret 9).Substring(0, 10)
