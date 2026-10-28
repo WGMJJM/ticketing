@@ -42,7 +42,7 @@ public class TicketInventory {
         }
         int bucketCount = sale.bucketCount();
         if ((bucketCount != 4 && bucketCount != 8) || requestId == null) throw inconsistent();
-        int initial = Math.floorMod(requestId, bucketCount);
+        int initial = StockBucketRouter.route(requestId, bucketCount);
         if (!ordered) {
             if (buckets.reserve(sale.skuId(), initial, quantity) == 1) return Map.of(initial, quantity);
             // UPDATE 即使影响零行也可能持锁；必须回滚整笔事务后才能回绕到更小编号。

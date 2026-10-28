@@ -34,7 +34,7 @@ Lua 一次完成销售资格、Redis 时间窗口、单笔数量、场次内用�
 
 ## MySQL 消费与三道幂等
 
-2026-10-28本次普通分桶购票扩展为4桶或8桶。路由使用`floorMod(requestId, bucketCount)`，跨桶路径仍在整笔回滚后按桶号升序获取X锁；库存快照与销售启用校验同步允许4/8桶。原4桶订单继续使用不可变allocation履约，不改迁移或自动切换业务SKU；分桶新候补仍禁用。下文四桶实现记录为此前阶段事实。
+2026-10-28本次普通分桶购票扩展为4桶或8桶。首次路由使用`StockBucketRouter.route(requestId,bucketCount)`，以MurmurHash3的64位finalizer混合原申请ID，再掩码映射4/8桶，避免直接读取雪花ID低位；正常路径只有固定整数运算，不增加I/O、锁或对象分配。跨桶路径仍在整笔回滚后按桶号升序获取X锁；库存快照与销售启用校验同步允许4/8桶。已提交订单只按不可变allocation履约，不因路由变化重分配；排队及恢复仍使用原requestId与幂等协议。不改迁移或自动切换业务SKU，分桶新候补仍禁用。下文四桶实现记录为此前阶段事实。
 
 2026-10-28 新增四桶普通购票，完整实现与隔离验收见[四桶库存实现](jmeter/four-bucket-implementation.md)。V10 表结构直接复用，未新增迁移或自动切换业务 SKU。BUCKETED=4 按原 requestId 选择初始桶；SKU 配置用 SHARE，目标桶条件 UPDATE 获得独立 X 锁，不更新主 SKU 交易计数。单桶不足先整笔回滚，再按桶号升序跨桶，订单、明细、不可变 allocation 和申请终态原子提交。SINGLE 仍使用原 SKU UPDATE 锁。分桶新候补暂不开放，历史订单与 SINGLE 候补继续按原生命周期处理。
 

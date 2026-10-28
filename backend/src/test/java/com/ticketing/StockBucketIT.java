@@ -15,6 +15,7 @@ import com.ticketing.service.PurchaseOrderWorker;
 import com.ticketing.service.RedisStockReservationService;
 import com.ticketing.mapper.PurchaseRequestMapper;
 import com.ticketing.service.StockSnapshotService;
+import com.ticketing.service.StockBucketRouter;
 import com.ticketing.service.TicketService;
 import com.ticketing.service.TradeResourceLocker;
 import com.ticketing.service.WaitlistDispatcher;
@@ -182,6 +183,26 @@ class StockBucketIT {
         db.update("UPDATE ticket_order SET created_at=TIMESTAMPADD(MINUTE,-10,UTC_TIMESTAMP(6)),expires_at=TIMESTAMPADD(SECOND,-1,UTC_TIMESTAMP(6)) WHERE id=?",second);
         assertThat(orders.expire(buyer,second)).isTrue();assertThat(orders.expire(buyer,second)).isFalse();stock(sku,0,0);consistent();
     }
+
+    @Test void committedLegacyAllocationIsNotRoutedAgainOnReplayPaymentOrRefund() {
+        sku=sku(session,8,8);
+        var request=claim(buyer,sku,1);worker.process(request.id());
+        long orderId=requests.find(request.id()).orderId();
+        int current=StockBucketRouter.route(request.id(),8),legacy=(current+1)&7;
+        // 仅在随机验收schema构造旧版本已提交的归属事实；随后所有业务动作都不得改写归属。
+        tx().executeWithoutResult(state->{
+            assertThat(db.update("UPDATE ticket_stock_bucket SET locked_stock=locked_stock-1 WHERE sku_id=? AND bucket_no=? AND locked_stock>=1",sku,current)).isEqualTo(1);
+            assertThat(db.update("UPDATE ticket_stock_bucket SET locked_stock=locked_stock+1 WHERE sku_id=? AND bucket_no=? AND locked_stock+sold_stock<total_stock",sku,legacy)).isEqualTo(1);
+            assertThat(db.update("UPDATE order_stock_allocation SET bucket_no=? WHERE order_id=?",legacy,orderId)).isEqualTo(1);
+        });
+        worker.process(request.id());worker.process(request.id());
+        assertThat(requests.find(request.id()).orderId()).isEqualTo(orderId);
+        orders.pay(buyer,orderId);
+        assertThat(refunds.refund(admin,orderId,RefundReason.CUSTOMER_REQUEST).status()).isEqualTo("SUCCEEDED");
+        assertThat(db.queryForList("SELECT bucket_no FROM order_stock_allocation WHERE order_id=?",Integer.class,orderId))
+                .containsExactly(legacy);
+        stock(sku,0,0);consistent();
+    }
     @Test void contradictoryMysqlStockPausesWithoutFailingOrRefundingTheReservedRequest() {
         PurchaseRequest attempt=claim(buyer,sku,3);
         db.update("UPDATE ticket_stock_bucket SET sold_stock=1 WHERE sku_id=? AND bucket_no<2",sku);
@@ -235,6 +256,9 @@ class StockBucketIT {
         stock(sku,0,0);assertThat(requests.find(request.id())).isNull();
         assertThat(stocks.find(request.id()).status()).isEqualTo("QUEUED");
         org.mockito.Mockito.reset(requestWrites);
+        worker.process(request.id());stock(sku,1,0);consistent();
+        assertThat(db.queryForObject("SELECT bucket_no FROM order_stock_allocation WHERE order_id=?",Integer.class,requests.find(request.id()).orderId()))
+                .isEqualTo(StockBucketRouter.route(request.id(),4));
         worker.process(request.id());stock(sku,1,0);consistent();
     }
     @Test void pendingReservationBlocksAbsoluteSnapshotUntilSettlementAndReplayDoesNotAddStock() {
@@ -301,11 +325,15 @@ class StockBucketIT {
     PurchaseRequest routed(long owner,int number,int quantity) {
         // 用真实 Redis 预扣，指定稳定的原 requestId，不按用户或线程路由。
         PurchaseTestSupport.prepare(snapshots,sku);
-        long id=com.baomidou.mybatisplus.core.toolkit.IdWorker.getId();
         int bucketCount=db.queryForObject("SELECT bucket_count FROM ticket_sku WHERE id=?",Integer.class,sku);
-        id += Math.floorMod(number-Math.floorMod(id,bucketCount),bucketCount);
-        return stocks.reserve(new com.ticketing.dto.PurchaseIntent(owner,sku,quantity,"CREATE_ORDER",
-                UUID.randomUUID().toString(),null,0,null,id));
+        for(int attempt=0;attempt<1024;attempt++) {
+            long id=com.baomidou.mybatisplus.core.toolkit.IdWorker.getId();
+            if(StockBucketRouter.route(id,bucketCount)==number) {
+                return stocks.reserve(new com.ticketing.dto.PurchaseIntent(owner,sku,quantity,"CREATE_ORDER",
+                        UUID.randomUUID().toString(),null,0,null,id));
+            }
+        }
+        throw new AssertionError("未找到目标桶的唯一申请ID");
     }
     void awaitWaiter(String table) {
         long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(8);
