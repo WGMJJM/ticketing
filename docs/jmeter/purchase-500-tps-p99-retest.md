@@ -1,5 +1,7 @@
 # 500 线程异步购票复测及瓶颈观察
 
+2026-10-28 清理说明：本报告涉及的旧压测卷和本地原始产物已删除，以下仅保留历史结论；后续执行使用当前 JMeter 入口。
+
 ## 环境和口径
 
 2026-10-27 在本机隔离环境执行，业务代码基于 `a66a69574ff26f9cdea0475b097da3fa18573e2c`，本次 JMeter 工具修改在该提交之后、测试前应用。Windows 主机 i5-13400F、16 逻辑处理器、约 31.8 GiB 内存，Docker 可用 15.53 GiB；Java 21.0.10、JMeter 5.6.3，单后端实例、JMeter 和中间件同机。后端 G1 最大堆约 8 GiB，JMeter 堆 1 GiB。项目为独立 `ticketing-jmeter`、数据库 `127.0.0.1:13307/ticketingjmeter`、专用 Redis、RabbitMQ 及各自专用卷；项目标签、卷和随机数据库 guard 均已核对。没有加载业务 `.env` 或连接业务端口。
@@ -37,18 +39,7 @@
 
 以下为实际执行的关键命令和参数；`$dir` 是 `.local/jmeter/purchase-500-retest-20261027`，口令仅存在该忽略目录的运行配置和账号 CSV 中。
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/jmeter/prepare-environment.ps1
-# 将独立 compose.env 的 PURCHASE_CAPACITY 改为 1000。
-docker compose --project-name ticketing-jmeter --env-file .local/jmeter/compose.env --file deploy/compose.yml up --pull never -d
-# 独立进程加载上述 compose.env，并在隔离后端启用 GC 文件记录：
-java -Xlog:gc:file=<本轮目录>/backend-gc.log -jar backend/target/ticketing-backend-0.1.0-SNAPSHOT.jar --ticketing.purchase.capacity=1000
-python -B scripts/jmeter/prepare-data.py --warmup-users 100 --users 9900
-# 5 线程预检使用独立预检 CSV、批次和截止时间。
-jmeter -n -t scripts/jmeter/purchase.jmx -Jhost=127.0.0.1 -Jport=18080 -JusersCsv=<正式CSV绝对路径> -JskuId=1 -JbatchId=measure500retest20261027 -Jthreads=500 -JrampUpSeconds=60 -JstopNewOrdersMs=1793076626767 -JstopFile=<本轮目录>/stop.flag -JpollIntervalMs=250 -JmaxPollSeconds=60 -Jsample_variables=testBatch,requestId,orderId,terminalStatus,purchaseOutcome,failureCode,idempotencyKey -Jjmeter.save.saveservice.output_format=csv -Jjmeter.save.saveservice.print_field_names=true -Jjmeter.save.saveservice.response_data=false -Jjmeter.save.saveservice.samplerData=false -Jjmeter.save.saveservice.response_message=true -Jjmeter.save.saveservice.response_code=true -Jjmeter.save.saveservice.assertion_results_failure_message=true -l <本轮目录>/measure.jtl -j <本轮目录>/jmeter.log
-python -B scripts/jmeter/summarize-jtl.py <本轮目录>/measure.jtl --window-start-ms 1793076596767 --window-end-ms 1793076626767 --json <本轮目录>/cohort-summary.json --cohort-csv <本轮目录>/cohort.csv
-python -B scripts/jmeter/test_summarize_jtl.py
-```
+旧版执行命令已移除，当前入口见 [JMeter 使用说明](../../scripts/jmeter/README.md)。
 
 `measure.jtl`、逐笔 `cohort.csv`、窗口、资源采样、JVM GC、MySQL 摘要及只读对账结果、RabbitMQ 排空和线程快照保存在上述 Git 忽略目录，未保存登录响应、Cookie 或 CSRF。之后按用户清理旧测试数据的要求，原隔离容器与专用数据卷已删除，不能再从旧数据库复核；原本地结果目录的递归删除被自动安全审核拦截。压测计划、统计脚本和三项合成边界测试已检查，未运行新的完整业务测试套件。
 

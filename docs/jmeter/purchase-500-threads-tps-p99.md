@@ -1,5 +1,7 @@
 # 本机 500 线程异步购票测试
 
+2026-10-28 清理说明：本报告涉及的旧压测卷和本地原始产物已删除，以下仅保留历史结论；后续执行使用当前 JMeter 入口。
+
 2026-10-27 使用业务代码提交 `e4797b00d984f772aee05e8910bdcf34b42e6c45`，在 Windows 本机运行一轮；当前报告和压测工具修正在该提交之后。i5-13400F、16 逻辑处理器、约 31.8 GiB 物理内存，Docker 可用约 15.53 GiB。Java 21.0.10，JMeter 5.6.3 CLI；单后端实例与 JMeter、MySQL 8.4.11、Redis 和 RabbitMQ 同机。后端 JVM 使用 G1、默认最大堆约 8 GiB；JMeter 启动脚本默认 `-Xms1g -Xmx1g -XX:MaxMetaspaceSize=256m`。结果不能代表生产部署或系统峰值。
 
 环境为独立 Compose `ticketing-jmeter`、数据库 `127.0.0.1:13307/ticketingjmeter`、Redis 16379、RabbitMQ 15673 和后端 18080；项目标签、独立卷、随机 guard 和 V15 均已核验。未使用业务环境 `.env`。隔离后端启动命令显式设置 `--ticketing.purchase.capacity=1000`，通过 JVM 启动参数及该隔离环境配置确认；队列期限 120 秒、发布确认窗口 16、确认超时 3 秒、消费者 2 个、prefetch 1，均保持默认。客户端轮询间隔 250 ms、最长 60 秒。
@@ -26,17 +28,7 @@
 
 以下为实际运行方式的关键参数；凭据由准备脚本生成，未写入命令或 JTL。临时账号配置在测试后移除；JMeter 临时发行包删除操作被自动审核拦截，仍保留在系统临时目录。复跑需重新准备隔离环境。
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/jmeter/prepare-environment.ps1
-# 仅将隔离 compose.env 的 PURCHASE_CAPACITY 设为 1000。
-docker compose --project-name ticketing-jmeter --env-file .local/jmeter/compose.env --file deploy/compose.yml up --pull never -d
-# 在不加载业务 .env 的独立进程中加载 compose.env：
-java -jar backend/target/ticketing-backend-0.1.0-SNAPSHOT.jar --ticketing.purchase.capacity=1000
-python -B scripts/jmeter/prepare-data.py --warmup-users 25 --users 9975
-# 预检另用 warmup-users.csv、独立 batchId 和 5 线程。
-jmeter -n -t scripts/jmeter/purchase.jmx -Jhost=127.0.0.1 -Jport=18080 -JusersCsv=<measure-users.csv绝对路径> -JskuId=1 -JbatchId=measure50020261027a -Jthreads=500 -JrampUpSeconds=60 -JdurationSeconds=115 -JpollIntervalMs=250 -JmaxPollSeconds=60 -Jsample_variables=testBatch,requestId,orderId,terminalStatus,purchaseOutcome,failureCode,idempotencyKey -Jjmeter.save.saveservice.output_format=csv -Jjmeter.save.saveservice.print_field_names=true -Jjmeter.save.saveservice.response_data=false -Jjmeter.save.saveservice.samplerData=false -l <本轮目录>/measure.jtl -j <本轮目录>/jmeter.log
-python -B scripts/jmeter/summarize-jtl.py <本轮目录>/measure.jtl --window-start-ms 1793075263663 --window-end-ms 1793075293663
-```
+旧版执行命令已移除，当前入口见 [JMeter 使用说明](../../scripts/jmeter/README.md)。
 
 原始 JTL、应用与 JMeter 日志、资源采样及对账摘要保存在 Git 忽略的 `.local/jmeter/purchase-500-20261027-a/`；未保存响应正文、Cookie、CSRF 或口令。隔离测试的临时账号 CSV 和配置在验收后删除，独立容器及其专用卷清理，不影响业务数据。
 

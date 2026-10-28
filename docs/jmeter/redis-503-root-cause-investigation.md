@@ -1,5 +1,7 @@
 # Redis 503 根因定位与验证
 
+2026-10-28 清理说明：本报告涉及的旧压测卷和本地原始产物已删除，以下仅保留历史结论；后续执行使用当前 JMeter 入口。
+
 日期：2026-10-27。报告脱敏；原始诊断数据留在 Git 忽略目录 `.local/jmeter/`。
 
 **结论：本次隔离复现的 7 个 503 全是 Redis 命令超时；同一时间 Redis 服务端明确记录了 529–611ms 的 `appendfsync always` 延迟，根因机制高度指向同步 AOF fsync 阻塞 Redis 响应。证据等级为“强关联，机制已证实、底层存储成因未证实”；没有实施生产修复。**
@@ -77,7 +79,7 @@ Redis `LATENCY LATEST/HISTORY` 在 21:19:11 记录 `aof-fsync-always` **611ms**�
 ## 8. 代码与测试清单
 
 - `mvn -f backend/pom.xml clean verify`：109 项测试通过，0 失败、0 错误。
-- `python -B scripts/jmeter/test_redis_probe.py`：3 项通过；`python -B scripts/jmeter/test_safety_rules.py`：3 项通过；诊断 Python 文件语法检查通过。
+- `python -B scripts/jmeter/test_redis_probe.py`：3 项通过；当时旧版压测保护检查：3 项通过（旧版脚本现已退役）；诊断 Python 文件语法检查通过。
 - 已在专用隔离资源实际执行 16 在途/30 秒/600 POST 的诊断负载，并完成数据库、库存、Redis 和 MQ 排空审计；该负载有失败，不能算性能验收。
 - 未执行 100 在途或修复后测试；没有对业务库或业务 Redis/MQ 发压、改配置或注入数据。
 
