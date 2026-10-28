@@ -143,7 +143,7 @@ class AsyncPurchaseIT {
 
     @Test void distinctBuyersCannotOversellThroughHttpAndConfirmedMessaging() throws Exception {
         assertThat(properties.inFlightWindow()).isEqualTo(
-                Integer.parseInt(System.getenv().getOrDefault("PURCHASE_IN_FLIGHT_WINDOW", "256")));
+                Integer.parseInt(System.getenv().getOrDefault("PURCHASE_IN_FLIGHT_WINDOW", "64")));
         db.update("UPDATE ticket_sku SET total_stock=32 WHERE id=?", sku);
         assertThat(inventory.synchronize(sku)).isTrue();
         List<Client> buyers = new ArrayList<>(List.of(buyer, other));

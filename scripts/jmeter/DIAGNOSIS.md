@@ -1,12 +1,14 @@
 # 购票 TPS 安全诊断
 
-2026-10-28最新用户配置为500线程、隔离实例购票在途容量1000、发布确认窗口256，保持4桶/4消费者/prefetch=1。发布窗口源码默认同步为256，可配置1–256；业务默认容量仍200。历史结果中的32发布槽位保持原样。500线程的首批请求在预热阶段分10秒放行，此后由各自完整建单完成驱动补发，不设置正式RPS。预热初始的有界队列填充与稳态持续增长分别判断，CPU/内存/监控/75%绝对容量保护全程生效。
+2026-10-28最新用户配置为100线程、JMeter在途100、隔离实例购票容量200、发布确认窗口64、8消费者/prefetch=1，仍使用单SKU四桶。脚本默认同步这组参数，发布窗口源码默认64，业务消费者默认仍2；8消费者只用于本轮隔离验证。最多预登录4000个独立账号，其中20个用于低速启动检查，3980个用于并发预热和正式窗口；预算不足则标记本轮无效并报告，不自动增加账号。首批请求分2秒放行，此后由各自完整建单完成驱动补发，不设置正式RPS。CPU/内存/监控/75%绝对容量保护全程生效，预热初始有界队列填充与稳定阶段持续增长分别判断。
 
 ```powershell
-python -u -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java --jmeter-jar $jmeterJar --concurrency 4 --threads 500 --inflight 500 --capacity 1000 --publisher-window 256 --max-posts 8000 --seconds 30
+python -u -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java --jmeter-jar $jmeterJar --concurrency 8 --threads 100 --inflight 100 --capacity 200 --publisher-window 64 --max-posts 3980 --seconds 30
 ```
 
-2026-10-28 四桶验收使用新入口 `--fresh-bucketed-sku`，不可使用只建立 SINGLE 的 `--fresh-sku`。本轮固定四桶、4消费者、prefetch=1、发布窗口32、Redis命令1s/连接500ms；不运行下文历史消费者 A/B 示例。
+本组4000账号实测及中断原因见[100线程与8消费者验证](../../docs/jmeter/four-bucket-100threads-8consumers-4000users.md)。首轮受旧SKU到期维护影响，补测用剩余账号在正式第22秒耗尽，未取得完整30秒的有效容量结果。
+
+四桶验收使用 `--fresh-bucketed-sku`，不可使用只建立SINGLE的`--fresh-sku`。本轮保留Redis命令1s/连接500ms。此前4消费者/32发布窗口以及500线程/容量1000/256发布窗口均为历史批次，报告保留实际参数与结果，不按当前默认值改写；本轮不运行下文历史消费者A/B示例。
 
 当前保留原有20笔低速启动检查及其排空，随后按相同并发持续预热30秒，最近三个5秒段的成功建单完成率极差不超过均值20%时进入正式计时；未稳定则每5秒复查，预热总计最多60秒，仍不稳定则停止并标记未进入正式测量。并发预热与正式窗口使用同一JMeter、同一SKU和连续在途窗口，不排空、不重启、不二次爬升。`--seconds 30`仅表示正式测量30秒，`--max-posts`及账号预算覆盖并发预热和正式全过程。原始JTL保留全阶段，summary分别保存`warmupStats`与`allPhases`；正式P99只纳入正式窗口发起的成功202，订单TPS按创建时间统计，包含预热期发起而正式窗内建成的订单。
 
@@ -44,7 +46,7 @@ $jmeterJar = 'E:/path/to/apache-jmeter-5.6.3/bin/ApacheJMeter.jar'
 $runtime = '.local/jmeter/diagnosis-new/runtime'
 python -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java --jmeter-jar $jmeterJar --host-only
 python -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java --jmeter-jar $jmeterJar --initialize
-python -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java --jmeter-jar $jmeterJar --rps 1 --seconds 10 --selftest
+python -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java --jmeter-jar $jmeterJar --inflight 0 --rps 1 --seconds 10 --selftest
 ```
 
 初始化只接受没有同名容器或卷的新环境，不自动清理已有数据。先核验项目标签、端口、独立卷，在空 schema 迁移前将随机 guard 绑定同项目 Redis；V15 迁移及管理员初始化完成后，既有建数器建立数据库 guard 和最多 10000 个独立买家。失败时保留现场，不能自动删除 guard、repair 或重建数据卷。
@@ -66,7 +68,7 @@ python -u -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java
 
 此模式不设置到达速率。仅在 MySQL 已提交且 Redis `settle` 返回成功后，诊断记录无凭据的申请ID、订单ID、终态和完成时间，最近记录上限512。观察器每50ms读取 loopback 内存指标，不查询购票状态或借数据库连接；JMeter 每个线程必须看到自己的终态才进入下一次请求，HTTP 202 不代表完成。最初一批在2秒内启动，之后完全随建单完成速度补入，不设置RPS。窗口上限限制未完成申请数；将 `--threads` 与 `--inflight` 都设为100，即100并发用户的完整建单闭环。
 
-启动阶段按实际发单时间错开请求，已经等待的线程继续按间隔发送，不会在启动窗口结束时集中追赶；之后不限制发单速率。`--publisher-window` 可在隔离应用中选择 16、32 或 64 个发布确认槽位，默认 32，并记录在运行证明和结果中。比较优化前后的 SKU 锁时必须使用相同槽位数，不能把调整窗口的影响归为 SQL 优化。
+启动阶段按实际发单时间错开请求，已经等待的线程继续按间隔发送，不会在启动窗口结束时集中追赶；之后不限制发单速率。`--publisher-window`支持16、32、64或256，默认64，并记录在运行证明和结果中。当前四桶验收允许4或8消费者、发布窗口32/64/256，覆盖历史复现与本轮配置。比较优化前后的SKU锁时必须使用相同槽位数，不能把调整窗口的影响归为SQL优化。
 
 JTL 保存每笔发放时的完成计数、`orderCompletedMs/orderObservedMs/orderStatus`，结果验证实际在途未超限、完整成功样本与全部202一致。`postToSettledMs` 为HTTP提交到SQL提交且Redis结算成功的完整链路耗时；`postToClientObservedMs` 为测试线程通过诊断观察器看到自己终态的耗时，包含本机观测传播，不能冒充前台状态查询接口的延迟。观察器异常或超过2秒未更新即停新POST；2秒资源监控与原资源/容量熔断保留。观察器请求耗时和实际最大采样间隔单列，未做关闭仪表的开销A/B。
 
@@ -78,7 +80,7 @@ python -u -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java
 
 固定的是测量时间和在途请求上限，不是 RPS/TPS。比较 64→96 在途请求而 TPS 不再增长、队列持续有待处理消息、消费者确实忙碌，可以判断该配置出现吞吐平台；不能仅因某个窗口得到一个数就声称机器极限。闭环各组的实际输入率会随完成率变化，不能冒充相同 offered RPS 的开放到达因果对照。CPU 没有满载也可能已受消费者槽位或 SKU 串行锁约束。
 
-`--max-posts` 只限制本轮独立账号预算，不限制发压速率。若账号提前耗尽，`accountBudgetExhausted=true`，该轮不具备容量结论。每轮仍提前登录全部预算账号；未使用账号也不跨轮复用。先预算每批最多 10000 账号。
+`--max-posts`只限制本轮独立账号预算，不限制发压速率。若账号提前耗尽，`accountBudgetExhausted=true`，该轮不具备容量结论。每轮提前登录预算账号；已发单及失败账号不再复用。本轮总预算4000人，环境干扰中断后，只从JTL索引及MySQL核对确实未发单的剩余账号补测，保留原失败批次，不扩大总用户数。
 
 旧批次余额不足时，可在应用已正常关闭、无在途购票和其他数据库事务后轮换独立批次：
 
@@ -91,15 +93,15 @@ python -B scripts/jmeter/diagnose-purchase.py --runtime .local/jmeter/capacity-n
 ### 可复现的开放到达对照
 
 ```powershell
-python -u -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java --jmeter-jar $jmeterJar --concurrency 2 --pool 10 --rps 10 --seconds 30
+python -u -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java --jmeter-jar $jmeterJar --concurrency 2 --pool 10 --inflight 0 --rps 10 --seconds 30
 # 仅在上一档安全且对账通过后提高负载。固定负载对照只改变 concurrency。
-python -u -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java --jmeter-jar $jmeterJar --concurrency 4 --pool 10 --rps 40 --seconds 30
-python -u -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java --jmeter-jar $jmeterJar --concurrency 8 --pool 10 --rps 40 --seconds 30
+python -u -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java --jmeter-jar $jmeterJar --concurrency 4 --pool 10 --inflight 0 --rps 40 --seconds 30
+python -u -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java --jmeter-jar $jmeterJar --concurrency 8 --pool 10 --inflight 0 --rps 40 --seconds 30
 python -B scripts/jmeter/analyze-diagnosis.py .local/jmeter/diagnosis-new
 python -B -m unittest discover -s scripts/jmeter -p 'test_*.py'
 ```
 
-每档先预登录，再以 20 个独立账号预热并排空；之后 JMeter 默认12个HTTP发送线程（可通过 `--threads` 调整）只向固定 loopback 地址发 POST，按绝对到达时间或完成闭环及绝对截止时间调度，不执行登录、CSRF 获取或状态轮询。每笔使用独立 Session/CSRF/账号/幂等键，失败账号也不再复用。`next-account.json` 是本地独占执行的账号游标，不支持多运行器并发。
+每档先预登录，再以20个独立账号低速启动检查并排空；之后JMeter默认100线程、100在途（`--inflight 0`显式选择历史开放到达模式），只向固定loopback地址发POST，按绝对到达时间或完成闭环及绝对截止时间调度，不执行登录、CSRF获取或状态轮询。每笔使用独立Session/CSRF/账号/幂等键，失败账号也不再复用。`next-account.json`是本地独占执行的账号游标，不支持多运行器并发。
 
 初始预热只能消除部分冷启动影响，不能保证 JVM 已达长期稳态。正式窗口最少 30 秒；30 秒结果只属于短窗口诊断。不要把所有档位串成一个无人监督的自动增压循环。`noEscalation=true` 后不得继续增压。只有发现池等待证据后，才考虑同负载的 `--pool 16` 对照。
 

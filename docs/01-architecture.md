@@ -30,7 +30,7 @@ HTTP `POST /api/v1/orders` 由 `PurchaseAdmission` 编排，只调用 Redis 和 
 
 Lua 一次完成销售资格、Redis 时间窗口、单笔数量、场次内用户未完成预扣数量、库存和排队容量检查，之后扣减库存，写 RESERVED 凭据与恢复 ZSET。入口预检只限制并发未完成申请；已建订单的精确场次限额仍由消费者在 MySQL 中校验，不宣称 Redis 是额度权威。
 
-`PurchasePublisher` 使用持久消息、durable 队列、mandatory 和 CorrelationData Confirm。默认最多256个在途发布，多个请求可并行确认，回调不访问数据库或Redis。HTTP仅在ACK且未退回时返回202；窗口满、发送失败或确认超时返回受控503，保留原RESERVED，由原幂等键查询/重试以及恢复任务解决。确认未知不等于消息未投递，绝不据此返票。RabbitMQ不可用时没有同步MySQL下单降级。
+`PurchasePublisher` 使用持久消息、durable 队列、mandatory 和 CorrelationData Confirm。默认最多64个在途发布，多个请求可并行确认，回调不访问数据库或Redis。HTTP仅在ACK且未退回时返回202；窗口满、发送失败或确认超时返回受控503，保留原RESERVED，由原幂等键查询/重试以及恢复任务解决。确认未知不等于消息未投递，绝不据此返票。RabbitMQ不可用时没有同步MySQL下单降级。
 
 ## MySQL 消费与三道幂等
 
@@ -95,7 +95,7 @@ MySQL 是订单和最终库存权威。默认每用户每场四张，PENDING/PAI
 
 ## 配置和迁移
 
-普通启动方式、绝对路径、API 路径及单模块结构保持。`PURCHASE_IN_FLIGHT_WINDOW` 按用户2026年10月28日最新要求默认256，可配置1–256；`PURCHASE_CONFIRM_TIMEOUT_MS` 默认3000ms。命名空间默认取MYSQL_DATABASE。保留容量、排队截止、消费者并发/预取、安全限流、库存Outbox配置，删除旧购票处理租约和无调用的购票双桶限速器配置。
+普通启动方式、绝对路径、API 路径及单模块结构保持。`PURCHASE_IN_FLIGHT_WINDOW` 按用户2026年10月28日最新要求默认64，可配置1–256；`PURCHASE_CONFIRM_TIMEOUT_MS` 默认3000ms，业务容量默认200、消费者默认2。下一轮隔离验证使用100线程/100在途/容量200/发布窗口64/8消费者，8消费者只作为隔离启动参数。命名空间默认取MYSQL_DATABASE。保留容量、排队截止、消费者并发/预取、安全限流、库存Outbox配置，删除旧购票处理租约和无调用的购票双桶限速器配置。
 
 V1–V13 不变；V14 在任何破坏性 DDL 前拒绝仍有 QUEUED/PROCESSING 的旧库，要求先停写、停止旧发布/消费者并排空旧链路。迁移保留所有订单、支付、候补和历史申请终态，删除废弃 purchase_capacity、购票 Outbox 记录及申请处理租约/token 等字段，增加首次库存初始化标记。已有业务库升级仍须具体授权，不自动 repair、清库或降级。
 

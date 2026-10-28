@@ -31,7 +31,7 @@ class ConfigurationBindingTest {
             assertThat(context.getBean(CheckinProperties.class).opensBeforeMinutes()).isEqualTo(60);
             assertThat(context.getBean(WaitlistProperties.class).dispatchMaxSteps()).isEqualTo(50);
             assertThat(context.getBean(PurchaseProperties.class).capacity()).isEqualTo(200);
-            assertThat(context.getBean(PurchaseProperties.class).inFlightWindow()).isEqualTo(256);
+            assertThat(context.getBean(PurchaseProperties.class).inFlightWindow()).isEqualTo(64);
             assertThat(context.getBean(CatalogCacheProperties.class).maximumEntries()).isEqualTo(2000);
         });
         runner.withPropertyValues("ticketing.order.payment-window-minutes=3", "ticketing.waitlist.outbox.batch-size=20")

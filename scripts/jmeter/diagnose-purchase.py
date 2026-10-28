@@ -579,7 +579,7 @@ class Monitor:
         if any(probe.is_alive() for probe in self.redis_probe_threads): self.trip('redis_probe_did_not_finish')
 
 
-def start_backend(runtime, directory, java, concurrency, pool, bootstrap=False, publisher_window=256, capacity=200):
+def start_backend(runtime, directory, java, concurrency, pool, bootstrap=False, publisher_window=64, capacity=200):
     env, evidence = docker_guard(runtime)
     with db_connect(env) as db:
         if bootstrap:
@@ -809,8 +809,8 @@ def run_round(args):
     try:
         if args.inflight >= int(diag()['capacity']) * .75:
             raise RuntimeError('该在途窗口达到既有75%容量保护线，禁止预登录和加压')
-        if metadata.get('inventoryStrategy') == 'BUCKETED' and (args.concurrency != 4 or args.publisher_window not in (32,256)):
-            raise RuntimeError('本四桶验收批次仅允许4消费者，发布槽位为历史32或用户指定256')
+        if metadata.get('inventoryStrategy') == 'BUCKETED' and (args.concurrency not in (4,8) or args.publisher_window not in (32,64,256)):
+            raise RuntimeError('本四桶验收批次允许4或8消费者，发布槽位为32、64或256')
         previous_drain = drain(env, 20)
         if not previous_drain['complete']: raise RuntimeError('上一批未排空，拒绝发单')
         with (runtime / 'measure-users.csv').open(encoding='utf-8-sig', newline='') as stream:
@@ -1147,10 +1147,10 @@ def fresh_bucketed_sku(args):
                 total = max(args.users,int(metadata['totalStock']))
                 cur.execute("""INSERT INTO ticket_sku(session_id,name,price_cents,total_stock,locked_stock,sold_stock,
                     sale_starts_at,sale_ends_at,max_quantity_per_order,status,inventory_strategy,bucket_count)
-                    SELECT session_id,'隔离四桶验收票档',price_cents,%s,0,0,sale_starts_at,sale_ends_at,
+                    SELECT session_id,%s,price_cents,%s,0,0,sale_starts_at,sale_ends_at,
                     max_quantity_per_order,status,'BUCKETED',4 FROM ticket_sku WHERE id=%s AND status='ON_SALE'
                     AND sale_starts_at<=UTC_TIMESTAMP(6) AND sale_ends_at>UTC_TIMESTAMP(6)+INTERVAL 1 HOUR""",
-                    (total,seed['id']))
+                    ('隔离四桶验收票档-'+directory.name.rsplit('-',1)[-1],total,seed['id']))
                 if cur.rowcount != 1: raise RuntimeError('模板票档没有足够的合法销售窗口')
                 new_id=cur.lastrowid
                 empty_proof=dict(kind='NEW_EMPTY_SKU_FIXTURE_NOT_HISTORICAL_SWITCH',skuId=str(new_id),
@@ -1168,7 +1168,8 @@ def fresh_bucketed_sku(args):
     save(runtime/f'prepared-data-before-bucket-{new_id}.json',metadata)
     metadata.update(skuId=str(new_id),inventoryStrategy='BUCKETED',bucketCount=4,totalStock=total)
     save(path,metadata)
-    backend,logfile=start_backend(runtime,directory,args.java,4,10,publisher_window=256)
+    backend,logfile=start_backend(runtime,directory,args.java,args.concurrency,args.pool,
+                                 publisher_window=args.publisher_window,capacity=args.capacity)
     monitor=Monitor(env,directory,backend.pid,new_id); monitor.start()
     try:
         for _ in range(30):
@@ -1206,15 +1207,15 @@ def main():
     parser.add_argument('--runtime', type=Path, required=True)
     parser.add_argument('--java', required=True)
     parser.add_argument('--jmeter-jar', required=True)
-    parser.add_argument('--concurrency', type=int, choices=(2,4,8), default=2)
+    parser.add_argument('--concurrency', type=int, choices=(2,4,8), default=8)
     parser.add_argument('--pool', type=int, choices=(10,16,20), default=10)
-    parser.add_argument('--publisher-window', type=int, choices=(16,32,64,256), default=256,
+    parser.add_argument('--publisher-window', type=int, choices=(16,32,64,256), default=64,
                         help='隔离应用中同时等待购票消息确认的槽位数')
     parser.add_argument('--rps', type=float, default=10)
-    parser.add_argument('--inflight', type=int, choices=(2,16,32,64,96,100,128,150,500), default=0,
+    parser.add_argument('--inflight', type=int, choices=(0,2,16,32,64,96,100,128,150,500), default=100,
                         help='按消费者完成数补发的闭环在途窗口，启用后不限制RPS')
-    parser.add_argument('--max-posts', type=int, default=2400, help='闭环独立账号预算，耗尽则本轮不能认定容量')
-    parser.add_argument('--threads', type=int, default=12, help='仅HTTP发送线程，不等于在途申请或消费者数量')
+    parser.add_argument('--max-posts', type=int, default=3980, help='闭环账号预算，另预登录20个启动检查账号；耗尽则本轮不能认定容量')
+    parser.add_argument('--threads', type=int, default=100, help='仅HTTP发送线程，不等于在途申请或消费者数量')
     parser.add_argument('--capacity',type=int,default=200,help='仅本轮隔离实例的购票在途容量，不修改业务默认值')
     parser.add_argument('--login-workers', type=int, choices=(1,2,4), default=4, help='测量窗口外的预登录并行度')
     parser.add_argument('--seconds', type=int, default=30)
