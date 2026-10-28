@@ -726,7 +726,14 @@ def audit(db, env, metadata, batch):
                        FROM order_stock_allocation a JOIN ticket_order o ON o.id=a.order_id
                        WHERE a.sku_id=%s AND o.idempotency_key LIKE %s GROUP BY a.bucket_no ORDER BY a.bucket_no""",
                     (metadata['skuId'],prefix))
-        distribution = cur.fetchall()
+        distributed = {row['bucket_no']: row for row in cur.fetchall()}
+        total_quantity = sum(int(row['quantity']) for row in distributed.values())
+        distribution = [dict(bucket_no=bucket['bucket_no'],
+                             orders=int(distributed.get(bucket['bucket_no'], {}).get('orders', 0)),
+                             quantity=int(distributed.get(bucket['bucket_no'], {}).get('quantity', 0)),
+                             quantityPercent=100 * int(distributed.get(bucket['bucket_no'], {}).get('quantity', 0)) / total_quantity
+                                 if total_quantity else 0)
+                        for bucket in buckets]
         invariants = {}
         audit_sql = (ROOT/'scripts/verification/audit-buckets.sql').read_text(encoding='utf-8')
         audit_sql = '\n'.join(line for line in audit_sql.splitlines() if not line.lstrip().startswith('--'))

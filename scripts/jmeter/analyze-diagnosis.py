@@ -60,7 +60,28 @@ def analyze(directory):
     result = dict(directory=directory.name, summary=summary, run=run, windowSamples=len(window),
                   timers=timers, publisherResults=publisher_results, sampledLockWaitRows=dict(waits), sampledLockWaitKeys=dict(wait_keys), threadBorrowSnapshots=dict(borrowers))
     bucket_path=directory/'bucket-audit.json'
-    if bucket_path.exists(): result['bucketAudit']=json.loads(bucket_path.read_text(encoding='utf-8'))
+    if bucket_path.exists():
+        audit=json.loads(bucket_path.read_text(encoding='utf-8'))
+        result['bucketAudit']=audit
+        waiting, waiting_locks, granted = Counter(), Counter(), Counter()
+        for sample in window:
+            for row in sample['mysql']['waits']:
+                parts=str(row.get('LOCK_DATA','')).split(',')
+                if row['OBJECT_NAME']=='ticket_stock_bucket' and len(parts)==2 and parts[0].strip()==str(run['skuId']):
+                    waiting[int(parts[1])]+=1
+            for row in sample['mysql'].get('stockLocks',[]):
+                parts=str(row.get('LOCK_DATA','')).split(',')
+                if row['OBJECT_NAME']=='ticket_stock_bucket' and len(parts)==2 and parts[0].strip()==str(run['skuId']):
+                    number=int(parts[1])
+                    if row['LOCK_STATUS']=='WAITING': waiting_locks[number]+=1
+                    elif row['LOCK_STATUS']=='GRANTED' and row['LOCK_MODE'].startswith('X'): granted[number]+=1
+        distribution={row['bucket_no']:row for row in audit['distribution']}
+        total=sum(int(row['quantity']) for row in distribution.values())
+        result['bucketStatistics']=[dict(row,orders=distribution.get(row['bucket_no'],{}).get('orders',0),
+            quantity=int(distribution.get(row['bucket_no'],{}).get('quantity',0)),
+            quantityPercent=100*int(distribution.get(row['bucket_no'],{}).get('quantity',0))/total if total else 0,
+            sampledWaitRows=waiting[row['bucket_no']],sampledWaitingLocks=waiting_locks[row['bucket_no']],
+            sampledGrantedXLocks=granted[row['bucket_no']]) for row in audit['rows']]
     if window:
         result['resources'] = dict(cpuMean=mean(s['cpu'] for s in window), cpuMax=max(s['cpu'] for s in window),
             freeGiBMin=min(s['freeGiB'] for s in window),
