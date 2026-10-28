@@ -29,13 +29,25 @@ public record TicketSale(
         String inventoryStrategy,
         int bucketCount) {
 
+    /** 仅供分桶新建单的窗口事实使用；未读取余额时禁止对外提供库存语义。 */
+    private static final int BALANCE_NOT_LOADED = -1;
+
     public static TicketSale from(Activity activity, ActivitySession session, TicketSku sku) {
+        return from(activity, session, sku, sku.getTotalStock() - sku.getLockedStock() - sku.getSoldStock());
+    }
+
+    /** 分桶预占由条件UPDATE仲裁，不能把SKU旧计数字段当作桶的可售余额。 */
+    public static TicketSale forBucketedPurchase(Activity activity, ActivitySession session, TicketSku sku) {
+        return from(activity, session, sku, BALANCE_NOT_LOADED);
+    }
+
+    private static TicketSale from(Activity activity, ActivitySession session, TicketSku sku, int availableStock) {
         return new TicketSale(
                 sku.getId(),
                 session.getId(),
                 sku.getName(),
                 sku.getPriceCents(),
-                sku.getTotalStock() - sku.getLockedStock() - sku.getSoldStock(),
+                availableStock,
                 sku.getMaxQuantityPerOrder(),
                 TicketStatus.valueOf(sku.getStatus()),
                 ActivityStatus.valueOf(activity.getStatus()),
@@ -49,6 +61,13 @@ public record TicketSale(
 
     public boolean bucketed() { return "BUCKETED".equals(inventoryStrategy); }
 
+    public int availableStock() {
+        if (availableStock == BALANCE_NOT_LOADED) {
+            throw new IllegalStateException("当前销售事实未读取库存余额，只能用于分桶新建单的窗口校验");
+        }
+        return availableStock;
+    }
+
     public TicketSale withAvailableStock(int available) {
         return new TicketSale(skuId,sessionId,name,priceCents,available,maxQuantityPerOrder,status,
                 activityStatus,sessionStatus,saleStartsAt,saleEndsAt,sessionSaleStartsAt,
@@ -56,8 +75,9 @@ public record TicketSale(
     }
 
     public SaleStatus statusAt(LocalDateTime now) {
+        int available = availableStock();
         SaleStatus eligibility = windowStatusAt(now);
-        return eligibility == SaleStatus.SELLING && availableStock == 0 ? SaleStatus.SOLD_OUT : eligibility;
+        return eligibility == SaleStatus.SELLING && available == 0 ? SaleStatus.SOLD_OUT : eligibility;
     }
 
     /** 锁定的销售配置与时间资格；库存另由对应权威账本的条件更新仲裁。 */

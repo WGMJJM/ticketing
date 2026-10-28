@@ -38,6 +38,8 @@ public class TradeResourceLocker {
     private final MeterRegistry meters;
     private final TicketInventory inventory;
 
+    private enum SaleFacts { FULL_BALANCE, PURCHASE_WINDOW }
+
     public TradeResourceLocker(
             UserAccountMapper users,
             ActivityMapper activities,
@@ -90,12 +92,19 @@ public class TradeResourceLocker {
                 lockSaleForQuota(userId, skuId));
     }
 
+    /** 仅供普通异步CREATE_ORDER新建单；SINGLE仍取完整余额，分桶只取窗口与配置事实。 */
+    public TradeContext lockNewPurchase(long userId, long skuId) {
+        UserAccount account = account(userId, true);
+        return new TradeContext(userId, "ACTIVE".equals(account.getStatus()), "ADMIN".equals(account.getRole()),
+                sale(skuId, userId, SaleFacts.PURCHASE_WINDOW));
+    }
+
     public TradeContext lockWaitlistPurchase(long userId, long skuId, boolean requireActive) {
         return lockPurchase(userId, skuId, requireActive);
     }
 
     public TicketSale lockSaleForQuota(long userId, long skuId) {
-        return sale(skuId, userId);
+        return sale(skuId, userId, SaleFacts.FULL_BALANCE);
     }
 
     /** 仅供缺失订单明细的异常善后：不存在可锁SKU，仍先锁活动/场次再锁订单并记录人工处理。 */
@@ -113,11 +122,11 @@ public class TradeResourceLocker {
 
     /** 已持用户锁后调用；最初两次非锁定读取只发现父ID，之后严格由父到子加锁。 */
     public TicketSale lockSale(long skuId) {
-        return sale(skuId, null);
+        return sale(skuId, null, SaleFacts.FULL_BALANCE);
     }
 
     /** 用户SHARE→活动SHARE→场次SHARE→可选额度UPDATE→SINGLE票档UPDATE或BUCKETED票档SHARE→桶→订单，禁止后置补锁额度。 */
-    private TicketSale sale(long skuId, Long quotaUser) {
+    private TicketSale sale(long skuId, Long quotaUser, SaleFacts facts) {
         TicketSku initial = tickets.selectById(skuId);
         if (initial == null) {
             throw new BusinessException(HttpStatus.NOT_FOUND, "TICKET_NOT_FOUND", "票档不存在");
@@ -153,6 +162,9 @@ public class TradeResourceLocker {
         } finally { meters.timer("ticketing.trade.lock.duration","resource","stock").record(System.nanoTime()-started,TimeUnit.NANOSECONDS); }
         if (sku == null || !sku.getSessionId().equals(session.getId()) || !session.getActivityId().equals(activity.getId())) {
             throw new BusinessException(HttpStatus.CONFLICT, "TICKET_UNAVAILABLE", "票档所属活动或场次不存在");
+        }
+        if (facts == SaleFacts.PURCHASE_WINDOW && sku.bucketed()) {
+            return TicketSale.forBucketedPurchase(activity, session, sku);
         }
         return TicketSale.from(activity, session, inventory.balance(sku));
     }

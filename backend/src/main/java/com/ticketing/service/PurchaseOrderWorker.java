@@ -105,7 +105,10 @@ public class PurchaseOrderWorker {
             if (current.terminal()) return current;
             if (!current.deadlineAt().isAfter(requests.now())) return fail(current, "EXPIRED", "QUEUE_EXPIRED");
             if (expiryOnly) { state.setRollbackOnly(); return null; }
-            TradeContext context = resources.lockReservation(current.userId(), current.skuId(), true);
+            TradeContext context = OrderOperation.CREATE_ORDER.name().equals(current.idempotencyOperation())
+                    && current.waitlistEntryId() == null
+                    ? resources.lockNewPurchase(current.userId(), current.skuId())
+                    : resources.lockReservation(current.userId(), current.skuId(), true);
             participants.forEach(p -> p.validate(current));
             long orderId = reservation.reservePurchase(context, current.quantity(),
                     OrderOperation.valueOf(current.idempotencyOperation()), current.idempotencyKey(), current.id(), orderedBuckets);

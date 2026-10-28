@@ -36,6 +36,7 @@ public class RedisStockReservationService {
     private final String pending;
     private final String prefix;
     private static final long RETENTION = Duration.ofDays(7).toSeconds();
+    private static final String MAX_SESSION_ID = Long.toString(Long.MAX_VALUE);
     private static final DefaultRedisScript<List> RESERVE = script("purchase-reserve.lua", List.class);
     private static final DefaultRedisScript<Long> SETTLE = script("purchase-settle.lua", Long.class);
     private static final DefaultRedisScript<Long> PUBLISH = script("inventory-publish.lua", Long.class);
@@ -182,25 +183,42 @@ public class RedisStockReservationService {
         String outcome = "not_settled";
         RuntimeException failure = null;
         try {
-            if (!Boolean.TRUE.equals(redis.hasKey(requestKey(result.id())))) {
-                PurchaseRequest summary = lookup(result.userId(), result.idempotencyOperation(), result.idempotencyKey());
-                if (summary != null && summary.id() == result.id() && summary.status().equals(result.status())
-                        && java.util.Objects.equals(summary.orderId(), result.orderId())) {
-                    outcome = "already_settled_fact_matches";
-                    return true;
+            // 正常路径只读sessionId并执行结算Lua，不再先查询EXISTS。
+            String session = text(redis.opsForHash().get(requestKey(result.id()), "sessionId"));
+            if (session.isEmpty()) {
+                // HGETALL同时区分详情已过期与字段缺失；remember回填的终态详情本就没有sessionId。
+                Map<Object, Object> fields = redis.opsForHash().entries(requestKey(result.id()));
+                boolean missing = fields.isEmpty();
+                String expectedState = "SUCCEEDED".equals(result.status()) ? "CONSUMED" : "RELEASED";
+                String expectedOrder = result.orderId() == null ? "" : result.orderId().toString();
+                boolean terminalMatches = expectedState.equals(text(fields.get("state")))
+                        && Long.toString(result.id()).equals(text(fields.get("id")))
+                        && result.status().equals(text(fields.get("status")))
+                        && expectedOrder.equals(text(fields.get("orderId")));
+                if (missing || terminalMatches) {
+                    PurchaseRequest summary = lookup(result.userId(), result.idempotencyOperation(), result.idempotencyKey());
+                    if (summary != null && summary.id() == result.id() && summary.status().equals(result.status())
+                            && java.util.Objects.equals(summary.orderId(), result.orderId())) {
+                        outcome = "already_settled_fact_matches";
+                        return true;
+                    }
                 }
-                pause(result.skuId(), "settle_request_missing");
-                outcome = "request_missing_paused";
+                pause(result.skuId(), missing ? "settle_request_missing" : "settle_session_missing_or_conflicting");
+                outcome = missing ? "request_missing_paused" : "session_missing_or_conflicting_paused";
                 return false;
             }
-            String session = text(redis.opsForHash().get(requestKey(result.id()), "sessionId"));
+            if (!validSessionId(session)) {
+                pause(result.skuId(), "settle_session_invalid");
+                outcome = "session_invalid_paused";
+                return false;
+            }
             Long value = redis.execute(SETTLE,
                     List.of(skuKey(result.skuId()), requestKey(result.id()), idemKey(result.userId(), result.idempotencyOperation(), result.idempotencyKey()),
                             recovery, pending, userKey(result.userId()), quotaKey(result.userId(), session)),
                     Long.toString(result.id()), result.status(), result.orderId() == null ? "" : result.orderId().toString(),
                     result.failureCode() == null ? "" : result.failureCode(), Long.toString(RETENTION),
                     result.skuId() + ":" + result.id());
-            if (value != null && value >= 0) { outcome = "settled"; return true; }
+            if (value != null && (value == 0 || value == 1)) { outcome = "settled"; return true; }
             pause(result.skuId(), "settle_script_rejected");
             outcome = "script_rejected_paused";
             return false;
@@ -211,6 +229,17 @@ public class RedisStockReservationService {
                 else diagnostics.failure("purchase.settle", failure, started, Map.of());
             }
         }
+    }
+
+    /** 只接受现有发布协议写出的规范正long场次ID，拒绝空值、符号、前导零和溢出。 */
+    private static boolean validSessionId(String session) {
+        if (session.isEmpty() || session.length() > MAX_SESSION_ID.length()
+                || session.charAt(0) < '1' || session.charAt(0) > '9') return false;
+        for (int index = 1; index < session.length(); index++) {
+            char digit = session.charAt(index);
+            if (digit < '0' || digit > '9') return false;
+        }
+        return session.length() < MAX_SESSION_ID.length() || session.compareTo(MAX_SESSION_ID) <= 0;
     }
 
     /** 历史终态预装及只读查询回填；绝不覆盖还需要结算的 RESERVED 凭据。 */
