@@ -1,5 +1,7 @@
 # 票务交易平台开发规范
 
+- 2026年10月28日新增独立购票HTTP QPS/P99入口scripts/jmeter/purchase-http-qps.py及purchase-http-qps.jmx，线程收到HTTP响应即继续，绝不从完整建单闭环推算接口QPS。用户后续明确直接测100线程并允许旧账号，--reuse-accounts只读筛选有效且仍有额度的不同旧用户，每笔新幂等键，原领取游标不重置。本次容量1000、12消费者/prefetch1、Hikari16、确认256、8桶，500预扣门禁中断预热，未形成30秒稳定窗口；短时100.90 HTTP QPS/202 HTTP P99 2427ms不得宣称稳定能力，详见docs/jmeter/purchase-http-qps-20261028.md。保留本轮原始JTL与异常现场，不再加压。
+
 - 2026年10月28日用户再次授权清理旧Docker测试卷、.local和过时压测脚本。本次删除21个未被任何容器挂载的ticketing-jmeter历史卷，保留当前4c632ab1aa65三卷、业务ticketing三卷及其他项目资源；.local仅保留当前runtime账号池/凭据、最近两轮摘要与审计、业务运行小文件和功能验收配置。旧原始产物路径均为历史记录，不得宣称仍存在；当前压测统一使用scripts/jmeter/diagnose-purchase.py，已退役的轮询与固定RPS购票脚本不再恢复。
 
 - 2026年10月28日后续隔离A/B按用户最新对照参数运行：8桶与16桶各一轮，线程/在途200/200、Redis购票容量1000、12消费者/prefetch1、Hikari16、发布确认窗口256、每轮8000独立账号；至少预热30秒并确认稳定，随后不断流测30秒。V15结构已支持16桶，本次只在`ticketing-jmeter`隔离库建空实验SKU，不切换业务SKU、不修改业务默认值或迁移。单轮8桶TPS79.60、16桶82.07，增幅3.10%，仅作初步对照，见`docs/jmeter/eight-vs-sixteen-bucket-20261028.md`；原始证据见对应`.local/jmeter/redis-mysql-optimizations-20261028/`目录。此条覆盖此前本轮capacity200、Hikari12等测试参数。

@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<jmeterTestPlan version="1.2" properties="5.0" jmeter="5.6.3"><hashTree>
+<TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="购票HTTP响应闭环QPS" enabled="true"><elementProp name="TestPlan.user_defined_variables" elementType="Arguments"><collectionProp name="Arguments.arguments"/></elementProp></TestPlan><hashTree>
+<ThreadGroup guiclass="ThreadGroupGui" testclass="ThreadGroup" testname="仅购票POST" enabled="true">
+<stringProp name="ThreadGroup.on_sample_error">continue</stringProp><elementProp name="ThreadGroup.main_controller" elementType="LoopController"><boolProp name="LoopController.continue_forever">true</boolProp><intProp name="LoopController.loops">-1</intProp></elementProp>
+<stringProp name="ThreadGroup.num_threads">${__P(threads,1)}</stringProp><stringProp name="ThreadGroup.ramp_time">1</stringProp><boolProp name="ThreadGroup.scheduler">false</boolProp></ThreadGroup><hashTree>
+<JSR223Sampler guiclass="TestBeanGUI" testclass="JSR223Sampler" testname="purchase-http-post" enabled="true"><stringProp name="scriptLanguage">groovy</stringProp><stringProp name="cacheKey">true</stringProp><stringProp name="filename"></stringProp><stringProp name="parameters"></stringProp><stringProp name="script"><![CDATA[
+def state
+synchronized(props) {
+ state=props.get('httpQpsState')
+ if(state==null) {
+  def c=new groovy.json.JsonSlurper().parse(new File(props.getProperty('sessionsFile')),'UTF-8')
+  if(c.target!='http://127.0.0.1:18080/api/v1/orders' || !(c.batch==~/[A-Za-z0-9_-]{8,60}/)
+      || c.sessions.collect{it.accountIndex}.toSet().size()!=c.sessions.size()
+      || c.sessions.collect{it.cookie}.toSet().size()!=c.sessions.size()) throw new IllegalArgumentException('隔离会话配置不合法')
+  state=[config:c,next:0,active:0,flow:null,readMs:0L,client:java.net.http.HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(3)).build()]
+  props.put('httpQpsState',state)
+ }
+}
+def c=state.config
+def stop=new File(props.getProperty('stopFile'))
+def trip={String reason -> synchronized(state) {if(!stop.exists()) stop.setText('{"reason":"'+reason+'","timeMs":'+System.currentTimeMillis()+'}','UTF-8')}}
+int index=-1
+long deadline=(long)c.endMs
+while(index<0 && !stop.exists()) {
+ synchronized(state) {
+  long now=System.currentTimeMillis()
+  if(now-state.readMs>=50L) {
+   try {
+    state.flow=new groovy.json.JsonSlurper().parseText(java.nio.file.Files.readString(new File(c.controlFile).toPath()))
+    state.readMs=now
+   } catch(Exception error) {trip('http_control_read_failure')}
+  }
+  if(state.flow!=null) {
+   deadline=(long)state.flow.endMs
+   if(now-(long)state.flow.timeMs>1000L) trip('http_capacity_control_stale')
+   if(now>=deadline) {SampleResult.setIgnore();ctx.getThread().stop();return}
+   if(c.stopAfter && state.next >= (int)c.stopAfter) trip('selftest_post_limit')
+   if(now >= (long)c.startMs && !stop.exists() && (long)state.flow.pending+state.active < (long)c.gateLimit) {
+    if(state.next>=c.sessions.size()) trip('http_account_budget_exhausted')
+    else {index=state.next++;state.active++}
+   }
+  }
+ }
+ if(index<0) Thread.sleep(5L)
+}
+if(index<0) {SampleResult.setIgnore();ctx.getThread().stop();return}
+def session=c.sessions[index]
+def key="jmeter-${c.batch}-${index}"
+def request=java.net.http.HttpRequest.newBuilder(java.net.URI.create(c.target))
+ .timeout(java.time.Duration.ofSeconds(15)).header('Content-Type','application/json')
+ .header('Cookie',session.cookie).header(session.csrfHeader,session.csrfToken).header('Idempotency-Key',key)
+ .POST(java.net.http.HttpRequest.BodyPublishers.ofString('{"skuId":"'+c.skuId+'","quantity":1}')).build()
+if(stop.exists() || System.currentTimeMillis()>=deadline) {
+ synchronized(state){state.active--};SampleResult.setIgnore();ctx.getThread().stop();return
+}
+long start=System.currentTimeMillis(), monotonic=System.nanoTime()
+vars.put('postStartMs',start.toString());vars.put('idempotencyKey',key)
+vars.put('accountIndex',session.accountIndex.toString());vars.put('requestId','');vars.put('failureCode','')
+try {
+ def response=state.client.send(request,java.net.http.HttpResponse.BodyHandlers.ofString())
+ vars.put('httpCompletedMs',System.currentTimeMillis().toString())
+ vars.put('postElapsedMs',java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime()-monotonic).toString())
+ SampleResult.setResponseCode(response.statusCode().toString())
+ try {
+  def body=new groovy.json.JsonSlurper().parseText(response.body())
+  vars.put('requestId',body?.data?.requestId?.toString() ?: '')
+  vars.put('failureCode',body?.code?.toString() ?: '')
+ } catch(Exception invalid){vars.put('failureCode','INVALID_JSON_RESPONSE')}
+ SampleResult.setSuccessful(response.statusCode()==202 && vars.get('requestId').isLong())
+ if(!SampleResult.isSuccessful()) trip('http_rejection_or_invalid_response')
+} catch(Exception error) {
+ vars.put('httpCompletedMs',System.currentTimeMillis().toString())
+ vars.put('postElapsedMs',java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime()-monotonic).toString())
+ vars.put('failureCode',error.getClass().getSimpleName());SampleResult.setResponseCode('NETWORK_ERROR');SampleResult.setSuccessful(false)
+ trip('http_network_failure')
+} finally {synchronized(state){state.active--}}
+// 到此立即开始下一次循环；不查询申请、不等待消费者或订单终态。
+SampleResult.setResponseData(new byte[0]);SampleResult.setResponseMessage('purchase-http-qps')
+]]></stringProp></JSR223Sampler><hashTree/>
+</hashTree></hashTree></hashTree></jmeterTestPlan>

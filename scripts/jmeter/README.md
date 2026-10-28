@@ -1,5 +1,7 @@
 # Apache JMeter 性能验证
 
+仅测购票接口 HTTP QPS/P99 使用 [独立 HTTP 专项入口](HTTP_QPS.md)，按完整响应完成时间统计；不使用完整建单闭环结果推算。
+
 购票统一使用 [安全诊断入口](DIAGNOSIS.md)；活动详情查询使用 [活动 RPS 场景](ACTIVITY_RPS.md)。旧版轮询购票、固定 RPS 发单、独立会话准备及其调度和分析脚本已删除。
 
 ## 当前购票入口
