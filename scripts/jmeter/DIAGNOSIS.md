@@ -1,5 +1,15 @@
 # 购票 TPS 安全诊断
 
+本轮仅将隔离消费者改为12、总预登录预算改为8000（20个启动检查加7980个并发请求账号），其余100线程/100在途/发布窗口64/容量200/4桶/prefetch1/Hikari10保持不变。连续预热至少30秒、稳定后测30秒，仅执行一轮。业务默认消费者仍2。
+
+实测65.10 TPS、完整建单P99 2.151秒，正式30秒及正确性验收通过，核心参数见[12消费者结果](../../docs/jmeter/four-bucket-100threads-12consumers.md)。
+
+```powershell
+python -u -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java --jmeter-jar $jmeterJar --concurrency 12 --threads 100 --inflight 100 --capacity 200 --publisher-window 64 --max-posts 7980 --seconds 30
+```
+
+以下为此前8消费者与4000账号批次的配置及记录。
+
 2026-10-28最新用户配置为100线程、JMeter在途100、隔离实例购票容量200、发布确认窗口64、8消费者/prefetch=1，仍使用单SKU四桶。脚本默认同步这组参数，发布窗口源码默认64，业务消费者默认仍2；8消费者只用于本轮隔离验证。最多预登录4000个独立账号，其中20个用于低速启动检查，3980个用于并发预热和正式窗口；预算不足则标记本轮无效并报告，不自动增加账号。首批请求分2秒放行，此后由各自完整建单完成驱动补发，不设置正式RPS。CPU/内存/监控/75%绝对容量保护全程生效，预热初始有界队列填充与稳定阶段持续增长分别判断。
 
 ```powershell

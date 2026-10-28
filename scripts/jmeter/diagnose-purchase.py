@@ -809,8 +809,8 @@ def run_round(args):
     try:
         if args.inflight >= int(diag()['capacity']) * .75:
             raise RuntimeError('该在途窗口达到既有75%容量保护线，禁止预登录和加压')
-        if metadata.get('inventoryStrategy') == 'BUCKETED' and (args.concurrency not in (4,8) or args.publisher_window not in (32,64,256)):
-            raise RuntimeError('本四桶验收批次允许4或8消费者，发布槽位为32、64或256')
+        if metadata.get('inventoryStrategy') == 'BUCKETED' and (args.concurrency not in (4,8,12) or args.publisher_window not in (32,64,256)):
+            raise RuntimeError('本四桶验收批次允许4、8或12消费者，发布槽位为32、64或256')
         previous_drain = drain(env, 20)
         if not previous_drain['complete']: raise RuntimeError('上一批未排空，拒绝发单')
         with (runtime / 'measure-users.csv').open(encoding='utf-8-sig', newline='') as stream:
@@ -1207,14 +1207,14 @@ def main():
     parser.add_argument('--runtime', type=Path, required=True)
     parser.add_argument('--java', required=True)
     parser.add_argument('--jmeter-jar', required=True)
-    parser.add_argument('--concurrency', type=int, choices=(2,4,8), default=8)
+    parser.add_argument('--concurrency', type=int, choices=(2,4,8,12), default=12)
     parser.add_argument('--pool', type=int, choices=(10,16,20), default=10)
     parser.add_argument('--publisher-window', type=int, choices=(16,32,64,256), default=64,
                         help='隔离应用中同时等待购票消息确认的槽位数')
     parser.add_argument('--rps', type=float, default=10)
     parser.add_argument('--inflight', type=int, choices=(0,2,16,32,64,96,100,128,150,500), default=100,
                         help='按消费者完成数补发的闭环在途窗口，启用后不限制RPS')
-    parser.add_argument('--max-posts', type=int, default=3980, help='闭环账号预算，另预登录20个启动检查账号；耗尽则本轮不能认定容量')
+    parser.add_argument('--max-posts', type=int, default=7980, help='闭环账号预算，另预登录20个启动检查账号；耗尽则本轮不能认定容量')
     parser.add_argument('--threads', type=int, default=100, help='仅HTTP发送线程，不等于在途申请或消费者数量')
     parser.add_argument('--capacity',type=int,default=200,help='仅本轮隔离实例的购票在途容量，不修改业务默认值')
     parser.add_argument('--login-workers', type=int, choices=(1,2,4), default=4, help='测量窗口外的预登录并行度')
