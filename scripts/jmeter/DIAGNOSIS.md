@@ -10,7 +10,7 @@
 python -u -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java --jmeter-jar $jmeterJar --bucket-count 8 --concurrency 12 --threads 100 --inflight 100 --capacity 200 --publisher-window 64 --max-posts 7980 --seconds 30
 ```
 
-`--bucket-count`控制新建夹具，默认8，支持4/8；正式结果以SKU实际桶数和逐桶审计为准。初始化先等待Redis就绪及库存Outbox排空再审计，避免把尚在投递的通知当作库存差异。下文为此前4桶批次记录。
+`--bucket-count`控制新建夹具，默认8，支持4/8/16；正式结果以SKU实际桶数和逐桶审计为准。初始化先等待Redis就绪及库存Outbox排空再审计，避免把尚在投递的通知当作库存差异。8桶与16桶对照结果见[本轮对照](../../docs/jmeter/eight-vs-sixteen-bucket-20261028.md)，下文为历史批次记录。
 
 本轮8桶实测为73.27 TPS、完整建单P99 1.629秒，正式30秒及正确性验收通过，见[8桶核心结果](../../docs/jmeter/eight-bucket-100threads-12consumers.md)。
 

@@ -41,7 +41,7 @@ public class TicketInventory {
             return Map.of();
         }
         int bucketCount = sale.bucketCount();
-        if ((bucketCount != 4 && bucketCount != 8) || requestId == null) throw inconsistent();
+        if ((bucketCount != 4 && bucketCount != 8 && bucketCount != 16) || requestId == null) throw inconsistent();
         int initial = StockBucketRouter.route(requestId, bucketCount);
         if (!ordered) {
             if (buckets.reserve(sale.skuId(), initial, quantity) == 1) return Map.of(initial, quantity);

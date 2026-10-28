@@ -53,6 +53,17 @@ def has_persistent_pending_growth(samples):
             and all(b['redisPending'] >= a['redisPending'] for a,b in zip(samples,samples[1:])))
 
 
+def capacity_pressure_reason(pending, queued, capacity, allow_capacity_fill=False):
+    """显式满容量闭环允许等于上限；默认仍在75%处停发，超过权威容量始终停止。"""
+    if allow_capacity_fill:
+        if pending > capacity: return 'redis_pending_exceeds_capacity'
+        if queued > capacity: return 'queue_exceeds_capacity'
+    else:
+        if pending >= capacity * .75: return 'redis_pending_reaches_75_percent_capacity'
+        if queued >= capacity * .75: return 'queue_reaches_75_percent_capacity'
+    return None
+
+
 def summarize(posts, orders, start_ms, end_ms):
     if end_ms <= start_ms:
         raise ValueError('固定窗口结束须晚于开始')

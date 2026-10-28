@@ -214,7 +214,7 @@ class StockBucketIT {
         worker.process(attempt.id());stock(sku,3,0);consistent();
     }
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(ints={4,8})
+    @org.junit.jupiter.params.provider.ValueSource(ints={4,8,16})
     void oneHundredDistinctBuyersNeverOversellOrLeavePartialAllocations(int bucketCount) throws Exception {
         long hot=sku(session,100,bucketCount);var claims=new ArrayList<PurchaseRequest>();
         for(int n=0;n<100;n++) claims.add(claim(user("USER"),hot,1));
@@ -364,7 +364,7 @@ class StockBucketIT {
         new com.fasterxml.jackson.databind.ObjectMapper().writerWithDefaultPrettyPrinter().writeValue(target.toFile(),proof);
     }
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(ints={4,8})
+    @org.junit.jupiter.params.provider.ValueSource(ints={4,8,16})
     void completeTransactionsHoldDifferentBucketExclusiveLocksTogether(int bucketCount) throws Exception {
         sku=sku(session,bucketCount,bucketCount);
         var claims=new ArrayList<PurchaseRequest>();

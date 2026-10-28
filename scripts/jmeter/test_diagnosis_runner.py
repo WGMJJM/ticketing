@@ -35,9 +35,10 @@ class CompletionFeedTest(unittest.TestCase):
     def test_persistent_reader_lock_remains_fail_closed(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder)/'flow.json'
-            with patch.object(runner.os, 'replace', side_effect=PermissionError), patch.object(runner.time, 'sleep'):
+            with patch.object(runner.os, 'replace', side_effect=PermissionError) as replace, patch.object(runner.time, 'sleep'):
                 with self.assertRaises(PermissionError):
                     runner.publish_flow(path, {'completed': 2})
+            self.assertEqual(replace.call_count, 50)
             self.assertFalse(path.exists())
 
 

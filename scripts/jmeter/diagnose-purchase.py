@@ -21,7 +21,7 @@ import time
 
 import pymysql
 import requests
-from diagnosis_stats import SafetyGate, summarize, quantiles, has_persistent_pending_growth, success_cohorts, warmup_stability
+from diagnosis_stats import SafetyGate, summarize, quantiles, has_persistent_pending_growth, success_cohorts, warmup_stability, capacity_pressure_reason
 
 ROOT = Path(__file__).resolve().parents[2]
 PLAN = Path(__file__).with_name('purchase-post-only.jmx')
@@ -45,13 +45,14 @@ def completed_workers(snapshot):
 def publish_flow(path, value):
     temporary = path.with_suffix('.tmp')
     save(temporary, value)
-    # Windows读取者短暂持有不允许删除的句柄；最多重试100ms，仍失败则保持失败关闭。
-    for attempt in range(10):
+    # Windows读取者或扫描器可能短暂占用文件；最多重试500ms，仍低于既有2秒观测过期阈值。
+    attempts = 50
+    for attempt in range(attempts):
         try:
             os.replace(temporary, path)
             return
         except PermissionError:
-            if attempt == 9: raise
+            if attempt == attempts - 1: raise
             time.sleep(.01)
 
 
@@ -337,7 +338,7 @@ def digest(db):
 
 
 class Monitor:
-    def __init__(self, env, directory, backend_pid=None, sku_id=None):
+    def __init__(self, env, directory, backend_pid=None, sku_id=None, allow_capacity_fill=False):
         self.env, self.directory, self.backend_pid = env, directory, backend_pid
         self.jmeter_pid = None
         self.stop = directory / 'stop.flag'
@@ -349,6 +350,7 @@ class Monitor:
         self.fuse_after = None
         self.jmeter_process = None
         self.sku_id = sku_id
+        self.allow_capacity_fill = allow_capacity_fill
         self.measurement_start_ms = None
         self.redis_probe_done = threading.Event()
         self.redis_probe_threads = []
@@ -514,10 +516,9 @@ class Monitor:
                         'ticketing:seckill:v2:ticketingjmeter:pending', f'ticketing:seckill:v2:ticketingjmeter:sku:{self.sku_id}'))
                     sample['redisPending'] = int(ledger[0] or 0)
                     sample['stockLedger'] = ledger[1] if isinstance(ledger[1], dict) else dict(zip(ledger[1][::2], ledger[1][1::2]))
-                    if sample['redisPending'] >= capacity * .75:
-                        sample['unsafe'] = 'redis_pending_reaches_75_percent_capacity'
-                    if sample['mq']['ready'] + sample['mq']['unacked'] >= capacity * .75:
-                        sample['unsafe'] = 'queue_reaches_75_percent_capacity'
+                    capacity_reason = capacity_pressure_reason(sample['redisPending'],
+                        sample['mq']['ready'] + sample['mq']['unacked'], capacity, self.allow_capacity_fill)
+                    if capacity_reason: sample['unsafe'] = capacity_reason
                     host_probe = self.redis_host_probe_last or self.redis_probe_started
                     telemetry = self.redis_telemetry_last or self.redis_probe_started
                     sample['redisHostProbeAgeSec'] = sample['monotonic'] - host_probe
@@ -788,7 +789,7 @@ def audit(db, env, metadata, batch):
                        and ledger.get('ready') == '1' and not any(invariants.values())
                        and int(ledger.get('inventorySequence', -1)) == sequence and not pending_outbox
                        and (sku['inventory_strategy'] != 'BUCKETED' or
-                            sku['bucket_count'] in (4,8) and [b['bucket_no'] for b in buckets] == list(range(sku['bucket_count']))
+                            sku['bucket_count'] in (4,8,16) and [b['bucket_no'] for b in buckets] == list(range(sku['bucket_count']))
                             and sum(b['total_stock'] for b in buckets) == sku['total_stock']
                             and main_counters == dict(locked_stock=0,sold_stock=0)))
     return orders, checks
@@ -809,13 +810,13 @@ def run_round(args):
     print('本轮目录 '+str(directory)+'；开始受监控的预登录',flush=True)
     backend, logfile = start_backend(runtime, directory, args.java, args.concurrency, args.pool,
                                     publisher_window=args.publisher_window, capacity=args.capacity)
-    monitor = Monitor(env, directory, backend.pid, metadata['skuId'])
+    monitor = Monitor(env, directory, backend.pid, metadata['skuId'], allow_capacity_fill=args.allow_capacity_fill)
     monitor.start()
     jmeter = None
     feed = None
     try:
-        if args.inflight >= int(diag()['capacity']) * .75:
-            raise RuntimeError('该在途窗口达到既有75%容量保护线，禁止预登录和加压')
+        if capacity_pressure_reason(args.inflight, 0, int(diag()['capacity']), args.allow_capacity_fill):
+            raise RuntimeError('该在途窗口超过本轮容量保护线，禁止预登录和加压')
         if metadata.get('inventoryStrategy') == 'BUCKETED' and (args.concurrency not in (4,8,12) or args.publisher_window not in (32,64,256)):
             raise RuntimeError('本分桶验收批次允许4、8或12消费者，发布槽位为32、64或256')
         previous_drain = drain(env, 20)
@@ -874,8 +875,8 @@ def run_round(args):
                         '@@GLOBAL.innodb_flush_log_at_trx_commit flushAtCommit,@@GLOBAL.sync_binlog syncBinlog')
             mysql = cur.fetchone()
         before_metrics = diag()
-        if args.inflight >= int(before_metrics['capacity']) * .75:
-            raise RuntimeError('在途窗口已触及既有75%容量熔断边界，拒绝启动该档')
+        if capacity_pressure_reason(args.inflight, 0, int(before_metrics['capacity']), args.allow_capacity_fill):
+            raise RuntimeError('在途窗口超过本轮容量保护线，拒绝启动该档')
         if args.inflight:
             feed = CompletionFeed(directory, monitor, before_metrics['completions']['count'])
             feed.start()
@@ -896,7 +897,7 @@ def run_round(args):
         monitor.jmeter_process = jmeter
         monitor.jmeter_pid = jmeter.pid
         run_record = dict(batch=batch, concurrency=args.concurrency, pool=args.pool,
-                                      publisherWindow=args.publisher_window,capacity=args.capacity,bucketCount=metadata.get('bucketCount',0),initialRampMs=max(2000,args.threads*20),
+                                      publisherWindow=args.publisher_window,capacity=args.capacity,capacityFillAllowed=args.allow_capacity_fill,bucketCount=metadata.get('bucketCount',0),initialRampMs=max(2000,args.threads*20),
                                       offeredRps=None if args.inflight else args.rps, inflight=args.inflight,
                                       loadModel='completion-closed-loop' if args.inflight else 'paced-arrivals', skuId=metadata['skuId'],
                                       threads=args.threads, loadStartMs=load_start, startMs=start, endMs=end,
@@ -1213,29 +1214,95 @@ def fresh_bucketed_sku(args):
         stop_backend(backend,logfile,directory)
 
 
+def prepare_account_pool(args):
+    """一次补齐隔离账号池；每轮仍由next-account游标领取互不重叠的账号。"""
+    runtime = args.runtime
+    env, evidence = docker_guard(runtime)
+    for port in (18080, 18081):
+        with socket.socket() as probe:
+            if probe.connect_ex(('127.0.0.1', port)) == 0:
+                raise RuntimeError('补齐账号池前隔离应用必须关闭')
+    if not drain(env, 10)['complete']: raise RuntimeError('已有预扣未排空，不补齐账号池')
+    path = runtime / 'measure-users.csv'
+    with path.open(encoding='utf-8-sig', newline='') as stream:
+        accounts = list(csv.DictReader(stream))
+    cursor_path = runtime / 'next-account.json'
+    offset = json.loads(cursor_path.read_text()) if cursor_path.exists() else 0
+    if len({row['username'] for row in accounts}) != len(accounts) or not 0 <= offset <= len(accounts):
+        raise RuntimeError('账号池存在重复用户名或领取游标异常')
+    additional = max(0, args.prepare_account_pool - len(accounts))
+    directory = runtime.parent / ('account-pool-' + secrets.token_hex(3))
+    directory.mkdir()
+    metadata_path = runtime / 'prepared-data.json'
+    metadata = json.loads(metadata_path.read_text(encoding='utf-8'))
+    monitor = Monitor(env, directory, sku_id=metadata['skuId'])
+    monitor.start()
+    try:
+        with db_connect(env) as db:
+            db_guard(db, env)
+            if additional:
+                batch = secrets.token_hex(6)
+                new_accounts = [dict(username=f'jm_pool_{batch}_{index:05d}',
+                                     password=env['ADMIN_BOOTSTRAP_PASSWORD']) for index in range(additional)]
+                db.begin()
+                try:
+                    with db.cursor() as cur:
+                        cur.execute("SELECT password_hash FROM user_account WHERE username=%s AND status='ACTIVE' AND role='ADMIN'",
+                                    (env['ADMIN_BOOTSTRAP_USERNAME'],))
+                        seed = cur.fetchone()
+                        if not seed or not seed['password_hash'].startswith('$2'):
+                            raise RuntimeError('隔离管理员BCrypt种子无效')
+                        for start in range(0, additional, 500):
+                            if monitor.stop.exists(): raise RuntimeError('补齐账号池期间资源保护触发')
+                            cur.executemany("""INSERT INTO user_account(username,email,email_verified_at,password_hash,status,role,created_at,updated_at)
+                                VALUES(%s,%s,UTC_TIMESTAMP(6),%s,'ACTIVE','USER',UTC_TIMESTAMP(6),UTC_TIMESTAMP(6))""",
+                                [(row['username'], row['username'] + '@example.invalid', seed['password_hash'])
+                                 for row in new_accounts[start:start + 500]])
+                    db.commit()
+                except Exception:
+                    db.rollback()
+                    raise
+                accounts.extend(new_accounts)
+                temporary = path.with_suffix('.tmp')
+                with temporary.open('w', encoding='utf-8-sig', newline='') as stream:
+                    writer = csv.DictWriter(stream, fieldnames=['username', 'password'])
+                    writer.writeheader()
+                    writer.writerows(accounts)
+                os.replace(temporary, path)
+        metadata['measureUsers'] = len(accounts)
+        save(metadata_path, metadata)
+        save(directory / 'account-pool.json', dict(total=len(accounts), added=additional,
+             nextAccount=offset, remaining=len(accounts) - offset, docker=evidence))
+        print(f'账号池共{len(accounts)}人，本次新增{additional}人，未领取{len(accounts)-offset}人；原领取游标保持不变', flush=True)
+    finally:
+        monitor.close()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--runtime', type=Path, required=True)
     parser.add_argument('--java', required=True)
     parser.add_argument('--jmeter-jar', required=True)
     parser.add_argument('--concurrency', type=int, choices=(2,4,8,12), default=12)
-    parser.add_argument('--pool', type=int, choices=(10,16,20), default=10)
+    parser.add_argument('--pool', type=int, choices=(10,12,16,20), default=10)
     parser.add_argument('--publisher-window', type=int, choices=(16,32,64,256), default=64,
                         help='隔离应用中同时等待购票消息确认的槽位数')
     parser.add_argument('--rps', type=float, default=10)
-    parser.add_argument('--inflight', type=int, choices=(0,2,16,32,64,96,100,128,150,500), default=100,
+    parser.add_argument('--inflight', type=int, choices=(0,2,16,32,64,96,100,128,150,200,500), default=100,
                         help='按消费者完成数补发的闭环在途窗口，启用后不限制RPS')
     parser.add_argument('--max-posts', type=int, default=7980, help='闭环账号预算，另预登录20个启动检查账号；耗尽则本轮不能认定容量')
     parser.add_argument('--threads', type=int, default=100, help='仅HTTP发送线程，不等于在途申请或消费者数量')
     parser.add_argument('--capacity',type=int,default=200,help='仅本轮隔离实例的购票在途容量，不修改业务默认值')
+    parser.add_argument('--allow-capacity-fill', action='store_true', help='显式允许闭环在途达到容量上限，仍保留资源和持续积压保护')
     parser.add_argument('--login-workers', type=int, choices=(1,2,4), default=4, help='测量窗口外的预登录并行度')
     parser.add_argument('--seconds', type=int, default=30)
     parser.add_argument('--selftest', action='store_true')
     parser.add_argument('--host-only', action='store_true')
     parser.add_argument('--initialize', action='store_true')
     parser.add_argument('--users',type=int,default=10000,help='初始化独立账号预算，最多60000；预登录仍受资源保护')
+    parser.add_argument('--prepare-account-pool', type=int, help='将现有隔离账号池一次补齐至指定人数，保留每轮领取游标')
     parser.add_argument('--fresh-bucketed-sku',action='store_true',help='guard隔离库新建空分桶票档并初始化Redis，不切换历史票档')
-    parser.add_argument('--bucket-count',type=int,choices=(4,8),default=8,help='新建隔离分桶票档的桶数')
+    parser.add_argument('--bucket-count',type=int,choices=(4,8,16),default=8,help='新建隔离分桶票档的桶数')
     parser.add_argument('--previous-runtime', type=Path, help='初始化新批次前核验并轮换旧隔离容器，保留全部旧卷')
     parser.add_argument('--fresh-sku', action='store_true', help='只在已有guard隔离库添加正常SINGLE测试票档，不清理旧数据')
     args = parser.parse_args()
@@ -1244,9 +1311,13 @@ def main():
     if args.rps <= 0 or args.seconds < (10 if args.selftest else 30): parser.error('正式窗口至少30秒；熔断自检至少10秒')
     if args.inflight and not 10 <= args.max_posts <= 50000: parser.error('闭环独立账号预算须在10至50000')
     if not 1 <= args.users <= 60000: parser.error('初始化预算须在1至60000')
+    if args.prepare_account_pool is not None and not 1 <= args.prepare_account_pool <= 60000:
+        parser.error('隔离账号池人数须在1至60000')
     if args.inflight and args.threads < args.inflight: parser.error('线程数必须足以承载闭环窗口')
     if not 1 <= args.threads <= 500: parser.error('发压线程必须在1至500')
     if not 1 <= args.capacity <= 10000: parser.error('隔离实例容量须在1至10000')
+    if args.allow_capacity_fill and (not args.inflight or args.inflight > args.capacity):
+        parser.error('满容量验证仅允许不超过服务端容量的闭环在途窗口')
     if args.previous_runtime and not args.initialize: parser.error('旧批次轮换只可与initialize一起使用')
     if args.host_only:
         native = WindowsResources(); samples = []
@@ -1256,6 +1327,9 @@ def main():
         print(json.dumps(samples, ensure_ascii=False)); return
     if args.initialize:
         initialize(args)
+        return
+    if args.prepare_account_pool is not None:
+        prepare_account_pool(args)
         return
     if args.fresh_bucketed_sku:
         fresh_bucketed_sku(args)

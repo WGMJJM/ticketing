@@ -1,8 +1,15 @@
 import unittest
-from diagnosis_stats import SafetyGate, summarize, has_persistent_pending_growth, success_cohorts, warmup_stability
+from diagnosis_stats import SafetyGate, summarize, has_persistent_pending_growth, success_cohorts, warmup_stability, capacity_pressure_reason
 
 
 class DiagnosisStatsTest(unittest.TestCase):
+    def test_full_capacity_closed_loop_requires_explicit_opt_in_and_still_rejects_overflow(self):
+        self.assertEqual(capacity_pressure_reason(150, 0, 200), 'redis_pending_reaches_75_percent_capacity')
+        self.assertEqual(capacity_pressure_reason(0, 150, 200), 'queue_reaches_75_percent_capacity')
+        self.assertIsNone(capacity_pressure_reason(200, 200, 200, True))
+        self.assertEqual(capacity_pressure_reason(201, 0, 200, True), 'redis_pending_exceeds_capacity')
+        self.assertEqual(capacity_pressure_reason(0, 201, 200, True), 'queue_exceeds_capacity')
+
     def test_warmup_requires_flat_successful_completion_rates(self):
         def samples(counts):
             return [dict(completedMs=15000+i*5000+n,status='SUCCEEDED') for i,count in enumerate(counts) for n in range(count)]
