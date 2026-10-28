@@ -1,5 +1,15 @@
 # 购票 TPS 安全诊断
 
+本轮扩展并验证8桶业务，使用`--fresh-bucketed-sku --bucket-count 8`在guard隔离库新建空票档，保留历史4桶票档。单轮压测命令为：
+
+```powershell
+python -u -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java --jmeter-jar $jmeterJar --bucket-count 8 --concurrency 12 --threads 100 --inflight 100 --capacity 200 --publisher-window 64 --max-posts 7980 --seconds 30
+```
+
+`--bucket-count`控制新建夹具，默认8，支持4/8；正式结果以SKU实际桶数和逐桶审计为准。初始化先等待Redis就绪及库存Outbox排空再审计，避免把尚在投递的通知当作库存差异。下文为此前4桶批次记录。
+
+本轮8桶实测为73.27 TPS、完整建单P99 1.629秒，正式30秒及正确性验收通过，见[8桶核心结果](../../docs/jmeter/eight-bucket-100threads-12consumers.md)。
+
 本轮仅将隔离消费者改为12、总预登录预算改为8000（20个启动检查加7980个并发请求账号），其余100线程/100在途/发布窗口64/容量200/4桶/prefetch1/Hikari10保持不变。连续预热至少30秒、稳定后测30秒，仅执行一轮。业务默认消费者仍2。
 
 实测65.10 TPS、完整建单P99 2.151秒，正式30秒及正确性验收通过，核心参数见[12消费者结果](../../docs/jmeter/four-bucket-100threads-12consumers.md)。

@@ -781,7 +781,7 @@ def audit(db, env, metadata, batch):
                        and ledger.get('ready') == '1' and not any(invariants.values())
                        and int(ledger.get('inventorySequence', -1)) == sequence and not pending_outbox
                        and (sku['inventory_strategy'] != 'BUCKETED' or
-                            sku['bucket_count'] == 4 and [b['bucket_no'] for b in buckets] == [0,1,2,3]
+                            sku['bucket_count'] in (4,8) and [b['bucket_no'] for b in buckets] == list(range(sku['bucket_count']))
                             and sum(b['total_stock'] for b in buckets) == sku['total_stock']
                             and main_counters == dict(locked_stock=0,sold_stock=0)))
     return orders, checks
@@ -810,7 +810,7 @@ def run_round(args):
         if args.inflight >= int(diag()['capacity']) * .75:
             raise RuntimeError('该在途窗口达到既有75%容量保护线，禁止预登录和加压')
         if metadata.get('inventoryStrategy') == 'BUCKETED' and (args.concurrency not in (4,8,12) or args.publisher_window not in (32,64,256)):
-            raise RuntimeError('本四桶验收批次允许4、8或12消费者，发布槽位为32、64或256')
+            raise RuntimeError('本分桶验收批次允许4、8或12消费者，发布槽位为32、64或256')
         previous_drain = drain(env, 20)
         if not previous_drain['complete']: raise RuntimeError('上一批未排空，拒绝发单')
         with (runtime / 'measure-users.csv').open(encoding='utf-8-sig', newline='') as stream:
@@ -889,7 +889,7 @@ def run_round(args):
         monitor.jmeter_process = jmeter
         monitor.jmeter_pid = jmeter.pid
         run_record = dict(batch=batch, concurrency=args.concurrency, pool=args.pool,
-                                      publisherWindow=args.publisher_window,capacity=args.capacity,initialRampMs=max(2000,args.threads*20),
+                                      publisherWindow=args.publisher_window,capacity=args.capacity,bucketCount=metadata.get('bucketCount',0),initialRampMs=max(2000,args.threads*20),
                                       offeredRps=None if args.inflight else args.rps, inflight=args.inflight,
                                       loadModel='completion-closed-loop' if args.inflight else 'paced-arrivals', skuId=metadata['skuId'],
                                       threads=args.threads, loadStartMs=load_start, startMs=start, endMs=end,
@@ -1128,11 +1128,12 @@ def fresh_bucketed_sku(args):
     env,proof = docker_guard(runtime)
     for port in (18080,18081):
         with socket.socket() as probe:
-            if probe.connect_ex(('127.0.0.1',port)) == 0: raise RuntimeError('建四桶夹具前隔离应用必须关闭')
+            if probe.connect_ex(('127.0.0.1',port)) == 0: raise RuntimeError('建分桶夹具前隔离应用必须关闭')
     if not drain(env,10)['complete']: raise RuntimeError('已有预扣未排空')
     path = runtime/'prepared-data.json'
     metadata = json.loads(path.read_text(encoding='utf-8'))
     directory = runtime.parent/('bucket-initialize-'+secrets.token_hex(4)); directory.mkdir()
+    bucket_count=args.bucket_count
     with db_connect(env) as db:
         db_guard(db,env)
         db.begin()
@@ -1148,25 +1149,25 @@ def fresh_bucketed_sku(args):
                 cur.execute("""INSERT INTO ticket_sku(session_id,name,price_cents,total_stock,locked_stock,sold_stock,
                     sale_starts_at,sale_ends_at,max_quantity_per_order,status,inventory_strategy,bucket_count)
                     SELECT session_id,%s,price_cents,%s,0,0,sale_starts_at,sale_ends_at,
-                    max_quantity_per_order,status,'BUCKETED',4 FROM ticket_sku WHERE id=%s AND status='ON_SALE'
+                    max_quantity_per_order,status,'BUCKETED',%s FROM ticket_sku WHERE id=%s AND status='ON_SALE'
                     AND sale_starts_at<=UTC_TIMESTAMP(6) AND sale_ends_at>UTC_TIMESTAMP(6)+INTERVAL 1 HOUR""",
-                    ('隔离四桶验收票档-'+directory.name.rsplit('-',1)[-1],total,seed['id']))
+                    (f'隔离{bucket_count}桶验收票档-'+directory.name.rsplit('-',1)[-1],total,bucket_count,seed['id']))
                 if cur.rowcount != 1: raise RuntimeError('模板票档没有足够的合法销售窗口')
                 new_id=cur.lastrowid
                 empty_proof=dict(kind='NEW_EMPTY_SKU_FIXTURE_NOT_HISTORICAL_SWITCH',skuId=str(new_id),
-                    total=total,previousLocked=0,previousSold=0,oldOrders=0,pending=0)
+                    total=total,bucketCount=bucket_count,previousLocked=0,previousSold=0,oldOrders=0,pending=0)
                 sha=hashlib.sha256(json.dumps(empty_proof,sort_keys=True).encode()).hexdigest()
                 cur.executemany('INSERT INTO ticket_stock_bucket(sku_id,bucket_no,total_stock) VALUES(%s,%s,%s)',
-                    [(new_id,b,total//4+(b<total%4)) for b in range(4)])
+                    [(new_id,b,total//bucket_count+(b<total%bucket_count)) for b in range(bucket_count)])
                 cur.execute('INSERT INTO ticket_waitlist_gate(sku_id) VALUES(%s)',(new_id,))
                 cur.execute("""INSERT INTO stock_strategy_switch(sku_id,bucket_count,operator_id,backup_sha256,previous_locked,previous_sold)
-                    VALUES(%s,4,%s,%s,0,0)""",(new_id,operator,sha))
+                    VALUES(%s,%s,%s,%s,0,0)""",(new_id,bucket_count,operator,sha))
             db.commit()
         except Exception:
             db.rollback(); raise
     save(directory/'empty-fixture-receipt.json',dict(evidence=empty_proof,sha256=sha,docker=proof))
     save(runtime/f'prepared-data-before-bucket-{new_id}.json',metadata)
-    metadata.update(skuId=str(new_id),inventoryStrategy='BUCKETED',bucketCount=4,totalStock=total)
+    metadata.update(skuId=str(new_id),inventoryStrategy='BUCKETED',bucketCount=bucket_count,totalStock=total)
     save(path,metadata)
     backend,logfile=start_backend(runtime,directory,args.java,args.concurrency,args.pool,
                                  publisher_window=args.publisher_window,capacity=args.capacity)
@@ -1174,7 +1175,10 @@ def fresh_bucketed_sku(args):
     try:
         for _ in range(30):
             ledger=json.loads(redis('HGETALL',f'ticketing:seckill:v2:ticketingjmeter:sku:{new_id}'))
-            if ledger and ledger.get('ready') == '1': break
+            if ledger and ledger.get('ready') == '1':
+                with db_connect(env) as ready_db, ready_db.cursor() as ready_cur:
+                    ready_cur.execute("SELECT COUNT(*) n FROM outbox_event WHERE status<>'SENT'")
+                    if ready_cur.fetchone()['n'] == 0: break
             if monitor.stop.exists(): raise RuntimeError('初始化资源保护触发')
             time.sleep(1)
         with db_connect(env) as db:
@@ -1195,8 +1199,8 @@ def fresh_bucketed_sku(args):
                 switches=cur.fetchone()
             save(directory/'database-structure.json',dict(indexes=indexes,foreignKeys=foreign_keys,switches=switches))
         save(directory/'bucket-audit.json',checks)
-        if not checks['valid']: raise RuntimeError('四桶初始化审计未通过')
-        print(f'四桶SKU {new_id}已创建并通过Redis/库存审计；保留原票档、订单和数据卷')
+        if not checks['valid']: raise RuntimeError('分桶初始化审计未通过')
+        print(f'{bucket_count}桶SKU {new_id}已创建并通过Redis/库存审计；保留原票档、订单和数据卷')
     finally:
         monitor.close()
         stop_backend(backend,logfile,directory)
@@ -1223,7 +1227,8 @@ def main():
     parser.add_argument('--host-only', action='store_true')
     parser.add_argument('--initialize', action='store_true')
     parser.add_argument('--users',type=int,default=10000,help='初始化独立账号预算，最多60000；预登录仍受资源保护')
-    parser.add_argument('--fresh-bucketed-sku',action='store_true',help='guard隔离库新建空四桶票档并初始化Redis，不切换历史票档')
+    parser.add_argument('--fresh-bucketed-sku',action='store_true',help='guard隔离库新建空分桶票档并初始化Redis，不切换历史票档')
+    parser.add_argument('--bucket-count',type=int,choices=(4,8),default=8,help='新建隔离分桶票档的桶数')
     parser.add_argument('--previous-runtime', type=Path, help='初始化新批次前核验并轮换旧隔离容器，保留全部旧卷')
     parser.add_argument('--fresh-sku', action='store_true', help='只在已有guard隔离库添加正常SINGLE测试票档，不清理旧数据')
     args = parser.parse_args()
