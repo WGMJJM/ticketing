@@ -1,7 +1,9 @@
 package com.ticketing.config;
 
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import com.ticketing.common.RedisCommandDiagnostics;
 import java.util.List;
+import java.util.Map;
 import org.apache.ibatis.builder.StaticSqlSource;
 import org.apache.ibatis.executor.Executor;
 import org.apache.ibatis.mapping.MappedStatement;
@@ -23,6 +25,42 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 
 class PurchaseDiagnosticsConfigTest {
+    @Test
+    void bucketHeldIntervalIsSeparateFromSkuSharedConfigurationLock() throws Exception {
+        var registry=new SimpleMeterRegistry();
+        var executor=mock(Executor.class);
+        var configuration=new Configuration();
+        var shared=new MappedStatement.Builder(configuration,"com.ticketing.mapper.TicketSkuMapper.shared",
+            new StaticSqlSource(configuration,"SELECT * FROM ticket_sku WHERE id=1 FOR SHARE"),SqlCommandType.SELECT).build();
+        var reserve=new MappedStatement.Builder(configuration,"com.ticketing.mapper.StockBucketMapper.reserve",
+            new StaticSqlSource(configuration,"UPDATE ticket_stock_bucket SET locked_stock=locked_stock+1 WHERE sku_id=1 AND bucket_no=0"),SqlCommandType.UPDATE).build();
+        when(executor.query(shared,null,RowBounds.DEFAULT,null)).thenReturn(List.of(new Object()));
+        when(executor.update(reserve,null)).thenReturn(1);
+        Executor observed=(Executor)new PurchaseDiagnosticsConfig.SqlDiagnostics(registry).plugin(executor);
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            observed.query(shared,null,RowBounds.DEFAULT,null);observed.update(reserve,null);observed.update(reserve,null);
+            assertThat(TransactionSynchronizationManager.getSynchronizations()).hasSize(2);
+            TransactionSynchronizationManager.getSynchronizations().forEach(s->s.afterCompletion(TransactionSynchronization.STATUS_COMMITTED));
+            for(String stage:List.of("sku.shared.held.client","bucket.held.client")) {
+                assertThat(registry.get("ticketing.diagnostics.duration").tag("stage",stage).timer().count()).isEqualTo(1);
+            }
+            assertThat(registry.find("ticketing.diagnostics.duration").tag("stage","stock.held.client").timer()).isNull();
+        } finally {TransactionSynchronizationManager.clearSynchronization();registry.close();}
+    }
+    @Test
+    void inventoryPauseIsCountedOnceUntilAbsolutePublishRestoresReady() {
+        var registry = new SimpleMeterRegistry();
+        var diagnostics = new RedisCommandDiagnostics(registry);
+        diagnostics.inventoryPaused(1);
+        diagnostics.inventoryPaused(1);
+        diagnostics.inventoryReady(1);
+        diagnostics.inventoryReady(1);
+        assertThat(registry.get("ticketing.diagnostics.inventory.pauses").counter().count()).isEqualTo(1);
+        assertThat(registry.get("ticketing.diagnostics.redis.duration").tag("stage", "inventory.paused")
+                .timer().count()).isEqualTo(1);
+        registry.close();
+    }
     @Test
     void shutdownRequiresIndependentTokenAndExactLocalManagementPost() {
         String token = "a".repeat(64);
@@ -137,6 +175,42 @@ class PurchaseDiagnosticsConfigTest {
         var recent = (java.util.Map<?,?>)log.snapshot().get("recent");
         assertThat(recent).hasSize(512);
         assertThat(recent.containsKey("1")).isFalse();
+    }
+
+    @Test
+    void redisFailureEventsAreBoundedAndSurviveSuccessfulEventTraffic() {
+        var registry = new SimpleMeterRegistry();
+        var diagnostics = new RedisCommandDiagnostics(registry);
+        diagnostics.failure("security.rateLimit.eval", new org.springframework.dao.QueryTimeoutException("secret-key-and-password"),
+                diagnostics.start(), Map.of("route", "order", "requestIdKnown", true, "requestId", "12345"));
+        var initial = diagnostics.snapshot().toString();
+        assertThat(initial).contains("requestIdKnown", "order").doesNotContain("secret-key-and-password", "12345");
+        for (int i = 0; i < 300; i++) {
+            diagnostics.success("purchase.reserve.pause", "paused", diagnostics.start(), Map.of("reason", "test"), true);
+        }
+        @SuppressWarnings("unchecked")
+        var snapshot = (Map<String, Object>) diagnostics.snapshot();
+        @SuppressWarnings("unchecked")
+        var events = (List<Map<String, Object>>) snapshot.get("events");
+        assertThat(events).hasSize(256);
+        assertThat(events.getLast()).containsEntry("stage", "purchase.reserve.pause");
+        @SuppressWarnings("unchecked")
+        var failures = (List<Map<String, Object>>) snapshot.get("failures");
+        assertThat(failures).hasSize(1);
+        assertThat(failures.getFirst()).containsEntry("stage", "security.rateLimit.eval")
+                .containsEntry("failureKind", "timeout");
+        assertThat(registry.find("ticketing.diagnostics.redis.duration")
+                .tag("stage", "security.rateLimit.eval").tag("failureKind", "timeout").timer().count()).isEqualTo(1);
+        assertThat(events.toString()).doesNotContain("secret-key-and-password", "12345");
+        for (int i = 0; i < 140; i++) {
+            diagnostics.failure("purchase.reserve.lua", new org.springframework.dao.QueryTimeoutException("private"),
+                    diagnostics.start(), Map.of("requestId", "67890"));
+        }
+        @SuppressWarnings("unchecked")
+        var boundedFailures = (List<Map<String, Object>>) diagnostics.snapshot().get("failures");
+        assertThat(boundedFailures).hasSize(128);
+        assertThat(boundedFailures.toString()).doesNotContain("private", "67890");
+        registry.close();
     }
 
     @Test

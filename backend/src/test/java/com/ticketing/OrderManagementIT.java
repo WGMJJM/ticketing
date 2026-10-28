@@ -140,7 +140,8 @@ class OrderManagementIT {
         buyer.create(skuId, 2, "too-much-stock", 409);
         assertThat(orderCount()).isZero();
         List<String> results = parallel(2, index -> (index == 0 ? buyer : other).create(skuId, 1, "last-ticket", -1).path("creationOutcome").asText());
-        assertThat(results).containsExactlyInAnyOrder("SUCCEEDED", "FAILED");
+        assertThat(results.stream().filter("SUCCEEDED"::equals).count()).isEqualTo(1);
+        assertThat(results).allMatch(v->java.util.Set.of("SUCCEEDED","FAILED","REJECTED").contains(v));
         invariant(1, 0);
         assertThat(orderCount()).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT SUM(quantity) FROM ticket_order_item WHERE session_id=?", Integer.class, sessionId)).isEqualTo(1);
@@ -167,7 +168,8 @@ class OrderManagementIT {
     void concurrentDifferentSkusShareOneUserSessionLimit() throws Exception {
         long secondSku = sku(20, 10000);
         var results = parallel(2, index -> buyer.create(index == 0 ? skuId : secondSku, 3, "quota-" + index, -1).path("creationOutcome").asText());
-        assertThat(results).containsExactlyInAnyOrder("SUCCEEDED", "FAILED");
+        assertThat(results.stream().filter("SUCCEEDED"::equals).count()).isEqualTo(1);
+        assertThat(results).allMatch(v->java.util.Set.of("SUCCEEDED","FAILED","REJECTED").contains(v));
         assertThat(used(buyer)).isEqualTo(3);
         assertThat(orderCount()).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT SUM(locked_stock) FROM ticket_sku WHERE session_id=?", Integer.class, sessionId)).isEqualTo(3);
@@ -182,6 +184,7 @@ class OrderManagementIT {
         // 只注入最后一步写入故障；前面的库存和订单SQL、HTTP及事务均为真实执行。
         doThrow(new DataIntegrityViolationException("验收注入明细写入失败")).when(orderMapper)
                 .insertItem(any(TicketOrder.class), any(TicketSale.class), eq(2));
+        PurchaseTestSupport.prepare(stockSnapshots,skuId);
         long requestId = buyer.call("POST", "/orders", Map.of("skuId", Long.toString(skuId), "quantity", 2), "retry-after-failure", 202).path("data").path("requestId").asLong();
         try {
             org.assertj.core.api.Assertions.assertThatThrownBy(() -> purchaseWorker.process(requestId))
@@ -190,7 +193,7 @@ class OrderManagementIT {
             assertThat(orderCount()).isZero();
             assertThat(used(buyer)).isZero();
         } finally { reset(orderMapper, inventory); }
-        jdbc.update("UPDATE purchase_request SET processing_lease_until=TIMESTAMPADD(SECOND,-1,UTC_TIMESTAMP(6)) WHERE id=?",requestId);
+        assertThat(purchaseRequests.find(requestId)).isNull();
         buyer.create(skuId, 2, "retry-after-failure", 200);
         invariant(2, 0);
         assertThat(orderCount()).isEqualTo(1);
@@ -271,6 +274,7 @@ class OrderManagementIT {
         buyer.create(skuId, 1, "offline", 409);
         buyer.call("POST", "/orders/" + id + "/cancel", null, null, 200);
         jdbc.update("UPDATE activity SET status='PUBLISHED' WHERE id=?", activityId);
+        stockSnapshots.synchronize(skuId);
         jdbc.update("UPDATE activity_session SET status='CANCELLED' WHERE id=?", sessionId);
         buyer.create(skuId, 1, "cancelled-session", 409);
         jdbc.update("UPDATE activity_session SET status='SCHEDULED' WHERE id=?", sessionId);
@@ -302,15 +306,16 @@ class OrderManagementIT {
         var results = parallel(2, index -> index == 0 ? buyer.create(skuId, 1, "offline-race", -1)
                 : admin.call("POST", "/admin/activities/" + activityId + "/offline", Map.of("version", 0), null, 200));
         int created = results.get(0).path("creationOutcome").asText().equals("SUCCEEDED") ? 1 : 0;
-        assertThat(results.get(0).path("creationOutcome").asText()).isIn("SUCCEEDED", "FAILED");
+        assertThat(results.get(0).path("creationOutcome").asText()).isIn("SUCCEEDED", "FAILED", "REJECTED");
         buyer.create(skuId, 1, "after-offline", 409);
         invariant(created, 0);
         assertThat(orderCount()).isEqualTo(created);
         jdbc.update("UPDATE activity SET status='PUBLISHED' WHERE id=?", activityId);
+        stockSnapshots.synchronize(skuId);
         var next = parallel(2, index -> index == 0 ? other.create(skuId, 1, "cancel-race", -1)
                 : admin.call("POST", "/admin/sessions/" + sessionId + "/cancel", Map.of("version", 0), null, 200));
         int second = next.get(0).path("creationOutcome").asText().equals("SUCCEEDED") ? 1 : 0;
-        assertThat(next.get(0).path("creationOutcome").asText()).isIn("SUCCEEDED", "FAILED");
+        assertThat(next.get(0).path("creationOutcome").asText()).isIn("SUCCEEDED", "FAILED", "REJECTED");
         other.create(skuId, 1, "after-session-cancel", 409);
         invariant(created + second, 0);
         assertThat(orderCount()).isEqualTo(created + second);
@@ -376,6 +381,7 @@ class OrderManagementIT {
         buyer.call("POST", "/orders/" + id + "/pay", null, null, 409);
         assertThat(buyer.call("GET", "/orders/" + id, null, null, 200).path("data").path("canPay").asBoolean()).isFalse();
         jdbc.update("UPDATE activity SET status='PUBLISHED' WHERE id=?", activityId);
+        stockSnapshots.synchronize(skuId);
         jdbc.update("UPDATE activity_session SET status='CANCELLED' WHERE id=?", sessionId);
         buyer.call("POST", "/orders/" + id + "/pay", null, null, 409);
         jdbc.update("UPDATE activity_session SET status='SCHEDULED' WHERE id=?", sessionId);
@@ -614,6 +620,9 @@ class OrderManagementIT {
         return client;
     }
     private <T> List<T> parallel(int count, CheckedFunction<T> operation) throws Exception {
+        for(long ticket:jdbc.queryForList("SELECT id FROM ticket_sku WHERE session_id=?",Long.class,sessionId)) {
+            PurchaseTestSupport.prepare(stockSnapshots,ticket);
+        }
         CountDownLatch start = new CountDownLatch(1);
         try (var pool = Executors.newFixedThreadPool(count)) {
             List<Future<T>> futures = new ArrayList<>();
@@ -638,6 +647,7 @@ class OrderManagementIT {
             int http = accepted.path("httpStatus").asInt();
             if (http != 202 && !(http == 200 && accepted.path("data").has("requestId"))) {
                 if (expected >= 0) assertThat(http).isEqualTo(expected);
+                else assertThat(http).isEqualTo(409);
                 ((com.fasterxml.jackson.databind.node.ObjectNode) accepted).put("creationOutcome", "REJECTED");
                 return accepted;
             }

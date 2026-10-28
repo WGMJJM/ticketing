@@ -31,7 +31,7 @@ class ConfigurationBindingTest {
             assertThat(context.getBean(CheckinProperties.class).opensBeforeMinutes()).isEqualTo(60);
             assertThat(context.getBean(WaitlistProperties.class).dispatchMaxSteps()).isEqualTo(50);
             assertThat(context.getBean(PurchaseProperties.class).capacity()).isEqualTo(200);
-            assertThat(context.getBean(PurchaseProperties.class).inFlightWindow()).isEqualTo(32);
+            assertThat(context.getBean(PurchaseProperties.class).inFlightWindow()).isEqualTo(256);
             assertThat(context.getBean(CatalogCacheProperties.class).maximumEntries()).isEqualTo(2000);
         });
         runner.withPropertyValues("ticketing.order.payment-window-minutes=3", "ticketing.waitlist.outbox.batch-size=20")
@@ -52,7 +52,7 @@ class ConfigurationBindingTest {
                 "ticketing.purchase.consumer.concurrency=17", "ticketing.purchase.consumer.prefetch=0",
                 "ticketing.purchase.consumer.prefetch=65", "ticketing.purchase.consumer.concurrency=0",
                 "ticketing.purchase.capacity=0", "ticketing.purchase.queue-seconds=4", "ticketing.purchase.in-flight-window=0",
-                "ticketing.purchase.in-flight-window=65",
+                "ticketing.purchase.in-flight-window=257",
                 "ticketing.waitlist.outbox.in-flight-window=65", "ticketing.waitlist.outbox.lease-seconds=5",
                 "ticketing.catalog-cache.maximum-entries=0", "ticketing.catalog-cache.local-seconds=31",
                 "ticketing.catalog-cache.redis-seconds=301", "ticketing.catalog-cache.concurrent-loads=0",

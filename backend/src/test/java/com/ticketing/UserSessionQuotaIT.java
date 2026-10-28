@@ -265,7 +265,7 @@ class UserSessionQuotaIT {
             pool.setMinimumIdle(0);
             pool.setMaximumPoolSize(existing);
             for(int index=0;index<existing;index++)held.add(pool.getConnection());
-            assertThatThrownBy(()->worker.process(claim.id())).isInstanceOf(org.springframework.transaction.CannotCreateTransactionException.class);
+            assertThatThrownBy(()->worker.process(claim.id())).hasRootCauseInstanceOf(java.sql.SQLTransientConnectionException.class);
         } finally {
             for(var connection:held)connection.close();
             pool.setMaximumPoolSize(originalMaximum);

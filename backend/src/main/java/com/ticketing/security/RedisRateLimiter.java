@@ -2,6 +2,7 @@ package com.ticketing.security;
 
 import com.ticketing.config.RateLimitProperties;
 import com.ticketing.config.RateLimitProperties.Policy;
+import com.ticketing.common.RedisCommandDiagnostics;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import java.nio.charset.StandardCharsets;
@@ -11,12 +12,15 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -37,12 +41,25 @@ public class RedisRateLimiter {
     private final RateLimitProperties properties;
     private final SecretKeySpec key;
     private final MeterRegistry meters;
+    private final RedisCommandDiagnostics diagnostics;
     private final AtomicBoolean unavailable = new AtomicBoolean();
 
+    @Autowired
+    public RedisRateLimiter(StringRedisTemplate redis, RateLimitProperties properties, MeterRegistry meters,
+            ObjectProvider<RedisCommandDiagnostics> diagnostics) {
+        this(redis, properties, meters, diagnostics.getIfAvailable());
+    }
+
     public RedisRateLimiter(StringRedisTemplate redis, RateLimitProperties properties, MeterRegistry meters) {
+        this(redis, properties, meters, (RedisCommandDiagnostics) null);
+    }
+
+    private RedisRateLimiter(StringRedisTemplate redis, RateLimitProperties properties, MeterRegistry meters,
+            RedisCommandDiagnostics diagnostics) {
         this.redis = redis;
         this.properties = properties;
         this.meters = meters;
+        this.diagnostics = diagnostics;
         this.key = new SecretKeySpec(Base64.getDecoder().decode(properties.keySecret()), "HmacSHA256");
     }
 
@@ -93,19 +110,26 @@ public class RedisRateLimiter {
             arguments.add(Long.toString(policy.windowSeconds().longValue() * 1000));
         }
         Decision decision;
+        long started = diagnostics == null ? 0 : diagnostics.start();
         try {
             List<?> result = redis.execute(SCRIPT, keys, arguments.toArray());
             if (result == null || result.size() != 2) throw new IllegalStateException("请求限流脚本返回异常");
             boolean allowed = ((Number) result.getFirst()).longValue() == 1;
             long retryMillis = ((Number) result.get(1)).longValue();
             decision = new Decision(allowed ? Outcome.ALLOWED : Outcome.LIMITED, allowed ? 0 : Math.max(1, (retryMillis + 999) / 1000));
+            if (diagnostics != null) diagnostics.success("security.rateLimit.eval",
+                    allowed ? "allowed" : "limited", started, Map.of("route", route), false);
             if (unavailable.getAndSet(false)) LOG.info("请求频率校验服务已恢复");
         } catch (DataAccessException exception) {
+            if (diagnostics != null) diagnostics.failure("security.rateLimit.eval", exception, started, Map.of("route", route));
             if (unavailable.compareAndSet(false, true)) {
                 // 不打印异常正文/堆栈，避免连接信息或请求标识进入日志；故障期间只记录一次。
                 LOG.warn("请求频率校验暂不可用，类别 {}，原因 {}", route, exception.getClass().getSimpleName());
             }
             decision = new Decision(Outcome.UNAVAILABLE, properties.unavailableRetrySeconds());
+        } catch (RuntimeException exception) {
+            if (diagnostics != null) diagnostics.failure("security.rateLimit.eval", exception, started, Map.of("route", route));
+            throw exception;
         }
         meters.counter("ticketing.security.rate.limit.requests", "route", route,
                 "outcome", decision.outcome().name().toLowerCase(Locale.ROOT)).increment();

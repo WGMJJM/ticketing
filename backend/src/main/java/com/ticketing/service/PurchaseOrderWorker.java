@@ -3,6 +3,10 @@ package com.ticketing.service;
 import com.ticketing.dto.TradeContext;
 import com.ticketing.entity.PurchaseRequest;
 import com.ticketing.exception.BusinessException;
+import com.ticketing.exception.BucketReservationRetry;
+import org.springframework.dao.PessimisticLockingFailureException;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import java.util.concurrent.ThreadLocalRandom;
 import com.ticketing.mapper.PurchaseRequestMapper;
 import java.security.MessageDigest;
 import java.util.Set;
@@ -69,6 +73,32 @@ public class PurchaseOrderWorker {
     }
 
     private PurchaseRequest execute(PurchaseRequest request, boolean expiryOnly) {
+        // 正式 MQ/恢复入口在事务外调用。兼容已有事务调用者时由外层负责整笔回滚，
+        // 绝不在仍持有外层锁的同一事务中回绕选桶或重试。
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            return executeAttempt(request, expiryOnly, false);
+        }
+        boolean orderedBuckets = false;
+        int attempts = 0;
+        while (true) {
+            try { return executeAttempt(request, expiryOnly, orderedBuckets); }
+            catch (BucketReservationRetry fallback) {
+                if (orderedBuckets) throw fallback;
+                orderedBuckets = true; // 前一完整事务已经回滚；回退不消耗瞬时故障重试预算。
+            } catch (PessimisticLockingFailureException transientFailure) {
+                if (++attempts >= 3) throw transientFailure;
+                try {
+                    Thread.sleep(ThreadLocalRandom.current().nextLong(
+                            attempts == 1 ? 5 : 20, attempts == 1 ? 16 : 51));
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("购票事务重试中断", interrupted);
+                }
+            }
+        }
+    }
+
+    private PurchaseRequest executeAttempt(PurchaseRequest request, boolean expiryOnly, boolean orderedBuckets) {
         try {
             return transaction.execute(state -> {
             PurchaseRequest current = coordinate(request);
@@ -78,7 +108,7 @@ public class PurchaseOrderWorker {
             TradeContext context = resources.lockReservation(current.userId(), current.skuId(), true);
             participants.forEach(p -> p.validate(current));
             long orderId = reservation.reservePurchase(context, current.quantity(),
-                    OrderOperation.valueOf(current.idempotencyOperation()), current.idempotencyKey());
+                    OrderOperation.valueOf(current.idempotencyOperation()), current.idempotencyKey(), current.id(), orderedBuckets);
             PurchaseRequest result = finishSuccess(current, orderId);
             participants.forEach(p -> p.allocated(result));
             return result;

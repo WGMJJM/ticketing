@@ -56,6 +56,12 @@ public record TicketSale(
     }
 
     public SaleStatus statusAt(LocalDateTime now) {
+        SaleStatus eligibility = windowStatusAt(now);
+        return eligibility == SaleStatus.SELLING && availableStock == 0 ? SaleStatus.SOLD_OUT : eligibility;
+    }
+
+    /** 锁定的销售配置与时间资格；库存另由对应权威账本的条件更新仲裁。 */
+    public SaleStatus windowStatusAt(LocalDateTime now) {
         if (activityStatus != ActivityStatus.PUBLISHED
                 || sessionStatus != SessionStatus.SCHEDULED
                 || !now.isBefore(sessionEndsAt)
@@ -70,6 +76,6 @@ public record TicketSale(
         if (now.isBefore(saleStartsAt)) {
             return SaleStatus.NOT_STARTED;
         }
-        return availableStock == 0 ? SaleStatus.SOLD_OUT : SaleStatus.SELLING;
+        return SaleStatus.SELLING;
     }
 }

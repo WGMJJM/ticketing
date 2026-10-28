@@ -39,7 +39,7 @@ spring:
       host: ${REDIS_HOST:127.0.0.1}
       port: ${REDIS_PORT:6379}
       connect-timeout: ${REDIS_CONNECT_TIMEOUT:500ms}
-      timeout: ${REDIS_COMMAND_TIMEOUT:500ms}
+      timeout: ${REDIS_COMMAND_TIMEOUT:1s}
   rabbitmq:
     publisher-confirm-type: correlated
     publisher-returns: true
@@ -126,7 +126,7 @@ ticketing:
       prefetch: ${PURCHASE_CONSUMER_PREFETCH:1}
     capacity: ${PURCHASE_CAPACITY:200}
     queue-seconds: ${PURCHASE_QUEUE_SECONDS:120}
-    in-flight-window: ${PURCHASE_IN_FLIGHT_WINDOW:32}
+    in-flight-window: ${PURCHASE_IN_FLIGHT_WINDOW:256}
     confirm-timeout-ms: ${PURCHASE_CONFIRM_TIMEOUT_MS:3000}
     recovery-seconds: ${PURCHASE_RECOVERY_SECONDS:10}
     batch-size: ${PURCHASE_RECOVERY_BATCH_SIZE:100}

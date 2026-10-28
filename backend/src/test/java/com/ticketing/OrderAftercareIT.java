@@ -201,9 +201,13 @@ class OrderAftercareIT {
     @Test
     void completedWaitlistRemainsCompletedAfterRefund() throws Exception {
         jdbc.update("UPDATE ticket_sku SET total_stock=0 WHERE id=?",skuId);
+        stockSnapshots.synchronize(skuId);
         JsonNode entry=buyer.call("POST","/waitlist",Map.of("skuId",Long.toString(skuId),"quantity",1),200).path("data");
         jdbc.update("UPDATE ticket_sku SET total_stock=2 WHERE id=?",skuId);
+        stockSnapshots.synchronize(skuId);
         dispatcher.dispatch(skuId);
+        long attempt=jdbc.queryForObject("SELECT purchase_request_id FROM waitlist_entry WHERE id=?",Long.class,entry.path("id").asLong());
+        purchaseWorker.process(attempt);
         long id=jdbc.queryForObject("SELECT reserved_order_id FROM waitlist_entry WHERE id=?",Long.class,entry.path("id").asLong());
         buyer.call("POST","/orders/"+id+"/pay",null,200);
         refund(admin,id);

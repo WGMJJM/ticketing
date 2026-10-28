@@ -8,9 +8,23 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
+import org.apache.ibatis.annotations.Insert;
 
 @Mapper
 public interface StockBucketMapper {
+    @Update("""
+            UPDATE ticket_stock_bucket SET locked_stock=locked_stock+#{quantity}
+            WHERE sku_id=#{sku} AND bucket_no=#{number}
+              AND CAST(total_stock AS SIGNED)-locked_stock-sold_stock>=#{quantity}
+            """)
+    int reserve(@Param("sku") long sku, @Param("number") int number, @Param("quantity") int quantity);
+
+    @Insert("""
+            INSERT INTO order_stock_allocation(order_id,sku_id,bucket_no,quantity)
+            VALUES(#{order},#{sku},#{number},#{quantity})
+            """)
+    int allocate(@Param("order") long order, @Param("sku") long sku,
+            @Param("number") int number, @Param("quantity") int quantity);
     @Select("SELECT * FROM ticket_stock_bucket WHERE sku_id=#{sku} ORDER BY bucket_no")
     List<StockBucket> list(long sku);
 

@@ -29,7 +29,7 @@ public class PurchasePublisher {
     public PurchasePublisher(RabbitTemplate rabbit, ObjectMapper json,
             @Value("${ticketing.purchase.exchange:ticketing.purchase}") String exchange,
             @Value("${ticketing.purchase.queue-seconds:120}") int seconds,
-            @Value("${ticketing.purchase.in-flight-window:32}") int window,
+            @Value("${ticketing.purchase.in-flight-window:256}") int window,
             @Value("${ticketing.purchase.confirm-timeout-ms:3000}") int timeoutMs,
             MeterRegistry metrics, @Value("${ticketing.diagnostics.enabled:false}") boolean diagnosticsEnabled) {
         this.rabbit = rabbit; this.json = json; this.exchange = exchange;

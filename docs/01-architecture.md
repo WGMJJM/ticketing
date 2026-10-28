@@ -30,9 +30,13 @@ HTTP `POST /api/v1/orders` 由 `PurchaseAdmission` 编排，只调用 Redis 和 
 
 Lua 一次完成销售资格、Redis 时间窗口、单笔数量、场次内用户未完成预扣数量、库存和排队容量检查，之后扣减库存，写 RESERVED 凭据与恢复 ZSET。入口预检只限制并发未完成申请；已建订单的精确场次限额仍由消费者在 MySQL 中校验，不宣称 Redis 是额度权威。
 
-`PurchasePublisher` 使用持久消息、durable 队列、mandatory 和 CorrelationData Confirm。默认最多 16 个在途发布，多个请求可并行确认，回调不访问数据库或 Redis。HTTP 仅在 ACK 且未退回时返回 202；窗口满、发送失败或确认超时返回受控 503，保留原 RESERVED，由原幂等键查询/重试以及恢复任务解决。确认未知不等于消息未投递，绝不据此返票。RabbitMQ 不可用时没有同步 MySQL 下单降级。
+`PurchasePublisher` 使用持久消息、durable 队列、mandatory 和 CorrelationData Confirm。默认最多256个在途发布，多个请求可并行确认，回调不访问数据库或Redis。HTTP仅在ACK且未退回时返回202；窗口满、发送失败或确认超时返回受控503，保留原RESERVED，由原幂等键查询/重试以及恢复任务解决。确认未知不等于消息未投递，绝不据此返票。RabbitMQ不可用时没有同步MySQL下单降级。
 
 ## MySQL 消费与三道幂等
+
+2026-10-28 新增四桶普通购票，完整实现与隔离验收见[四桶库存实现](jmeter/four-bucket-implementation.md)。V10 表结构直接复用，未新增迁移或自动切换业务 SKU。BUCKETED=4 按原 requestId 选择初始桶；SKU 配置用 SHARE，目标桶条件 UPDATE 获得独立 X 锁，不更新主 SKU 交易计数。单桶不足先整笔回滚，再按桶号升序跨桶，订单、明细、不可变 allocation 和申请终态原子提交。SINGLE 仍使用原 SKU UPDATE 锁。分桶新候补暂不开放，历史订单与 SINGLE 候补继续按原生命周期处理。
+
+库存同步以 SKU X 与普通分桶 SKU S 互斥，在 pause/pending 排空之后校验并汇总四桶，再发布绝对 Redis 可售余额。Redis 命令默认超时为 1s，连接超时为 500ms，允许环境变量覆盖；AOF always 不变。锁冲突的三次有界重试发生在完整事务之间，重试耗尽保留原申请与预扣，不转换为无票失败。
 
 `PurchaseOrderWorker` 从 Redis 凭据读取可信业务参数，以 requestId 唯一键插入/锁定 `purchase_request`，与过期仲裁共享同一个数据库互斥协议。随后按原资源锁序调用 `TradeResourceLocker` 和 `OrderReservation`；MySQL 库存条件更新、场次额度、订单和价格明细快照、SUCCEEDED/orderId 在一个 READ_COMMITTED 本地事务提交。请求行 QUEUED 只是事务内协调占位，不独立提交为排队事实，没有 processing token、租约或第二条普通建单路径。
 
@@ -91,7 +95,7 @@ MySQL 是订单和最终库存权威。默认每用户每场四张，PENDING/PAI
 
 ## 配置和迁移
 
-普通启动方式、绝对路径、API 路径及单模块结构保持。`PURCHASE_IN_FLIGHT_WINDOW` 默认 32，可配置 1–64；`PURCHASE_CONFIRM_TIMEOUT_MS` 默认 3000ms。命名空间默认取 MYSQL_DATABASE。保留容量、排队截止、消费者并发/预取、安全限流、库存 Outbox 配置，删除旧购票处理租约和无调用的购票双桶限速器配置。
+普通启动方式、绝对路径、API 路径及单模块结构保持。`PURCHASE_IN_FLIGHT_WINDOW` 按用户2026年10月28日最新要求默认256，可配置1–256；`PURCHASE_CONFIRM_TIMEOUT_MS` 默认3000ms。命名空间默认取MYSQL_DATABASE。保留容量、排队截止、消费者并发/预取、安全限流、库存Outbox配置，删除旧购票处理租约和无调用的购票双桶限速器配置。
 
 V1–V13 不变；V14 在任何破坏性 DDL 前拒绝仍有 QUEUED/PROCESSING 的旧库，要求先停写、停止旧发布/消费者并排空旧链路。迁移保留所有订单、支付、候补和历史申请终态，删除废弃 purchase_capacity、购票 Outbox 记录及申请处理租约/token 等字段，增加首次库存初始化标记。已有业务库升级仍须具体授权，不自动 repair、清库或降级。
 

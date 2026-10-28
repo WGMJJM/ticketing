@@ -2,6 +2,7 @@ package com.ticketing.config;
 
 import com.zaxxer.hikari.HikariDataSource;
 import com.ticketing.entity.PurchaseRequest;
+import com.ticketing.common.RedisCommandDiagnostics;
 import io.micrometer.core.instrument.Meter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -54,6 +55,11 @@ public class PurchaseDiagnosticsConfig {
 
     @Bean
     CompletionLog purchaseCompletionLog() { return new CompletionLog(); }
+
+    @Bean
+    RedisCommandDiagnostics purchaseRedisCommandDiagnostics(MeterRegistry registry) {
+        return new RedisCommandDiagnostics(registry);
+    }
 
     /** 仅保存最近512条无凭据终态时间，用于测试线程等待完整建单，不轮询业务数据库。 */
     static class CompletionLog {
@@ -164,12 +170,23 @@ public class PurchaseDiagnosticsConfig {
                 if (!success) registry.counter(PREFIX + "mapper.errors", "call", id, "role", role()).increment();
             }
             // SELECT 往返结束到 afterCompletion 是客户端观测持有区间，非服务器精确解锁时间。
-            if (sql.contains("FROM TICKET_SKU ") && sql.contains("FOR UPDATE")
-                    && ((result instanceof List<?> rows && !rows.isEmpty())
-                        || result instanceof org.apache.ibatis.cursor.Cursor<?>)
-                    && TransactionSynchronizationManager.isSynchronizationActive()
-                    && TransactionSynchronizationManager.getSynchronizations().stream().noneMatch(StockHold.class::isInstance)) {
-                TransactionSynchronizationManager.registerSynchronization(new StockHold(registry, role()));
+            boolean rowFound = (result instanceof List<?> rows && !rows.isEmpty())
+                    || result instanceof org.apache.ibatis.cursor.Cursor<?>;
+            String heldStage = null;
+            if (sql.contains("FROM TICKET_SKU ") && rowFound) {
+                if (sql.contains("FOR SHARE")) heldStage = "sku.shared.held.client";
+                else if (sql.contains("FOR UPDATE")) heldStage = "stock.held.client";
+            } else if ((sql.contains("UPDATE TICKET_STOCK_BUCKET ") && result instanceof Integer changed && changed > 0)
+                    || (sql.contains("FROM TICKET_STOCK_BUCKET ") && sql.contains("FOR UPDATE") && rowFound)) {
+                heldStage = "bucket.held.client";
+            }
+            // 每事务只记录首次实际桶锁返回至提交/回滚，不能把配置行 SHARE 锁当作库存 X 锁。
+            if (heldStage != null && TransactionSynchronizationManager.isSynchronizationActive()) {
+                String stage = heldStage;
+                if (TransactionSynchronizationManager.getSynchronizations().stream()
+                        .noneMatch(sync -> sync instanceof StockHold hold && hold.stage.equals(stage))) {
+                    TransactionSynchronizationManager.registerSynchronization(new StockHold(registry, role(), stage));
+                }
             }
             return result;
         }
@@ -178,14 +195,19 @@ public class PurchaseDiagnosticsConfig {
     static class StockHold implements TransactionSynchronization {
         private final MeterRegistry registry;
         private final String role;
+        private final String stage;
         private final long acquired = System.nanoTime();
 
-        StockHold(MeterRegistry registry, String role) { this.registry = registry; this.role = role; }
+        StockHold(MeterRegistry registry, String role) { this(registry, role, "stock.held.client"); }
+
+        StockHold(MeterRegistry registry, String role, String stage) {
+            this.registry = registry; this.role = role; this.stage = stage;
+        }
 
         @Override
         public void afterCompletion(int status) {
-            timer(registry, "stock.held.client", role).record(System.nanoTime() - acquired, TimeUnit.NANOSECONDS);
-            registry.counter(PREFIX + "stock.completions", "role", role,
+            timer(registry, stage, role).record(System.nanoTime() - acquired, TimeUnit.NANOSECONDS);
+            registry.counter(PREFIX + "stock.completions", "role", role, "stage", stage,
                     "outcome", status == STATUS_COMMITTED ? "committed" : "rolled_back").increment();
         }
     }
@@ -201,7 +223,7 @@ public class PurchaseDiagnosticsConfig {
             @Override
             public Object postProcessAfterInitialization(Object bean, String name) {
                 if (!List.of("transactionManager", "purchaseOrderWorker", "redisStockReservationService",
-                        "orderReservation", "purchasePublisher").contains(name)) return bean;
+                        "orderReservation", "purchasePublisher", "stockSnapshotService").contains(name)) return bean;
                 MethodInterceptor advice = invocation -> {
                     String method = invocation.getMethod().getName();
                     String stage = switch (name) {
@@ -212,6 +234,7 @@ public class PurchaseDiagnosticsConfig {
                                 ? "redis." + method : null;
                         case "orderReservation" -> method.equals("reservePurchase") ? "reservation" : null;
                         case "purchasePublisher" -> method.equals("confirm") ? "publisher.confirm" : null;
+                        case "stockSnapshotService" -> method.equals("synchronize") ? "inventory.synchronize" : null;
                         default -> null;
                     };
                     if (stage == null) return invocation.proceed();
@@ -228,6 +251,10 @@ public class PurchaseDiagnosticsConfig {
                         if (name.equals("transactionManager") && method.equals("getTransaction")) {
                             realTransaction = ((TransactionStatus) result).isNewTransaction();
                             if (realTransaction) starts.get().put((TransactionStatus) result, start);
+                        }
+                        if (name.equals("stockSnapshotService") && method.equals("synchronize")) {
+                            registries.getObject().counter(PREFIX + "inventory.synchronize", "result",
+                                    Boolean.TRUE.equals(result) ? "published" : "waiting_or_missing").increment();
                         }
                         return result;
                     } finally {
@@ -254,8 +281,9 @@ public class PurchaseDiagnosticsConfig {
 
     @Bean
     DiagnosticsEndpoint purchaseDiagnosticsEndpoint(MeterRegistry registry, DataSource source,
-            RabbitListenerEndpointRegistry listeners, Environment environment, CompletionLog completions) {
-        return new DiagnosticsEndpoint(registry, source, listeners, environment, completions);
+            RabbitListenerEndpointRegistry listeners, Environment environment, CompletionLog completions,
+            RedisCommandDiagnostics redisCommands) {
+        return new DiagnosticsEndpoint(registry, source, listeners, environment, completions, redisCommands);
     }
 
     @Endpoint(id = "purchaseDiagnostics")
@@ -265,11 +293,12 @@ public class PurchaseDiagnosticsConfig {
         private final RabbitListenerEndpointRegistry listeners;
         private final Environment environment;
         private final CompletionLog completions;
+        private final RedisCommandDiagnostics redisCommands;
 
         DiagnosticsEndpoint(MeterRegistry registry, DataSource source, RabbitListenerEndpointRegistry listeners,
-                Environment environment, CompletionLog completions) {
+                Environment environment, CompletionLog completions, RedisCommandDiagnostics redisCommands) {
             this.registry = registry; this.source = source; this.listeners = listeners; this.environment = environment;
-            this.completions = completions;
+            this.completions = completions; this.redisCommands = redisCommands;
         }
 
         @ReadOperation
@@ -281,6 +310,7 @@ public class PurchaseDiagnosticsConfig {
             for (Meter meter : registry.getMeters()) {
                 String name = meter.getId().getName();
                 if (!(name.startsWith(PREFIX) || name.startsWith("hikaricp.")
+                        || name.startsWith("lettuce.command.")
                         || name.equals("ticketing.trade.lock.duration") || name.equals("jvm.gc.pause"))) continue;
                 Map<String, Object> row = new LinkedHashMap<>();
                 Map<String, String> tags = new LinkedHashMap<>();
@@ -302,16 +332,23 @@ public class PurchaseDiagnosticsConfig {
                 metrics.add(row);
             }
             var heap = java.lang.management.ManagementFactory.getMemoryMXBean().getHeapMemoryUsage();
-            return Map.of("timeMs", System.currentTimeMillis(), "pid", ProcessHandle.current().pid(),
-                    "heap", Map.of("usedBytes", heap.getUsed(), "maxBytes", heap.getMax()),
-                    "pool", Map.of("maximum", pool.getMaximumPoolSize(), "timeoutMs", pool.getConnectionTimeout(),
+            return Map.ofEntries(
+                    Map.entry("timeMs", System.currentTimeMillis()), Map.entry("pid", ProcessHandle.current().pid()),
+                    Map.entry("heap", Map.of("usedBytes", heap.getUsed(), "maxBytes", heap.getMax())),
+                    Map.entry("redisTimeouts", Map.of("command", environment.getProperty("spring.data.redis.timeout", "not-set"),
+                            "connect", environment.getProperty("spring.data.redis.connect-timeout", "not-set"))),
+                    Map.entry("lettuceMeters", registry.getMeters().stream().map(meter -> meter.getId().getName())
+                            .filter(name -> name.startsWith("lettuce") || name.startsWith("redis.client"))
+                            .distinct().toList()),
+                    Map.entry("pool", Map.of("maximum", pool.getMaximumPoolSize(), "timeoutMs", pool.getConnectionTimeout(),
                             "active", bean.getActiveConnections(), "idle", bean.getIdleConnections(),
-                            "pending", bean.getThreadsAwaitingConnection(), "total", bean.getTotalConnections()),
-                    "consumer", Map.of("configured", new org.springframework.beans.DirectFieldAccessor(consumer).getPropertyValue("concurrentConsumers"),
+                            "pending", bean.getThreadsAwaitingConnection(), "total", bean.getTotalConnections())),
+                    Map.entry("consumer", Map.of("configured", new org.springframework.beans.DirectFieldAccessor(consumer).getPropertyValue("concurrentConsumers"),
                             "active", consumer.getActiveConsumerCount(),
-                            "prefetch", new org.springframework.beans.DirectFieldAccessor(consumer).getPropertyValue("prefetchCount")),
-                    "capacity", environment.getRequiredProperty("ticketing.purchase.capacity"), "metrics", metrics,
-                    "completions", completions.snapshot());
+                            "prefetch", new org.springframework.beans.DirectFieldAccessor(consumer).getPropertyValue("prefetchCount"))),
+                    Map.entry("capacity", environment.getRequiredProperty("ticketing.purchase.capacity")),
+                    Map.entry("metrics", metrics), Map.entry("completions", completions.snapshot()),
+                    Map.entry("redisCommands", redisCommands.snapshot()));
         }
     }
 }

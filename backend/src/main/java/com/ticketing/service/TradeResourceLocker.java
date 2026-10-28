@@ -116,7 +116,7 @@ public class TradeResourceLocker {
         return sale(skuId, null);
     }
 
-    /** 用户SHARE→活动SHARE→场次SHARE→可选额度UPDATE→票档UPDATE→订单，禁止后置补锁额度。 */
+    /** 用户SHARE→活动SHARE→场次SHARE→可选额度UPDATE→SINGLE票档UPDATE或BUCKETED票档SHARE→桶→订单，禁止后置补锁额度。 */
     private TicketSale sale(long skuId, Long quotaUser) {
         TicketSku initial = tickets.selectById(skuId);
         if (initial == null) {
@@ -140,13 +140,16 @@ public class TradeResourceLocker {
             throw new BusinessException(HttpStatus.CONFLICT, "TICKET_UNAVAILABLE", "票档所属活动或场次不存在");
         }
         if (quotaUser != null) quotas.lock(quotaUser, session.getId());
+        // 管理与策略切换先持场次 X 锁；场次 S 锁后重新读取，选定模式后不做 S→X 升级。
+        TicketSku configuration = tickets.selectById(skuId);
+        if (configuration == null) throw new IllegalStateException("票档配置丢失");
         long started = System.nanoTime();
         TicketSku sku;
         try { sku =
                 tickets.selectOne(
                         new LambdaQueryWrapper<TicketSku>()
                                 .eq(TicketSku::getId, skuId)
-                                .last("FOR UPDATE"));
+                                .last(configuration.bucketed() ? "FOR SHARE" : "FOR UPDATE"));
         } finally { meters.timer("ticketing.trade.lock.duration","resource","stock").record(System.nanoTime()-started,TimeUnit.NANOSECONDS); }
         if (sku == null || !sku.getSessionId().equals(session.getId()) || !session.getActivityId().equals(activity.getId())) {
             throw new BusinessException(HttpStatus.CONFLICT, "TICKET_UNAVAILABLE", "票档所属活动或场次不存在");

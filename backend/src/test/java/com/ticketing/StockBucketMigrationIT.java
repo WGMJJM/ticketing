@@ -27,7 +27,8 @@ class StockBucketMigrationIT {
     Flyway migration(String target) {
         var config=Flyway.configure().dataSource(url,System.getenv("MYSQL_USER"),System.getenv("MYSQL_PASSWORD"))
                 .locations("classpath:db/migration").cleanDisabled(true).placeholders(Map.of("quotaLimit","4"));
-        if(target!=null)config.target(target);return config.load();
+        // 本类验证 V9→V10 的历史结构边界，不能把后续 V11–V15 误计为 V10 变更。
+        config.target(target == null ? "10" : target);return config.load();
     }
     void history() {
         migration("9").migrate();

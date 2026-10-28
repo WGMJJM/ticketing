@@ -53,13 +53,18 @@ public class OrderReservation {
     }
 
     public long reservePurchase(TradeContext context, int quantity, OrderOperation operation, String key) {
+        return reservePurchase(context, quantity, operation, key, null, false);
+    }
+
+    public long reservePurchase(TradeContext context, int quantity, OrderOperation operation, String key,
+            Long requestId, boolean orderedBuckets) {
         byte[] hash = requestHash(context.sale().skuId(), quantity);
         TicketOrder existing = find(context.userId(), operation, key);
         if (existing != null) {
             requireHash(existing, hash);
             return existing.getId();
         }
-        return insert(context.userId(), quantity, operation, key, hash, context.sale());
+        return insert(context.userId(), quantity, operation, key, hash, context.sale(), requestId, orderedBuckets);
     }
 
     public boolean eligibleForWaitlist(TradeContext context, int quantity, LocalDateTime now) {
@@ -102,8 +107,13 @@ public class OrderReservation {
             OrderOperation operation,
             String key,
             byte[] hash,
-            TicketSale sale) {
-        SaleStatus status = sale.statusAt(orders.databaseNow());
+            TicketSale sale, Long requestId, boolean orderedBuckets) {
+        if (sale.bucketed() && operation == OrderOperation.WAITLIST_CONFIRM) {
+            throw conflict("TICKET_UNAVAILABLE", "分桶票档暂不支持新候补分配");
+        }
+        // 汇总快照不仲裁已预扣申请是否售罄；分桶库存由锁后条件 SQL 最终判断。
+        LocalDateTime now = orders.databaseNow();
+        SaleStatus status = sale.bucketed() ? sale.windowStatusAt(now) : sale.statusAt(now);
         if (status != SaleStatus.SELLING) {
             String message =
                     switch (status) {
@@ -125,7 +135,7 @@ public class OrderReservation {
                     HttpStatus.BAD_REQUEST, "ORDER_AMOUNT_INVALID", "订单金额超出允许范围");
         }
         quotas.occupy(userId, sale.sessionId(), quantity);
-        inventory.reserve(sale, quantity);
+        var allocation = inventory.reserve(sale, quantity, requestId, orderedBuckets);
         TicketOrder order = new TicketOrder();
         order.setOrderNo(UUID.randomUUID().toString().replace("-", ""));
         order.setUserId(userId);
@@ -137,6 +147,7 @@ public class OrderReservation {
         order.setRequestHash(hash);
         orders.insertPurchase(order, properties.paymentWindowMinutes());
         orders.insertItem(order, sale, quantity);
+        inventory.allocate(sale, order.getId(), allocation);
         return order.getId();
     }
 

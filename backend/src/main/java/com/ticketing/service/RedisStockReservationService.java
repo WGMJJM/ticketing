@@ -2,6 +2,7 @@ package com.ticketing.service;
 
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.ticketing.config.PurchaseProperties;
+import com.ticketing.common.RedisCommandDiagnostics;
 import com.ticketing.entity.PurchaseRequest;
 import com.ticketing.dto.PurchaseIntent;
 import com.ticketing.exception.BusinessException;
@@ -16,12 +17,16 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.HashMap;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import java.util.function.Supplier;
 
 /** 只有一个预扣账本：入口原子预扣，数据库终态提交之后原子结算。没有 SQL 依赖。 */
 @Service
@@ -38,13 +43,31 @@ public class RedisStockReservationService {
     private static final DefaultRedisScript<Long> DEFER = new DefaultRedisScript<>(
             "return redis.call('ZADD',KEYS[1],'XX',ARGV[1],ARGV[2])", Long.class);
     private static final DefaultRedisScript<Long> PRIORITY = script("waitlist-priority.lua", Long.class);
+    private static final DefaultRedisScript<List> ADMISSION_SNAPSHOT = new DefaultRedisScript<>(
+            "return {redis.call('HGET',KEYS[1],'ready') or '',tostring(redis.call('EXISTS',KEYS[2])),"
+                    + "redis.call('GET',KEYS[2]) or '',redis.call('HGET',KEYS[1],'waitlistPriority') or '',"
+                    + "tostring(redis.call('HGET',KEYS[1],'waitlistRequest') ~= false and redis.call('HGET',KEYS[1],'waitlistRequest') ~= '')}", List.class);
     private final StringRedisTemplate redis;
     private final PurchaseProperties properties;
     private final int maxPerSession;
+    private final RedisCommandDiagnostics diagnostics;
+
+    @Autowired
+    public RedisStockReservationService(StringRedisTemplate redis, PurchaseProperties properties,
+            @Value("${ticketing.order.max-per-user-session:4}") int maxPerSession,
+            ObjectProvider<RedisCommandDiagnostics> diagnostics) {
+        this(redis, properties, maxPerSession, diagnostics.getIfAvailable());
+    }
 
     public RedisStockReservationService(StringRedisTemplate redis, PurchaseProperties properties,
             @Value("${ticketing.order.max-per-user-session:4}") int maxPerSession) {
+        this(redis, properties, maxPerSession, (RedisCommandDiagnostics) null);
+    }
+
+    private RedisStockReservationService(StringRedisTemplate redis, PurchaseProperties properties,
+            int maxPerSession, RedisCommandDiagnostics diagnostics) {
         this.redis = redis; this.properties = properties; this.maxPerSession = maxPerSession;
+        this.diagnostics = diagnostics;
         this.prefix = PREFIX + properties.namespace() + ":"; this.recovery = prefix + "recovery"; this.pending = prefix + "pending";
     }
 
@@ -61,20 +84,38 @@ public class RedisStockReservationService {
             throw new IllegalArgumentException("购票来源不一致");
         }
         try {
-            String session = text(redis.opsForHash().get(skuKey(skuId), "sessionId"));
+            String session = observe("purchase.reserve.readSession", Map.of(),
+                    () -> text(redis.opsForHash().get(skuKey(skuId), "sessionId")));
             long candidate = intent.requestId() == null ? IdWorker.getId() : intent.requestId();
-            List<?> result = redis.execute(RESERVE,
-                    List.of(skuKey(skuId), idemKey(userId, operation, key), requestKey(candidate), recovery, pending,
-                            userKey(userId), quotaKey(userId, session)),
-                    Long.toString(candidate), Long.toString(userId), Long.toString(skuId), Integer.toString(quantity),
-                    key, HexFormat.of().formatHex(hash(skuId + ":" + quantity)), Integer.toString(properties.capacity()),
-                    Integer.toString(properties.queueSeconds()), Integer.toString(maxPerSession), session,
-                    Integer.toString(properties.recoverySeconds()), operation,
-                    intent.waitlistEntryId() == null ? "" : intent.waitlistEntryId().toString(),
-                    intent.waitlistEntryId() == null ? "" : intent.waitlistEntryId() + ":" + intent.attemptNo(),
-                    intent.expiresAt() == null ? "0" : Long.toString(epoch(intent.expiresAt())));
-            if (result == null || result.isEmpty()) throw unavailable();
-            int code = ((Number) result.getFirst()).intValue();
+            long luaStarted = diagnostics == null ? 0 : diagnostics.start();
+            Map<String, Object> luaFacts = Map.of("requestIdKnown", true, "reserveOutcomeKnown", false);
+            List<?> result;
+            int code;
+            try {
+                result = redis.execute(RESERVE,
+                        List.of(skuKey(skuId), idemKey(userId, operation, key), requestKey(candidate), recovery, pending,
+                                userKey(userId), quotaKey(userId, session)),
+                        Long.toString(candidate), Long.toString(userId), Long.toString(skuId), Integer.toString(quantity),
+                        key, HexFormat.of().formatHex(hash(skuId + ":" + quantity)), Integer.toString(properties.capacity()),
+                        Integer.toString(properties.queueSeconds()), Integer.toString(maxPerSession), session,
+                        Integer.toString(properties.recoverySeconds()), operation,
+                        intent.waitlistEntryId() == null ? "" : intent.waitlistEntryId().toString(),
+                        intent.waitlistEntryId() == null ? "" : intent.waitlistEntryId() + ":" + intent.attemptNo(),
+                        intent.expiresAt() == null ? "0" : Long.toString(epoch(intent.expiresAt())));
+                if (result == null || result.isEmpty() || !(result.getFirst() instanceof Number number)) {
+                    throw new IllegalStateException("预扣脚本返回格式异常");
+                }
+                code = number.intValue();
+            } catch (RuntimeException exception) {
+                if (diagnostics != null) diagnostics.failure("purchase.reserve.lua", exception, luaStarted, luaFacts);
+                throw exception;
+            }
+            Map<String, Object> branchFacts = new HashMap<>();
+            branchFacts.put("requestIdKnown", true);
+            branchFacts.put("reserveOutcomeKnown", true);
+            branchFacts.put("reserveBranch", Integer.toString(code));
+            if (code == -3 && diagnostics != null) branchFacts.putAll(minusThreeSnapshot(skuId));
+            if (diagnostics != null) diagnostics.branch("purchase.reserve.lua", code, luaStarted, branchFacts);
             if (code == -12) throw failure(HttpStatus.CONFLICT, "WAITLIST_PRIORITY", "该票档正在优先处理候补，请加入候补队列");
             if (code == -13) throw failure(HttpStatus.CONFLICT, "WAITLIST_ATTEMPT_STALE", "候补分配状态已变化");
             if (code == -1) throw failure(HttpStatus.CONFLICT, "CREATE_ORDER".equals(operation) ? "TICKET_UNAVAILABLE" : "STOCK_UNAVAILABLE", "票档当前可预扣库存不足");
@@ -83,10 +124,17 @@ public class RedisStockReservationService {
             if (code == -10) throw failure(HttpStatus.CONFLICT, "TICKET_UNAVAILABLE", "票档当前不可售或库存不足");
             if (code == -2) throw failure(HttpStatus.SERVICE_UNAVAILABLE, "PURCHASE_QUEUE_FULL", "购票排队人数已达上限，请稍后重试");
             if (code != 1 && code != 2) throw unavailable();
-            PurchaseRequest request = lookup(userId, operation, key);
+            Map<String, Object> readbackFacts = new HashMap<>();
+            readbackFacts.put("requestIdKnown", true);
+            readbackFacts.put("reserveOutcomeKnown", true);
+            readbackFacts.put("reserveBranch", Integer.toString(code));
+            PurchaseRequest request = observe("purchase.reserve.lookup", readbackFacts,
+                    () -> lookupRaw(userId, operation, key));
             if (request == null) throw unavailable();
-            if (!request.terminal() && find(request.id()) == null) {
-                pause(skuId);
+            readbackFacts.put("requestIdKnown", true);
+            if (!request.terminal() && observe("purchase.reserve.find", readbackFacts,
+                    () -> findRaw(request.id())) == null) {
+                pause(skuId, "missing_request_after_reserve");
                 throw unavailable();
             }
             return request;
@@ -95,14 +143,20 @@ public class RedisStockReservationService {
     }
 
     public PurchaseRequest find(long id) {
-        return decode(redis.opsForHash().entries(requestKey(id)));
+        return observe("purchase.reserve.find", Map.of(), () -> findRaw(id));
     }
+
+    private PurchaseRequest findRaw(long id) { return decode(redis.opsForHash().entries(requestKey(id))); }
 
     public PurchaseRequest lookup(long userId, String key) {
         return lookup(userId, "CREATE_ORDER", key);
     }
 
     public PurchaseRequest lookup(long userId, String operation, String key) {
+        return observe("purchase.reserve.lookup", Map.of(), () -> lookupRaw(userId, operation, key));
+    }
+
+    private PurchaseRequest lookupRaw(long userId, String operation, String key) {
         return decode(redis.opsForHash().entries(idemKey(userId, operation, key)));
     }
 
@@ -116,7 +170,7 @@ public class RedisStockReservationService {
     public PurchaseRequest require(long id, long skuId) {
         PurchaseRequest request = find(id);
         if (request == null || request.skuId() != skuId || !Boolean.TRUE.equals(redis.hasKey(skuKey(skuId)))) {
-            pause(skuId);
+            pause(skuId, "required_request_or_sku_missing");
             throw unavailable();
         }
         return request;
@@ -124,12 +178,19 @@ public class RedisStockReservationService {
 
     public boolean settle(PurchaseRequest result) {
         if (!result.terminal()) throw new IllegalArgumentException("只有数据库终态可以结算预扣");
+        long started = diagnostics == null ? 0 : diagnostics.start();
+        String outcome = "not_settled";
+        RuntimeException failure = null;
         try {
             if (!Boolean.TRUE.equals(redis.hasKey(requestKey(result.id())))) {
                 PurchaseRequest summary = lookup(result.userId(), result.idempotencyOperation(), result.idempotencyKey());
                 if (summary != null && summary.id() == result.id() && summary.status().equals(result.status())
-                        && java.util.Objects.equals(summary.orderId(), result.orderId())) return true;
-                pause(result.skuId());
+                        && java.util.Objects.equals(summary.orderId(), result.orderId())) {
+                    outcome = "already_settled_fact_matches";
+                    return true;
+                }
+                pause(result.skuId(), "settle_request_missing");
+                outcome = "request_missing_paused";
                 return false;
             }
             String session = text(redis.opsForHash().get(requestKey(result.id()), "sessionId"));
@@ -139,10 +200,17 @@ public class RedisStockReservationService {
                     Long.toString(result.id()), result.status(), result.orderId() == null ? "" : result.orderId().toString(),
                     result.failureCode() == null ? "" : result.failureCode(), Long.toString(RETENTION),
                     result.skuId() + ":" + result.id());
-            if (value != null && value >= 0) return true;
-            pause(result.skuId());
+            if (value != null && value >= 0) { outcome = "settled"; return true; }
+            pause(result.skuId(), "settle_script_rejected");
+            outcome = "script_rejected_paused";
             return false;
-        } catch (RuntimeException exception) { return false; }
+        } catch (RuntimeException exception) { failure = exception; return false; }
+        finally {
+            if (diagnostics != null) {
+                if (failure == null) diagnostics.success("purchase.settle", outcome, started, Map.of(), true);
+                else diagnostics.failure("purchase.settle", failure, started, Map.of());
+            }
+        }
     }
 
     /** 历史终态预装及只读查询回填；绝不覆盖还需要结算的 RESERVED 凭据。 */
@@ -159,8 +227,27 @@ public class RedisStockReservationService {
 
     /** 暂停可以独立调用；发布绝对余额必须持 MySQL SKU 锁，不使用冻结租约。 */
     public long pause(long skuId) {
-        Long result = redis.execute(PUBLISH, List.of(skuKey(skuId), pending), "pause");
-        return result == null ? -1 : result;
+        return pause(skuId, "explicit_pause");
+    }
+
+    private long pause(long skuId, String reason) {
+        if (diagnostics == null) {
+            Long result = redis.execute(PUBLISH, List.of(skuKey(skuId), pending), "pause");
+            return result == null ? -1 : result;
+        }
+        long started = diagnostics.start();
+        Map<String, Object> facts = Map.of("reason", reason);
+        try {
+            Long result = redis.execute(PUBLISH, List.of(skuKey(skuId), pending), "pause");
+            long pendingCount = result == null ? -1 : result;
+            Map<String, Object> detail = new HashMap<>(facts);
+            detail.put("pendingCount", pendingCount);
+            diagnostics.success("purchase.reserve.pause", pendingCount < 0 ? "unknown" : "paused", started, detail, true);
+            return pendingCount;
+        } catch (RuntimeException exception) {
+            diagnostics.failure("purchase.reserve.pause", exception, started, facts);
+            throw exception;
+        }
     }
 
     public void publish(long skuId, long available, boolean eligible, long starts, long ends, int maxQuantity,
@@ -218,6 +305,50 @@ public class RedisStockReservationService {
     private String idemKey(long user, String operation, String key) {
         return prefix + "idem:" + user + ":" + operation + ":" + HexFormat.of().formatHex(hash(key));
     }
+
+    private <T> T observe(String stage, Map<String, ?> facts, Supplier<T> call) {
+        if (diagnostics == null) return call.get();
+        long started = diagnostics.start();
+        try {
+            T result = call.get();
+            diagnostics.success(stage, result == null ? "missing" : "success", started, facts, result == null);
+            return result;
+        } catch (RuntimeException exception) {
+            diagnostics.failure(stage, exception, started, facts);
+            throw exception;
+        }
+    }
+
+    /** Lua -3 已返回后才做一次只读快照；普通成功热路径不增加 Redis 往返。 */
+    private Map<String, Object> minusThreeSnapshot(long skuId) {
+        long started = diagnostics.start();
+        try {
+            List<?> value = redis.execute(ADMISSION_SNAPSHOT, List.of(skuKey(skuId), pending));
+            if (value == null || value.size() != 5) throw new IllegalStateException("准入快照返回格式异常");
+            String ready = text(value.get(0));
+            boolean pendingKeyExists = "1".equals(text(value.get(1)));
+            String pendingValue = text(value.get(2));
+            String priority = text(value.get(3));
+            boolean waitlistRequestPresent = Boolean.parseBoolean(text(value.get(4)));
+            String reason = !"1".equals(ready) ? "ready_not_1"
+                    : !pendingKeyExists ? "pending_key_missing"
+                    : priority.isEmpty() ? "waitlist_priority_missing"
+                    : waitlistRequestPresent ? "waitlist_request_present" : "other_minus_3";
+            Map<String, Object> facts = new HashMap<>();
+            facts.put("ready", ready);
+            facts.put("pendingKeyExists", pendingKeyExists);
+            facts.put("pending", pendingValue);
+            facts.put("waitlistPriority", priority);
+            facts.put("waitlistRequestPresent", waitlistRequestPresent);
+            facts.put("reason", reason);
+            diagnostics.success("purchase.reserve.lua.minus3Snapshot", "captured", started, facts, true);
+            return facts;
+        } catch (RuntimeException exception) {
+            diagnostics.failure("purchase.reserve.lua.minus3Snapshot", exception, started, Map.of());
+            return Map.of("reason", "snapshot_unavailable");
+        }
+    }
+
     private static byte[] hash(String value) {
         try { return MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8)); }
         catch (NoSuchAlgorithmException exception) { throw new IllegalStateException("运行环境缺少 SHA-256", exception); }

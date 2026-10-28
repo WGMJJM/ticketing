@@ -185,7 +185,7 @@ public class TicketService implements SessionWindowGuard {
         TicketSku existing = requireTicket(id);
         ActivitySession session = requireSession(existing.getSessionId(), true);
         TicketSku sku = requireTicket(id);
-        if (sku.bucketed()) throw conflict("历史分桶票档已停止新销售，仅保留既有订单履约和售后");
+        if (sku.bucketed() && sku.getBucketCount() != 4) throw conflict("新销售仅支持四桶库存");
         requireVersion(sku, request.version());
         if (TicketStatus.ON_SALE.name().equals(sku.getStatus())) {
             throw conflict("票档已经启用销售");

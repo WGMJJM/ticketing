@@ -9,6 +9,9 @@ import com.ticketing.mapper.StockBucketMapper;
 import com.ticketing.mapper.TicketSkuMapper;
 
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import com.ticketing.exception.BucketReservationRetry;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -27,12 +30,44 @@ public class TicketInventory {
         this.buckets = buckets;
     }
 
-    /** 新订单统一使用SINGLE；分桶只保留已有订单的支付、关闭及退款能力。 */
+    /** 无申请标识的旧内部入口只允许 SINGLE，不伪造分桶路由标识。 */
     public void reserve(TicketSale sale, int quantity) {
-        if (sale.bucketed()) {
-            throw new BusinessException(HttpStatus.CONFLICT, "TICKET_UNAVAILABLE", "历史分桶票档已停止新购票，请选择其他票档");
+        reserve(sale, quantity, null, false);
+    }
+
+    public Map<Integer, Integer> reserve(TicketSale sale, int quantity, Long requestId, boolean ordered) {
+        if (!sale.bucketed()) {
+            if (tickets.reserve(sale.skuId(), quantity) != 1) throw unavailable();
+            return Map.of();
         }
-        if (tickets.reserve(sale.skuId(), quantity) != 1) throw unavailable();
+        if (sale.bucketCount() != 4 || requestId == null) throw inconsistent();
+        int initial = Math.floorMod(requestId, 4);
+        if (!ordered) {
+            if (buckets.reserve(sale.skuId(), initial, quantity) == 1) return Map.of(initial, quantity);
+            // UPDATE 即使影响零行也可能持锁；必须回滚整笔事务后才能回绕到更小编号。
+            throw new BucketReservationRetry();
+        }
+        Map<Integer, Integer> allocation = new TreeMap<>();
+        int remaining = quantity;
+        for (int number = 0; number < 4 && remaining > 0; number++) {
+            StockBucket bucket = buckets.lock(sale.skuId(), number);
+            if (bucket == null || bucket.available() < 0) throw inconsistent();
+            int taken = Math.min(remaining, bucket.available());
+            if (taken > 0) {
+                requireChanged(buckets.reserve(sale.skuId(), number, taken));
+                allocation.put(number, taken);
+                remaining -= taken;
+            }
+        }
+        // Redis 已预扣而 MySQL 权威量不足属于账本矛盾，保留申请、暂停核对，不终结返票。
+        if (remaining != 0) throw inconsistent();
+        return Map.copyOf(allocation);
+    }
+
+    public void allocate(TicketSale sale, long orderId, Map<Integer, Integer> allocation) {
+        for (var entry : new TreeMap<>(allocation).entrySet()) {
+            requireChanged(buckets.allocate(orderId, sale.skuId(), entry.getKey(), entry.getValue()));
+        }
     }
 
     /** 必须在已有订单UPDATE锁之前调用；不修改分配记录或根据订单ID重新Hash。 */
@@ -90,7 +125,8 @@ public class TicketInventory {
         if (rows.size() != sku.getBucketCount()) throw inconsistent();
         for (int number = 0; number < rows.size(); number++) {
             StockBucket bucket = rows.get(number);
-            if (bucket.bucketNo() != number) throw inconsistent();
+            if (bucket.bucketNo() != number || bucket.totalStock() < 0 || bucket.lockedStock() < 0
+                    || bucket.soldStock() < 0 || bucket.available() < 0) throw inconsistent();
             total = Math.addExact(total, bucket.totalStock());
             locked = Math.addExact(locked, bucket.lockedStock());
             sold = Math.addExact(sold, bucket.soldStock());

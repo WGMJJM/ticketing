@@ -1,6 +1,8 @@
 package com.ticketing.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.ticketing.common.RedisCommandDiagnostics;
+import org.springframework.beans.factory.ObjectProvider;
 import com.ticketing.entity.Activity;
 import com.ticketing.entity.ActivitySession;
 import com.ticketing.entity.PurchaseRequest;
@@ -25,11 +27,15 @@ public class StockSnapshotService {
     private final PurchaseRequestMapper requests;
     private final OutboxMapper outbox;
     private final RedisStockReservationService stocks;
+    private final TicketInventory inventory;
+    private final RedisCommandDiagnostics diagnostics;
 
     public StockSnapshotService(ActivityMapper activities, ActivitySessionMapper sessions, TicketSkuMapper tickets,
-            PurchaseRequestMapper requests, OutboxMapper outbox, RedisStockReservationService stocks) {
+            PurchaseRequestMapper requests, OutboxMapper outbox, RedisStockReservationService stocks, TicketInventory inventory,
+            ObjectProvider<RedisCommandDiagnostics> diagnostics) {
         this.activities = activities; this.sessions = sessions; this.tickets = tickets;
-        this.requests = requests; this.outbox = outbox; this.stocks = stocks;
+        this.requests = requests; this.outbox = outbox; this.stocks = stocks; this.inventory = inventory;
+        this.diagnostics = diagnostics.getIfAvailable();
     }
 
     @Transactional(isolation=Isolation.READ_COMMITTED, timeout=30)
@@ -44,6 +50,7 @@ public class StockSnapshotService {
         TicketSku sku = tickets.selectOne(new LambdaQueryWrapper<TicketSku>().eq(TicketSku::getId, skuId).last("FOR UPDATE"));
         boolean initialized = tickets.redisInitialized(skuId);
         long pending = stocks.pause(skuId);
+        if (pending >= 0 && diagnostics != null) diagnostics.inventoryPaused(skuId);
         if (pending > 0) return false;
         if (pending < 0 && initialized) throw new IllegalStateException("Redis 库存账本丢失，票档停卖并等待核对");
         if (!initialized) {
@@ -55,13 +62,17 @@ public class StockSnapshotService {
             } while (page.size() == 200);
         }
         boolean initializeCounter = !initialized && tickets.redisInitializedCount() == 0;
-        boolean eligible = !sku.bucketed() && "PUBLISHED".equals(activity.getStatus())
+        // 已持 SKU X，与交易 SKU S 互斥，此刻四桶是同一受保护的已提交余额。
+        if (sku.bucketed() && sku.getBucketCount() != 4) throw new IllegalStateException("新销售仅支持四桶");
+        inventory.balance(sku);
+        boolean eligible = "PUBLISHED".equals(activity.getStatus())
                 && "SCHEDULED".equals(session.getStatus()) && "ON_SALE".equals(sku.getStatus())
                 && !sku.getSaleStartsAt().isBefore(session.getSaleStartsAt()) && !sku.getSaleEndsAt().isAfter(session.getStartsAt());
         stocks.publish(skuId, (long) sku.getTotalStock() - sku.getLockedStock() - sku.getSoldStock(), eligible,
                 sku.getSaleStartsAt().toInstant(ZoneOffset.UTC).toEpochMilli(), sku.getSaleEndsAt().toInstant(ZoneOffset.UTC).toEpochMilli(),
                 sku.getMaxQuantityPerOrder(), session.getId(), outbox.latestInventorySequence(skuId), !initialized, initializeCounter, tickets.hasWaitlist(skuId));
         if (!initialized) tickets.markRedisInitialized(skuId);
+        if (diagnostics != null) diagnostics.inventoryReady(skuId);
         return true;
     }
 

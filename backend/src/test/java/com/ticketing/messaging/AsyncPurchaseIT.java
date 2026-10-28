@@ -39,7 +39,7 @@ import static org.mockito.ArgumentMatchers.*;
     "ticketing.purchase.queue-seconds=5", "ticketing.purchase.confirm-timeout-ms=500",
     "ticketing.purchase.recovery-seconds=1", "ticketing.purchase.messaging-enabled=true",
     "ticketing.purchase.exchange=ticketing.purchase.direct.it", "ticketing.purchase.queue=ticketing.purchase.direct.it.orders",
-    "ticketing.purchase.consumer.concurrency=2", "spring.rabbitmq.listener.simple.auto-startup=false",
+    "ticketing.purchase.consumer.concurrency=4", "spring.rabbitmq.listener.simple.auto-startup=false",
     "spring.rabbitmq.listener.simple.retry.max-attempts=2", "spring.rabbitmq.listener.simple.retry.initial-interval=100ms"})
 class AsyncPurchaseIT {
     static final String QUEUE="ticketing.purchase.direct.it.orders";
@@ -111,6 +111,25 @@ class AsyncPurchaseIT {
         stock(0,2);assertThat(stocks.find(id).status()).isEqualTo("SUCCEEDED");
     }
 
+    @Test void fourBucketOrdersUseRealConfirmAndFourConsumerQueue() throws Exception {
+        for(int n=0;n<4;n++)db.update("INSERT INTO ticket_stock_bucket(sku_id,bucket_no,total_stock) VALUES(?,?,2)",sku,n);
+        db.update("INSERT INTO stock_strategy_switch(sku_id,bucket_count,operator_id,backup_sha256,previous_locked,previous_sold) VALUES(?,4,?,SHA2('guarded bucket fixture',256),0,0)",sku,buyer.id);
+        db.update("UPDATE ticket_sku SET inventory_strategy='BUCKETED',bucket_count=4 WHERE id=?",sku);
+        assertThat(inventory.synchronize(sku)).isTrue();
+        long first=accept(buyer,3,"four-bucket-first").path("requestId").asLong();
+        long second=accept(other,3,"four-bucket-second").path("requestId").asLong();
+        start();
+        assertThat(await(buyer,first).path("status").asText()).isEqualTo("SUCCEEDED");
+        assertThat(await(other,second).path("status").asText()).isEqualTo("SUCCEEDED");
+        var container=(org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer)registry.getListenerContainer("purchaseOrders");
+        assertThat(container.getActiveConsumerCount()).isEqualTo(4);
+        assertThat(db.queryForObject("SELECT SUM(quantity) FROM order_stock_allocation WHERE sku_id=?",Integer.class,sku)).isEqualTo(6);
+        assertThat(db.queryForObject("SELECT locked_stock+sold_stock FROM ticket_sku WHERE id=?",Integer.class,sku)).isZero();
+        worker.process(first);worker.process(second);
+        assertThat(db.queryForObject("SELECT SUM(locked_stock) FROM ticket_stock_bucket WHERE sku_id=?",Integer.class,sku)).isEqualTo(6);
+        com.ticketing.PurchaseTestSupport.assertQuotaConsistent(db,session);
+    }
+
     @Test void concurrentLastTicketHasOnlyOneReservationAndOneOrder() throws Exception {
         db.update("UPDATE ticket_sku SET total_stock=1 WHERE id=?",sku);inventory.synchronize(sku);
         try(var pool=Executors.newFixedThreadPool(12)) {
@@ -124,7 +143,7 @@ class AsyncPurchaseIT {
 
     @Test void distinctBuyersCannotOversellThroughHttpAndConfirmedMessaging() throws Exception {
         assertThat(properties.inFlightWindow()).isEqualTo(
-                Integer.parseInt(System.getenv().getOrDefault("PURCHASE_IN_FLIGHT_WINDOW", "32")));
+                Integer.parseInt(System.getenv().getOrDefault("PURCHASE_IN_FLIGHT_WINDOW", "256")));
         db.update("UPDATE ticket_sku SET total_stock=32 WHERE id=?", sku);
         assertThat(inventory.synchronize(sku)).isTrue();
         List<Client> buyers = new ArrayList<>(List.of(buyer, other));
