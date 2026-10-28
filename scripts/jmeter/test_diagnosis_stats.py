@@ -1,8 +1,41 @@
 import unittest
-from diagnosis_stats import SafetyGate, summarize, has_persistent_pending_growth
+from diagnosis_stats import SafetyGate, summarize, has_persistent_pending_growth, success_cohorts, warmup_stability
 
 
 class DiagnosisStatsTest(unittest.TestCase):
+    def test_warmup_requires_flat_successful_completion_rates(self):
+        def samples(counts):
+            return [dict(completedMs=15000+i*5000+n,status='SUCCEEDED') for i,count in enumerate(counts) for n in range(count)]
+        self.assertTrue(warmup_stability(samples([100,108,104]),30000)['stable'])
+        self.assertFalse(warmup_stability(samples([60,90,130]),30000)['stable'])
+        self.assertFalse(warmup_stability([],30000)['stable'])
+
+    def test_warmup_request_committing_in_measurement_counts_tps_but_not_latency_cohort(self):
+        posts=[dict(postStartMs=t,idempotencyKey=str(i),requestId=str(i),postElapsedMs=5,responseCode='202')
+               for i,t in ((1,19000),(2,21000))]
+        orders=[dict(id=i,idempotency_key=str(i),status='SUCCEEDED',order_id=i,created_ms=t,accepted_ms=t-1000)
+                for i,t in ((1,20500),(2,22000))]
+        formal=summarize(posts,orders,20000,50000)
+        self.assertEqual(formal['orderCount'],2)
+        self.assertEqual(formal['accepted'],1)
+        self.assertEqual(formal['successfulDbWithout202'],0)
+        self.assertEqual(summarize(posts,orders,1000,50000)['accepted'],2)
+
+    def test_recovered_503_keeps_fixed_tps_but_separate_latency_and_unknown_fails_closed(self):
+        def post(key,code,completed,fail=''):
+            return dict(idempotencyKey=key,requestId=key,postStartMs=1000,postElapsedMs=5,
+                responseCode=code,failureCode=fail,orderStatus='SUCCEEDED',orderCompletedMs=completed,orderObservedMs=completed+10)
+        posts=[post('1','202',1100),post('2','503',1800,'PURCHASE_PUBLISH_UNCONFIRMED')]
+        orders=[dict(id=i,idempotency_key=str(i),status='SUCCEEDED',order_id=i,created_ms=1050,accepted_ms=1010) for i in (1,2)]
+        self.assertEqual(summarize(posts,orders,1000,2000)['orderTps'],2)
+        cohort=success_cohorts(posts,orders)
+        self.assertEqual(cohort['success202']['postToSettledMs']['p99'],100)
+        self.assertEqual(cohort['recoveredNon202']['postToSettledMs']['p99'],800)
+        unknown=post('3','503',1900,'PURCHASE_ADMISSION_UNAVAILABLE')
+        self.assertEqual(success_cohorts([unknown],[])['unknownKeys'],['3'])
+        unknown['failureCode']='PURCHASE_QUEUE_FULL'
+        self.assertEqual(success_cohorts([unknown],[])['non202FinalOutcomes'],{'PURCHASE_QUEUE_FULL:DEFINITE_NO_PREHOLD':1})
+
     def test_delayed_rabbit_statistics_do_not_stop_bounded_closed_loop(self):
         observed = [dict(redisPending=p, mq={'ready':q}) for p,q in zip((58,58,57,58,59,60),(0,0,49,49,50,50))]
         self.assertFalse(has_persistent_pending_growth(observed))

@@ -6,6 +6,25 @@
 
 本目录只测异步普通购票链路。测试使用独立 Compose 项目 `ticketing-jmeter`、本机端口 13307/16379/15673/15674 和独立命名卷；应用库固定为 `ticketingjmeter`。不要连接根目录 `.env` 指向的 3307 `ticketing` 业务库。
 
+## 分离发单和建单统计
+
+`purchase-session-post-only.jmx` 使用提前真实登录并校验身份的独立 Session/CSRF，每个账号只发一笔单票 POST；正式窗口不登录、不轮询。先用 `prepare-data.py` 创建足量账号和库存，再通过 `prepare-sessions.py --users <账号CSV> --output <私有会话CSV>` 预登录。会话 CSV 包含敏感 Cookie 与 CSRF，只能放在 `.local/jmeter/`，禁止提交或打印。
+
+Windows PowerShell 示例：
+
+```powershell
+python -B scripts/jmeter/prepare-sessions.py --users .local/jmeter/measure-users.csv --output .local/jmeter/sessions.csv --workers 8
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/jmeter/run-post-stage.ps1 `
+  -SessionsFile .local/jmeter/sessions.csv -OutputDirectory .local/jmeter/purchase-500-example/tier50 `
+  -BatchId separatedexample50 -Threads 50 -TargetRps 10 -BackendPid <隔离后端PID>
+```
+
+脚本在每档测前核对 Docker 项目、随机数据库 guard、独立会话数、剩余库存及候补；会话供给至少为 `目标 RPS × 30 秒 + 线程数`。统一时间槽按目标速率发单，60 秒爬坡及额外准备时间后才进入 30 秒窗口；窗口结束停止新发单，有界等待 Redis 和 RabbitMQ 排空。资源保护或大量拒绝会停止后续提交，结果不能视为稳定满载能力。不同档位使用互不重叠的独立会话、批次和足量剩余库存。
+
+保护监控约每 2 秒采样主机 CPU、内存、后端及 JMeter 进程，并异步采集 Docker、RabbitMQ 和数据库状态。CPU 高于 85% 持续 15 秒、高于 95% 持续 5 秒，或内存超过 85% / 剩余低于 4 GiB、Docker 内存超过 85%、队列持续积压、严重 GC/OOM 或大量请求错误时，监控写入 `stop.flag`，发单线程读取标记后停止新请求，已受理申请继续排空。采样、监控不可用及触发原因均保留在本轮目录；停止后不得继续提高负载。
+
+`admission.json` 的受理 RPS 只统计有效 202 和申请 ID，P99 是 POST 响应耗时；`order-creation.json` 按 MySQL 订单创建时间统计 TPS，按 Redis 受理时间到 MySQL 订单行创建时间计算成功样本 P99。后者不是客户端轮询观察时间或事务提交完成时间；需核验 Redis 与 MySQL 时钟偏差，披露未完成申请及窗口后排空。逐笔对应、资源快照和原始 JTL 均保存在忽略目录。
+
 ## 准备隔离环境
 
 Windows PowerShell 中生成随机本地凭据：

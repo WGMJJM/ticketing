@@ -98,9 +98,10 @@ def main() -> int:
     parser.add_argument("--env-file", type=Path, default=DEFAULT_ENV)
     parser.add_argument("--users", type=int, default=1, help="正式测试账号数，每个账号仅执行一笔新订单")
     parser.add_argument("--warmup-users", type=int, default=0, help="预热专用账号数，与正式测试账号隔离")
+    parser.add_argument("--stop-file",type=Path,help="隔离初始化监控的停建标志")
     args = parser.parse_args()
-    if args.users < 1 or args.warmup_users < 0 or args.users + args.warmup_users > 10000:
-        parser.error("正式账号至少 1 个；账号总数不得超过 10000")
+    if args.users < 1 or args.warmup_users < 0 or args.users + args.warmup_users > 60000:
+        parser.error("正式账号至少 1 个；账号总数不得超过 60000")
     env_path = args.env_file.resolve()
     env = read_env(env_path)
     if env.get("MYSQL_HOST") != "127.0.0.1" or env.get("MYSQL_PORT") != "13307" or env.get("MYSQL_DATABASE") != DATABASE:
@@ -164,11 +165,13 @@ def main() -> int:
         sale_end = starts_at - timedelta(minutes=1)
         with connection.cursor() as cursor:
             for rows in cohorts.values():
-                cursor.executemany(
-                    """INSERT INTO user_account(username,email,email_verified_at,password_hash,status,role,created_at,updated_at)
-                       VALUES(%s,%s,%s,%s,'ACTIVE','USER',UTC_TIMESTAMP(6),UTC_TIMESTAMP(6))""",
-                    [(username, f"{username}@example.invalid", now, password_hash) for username, _ in rows],
-                )
+                for offset in range(0,len(rows),500):
+                    if args.stop_file and args.stop_file.exists(): raise RuntimeError('建数资源保护触发，回滚未提交夹具')
+                    cursor.executemany(
+                        """INSERT INTO user_account(username,email,email_verified_at,password_hash,status,role,created_at,updated_at)
+                           VALUES(%s,%s,%s,%s,'ACTIVE','USER',UTC_TIMESTAMP(6),UTC_TIMESTAMP(6))""",
+                        [(username, f"{username}@example.invalid", now, password_hash) for username, _ in rows[offset:offset+500]],
+                    )
             cursor.execute(
                 """INSERT INTO activity(title,category,city,venue,summary,description,status,published_at)
                    VALUES(%s,'CONCERT','上海','隔离性能测试场馆','仅用于本机隔离性能验证','不对外展示的测试夹具','PUBLISHED',UTC_TIMESTAMP(6))""",

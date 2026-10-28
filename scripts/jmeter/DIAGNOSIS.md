@@ -1,5 +1,29 @@
 # 购票 TPS 安全诊断
 
+2026-10-28最新用户配置为500线程、隔离实例购票在途容量1000、发布确认窗口256，保持4桶/4消费者/prefetch=1。发布窗口源码默认同步为256，可配置1–256；业务默认容量仍200。历史结果中的32发布槽位保持原样。500线程的首批请求在预热阶段分10秒放行，此后由各自完整建单完成驱动补发，不设置正式RPS。预热初始的有界队列填充与稳态持续增长分别判断，CPU/内存/监控/75%绝对容量保护全程生效。
+
+```powershell
+python -u -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java --jmeter-jar $jmeterJar --concurrency 4 --threads 500 --inflight 500 --capacity 1000 --publisher-window 256 --max-posts 8000 --seconds 30
+```
+
+2026-10-28 四桶验收使用新入口 `--fresh-bucketed-sku`，不可使用只建立 SINGLE 的 `--fresh-sku`。本轮固定四桶、4消费者、prefetch=1、发布窗口32、Redis命令1s/连接500ms；不运行下文历史消费者 A/B 示例。
+
+当前保留原有20笔低速启动检查及其排空，随后按相同并发持续预热30秒，最近三个5秒段的成功建单完成率极差不超过均值20%时进入正式计时；未稳定则每5秒复查，预热总计最多60秒，仍不稳定则停止并标记未进入正式测量。并发预热与正式窗口使用同一JMeter、同一SKU和连续在途窗口，不排空、不重启、不二次爬升。`--seconds 30`仅表示正式测量30秒，`--max-posts`及账号预算覆盖并发预热和正式全过程。原始JTL保留全阶段，summary分别保存`warmupStats`与`allPhases`；正式P99只纳入正式窗口发起的成功202，订单TPS按创建时间统计，包含预热期发起而正式窗内建成的订单。
+
+预登录按工作线程复用HTTP连接，减少Windows短连接端口开销；每个买家先清空Cookie、重新建立认证会话和CSRF，核对响应用户名，并验证全部Cookie互不重复。复用TCP不等于复用买家身份。
+
+新批次可用 `--initialize --users 50000 --previous-runtime <旧隔离runtime>`，核验旧guard/卷/排空后仅轮换隔离容器，旧卷保留。初始化及预登录均持续采资源，账号在正式窗口前准备，单轮 `--max-posts` 上限50000、总账号上限60000。先 `--host-only`，再初始化、新建四桶、闭环自检，最后逐档手动运行：
+
+```powershell
+python -u -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java --jmeter-jar $jmeterJar --fresh-bucketed-sku --users 50000
+python -u -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java --jmeter-jar $jmeterJar --concurrency 4 --threads 2 --inflight 2 --max-posts 20 --seconds 10 --selftest
+python -u -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java --jmeter-jar $jmeterJar --concurrency 4 --threads 100 --inflight 100 --max-posts 8000 --seconds 30 --publisher-window 32
+```
+
+用户于2026-10-28执行中将本轮改为单组30秒，不追加更高档位。未来若另行探索128在途，必须先检查上一轮资源、正确性与预算；150在途会触及当前容量200的75%熔断边界，运行器拒绝启动。闭环每笔仅凭自己的已结算终态返还额度；明确未预扣的过滤器/Lua拒绝单独返还；其他503/网络失败按原键有界查询，不确定则UNKNOWN并停发。正常请求不轮询业务查询接口。
+
+`valid/wholeRunValid` 保留旧严格条件；`correctnessValid` 要求四桶/订单/额度/Redis/Outbox/排空一致且无未知请求；`performanceCohortValid`只表示202成功延迟样本可核验，不能替代整轮容量有效性。恢复成功的503计入固定窗口真实订单TPS，延迟另列。`bucket-audit.json`使用桶余额和不可变allocation；配置行SHARE及桶X持有区间分开记录。主机磁盘PDH与容器BlockIO也写入资源证据。
+
 此入口专用于 Windows 本机 `ticketing-jmeter`、`127.0.0.1:13307/ticketingjmeter`，不加载业务 `.env`。普通购票仍保持 Redis 原子预扣、RabbitMQ 发布确认、消费者 MySQL 事务、提交后 Redis 结算。诊断不改变业务算法、持久化、锁序或默认并发参数。
 
 ## 前置条件

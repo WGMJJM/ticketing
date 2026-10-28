@@ -59,6 +59,8 @@ def analyze(directory):
                 borrowers[role] += 1
     result = dict(directory=directory.name, summary=summary, run=run, windowSamples=len(window),
                   timers=timers, publisherResults=publisher_results, sampledLockWaitRows=dict(waits), sampledLockWaitKeys=dict(wait_keys), threadBorrowSnapshots=dict(borrowers))
+    bucket_path=directory/'bucket-audit.json'
+    if bucket_path.exists(): result['bucketAudit']=json.loads(bucket_path.read_text(encoding='utf-8'))
     if window:
         result['resources'] = dict(cpuMean=mean(s['cpu'] for s in window), cpuMax=max(s['cpu'] for s in window),
             freeGiBMin=min(s['freeGiB'] for s in window),
@@ -81,6 +83,17 @@ def analyze(directory):
             rowLockTimeMsDelta=window[-1]['mysql']['status']['Innodb_row_lock_time']-window[0]['mysql']['status']['Innodb_row_lock_time'],
             deadlocksDelta=(window[-1]['mysql']['status']['Innodb_deadlocks']-window[0]['mysql']['status']['Innodb_deadlocks'])
                 if 'Innodb_deadlocks' in window[0]['mysql']['status'] else None)
+        result['resources']['disk']=dict(
+            writeBytesPerSecMean=mean(s['disk']['writeBytesPerSec'] for s in window),
+            transferMsMax=max(s['disk']['avgTransferSeconds']*1000 for s in window)) if all('disk' in s for s in window) else None
+        result['sampledStockLockModes']=dict(Counter((l['OBJECT_NAME']+':'+l['LOCK_MODE'])
+            for s in window for l in s['mysql'].get('stockLocks',[]) if str(l['LOCK_DATA']).split(',')[0] == str(run['skuId'])))
+        redis_path=directory/'redis-server.jsonl'
+        if redis_path.exists():
+            redis=[json.loads(line) for line in redis_path.read_text().splitlines()]
+            redis=[r for r in redis if run['startMs']<=r['timeMs']<run['endMs'] and 'info' in r]
+            result['redisPersistence']=dict(configs=[r['config'] for r in redis[:1]],
+                aofDelayedFsyncDelta=int(redis[-1]['info']['persistence'].get('aof_delayed_fsync',0))-int(redis[0]['info']['persistence'].get('aof_delayed_fsync',0))) if redis else None
     return result
 
 

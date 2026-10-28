@@ -3,10 +3,48 @@ from collections import Counter
 from math import ceil
 
 
+# 来自实际过滤器/Lua分支：这些返回发生在本次新预扣之前。其他503/网络错误均不作推断。
+DEFINITE_REJECTIONS = frozenset(('RATE_LIMIT_UNAVAILABLE', 'TOO_MANY_REQUESTS', 'PURCHASE_QUEUE_FULL',
+                                'TICKET_UNAVAILABLE', 'PURCHASE_LIMIT', 'WAITLIST_PRIORITY'))
+
+
+def success_cohorts(posts, orders):
+    by_key = {r['idempotency_key']: r for r in orders}
+    main, recovered, outcomes = [], [], Counter()
+    unresolved = []
+    for post in posts:
+        row = by_key.get(post['idempotencyKey'])
+        matched = (row and row['status'] == 'SUCCEEDED' and row['order_id'] is not None
+                   and str(row['id']) == post.get('requestId'))
+        observed = matched and post.get('orderStatus') == 'SUCCEEDED' and post.get('orderCompletedMs')
+        if post['responseCode'] == '202':
+            if observed: main.append(post)
+            continue
+        outcome = 'SUCCEEDED' if matched else row['status'] if row else (
+            'DEFINITE_NO_PREHOLD' if post.get('failureCode') in DEFINITE_REJECTIONS else 'UNKNOWN')
+        outcomes[post.get('failureCode', '') + ':' + outcome] += 1
+        if observed: recovered.append(post)
+        if outcome in ('UNKNOWN', 'QUEUED'): unresolved.append(post['idempotencyKey'])
+    def latency(rows):
+        return dict(samples=len(rows), postToSettledMs=quantiles(
+            int(p['orderCompletedMs'])-int(p['postStartMs']) for p in rows),
+            postToClientObservedMs=quantiles(int(p['orderObservedMs'])-int(p['postStartMs']) for p in rows))
+    return dict(success202=latency(main), recoveredNon202=latency(recovered),
+                non202FinalOutcomes=dict(outcomes), unknownKeys=unresolved)
+
+
 def quantiles(values):
     values = sorted(values)
     return {f'p{int(p * 100)}': values[ceil(len(values) * p) - 1] if values else None
             for p in (.5, .95, .99)}
+
+
+def warmup_stability(completions, now_ms):
+    """最近三个完整5秒段的成功建单完成率，极差不超过均值的20%。"""
+    rates = [sum(left <= row['completedMs'] < left+5000 and row['status'] == 'SUCCEEDED'
+                 for row in completions) / 5 for left in range(now_ms-15000, now_ms, 5000)]
+    average = sum(rates)/len(rates)
+    return dict(rates=rates, stable=average > 0 and max(rates)-min(rates) <= average*.20)
 
 
 def has_persistent_pending_growth(samples):
@@ -22,7 +60,7 @@ def summarize(posts, orders, start_ms, end_ms):
     keys = [p['idempotencyKey'] for p in posts]
     counts = Counter(p['responseCode'] for p in window)
     accepted = [p for p in window if p['responseCode'] == '202' and p.get('requestId', '').isdigit()]
-    accepted_keys = {p['idempotencyKey'] for p in accepted}
+    accepted_keys = {p['idempotencyKey'] for p in posts if p['responseCode'] == '202' and p.get('requestId', '').isdigit()}
     by_key = {row['idempotency_key']: row for row in orders}
     incomplete, failed, delays = 0, Counter(), []
     for post in accepted:
