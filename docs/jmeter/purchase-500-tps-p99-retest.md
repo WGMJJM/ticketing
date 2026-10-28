@@ -50,6 +50,6 @@ python -B scripts/jmeter/summarize-jtl.py <本轮目录>/measure.jtl --window-st
 python -B scripts/jmeter/test_summarize_jtl.py
 ```
 
-`measure.jtl`、逐笔 `cohort.csv`、窗口、资源采样、JVM GC、MySQL 摘要及只读对账结果、RabbitMQ 排空和线程快照保存在上述 Git 忽略目录，未保存登录响应、Cookie 或 CSRF。本轮独立容器已停止，专用数据卷和 `runtime/compose.env`、账号 CSV 为独立复核保留；可用该配置重启独立 Compose，通过 `scripts/jmeter/verify-orders.sql` 和上述 UTC 边界查询，不得连接业务库。压测计划、统计脚本和三项合成边界测试已检查，未运行新的完整业务测试套件。
+`measure.jtl`、逐笔 `cohort.csv`、窗口、资源采样、JVM GC、MySQL 摘要及只读对账结果、RabbitMQ 排空和线程快照保存在上述 Git 忽略目录，未保存登录响应、Cookie 或 CSRF。之后按用户清理旧测试数据的要求，原隔离容器与专用数据卷已删除，不能再从旧数据库复核；原本地结果目录的递归删除被自动安全审核拦截。压测计划、统计脚本和三项合成边界测试已检查，未运行新的完整业务测试套件。
 
 简历候选：在本机隔离环境使用 500 个 JMeter 线程测试异步购票，测得成功订单 TPS 8.433、成功订单端到端 P99 43.257 秒。使用独立测试数据核对购票申请、订单、库存和消息的最终一致性，并通过完整样本追踪分析排队及连接池等待。
