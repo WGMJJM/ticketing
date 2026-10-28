@@ -40,8 +40,9 @@ public class TicketInventory {
             if (tickets.reserve(sale.skuId(), quantity) != 1) throw unavailable();
             return Map.of();
         }
-        if (sale.bucketCount() != 4 || requestId == null) throw inconsistent();
-        int initial = Math.floorMod(requestId, 4);
+        int bucketCount = sale.bucketCount();
+        if ((bucketCount != 4 && bucketCount != 8) || requestId == null) throw inconsistent();
+        int initial = Math.floorMod(requestId, bucketCount);
         if (!ordered) {
             if (buckets.reserve(sale.skuId(), initial, quantity) == 1) return Map.of(initial, quantity);
             // UPDATE 即使影响零行也可能持锁；必须回滚整笔事务后才能回绕到更小编号。
@@ -49,7 +50,7 @@ public class TicketInventory {
         }
         Map<Integer, Integer> allocation = new TreeMap<>();
         int remaining = quantity;
-        for (int number = 0; number < 4 && remaining > 0; number++) {
+        for (int number = 0; number < bucketCount && remaining > 0; number++) {
             StockBucket bucket = buckets.lock(sale.skuId(), number);
             if (bucket == null || bucket.available() < 0) throw inconsistent();
             int taken = Math.min(remaining, bucket.available());

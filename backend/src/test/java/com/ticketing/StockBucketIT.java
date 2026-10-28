@@ -157,6 +157,25 @@ class StockBucketIT {
         assertThat(db.queryForObject("SELECT COUNT(*) FROM electronic_ticket WHERE order_id=? AND status='VOID'",Integer.class,id)).isEqualTo(3);
         assertThat(db.queryForObject("SELECT paid_at FROM ticket_order WHERE id=?",java.time.LocalDateTime.class,id)).isNotNull();consistent();
     }
+
+    @Test void eightBucketsRouteToSeventhAndFallbackKeepsOriginalAllocations() {
+        sku=sku(session,8,8);
+        var single=routed(buyer,7);worker.process(single.id());
+        long first=requests.find(single.id()).orderId();
+        assertThat(db.queryForList("SELECT bucket_no FROM order_stock_allocation WHERE order_id=?",Integer.class,first))
+                .containsExactly(7);
+        var fragmented=routed(user("USER"),7,4);worker.process(fragmented.id());
+        long second=requests.find(fragmented.id()).orderId();
+        var original=db.queryForList("SELECT bucket_no FROM order_stock_allocation WHERE order_id=? ORDER BY bucket_no",Integer.class,second);
+        assertThat(original).containsExactly(0,1,2,3);stock(sku,5,0);
+        orders.pay(buyer,first);stock(sku,4,1);
+        orders.cancel(fragmented.userId(),second);stock(sku,0,1);
+        assertThat(refunds.refund(admin,first,RefundReason.CUSTOMER_REQUEST).status()).isEqualTo("SUCCEEDED");
+        assertThat(db.queryForList("SELECT bucket_no FROM order_stock_allocation WHERE order_id=? ORDER BY bucket_no",Integer.class,second))
+                .isEqualTo(original);
+        stock(sku,0,0);consistent();
+        assertThat(snapshots.synchronize(sku)).isTrue();
+    }
     @Test void cancellationAndExpiryReleaseOriginalBucketsExactlyOnce() {
         long first=order(buyer,sku,2);orders.cancel(buyer,first);orders.cancel(buyer,first);stock(sku,0,0);
         long second=order(buyer,sku,4);
@@ -173,8 +192,10 @@ class StockBucketIT {
         db.update("UPDATE ticket_stock_bucket SET sold_stock=0 WHERE sku_id=?",sku);
         worker.process(attempt.id());stock(sku,3,0);consistent();
     }
-    @Test void oneHundredDistinctBuyersNeverOversellOrLeavePartialAllocations() throws Exception {
-        long hot=sku(session,100,4);var claims=new ArrayList<PurchaseRequest>();
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints={4,8})
+    void oneHundredDistinctBuyersNeverOversellOrLeavePartialAllocations(int bucketCount) throws Exception {
+        long hot=sku(session,100,bucketCount);var claims=new ArrayList<PurchaseRequest>();
         for(int n=0;n<100;n++) claims.add(claim(user("USER"),hot,1));
         try(var pool=Executors.newFixedThreadPool(4)) {
             var futures=new ArrayList<Future<?>>();
@@ -184,7 +205,7 @@ class StockBucketIT {
         assertThat(claims.stream().filter(c->"SUCCEEDED".equals(requests.find(c.id()).status())).count()).isEqualTo(100);
         assertThat(claims.stream().filter(c->"FAILED".equals(requests.find(c.id()).status())).count()).isZero();
         stock(hot,100,0);
-        assertThat(db.queryForObject("SELECT COUNT(DISTINCT a.bucket_no) FROM order_stock_allocation a WHERE a.sku_id=?",Integer.class,hot)).isEqualTo(4);
+        assertThat(db.queryForObject("SELECT COUNT(DISTINCT a.bucket_no) FROM order_stock_allocation a WHERE a.sku_id=?",Integer.class,hot)).isEqualTo(bucketCount);
         assertThat(db.queryForObject("SELECT COUNT(*) FROM order_stock_allocation WHERE sku_id=?",Integer.class,hot)).isEqualTo(100);
         assertThat(db.queryForObject("SELECT COUNT(*) FROM outbox_event WHERE aggregate_type='TICKET_SKU' AND aggregate_id=?",Integer.class,hot)).isZero();
         consistent();
@@ -281,7 +302,8 @@ class StockBucketIT {
         // 用真实 Redis 预扣，指定稳定的原 requestId，不按用户或线程路由。
         PurchaseTestSupport.prepare(snapshots,sku);
         long id=com.baomidou.mybatisplus.core.toolkit.IdWorker.getId();
-        id += Math.floorMod(number-Math.floorMod(id,4),4);
+        int bucketCount=db.queryForObject("SELECT bucket_count FROM ticket_sku WHERE id=?",Integer.class,sku);
+        id += Math.floorMod(number-Math.floorMod(id,bucketCount),bucketCount);
         return stocks.reserve(new com.ticketing.dto.PurchaseIntent(owner,sku,quantity,"CREATE_ORDER",
                 UUID.randomUUID().toString(),null,0,null,id));
     }
@@ -313,25 +335,28 @@ class StockBucketIT {
         java.nio.file.Files.createDirectories(target.getParent());
         new com.fasterxml.jackson.databind.ObjectMapper().writerWithDefaultPrettyPrinter().writeValue(target.toFile(),proof);
     }
-    @Test void fourCompleteTransactionsHoldFourDifferentBucketExclusiveLocksTogether() throws Exception {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints={4,8})
+    void completeTransactionsHoldDifferentBucketExclusiveLocksTogether(int bucketCount) throws Exception {
+        sku=sku(session,bucketCount,bucketCount);
         var claims=new ArrayList<PurchaseRequest>();
-        for(int n=0;n<4;n++)claims.add(routed(user("USER"),n));
-        var held=new CountDownLatch(4);var release=new CountDownLatch(1);
+        for(int n=0;n<bucketCount;n++)claims.add(routed(user("USER"),n));
+        var held=new CountDownLatch(bucketCount);var release=new CountDownLatch(1);
         org.mockito.Mockito.doAnswer(call->{
             held.countDown();
-            if(!release.await(15,TimeUnit.SECONDS))throw new AssertionError("四桶锁未按时释放");
+            if(!release.await(15,TimeUnit.SECONDS))throw new AssertionError("桶锁未按时释放");
             return mybatis.getMapper(PurchaseRequestMapper.class).finishSuccess(call.getArgument(0),call.getArgument(1));
         }).when(requestWrites).finishSuccess(org.mockito.ArgumentMatchers.anyLong(),org.mockito.ArgumentMatchers.anyLong());
-        try(var pool=Executors.newFixedThreadPool(4)) {
+        try(var pool=Executors.newFixedThreadPool(bucketCount)) {
             var futures=claims.stream().map(r->pool.submit(()->worker.process(r.id()))).toList();
             try {
                 assertThat(held.await(8,TimeUnit.SECONDS)).isTrue();
-                lockProof("four_concurrent_bucket_x");
+                lockProof(bucketCount+"_concurrent_bucket_x");
                 assertThat(db.queryForObject("""
                     SELECT COUNT(DISTINCT LOCK_DATA) FROM performance_schema.data_locks
                     WHERE OBJECT_SCHEMA=DATABASE() AND OBJECT_NAME='ticket_stock_bucket' AND INDEX_NAME='PRIMARY'
                       AND LOCK_TYPE='RECORD' AND LOCK_MODE LIKE 'X%' AND LOCK_STATUS='GRANTED' AND LOCK_DATA LIKE ?
-                    """,Integer.class,sku+",%")).isEqualTo(4);
+                    """,Integer.class,sku+",%")).isEqualTo(bucketCount);
                 assertThat(db.queryForObject("""
                     SELECT COUNT(*) FROM performance_schema.data_locks
                     WHERE OBJECT_SCHEMA=DATABASE() AND OBJECT_NAME='ticket_sku' AND INDEX_NAME='PRIMARY'
@@ -340,7 +365,7 @@ class StockBucketIT {
             } finally {release.countDown();}
             for(var future:futures)future.get(10,TimeUnit.SECONDS);
         }
-        stock(sku,4,0);consistent();
+        stock(sku,bucketCount,0);consistent();
     }
     @Test void completeWorkersUseIndependentBucketLocksAndRollbackUnblocksSameBucket() throws Exception {
         var a=routed(user("USER"),0);var b=routed(user("USER"),1);var c=routed(user("USER"),0);

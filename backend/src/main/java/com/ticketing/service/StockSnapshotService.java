@@ -62,8 +62,10 @@ public class StockSnapshotService {
             } while (page.size() == 200);
         }
         boolean initializeCounter = !initialized && tickets.redisInitializedCount() == 0;
-        // 已持 SKU X，与交易 SKU S 互斥，此刻四桶是同一受保护的已提交余额。
-        if (sku.bucketed() && sku.getBucketCount() != 4) throw new IllegalStateException("新销售仅支持四桶");
+        // 已持 SKU X，与交易 SKU S 互斥，此刻各桶是同一受保护的已提交余额。
+        if (sku.bucketed() && sku.getBucketCount() != 4 && sku.getBucketCount() != 8) {
+            throw new IllegalStateException("新销售仅支持四桶或八桶");
+        }
         inventory.balance(sku);
         boolean eligible = "PUBLISHED".equals(activity.getStatus())
                 && "SCHEDULED".equals(session.getStatus()) && "ON_SALE".equals(sku.getStatus())
