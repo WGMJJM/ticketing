@@ -20,6 +20,8 @@ python -u -B scripts/jmeter/diagnose-purchase.py --runtime .local/jmeter/redis-m
 
 用户后续指定72消费者、16桶、500线程/500在途，Hikari16不变；本轮仅隔离容量相应设500。实测及命令见[72消费者对照](../../docs/jmeter/v16-72consumers-16buckets-500threads-20261029.md)，不据此自动修改业务默认值或继续加压。
 
+Hikari72的后续补测按用户指定预登录10000旧账号，并报告停止发单前最后5秒TPS，定义、完整30秒结果及前批账号耗尽限制见[Hikari72末段结果](../../docs/jmeter/v16-hikari72-tail5-20261029.md)。CLI支持 `--pool 72`，不改变业务默认连接池。
+
 - `diagnose-purchase.py`：隔离检查、预登录、持续预热、JMeter 发单、资源保护、排空和库存审计。
 - `purchase-post-only.jmx`：正式窗口只发购票 POST，由完整建单完成事件驱动闭环补发。
 - `diagnosis_stats.py`、`analyze-diagnosis.py`：窗口统计与诊断分析。

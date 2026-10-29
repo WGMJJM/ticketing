@@ -1314,7 +1314,7 @@ def main():
     parser.add_argument('--java', required=True)
     parser.add_argument('--jmeter-jar', required=True)
     parser.add_argument('--concurrency', type=int, choices=(2,4,8,12,72), default=12)
-    parser.add_argument('--pool', type=int, choices=(10,12,16,20), default=10)
+    parser.add_argument('--pool', type=int, choices=(10,12,16,20,72), default=10)
     parser.add_argument('--publisher-window', type=int, choices=(16,32,64,256), default=64,
                         help='历史兼容参数，V16已移除发布确认，不传给应用、不参与负载控制')
     parser.add_argument('--reuse-accounts',action='store_true',help='筛选固定池中符合资格的不同旧账号，保持原游标')
