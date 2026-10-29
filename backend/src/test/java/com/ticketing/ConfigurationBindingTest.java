@@ -39,12 +39,22 @@ class ConfigurationBindingTest {
     }
 
     @Test
+    void requestedSeventyTwoConsumersBindWithoutChangingOtherDefaults() {
+        runner.withPropertyValues("ticketing.purchase.consumer.concurrency=72").run(context -> {
+            assertThat(context).hasNotFailed();
+            assertThat(context.getBean(PurchaseConsumerProperties.class).concurrency()).isEqualTo(72);
+            assertThat(context.getBean(PurchaseConsumerProperties.class).prefetch()).isEqualTo(1);
+            assertThat(context.getBean(PurchaseProperties.class).capacity()).isEqualTo(200);
+        });
+    }
+
+    @Test
     void invalidRelatedConfigurationFailsStartup() {
         for (String property : new String[] {"ticketing.order.max-per-user-session=0",
                 "ticketing.order.expiry.batch-size=501", "ticketing.checkin.opens-before-minutes=1441",
                 "ticketing.waitlist.compensation-batch-size=0", "ticketing.order.aftercare.batch-size=501",
                 "ticketing.order.aftercare.max-attempts=1", "ticketing.order.aftercare.retry-delay-seconds=0",
-                "ticketing.purchase.consumer.concurrency=17", "ticketing.purchase.consumer.prefetch=0",
+                "ticketing.purchase.consumer.concurrency=73", "ticketing.purchase.consumer.prefetch=0",
                 "ticketing.purchase.consumer.prefetch=65", "ticketing.purchase.consumer.concurrency=0",
                 "ticketing.purchase.capacity=0", "ticketing.purchase.queue-seconds=4",
                 "ticketing.catalog-cache.maximum-entries=0", "ticketing.catalog-cache.local-seconds=31",

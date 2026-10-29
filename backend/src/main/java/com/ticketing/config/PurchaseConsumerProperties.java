@@ -10,5 +10,5 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @ConfigurationProperties("ticketing.purchase.consumer")
 public record PurchaseConsumerProperties(
-        @DefaultValue("2") @Min(1) @Max(16) int concurrency,
+        @DefaultValue("2") @Min(1) @Max(72) int concurrency,
         @DefaultValue("1") @Min(1) @Max(64) int prefetch) { }

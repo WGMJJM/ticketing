@@ -18,6 +18,8 @@ python -u -B scripts/jmeter/diagnose-purchase.py --runtime .local/jmeter/redis-m
 
 用户指定的200线程/200在途、Hikari16、容量200对照已完成一轮，实际命令和QPS/TPS见[200线程对照](../../docs/jmeter/v16-200threads-hikari16-20261029.md)。该档使用现有 `--allow-capacity-fill` 明确允许在途达到容量，其他保护保留，不自动提高Redis容量。
 
+用户后续指定72消费者、16桶、500线程/500在途，Hikari16不变；本轮仅隔离容量相应设500。实测及命令见[72消费者对照](../../docs/jmeter/v16-72consumers-16buckets-500threads-20261029.md)，不据此自动修改业务默认值或继续加压。
+
 - `diagnose-purchase.py`：隔离检查、预登录、持续预热、JMeter 发单、资源保护、排空和库存审计。
 - `purchase-post-only.jmx`：正式窗口只发购票 POST，由完整建单完成事件驱动闭环补发。
 - `diagnosis_stats.py`、`analyze-diagnosis.py`：窗口统计与诊断分析。
