@@ -1,5 +1,7 @@
 # 本地开发与验收
 
+当前消息链路及 V16 升级要求以 [架构说明](01-architecture.md) 和 [V16 切换检查](41-inventory-sync-migration.md) 为准。本文后半部分的阶段记录保留历史上下文。
+
 Java源码按`controller`、`service`、`mapper`、`entity`、`dto`、`vo`等技术层放置在`backend/src/main/java/com/ticketing`，保留单Maven模块及唯一Spring Boot应用。新生产类须同步登记`backend/src/test/resources/architecture-modules.properties`中的逻辑业务归属；测试分别检查技术包位置、分层依赖、归属完整性、公开协作边界及业务循环依赖。详细结构见[架构说明](01-architecture.md)。
 
 环境：Java 21、Maven 3.9+、满足 Vite 的 Node（20.19+ 或 22.12+）、Docker Desktop 或 Docker Engine + Compose；Windows 推荐 PowerShell。`mvn -version` 显示的 Java 版本才是 Maven 实际使用版本。
@@ -73,17 +75,17 @@ docker compose --env-file .env -f deploy/compose.yml exec -T mysql sh -c 'MYSQL_
 
 ## 模拟支付与超时扫描配置
 
-ORDER_EXPIRY_ENABLED默认true，ORDER_EXPIRY_SCAN_DELAY_MS默认30000，ORDER_EXPIRY_BATCH_SIZE默认100（1至500）。启动立即扫描，逐笔独立事务处理，批次完成再等待间隔；使用MySQL时间与既有到期索引，账号禁用或父级不可售不影响释放。失败会记录订单ID并继续，游标扫到尾回绕重试；重启重新扫描历史PENDING。不引入RabbitMQ延迟关单，释放成功会同事务写候补Outbox事件。
+ORDER_EXPIRY_ENABLED默认true，ORDER_EXPIRY_SCAN_DELAY_MS默认30000，ORDER_EXPIRY_BATCH_SIZE默认100（1至500）。逐笔独立事务处理，释放成功同事务递增库存同步版本，后台同步Redis及扫描候补。
 
 快速浏览器验收可只在启动进程临时设置ORDER_PAYMENT_WINDOW_MINUTES=1及ORDER_EXPIRY_SCAN_DELAY_MS=1000，等待真实截止并刷新状态；不要用修改订单状态SQL代替验收。验证后恢复默认15分钟/30秒，不提交本地.env。积压、锁等待和错误重试会造成关闭延迟，支付SQL仍严格按数据库截止拒绝。测试注入的库存/流水写入故障仅限测试代码，不出现在产品接口。
 
 ## 候补与消息验收
 
-WAITLIST_MAX_WAIT_MINUTES默认60，实际申请截止不晚于票档停售。WAITLIST_OUTBOX_POLL_MS默认1000，WAITLIST_COMPENSATION_POLL_MS默认60000；WAITLIST_MESSAGING_ENABLED与WAITLIST_JOBS_ENABLED默认true。Outbox批量、确认超时、租约、总尝试上限、消费退避等集中在application.yml。消息关闭时数据库补偿仍能推进，不能将关闭消息当作正常生产验收结果。
+WAITLIST_MAX_WAIT_MINUTES默认60，实际申请截止不晚于票档停售。WAITLIST_COMPENSATION_POLL_MS默认5000，WAITLIST_JOBS_ENABLED默认true；候补按持久FIFO扫描并复用普通购票队列。
 
-先由用户B在仅剩1张的演示票档创建真实待支付订单，再由用户A申请1张候补；B主动取消后，查询MySQL释放库存及PENDING/SENT事件，RabbitMQ触发A的真实预留订单。A刷新“我的候补”进入关联订单完成模拟支付，刷新候补应显示已完成；核对locked=0、sold=1、唯一支付流水。分配前只可取消候补，分配后须前往订单取消。WAITING不占场次限额，分配重新检查，不保证候补成功或优先于新购票。
+先由用户B在仅剩1张的票档创建待支付订单，再由用户A申请1张候补；B取消后，核对MySQL库存版本、Redis余额及后台扫描产生的候补订单。A可在关联订单完成模拟支付，核对locked=0、sold=1及唯一支付流水。分配前只可取消候补，分配后须前往订单取消。
 
-消费者队列ticketing.waitlist.dispatch及其.dead均持久化；检查失败日志、FAILED事件和死信数量。修复基础设施后PENDING/超时PROCESSING自动重投，FAILED保留人工排查；不删除业务事件绕过问题。低频扫描会补偿仍有WAITING的SKU，队首不足不越过。端到端为至少一次与数据库幂等。定时任务重启会再次读库，内存游标无需迁移；不要删除Docker数据卷模拟恢复。
+检查普通购票队列、恢复索引和库存版本差异；未决队首阻挡后续候补，重复扫描不得重复分配。Redis账本缺失时停卖核对，不通过删除数据卷模拟恢复。
 
 ## 电子票签名与核销
 
@@ -189,7 +191,7 @@ try {
 
 第十六阶段验收时原开发库仍为V7，当时只读核对而未部署V8/V9；该结论属于历史记录。第十九阶段已在用户明确批准的本次停写窗口，使用恢复验证过的V7备份将原开发库升级V10，对账通过并撤销单次批准；详细结果见[最终验收](31-final-acceptance-and-delivery.md)。其他有数据环境仍须逐库获得授权，不能直接用普通启动命令替代受控升级。第十六阶段的固定隔离基准与真实结果见[历史验收](27-trade-quota-and-transaction-verification.md)。
 
-## 第十六阶段后审查
+## 第十六阶段后审查（历史记录）
 
 Outbox增加`WAITLIST_OUTBOX_IN_FLIGHT_WINDOW`，默认16、允许1至64，实际认领数量还受原健康批量1至100限制。每个窗口先短事务认领，再流水线发送及异步Confirm通知，调度线程独立落账；30秒租约必须超过5000毫秒确认超时并预留至少一秒。故障后不认领新窗口，未确认记录保持可由数据库租约恢复。不要通过扩大窗口替代端到端测量，64档未重复出稳定收益。
 

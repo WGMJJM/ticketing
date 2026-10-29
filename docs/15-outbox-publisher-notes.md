@@ -1,5 +1,7 @@
 # Outbox发布与故障恢复约束
 
+本文为历史阶段记录。V16 已删除库存 Outbox 发布链路，当前实现与迁移要求见 [架构说明](01-architecture.md) 和 [V16 切换检查](41-inventory-sync-migration.md)。
+
 库存释放、增加库存及业务配置变化与Outbox在同一数据库事务内落账。发布器采用短事务有界认领、持久租约、递增尝试令牌及RabbitMQ确认；消息确认等待发生在数据库事务之外。
 
 健康批量默认100，`WAITLIST_OUTBOX_BATCH_SIZE`范围1至100；在途窗口默认16，`WAITLIST_OUTBOX_IN_FLIGHT_WINDOW`范围1至64，实际不超过批量。故障后停止认领新窗口，已在途消息继续有界收尾；超时及重启由租约、退避、死信和数据库补偿恢复。

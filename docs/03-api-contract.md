@@ -1,5 +1,7 @@
 # 当前 API 契约
 
+本页后部的阶段条目为历史记录；当前购票及候补链路以本页相应接口和 [架构说明](01-architecture.md) 为准。
+
 后端保持单Maven模块，按controller、service、mapper、entity、dto、vo等技术层分包，业务协作边界由架构规则登记，根包为`com.ticketing`。普通购票在原HTTP协议内增加Redis Lua真实库存预扣，保留202申请查询、原幂等键、用户身份、CSRF和独立安全频率限制；MySQL仍作最终库存与订单权威。当前时序和故障处理见[架构说明](01-architecture.md)。
 
 第十九阶段没有改变业务HTTP契约。可选运维配置将health/info/metrics置于`/api/v1/admin/monitoring`，继续要求实时ADMIN身份；其他敏感Actuator端点不暴露。该路径仅供本机或受控运维网络使用，部署检查见[运维手册](32-single-instance-operations.md)。所有BIGINT ID按字符串传输；时间使用带时区表示，人民币金额为整数分。
@@ -112,7 +114,7 @@ ON_SALE仅为管理状态。后端先判断活动发布、场次正常且未结�
 
 | 方法与路径（均在 /api/v1 下） | 语义 |
 | --- | --- |
-| POST `/orders` | JSON仅 `{ "skuId":"10001", "quantity":2 }`，必需请求头Idempotency-Key；Redis原子预扣后，MySQL持久申请与Outbox成功提交才返回202；终态同键重放200；不在HTTP内创建正式订单 |
+| POST `/orders` | JSON仅 `{ "skuId":"10001", "quantity":2 }`，必需请求头Idempotency-Key；Redis原子预扣并记录凭据后尝试发送消息，返回202；终态同键重放200；不在HTTP内创建正式订单 |
 | GET `/purchase-requests/{requestId}` | 本人购票请求真实进度；不存在及非本人统一404，no-store |
 | GET `/purchase-requests` | 本人最近50笔进行中的抢票申请，供刷新与导航恢复；no-store |
 | GET `/purchase-requests/lookup` | 请求头Idempotency-Key（相同1至128位可见ASCII规则），只读查询当前用户该键的原申请；没有记录统一404 PURCHASE_REQUEST_NOT_FOUND，no-store；不提交新申请 |
@@ -123,17 +125,17 @@ ON_SALE仅为管理状态。后端先判断活动发布、场次正常且未结�
 | POST `/orders/{orderId}/pay` | 本人订单模拟支付；无业务请求体（允许空对象），不接收金额、用户ID等字段；成功200返回PaymentView |
 | GET `/orders/{orderId}/payment` | 本人订单成功模拟支付流水；没有成功记录404 PAYMENT_NOT_FOUND，非本人订单404 ORDER_NOT_FOUND |
 
-第十六阶段该限额改读MySQL用户场次独立额度，返回字段不变，仍跨该场次全部票档共享。PENDING与PAID占额，支付不重复占额，取消/过期/整单退款成功才同事务释放；WAITING及未建单请求不占额。交易账号SHARE与禁用/撤权UPDATE协调，限额写在精确额度行串行；HTTP受理仍保留原账号UPDATE与幂等事实事务。取消成功响应在写事务提交后读取公开详情，不暴露内部额度记录。迁移及完整锁协议见[第十六阶段说明](27-trade-quota-and-transaction-verification.md)。
+限额读取 MySQL 用户场次独立额度，跨该场次全部票档共享。PENDING 与 PAID 占额，支付不重复占额，取消、过期或退款成功才同事务释放；WAITING 及未建单请求不占额。HTTP 受理不写 MySQL 申请行。
 
-新键先经原只读幂等查重，再由Redis Lua按已初始化的SKU配置、销售时间、真实可售量和受理容量原子预扣；正常请求不再逐次读取MySQL销售资格和版本。首次装载时不存在票档返回404 TICKET_NOT_FOUND；Redis销售状态/窗口无效或余额不足返回409 TICKET_UNAVAILABLE；Redis不可用、SKU冻结或状态无法证明时503 PURCHASE_ADMISSION_UNAVAILABLE。配置和父级资格变化通过同事务库存Outbox更新快照，时间边界由Lua校验；短暂旧资格最多产生后续FAILED申请，MySQL消费者仍最终核验资格、条件库存及限购。恢复开售后原先未受理的键可用原键重试。历史BUCKETED票档停止新的普通和候补预占，已有订单及同键终态继续查询回放。
+Redis Lua 按已初始化的 SKU 配置、销售时间、可售量和容量原子检查并预扣。余额不足或销售窗口无效返回409 TICKET_UNAVAILABLE；Redis 不可用或账本无法证明时返回503 PURCHASE_ADMISSION_UNAVAILABLE。配置和父级资格变化通过事务内库存版本触发后台快照；MySQL 消费者仍最终校验资格、库存和限额。普通购票支持 SINGLE 和4/8/16桶，分桶新候补不开放。
 
 POST原安全429/故障503仍可能先于业务查重，不因同键而放宽。丢失首次响应时可登录后用上述只读lookup恢复既有事实；404才表示当前读取时尚无已提交申请，重试写入仍须原键。客户端不自动循环重发写请求。取消响应超时或提交后详情读取失败也不代表取消未发生，应查询订单状态；CANCELLED可安全重试取消而不再次释放库存或额度。
 
-skuId为正十进制字符串且不能超过Java long，quantity为正INT整数，拒绝小数。未知创建字段（userId、价格、金额、状态、库存等）400；身份和价格只能来自服务端。幂等键为1至128位可见ASCII字符（不含空格），区分大小写；缺失或非法400。操作域固定CREATE_ORDER，同一用户同键同参返回同一个requestId及真实状态，不续期、不重复占预算或追加消息；同键异SKU/数量409 IDEMPOTENCY_CONFLICT，不同用户可共用键。V8将旧普通订单幂等事实登记为SUCCEEDED，旧订单已取消仍关联该原单，不重复预占。
+skuId为正十进制字符串且不能超过Java long，quantity为正INT整数，拒绝小数。未知创建字段（userId、价格、金额、状态、库存等）400；身份和价格只能来自服务端。幂等键为1至128位可见ASCII字符（不含空格），区分大小写；缺失或非法400。操作域固定CREATE_ORDER，同一用户同键同参返回同一个requestId，不续期或重复预扣；未决重放可能再次发送同一消息，消费者按 requestId 幂等处理。同键异SKU/数量409 IDEMPOTENCY_CONFLICT。
 
-PurchaseRequestView为 `{requestId,skuId,quantity,status,orderId,failureCode,failureMessage,acceptedAt,deadlineAt,serverTime}`，ID按字符串传输。状态为QUEUED（抢票排队）、PROCESSING（确认中）、SUCCEEDED（订单已创建）、FAILED（业务失败）、EXPIRED（排队超时）。后面三种为终态；只有SUCCEEDED有真实orderId。202证明Redis预扣和MySQL申请/Outbox已完成，不表示正式订单已创建或可支付。默认受理容量200、排队120秒；Redis计数与token原子更新，计数丢失时从MySQL活动申请token与Redis恢复索引的并集有界重建。首次受理MySQL事务只写申请与Outbox，不再更新V8 `purchase_capacity`表。Redis受理容量已满时503 PURCHASE_QUEUE_FULL，带有界Retry-After，不创建申请或Outbox。
+PurchaseRequestView为 `{requestId,skuId,quantity,status,orderId,failureCode,failureMessage,acceptedAt,deadlineAt,serverTime}`，ID按字符串传输。状态为QUEUED、SUCCEEDED、FAILED、EXPIRED；只有SUCCEEDED有真实orderId。202证明Redis预扣及申请凭据已登记，不证明消息已到达或订单已创建。默认容量200、排队120秒；容量满时503 PURCHASE_QUEUE_FULL。账本丢失时停卖核对，不猜测重建。
 
-购票命令消费者先在MySQL事务外确认token仍为RESERVED并已绑定当前请求，再按账号SHARE→活动SHARE→场次SHARE→用户场次额度UPDATE→SKU UPDATE→订单→购票请求加锁，校验活动PUBLISHED、场次SCHEDULED及销售窗口、SKU ON_SALE、可售量；区间为 `[saleStartsAt,saleEndsAt)`。数量受SKU单笔上限和跨SKU用户场次限额约束，默认每人每场4张，PENDING/PAID占额，CANCELLED/EXPIRED/REFUNDED不占额。库存或不可售、限购及金额异常表现为请求FAILED和有限业务码及中文说明；临时数据库异常回滚并保持可恢复状态。成功订单、明细、库存、额度及SUCCEEDED绑定必须一起提交，提交后Redis token才结算为CONSUMED；确定失败先提交申请终态和库存Outbox，再由Lua幂等释放token。排队截止与订单15分钟支付截止独立，支付时间从正式订单创建开始计算。
+消费者先验证 Redis 凭据，以 requestId 在 MySQL 协调重复消息及过期仲裁，再按既有资源锁序检查资格和库存。订单、明细、库存、额度和 SUCCEEDED 同事务提交；确定失败先登记终态，再由 Lua 幂等释放预扣。排队截止与订单支付截止独立。
 
 OrderView字段：id/orderNo/activityId/activityTitle/sessionId/sessionTitle/sessionStartsAt/skuId/skuName/quantity/unitPriceCents/totalAmountCents/status/createdAt/expiresAt/paymentDeadlinePassed/canCancel/canPay/payment/serverTime。ID和金额分为字符串，数量为整数，时间UTC带Z、页面北京时间。skuName、单价和数量来自下单明细快照，活动/场次名称及开始时间是当前关联资料。总额为服务端单价乘数量，不采用客户端预计金额。payment无成功流水时为null，否则为PaymentView，列表通过JOIN读取，不逐订单额外查询。
 
@@ -176,13 +178,7 @@ WaitlistView字段：id/skuId/sessionId/activityId/activityTitle/sessionTitle/sk
 
 ## 候补消息与补偿
 
-订单取消/超时、管理员增加总库存，及候补入队/退出产生调度提示，同事务写outbox_event。事件类型WAITLIST_DISPATCH_REQUESTED、聚合TICKET_SKU，payload为字符串eventId/skuId及reason，无账号凭据。无公开消息、强制调度或修改候补状态接口。
-
-发布任务默认每秒读取至多20条，每条短事务SKIP LOCKED认领，30秒租约，retry_count作为认领令牌。持久消息经correlated confirm且无mandatory退回才标SENT，确认超时5秒；失败按2秒起、最大300秒有界指数退避，总尝试10次后FAILED。应用重启或租约到期可以重新认领，旧令牌不能修改新任务状态。FAILED保留供运维定位，不代表候补必然失败。
-
-RabbitMQ持久交换机ticketing.waitlist，路由inventory.available，持久队列ticketing.waitlist.dispatch；死信交换机ticketing.waitlist.dead，死信队列ticketing.waitlist.dispatch.dead，路由failed。消费者核对已提交Outbox与messageId、SKU，事务完成后确认；重复消息重查数据库，不重复创建订单。消费最多4次、间隔1/2/4秒，失败拒绝重新入队并进入死信，避免快速无限循环。
-
-独立数据库补偿默认每60秒扫描100个仍有WAITING的SKU，并另按同样边界核对库存Outbox序号未被Redis快照覆盖的SKU，每SKU至多处理50次队首；覆盖有库存未分配及无库存但队首已失效的情况。逐SKU隔离失败，游标前进并回绕，重启从数据库恢复。WAITLIST_MESSAGING_ENABLED=false关闭候补拓扑及消费，补偿仍运行；WAITLIST_JOBS_ENABLED=false关闭候补后台补偿。第十四阶段通用Outbox发布统一由OUTBOX_JOBS_ENABLED控制，同时服务候补和购票通道；购票消费和请求恢复分别由PURCHASE_MESSAGING_ENABLED、PURCHASE_JOBS_ENABLED控制。关闭任何通道仅供受控故障验证，正常部署均保持开启；不保证即时分配或吞吐指标。
+订单取消、超时、退款、库存和候补变更在原事务递增 SKU 库存同步版本。后台按游标扫描并安全同步 Redis 绝对余额，候补调度默认每5秒扫描、每批最多100个SKU。队首 PROCESSING 未决时不能跳过；候补建单复用普通购票队列和恢复任务，不再使用独立通知 MQ 或 Outbox。
 
 ## 电子票查询与入场凭证
 
@@ -267,7 +263,7 @@ HTTP路径、请求字段、Session与CSRF、HTTP状态码及响应字符串状�
 无有效Session的`GET /api/v1/auth/csrf`及所有需要CSRF校验的写请求，在CsrfFilter前使用客户端IP的新会话预算，默认120次/60秒。无效、过期或伪造JSESSIONID不能绕过；429/503响应沿用上表，拒绝时不创建Session、不返回Set-Cookie、不调用Controller。这些匿名请求可能先得到429/503，再进入原CSRF或身份校验。HEAD csrf仍为403且不生成令牌。已有有效Session获取令牌不消耗新会话预算，Redis故障时仍可复用；登录和退出后仍须重新获取令牌。前端沿用统一中文错误和Retry-After提示，不自动重放写请求。
 
 默认DIRECT模式只使用连接IP。TRUSTED_PROXY须显式配置受信代理IP/CIDR，并从连接端向外剥离受信节点，遇到最近的不可信节点即停止；只读取X-Forwarded-For。非受信连接忽略所有转发头，受信连接缺失、重复、过长、跳数过多或格式错误的头返回400 `INVALID_CLIENT_ADDRESS`，不创建新Session。X-Real-IP、Forwarded不作为身份来源。Spring自动转发头处理须保持none。部署前提和复现见[阶段十三验收](23-session-proxy-migration-verification.md)。
-## 第十五阶段目录缓存与购票入口拒绝
+## 第十五阶段目录缓存与购票入口拒绝（历史记录）
 
 公开活动详情、场次及有限活动列表组合可使用服务器Caffeine/Redis缓存，返回类型和状态不变；票档库存、销售状态和serverTime保持实时。管理员及交易权威查询绕过展示缓存。缓存降级加载繁忙时503 `CATALOG_BUSY`，不返回伪造空列表。
 
