@@ -1,6 +1,6 @@
 # 购票 TPS 安全诊断
 
-> V16 当前闭环入口和命令见 [README](README.md)。脚本使用库存同步版本审计，不等待 Publisher Confirm；以下 V15 阶段的 Outbox、发布窗口和实测数值仅是历史记录，不能作为当前配置或性能。新的真实 HTTP QPS 与订单 TPS 分别按同一正式窗口统计。
+> V17当前32桶闭环入口和命令见 [README](README.md)。脚本使用库存同步版本审计，不等待 Publisher Confirm；以下 V15 阶段的 Outbox、发布窗口和实测数值仅是历史记录，不能作为当前配置或性能。新的真实 HTTP QPS 与订单 TPS 分别按同一正式窗口统计。
 
 2026-10-28 清理后仅保留当前诊断入口及依赖；旧批次本机原始产物与未挂载压测卷已删除，下文历史路径只记录当时执行事实。当前环境位置与复用方法见 [README](README.md)。
 
@@ -14,7 +14,7 @@
 python -u -B scripts/jmeter/diagnose-purchase.py --runtime $runtime --java $java --jmeter-jar $jmeterJar --bucket-count 8 --concurrency 12 --threads 100 --inflight 100 --capacity 200 --publisher-window 64 --max-posts 7980 --seconds 30
 ```
 
-`--bucket-count`控制新建夹具，默认8，支持4/8/16；正式结果以SKU实际桶数和逐桶审计为准。初始化先等待Redis就绪及库存Outbox排空再审计，避免把尚在投递的通知当作库存差异。8桶与16桶对照结果见[本轮对照](../../docs/jmeter/eight-vs-sixteen-bucket-20261028.md)，下文为历史批次记录。
+`--bucket-count`控制新建夹具，默认8，支持4/8/16/32；正式结果以SKU实际桶数和逐桶审计为准。初始化先等待Redis就绪及当前库存同步完成再审计。8桶与16桶对照结果见[本轮对照](../../docs/jmeter/eight-vs-sixteen-bucket-20261028.md)，下文为历史批次记录。
 
 本轮8桶实测为73.27 TPS、完整建单P99 1.629秒，正式30秒及正确性验收通过，见[8桶核心结果](../../docs/jmeter/eight-bucket-100threads-12consumers.md)。
 

@@ -1,12 +1,14 @@
 # Apache JMeter 性能验证
 
+> 当前V17支持32桶，隔离新环境5000用户、500线程/在途、容量500、72消费者和72连接的命令与结果见[32桶单轮对照](../../docs/jmeter/thirtytwo-buckets-5000users-20261029.md)。当前runtime为`.local/jmeter/thirtytwo-buckets-20261029/runtime`，旧环境凭据已停用；初始化器要求V17。以下V16参数与路径为历史记录，不能直接重跑。
+
 > V16 状态：`diagnose-purchase.py` 闭环入口已改用 `inventory_sync_version` 审计，不再向应用传递发布确认窗口；可同时按真实 HTTP 响应和成功建单时间统计 QPS/TPS。独立 `purchase-http-qps.py` 尚未完成 V16 适配，不要直接执行。历史结果不代表 V16 性能。
 
 仅测购票接口 HTTP QPS/P99 使用 [独立 HTTP 专项入口](HTTP_QPS.md)，按完整响应完成时间统计；不使用完整建单闭环结果推算。
 
 购票统一使用 [安全诊断入口](DIAGNOSIS.md)；活动详情查询使用 [活动 RPS 场景](ACTIVITY_RPS.md)。旧版轮询购票、固定 RPS 发单、独立会话准备及其调度和分析脚本已删除。
 
-## 当前购票入口
+## 历史V16购票入口
 
 V16 本轮100线程/100在途、容量200、12消费者/prefetch1、Hikari10、8000旧账号（20启动检查）复现：
 
@@ -46,7 +48,7 @@ python -u -B scripts/jmeter/diagnose-purchase.py `
   --capacity 1000 --publisher-window 256 --max-posts 7980 --seconds 30
 ```
 
-每轮领取 8000 名独立账号，其中 20 人用于低速检查，7980 人用于连续预热及正式窗口。新建空分桶票档使用同一入口的 `--fresh-bucketed-sku --bucket-count 8` 或 `16`，需要隔离后端关闭且旧申请排空；只修改独立测试库。实际测试以票档真实桶数和审计为准。
+每轮领取 8000 名独立账号，其中 20 人用于低速检查，7980 人用于连续预热及正式窗口。新建空分桶票档使用同一入口的 `--fresh-bucketed-sku --bucket-count 8` 、`16` 或 `32`，需要隔离后端关闭且旧申请排空；只修改独立测试库。实际测试以票档真实桶数和审计为准。
 
 首次建立新环境使用同一入口的 `--initialize --users <人数>`，仅适用于不存在同名容器及卷的空隔离环境。当前环境可直接复用，不必重新初始化。
 
