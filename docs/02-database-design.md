@@ -1,6 +1,21 @@
 # 数据库设计与迁移历史
 
-V1～V11均为不可改写的历史迁移。V8引入普通购票申请，V10增加分桶兼容，V11将稳定Redis预扣token与申请关联。此前六项修复仅调整代码；本轮注册升级新增V12文件，尚未应用业务库。ticket_sku.version仅用于配置编辑，普通库存DML不再递增，历史值原样保留。
+## 当前 V16 结构与事务
+
+源码最新迁移为 V16，不代表已有业务库已获准升级。本机此前已授权的版本为 V15；本轮仅改源码，没有连接或迁移业务库。V1～V16 文件保持发布时原文。
+
+- `inventory_sync_version(sku_id, inventory_version)`：SKU 外键及主键。库存释放、退款、管理配置/销售资格和候补调度变化与版本递增同事务提交；版本单独存行，不更改 SINGLE/BUCKETED 的锁和库存归属。
+- V16 用旧库存事件最大 ID 加一初始化版本后删除 `outbox_event`。运行时不存在库存 Outbox、库存通知消费者或 Publisher Confirm 发布窗口；旧表只供升级前只读预检和指定版本迁移测试使用。
+- `purchase_request`：V14 后只允许 QUEUED、SUCCEEDED、FAILED、EXPIRED；QUEUED 是消费者事务内占位，不能独立提交。HTTP 预扣及恢复凭据在 Redis，尝试发送普通购票 MQ 后返回202；MySQL 唯一键协调建单与过期仲裁并原子提交终态，V15 增加候补来源。V14 已删除 `purchase_capacity`、预扣 token 和处理租约等旧字段，不能再按 V8/V11 描述重建。
+- `waitlist_entry`：V15 的 PROCESSING 与持久 requestId/attemptNo 绑定；候补仍严格 FIFO，共用普通购票预扣、MQ 和恢复任务，默认每5秒扫描，不存在独立候补消息队列。
+- 交易锁序为账号 SHARE→活动 SHARE→场次 SHARE→需写额度时的用户场次额度 UPDATE→SKU（SINGLE X，普通分桶配置 S 及目标桶 X）→订单→候补→电子票。4/8/16桶及不可变 `order_stock_allocation` 保持；限额使用 V9 `user_session_quota`，不在运行热路径聚合历史订单。
+- Redis 同步在 SKU X 锁内暂停入口，pending 归零后发布 MySQL 绝对余额及版本。旧版本不能覆盖新版本；重复扫描不累加库存；已初始化账本丢失时停卖核对，不能猜测重建。
+
+V16 的授权、非终态申请/候补尝试阻断、旧事件预检及 Redis/MQ 排空要求见 [迁移流程](41-inventory-sync-migration.md)。当前事务与 API 以 [架构说明](01-architecture.md) 和 [API 契约](03-api-contract.md) 为准。
+
+## 历史阶段记录
+
+以下所有阶段描述、表清单及一致性方案保留当时的设计事实，**不作为 V16 的运行、配置或部署步骤**。其中 Outbox、Confirm、冻结重建、用户排他锁及 SUM 限额统计等旧方案已由上述当前实现替代；历史迁移与必要的版本测试仍保留。
 
 ## V12 注册邮箱与验证事实
 

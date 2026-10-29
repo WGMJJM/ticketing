@@ -298,15 +298,18 @@ public class RedisStockReservationService {
         if (result == null || result != 1) throw unavailable();
     }
 
-    public boolean needsInventoryReconciliation(long skuId, long version) {
+    /** 同一次账本读取完成版本和余额检查；仅无在途预扣时读取数据库余额。 */
+    public boolean needsInventoryReconciliation(long skuId, long version, Supplier<Long> expectedBalance) {
         Map<Object, Object> fields = redis.opsForHash().entries(skuKey(skuId));
         if (fields.isEmpty()) return true;
         String saved = text(fields.get("inventoryVersion"));
         if (saved.isEmpty()) saved = text(fields.get("inventorySequence"));
+        long available;
+        long pendingCount;
         try {
             long current = Long.parseLong(saved);
-            long available = Long.parseLong(text(fields.get("available")));
-            long pendingCount = Long.parseLong(text(fields.get("pending")));
+            available = Long.parseLong(text(fields.get("available")));
+            pendingCount = Long.parseLong(text(fields.get("pending")));
             long waitlistPending = Long.parseLong(text(fields.get("waitlistPending")));
             String priority = text(fields.get("waitlistPriority"));
             String eligible = text(fields.get("eligible"));
@@ -318,26 +321,14 @@ public class RedisStockReservationService {
                             "maxQuantity", "sessionId", "waitlistPending", "waitlistPriority"))) {
                 throw new IllegalStateException("库存账本字段异常");
             }
-            return !"1".equals(text(fields.get("ready"))) || current != version;
+            if (!"1".equals(text(fields.get("ready"))) || current != version) return true;
         } catch (NumberFormatException | IllegalStateException invalid) {
             pause(skuId, "inventory_ledger_invalid");
             return true;
         }
-    }
-
-    /** 有在途预扣时 Redis 与数据库余额本就可能暂时不同，等待结算后再核对。 */
-    public boolean inventoryBalanceDiffers(long skuId, long version, long expected) {
-        Map<Object, Object> fields = redis.opsForHash().entries(skuKey(skuId));
-        String saved = text(fields.get("inventoryVersion"));
-        if (saved.isEmpty()) saved = text(fields.get("inventorySequence"));
-        try {
-            return !"1".equals(text(fields.get("ready"))) || Long.parseLong(saved) != version
-                    || (Long.parseLong(text(fields.get("pending"))) == 0
-                        && Long.parseLong(text(fields.get("available"))) != expected);
-        } catch (NumberFormatException invalid) {
-            pause(skuId, "inventory_ledger_invalid");
-            return true;
-        }
+        if (pendingCount > 0) return false;
+        Long expected = expectedBalance.get();
+        return expected != null && available != expected;
     }
 
     /** 调用者持 MySQL SKU 锁；同一原子脚本检查余额并开启门禁。 */

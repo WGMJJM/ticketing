@@ -78,4 +78,59 @@ class InventorySyncMigrationIT {
         assertThat(db.queryForObject("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='inventory_sync_version'",Integer.class)).isZero();
         assertThat(db.queryForObject("SELECT COUNT(*) FROM outbox_event WHERE status='PENDING'",Integer.class)).isEqualTo(1);
     }
+
+    @Test
+    void queuedPurchaseBlocksEvenWhenInventoryEventsAreDrainedAndSwitchApproved() {
+        db.update("INSERT INTO purchase_request(id,user_id,sku_id,quantity,idempotency_key,request_hash,deadline_at) "
+                + "VALUES(20,1,1,1,'pending',UNHEX(SHA2('pending',256)),TIMESTAMPADD(HOUR,1,UTC_TIMESTAMP(6)))");
+        assertThatThrownBy(this::approvedMigration).hasMessageContaining("STOP_INVENTORY_PURCHASE");
+        assertBeforeV16();
+        assertThat(db.queryForObject("SELECT status FROM purchase_request WHERE id=20",String.class)).isEqualTo("QUEUED");
+    }
+
+    @Test
+    void processingWaitlistBlocksWithoutAnyCommittedPurchaseRow() {
+        db.update("INSERT INTO waitlist_entry(user_id,sku_id,quantity,status,purchase_request_id,expires_at) "
+                + "VALUES(1,1,1,'PROCESSING',20,TIMESTAMPADD(HOUR,1,UTC_TIMESTAMP(6)))");
+        assertThatThrownBy(this::approvedMigration).hasMessageContaining("STOP_INVENTORY_WAITLIST");
+        assertBeforeV16();
+        assertThat(db.queryForObject("SELECT status FROM waitlist_entry WHERE purchase_request_id=20",String.class))
+                .isEqualTo("PROCESSING");
+    }
+
+    @Test
+    void unknownSentEventStillBlocksBeforeDdl() {
+        db.update("INSERT INTO outbox_event(event_id,aggregate_type,aggregate_id,event_type,payload,status,sent_at) "
+                + "VALUES('unknown','TICKET_SKU',1,'UNKNOWN','{}','SENT',UTC_TIMESTAMP(6))");
+        assertThatThrownBy(this::approvedMigration).hasMessageContaining("STOP_INVENTORY_OUTBOX");
+        assertBeforeV16();
+    }
+
+    @Test
+    void waitingAndTerminalPurchaseDoNotBlockApprovedMigration() {
+        db.update("INSERT INTO waitlist_entry(user_id,sku_id,quantity,status,expires_at) "
+                + "VALUES(1,1,1,'WAITING',TIMESTAMPADD(HOUR,1,UTC_TIMESTAMP(6)))");
+        db.update("INSERT INTO purchase_request(id,user_id,sku_id,quantity,idempotency_key,request_hash,status,failure_code,deadline_at) "
+                + "VALUES(20,1,1,1,'failed',UNHEX(SHA2('failed',256)),'FAILED','STOCK_UNAVAILABLE',TIMESTAMPADD(HOUR,1,UTC_TIMESTAMP(6)))");
+        approvedMigration();
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM inventory_sync_version",Integer.class)).isEqualTo(1);
+        assertThat(db.queryForObject("SELECT status FROM waitlist_entry WHERE user_id=1",String.class)).isEqualTo("WAITING");
+    }
+
+    private void approvedMigration() {
+        var safety = new MigrationSafetyConfig();
+        ReflectionTestUtils.setField(safety,"inventoryMigrationApproved",true);
+        org.springframework.boot.autoconfigure.flyway.FlywayMigrationStrategy strategy =
+                ReflectionTestUtils.invokeMethod(safety,"migrationSafetyStrategy");
+        strategy.migrate(migration(null));
+    }
+
+    private void assertBeforeV16() {
+        assertThat(db.queryForObject("SELECT MAX(CAST(version AS UNSIGNED)) FROM flyway_schema_history",Integer.class))
+                .isEqualTo(15);
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() "
+                + "AND table_name='inventory_sync_version'",Integer.class)).isZero();
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM ticket_order",Integer.class)).isEqualTo(1);
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM order_stock_allocation",Integer.class)).isEqualTo(1);
+    }
 }

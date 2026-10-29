@@ -2,6 +2,8 @@
 
 本页后部的阶段条目为历史记录；当前购票及候补链路以本页相应接口和 [架构说明](01-architecture.md) 为准。
 
+V16 的202表示 Redis 已受理并已尝试发送普通购票消息，不表示 Broker 已确认或订单已经创建。发布异常保留原 requestId/预扣，由统一恢复索引重投或仲裁；没有发布确认等待超时、确认窗口不足等当前接口分支。认证、CSRF、真实容量与原幂等规则保持。
+
 后端保持单Maven模块，按controller、service、mapper、entity、dto、vo等技术层分包，业务协作边界由架构规则登记，根包为`com.ticketing`。普通购票在原HTTP协议内增加Redis Lua真实库存预扣，保留202申请查询、原幂等键、用户身份、CSRF和独立安全频率限制；MySQL仍作最终库存与订单权威。当前时序和故障处理见[架构说明](01-architecture.md)。
 
 第十九阶段没有改变业务HTTP契约。可选运维配置将health/info/metrics置于`/api/v1/admin/monitoring`，继续要求实时ADMIN身份；其他敏感Actuator端点不暴露。该路径仅供本机或受控运维网络使用，部署检查见[运维手册](32-single-instance-operations.md)。所有BIGINT ID按字符串传输；时间使用带时区表示，人民币金额为整数分。

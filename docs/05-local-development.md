@@ -19,7 +19,7 @@ macOS/Linux 使用同样的 Compose 命令，后端执行 `bash scripts/start-ba
 
 ## 配置
 
-注册现要求真实邮箱验证码。SMTP或独立验证码密钥未配置时发送/验证返回503，既有用户登录不受开关影响。配置项和V12升级前提见[注册升级说明](36-registration-four-points.md)；当前本机业务库已在另行授权后升级至V13，见[本机启动记录](37-local-v13-startup.md)；其他环境仍须按实际版本取得具体迁移授权。
+注册现要求真实邮箱验证码。SMTP或独立验证码密钥未配置时发送/验证返回503，既有用户登录不受开关影响。配置项和V12升级前提见[注册升级说明](36-registration-four-points.md)。本机最后一次已授权迁移为V15，见[架构说明](01-architecture.md)；当前源码包含V16，启动前必须取得该次升级授权并完成[迁移检查](41-inventory-sync-migration.md)，不能将历史V13启动记录当作当前数据库版本。
 
 从 `.env.example` 生成 `.env` 并配置三个密码；本次初始化已生成随机本地密码。`.env`、`.local`、构建目录被忽略。不要把 `docker compose config` 的完整输出贴到公开日志，它会展开凭据；日常使用 `config --quiet`。
 
@@ -38,9 +38,9 @@ PowerShell 脚本为 UTF-8 BOM，Bash 为 LF UTF-8。脚本读取 `.env` 而不�
 7. 检查 `/about`、活动详情、场次选择及运营管理。按最新要求，页面使用正常产品文案；支付与退款确认时说明模拟处理和不发生实际资金往来。登录后下单、支付、查看成功流水，再创建一单等待自动过期，核对库存及限额恢复。当前展示文案调整见[正常展示文案验收](38-normal-display-copy.md)。
 8. `npm run build` 同时完成 TypeScript 检查和生产打包。
 
-数据库测试必须在独立验收库运行；下面的数量为早期阶段历史记录，当前执行数见阶段19报告。迁移测试位于 `DatabaseMigrationIT`。`ActivityManagementIT`、`TicketManagementIT`覆盖原有业务；`AuthenticationIT`使用随机端口Tomcat、真实HTTP、Cookie、Session和MySQL完成认证及旧会话撤权，`SessionCookieIT`检查生产Secure属性。`CurrentAccountFilterTest`验证公开端点跳过账号查询及订单/候补等受保护端点刷新身份。`OrderManagementIT`现有25项检查订单预占、幂等、限购、支付、取消、过期竞争、流水、回滚和最终库存；`OrderExpiryRecoveryIT`关闭再启动两个真实应用上下文，验证Scheduling重启补偿。`WaitlistManagementIT`新增25项，使用真实HTTP会话、独立MySQL事务及RabbitMQ检查FIFO、并发入队/调度、队首阻塞、状态联动、事件原子性、确认丢失、认领租约、消费重试/死信及数据库补偿。第六阶段验收为35项基础测试加84项集成测试共119项，历史结果见 `docs/13-waitlist-verification.md`。这些是功能与并发一致性验证，不是吞吐压测。
+数据库测试必须在独立验收库运行，入口见[功能验证说明](40-functional-verification.md)。`DatabaseMigrationIT` 检查当前结构，`InventorySyncMigrationIT` 在独立 V15 库验证 V16 切换及阻断，其他指定版本的迁移测试保留历史表引用。`WaitlistManagementIT` 使用统一购票队列验证 FIFO、队首阻塞、状态联动和恢复；旧 Outbox 事件原子性、Confirm 和认领租约不是当前候补验收目标。历史执行数量只属于各阶段报告，不能据此宣称 V16 测试通过。
 
-业务回归默认关闭候补任务和消息；候补IT显式启用消息但停止自动后台任务，使用独立的ticketing.waitlist.it交换机及队列，逐例控制消费并只清空测试队列。夹具按所属用户、场次和SKU清理。Outbox发布器读取当前库待投事件，推荐专用测试库，避免与正在运行的业务实例并行执行；先停止本地后端再验收。测试故障通过Spy在真实事务中注入，队列、数据库和实际库存变化不使用内存替代。
+业务回归默认关闭购票消费者及自动后台任务；候补 IT 显式启用统一购票消费者，使用 `ticketing.purchase.waitlist.it` 交换机及 `.orders` 队列，逐例控制消费并只清理所属隔离夹具。当前无独立候补监听器或库存 Outbox 发布器。未来真实测试仍须固定专用实例、随机 guard 和独立库，不能与业务资源混用；本轮不运行这些测试。
 
 ## 账号初始化与本地认证
 

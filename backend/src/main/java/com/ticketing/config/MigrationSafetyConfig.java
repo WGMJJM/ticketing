@@ -60,8 +60,22 @@ public class MigrationSafetyConfig {
                 throw new IllegalStateException("STOP_INVENTORY_SWITCH 须先停写、停止旧实例并排空旧消息和预扣，再显式批准库存同步迁移");
             }
             if (scalar(connection, "SELECT COUNT(*) FROM outbox_event WHERE status<>'SENT' "
-                    + "OR aggregate_type<>'TICKET_SKU' OR event_type<>'WAITLIST_DISPATCH_REQUESTED'") != 0) {
+                    + "OR aggregate_type<>'TICKET_SKU' OR event_type<>'WAITLIST_DISPATCH_REQUESTED' "
+                    + "OR id>=9223372036854775807") != 0) {
                 throw new IllegalStateException("STOP_INVENTORY_OUTBOX 库存事件未排空或存在未知事件，停止迁移");
+            }
+            // 兼容 V14 前的 PROCESSING；只允许已知终态，不能把未知状态当作已排空。
+            if (scalar(connection, "SELECT COUNT(*) FROM information_schema.tables "
+                    + "WHERE table_schema=DATABASE() AND table_name='purchase_request'") != 0
+                    && scalar(connection, "SELECT COUNT(*) FROM purchase_request "
+                    + "WHERE status NOT IN ('SUCCEEDED','FAILED','EXPIRED')") != 0) {
+                throw new IllegalStateException("STOP_INVENTORY_PURCHASE 存在未完成购票申请，须在旧版本排空后迁移");
+            }
+            // PROCESSING 已绑定尝试，可能仍关联 Redis 预扣；WAITING/ALLOCATED 无须阻断切换。
+            if (scalar(connection, "SELECT COUNT(*) FROM information_schema.tables "
+                    + "WHERE table_schema=DATABASE() AND table_name='waitlist_entry'") != 0
+                    && scalar(connection, "SELECT COUNT(*) FROM waitlist_entry WHERE status='PROCESSING'") != 0) {
+                throw new IllegalStateException("STOP_INVENTORY_WAITLIST 存在未完成候补尝试，须在旧版本完成并结算后迁移");
             }
         }
         if (history && !appliedV9 && !quotaMigrationApproved

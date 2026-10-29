@@ -81,8 +81,6 @@ public class StockSnapshotService {
     public List<Long> candidates(long after, int size) { return tickets.inventoryCandidates(after, size); }
     public boolean needsRefresh(long skuId) {
         long version = versions.current(skuId);
-        if (stocks.needsInventoryReconciliation(skuId, version)) return true;
-        Long available = tickets.availableBalance(skuId);
-        return available != null && stocks.inventoryBalanceDiffers(skuId, version, available);
+        return stocks.needsInventoryReconciliation(skuId, version, () -> tickets.availableBalance(skuId));
     }
 }

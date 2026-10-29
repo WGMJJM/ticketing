@@ -38,7 +38,7 @@ Lua 一次完成销售资格、Redis 时间窗口、单笔数量、场次内用�
 
 2026-10-28 新增四桶普通购票，完整实现与隔离验收见[四桶库存实现](jmeter/four-bucket-implementation.md)。V10 表结构直接复用，未新增迁移或自动切换业务 SKU。BUCKETED=4 按原 requestId 选择初始桶；SKU 配置用 SHARE，目标桶条件 UPDATE 获得独立 X 锁，不更新主 SKU 交易计数。单桶不足先整笔回滚，再按桶号升序跨桶，订单、明细、不可变 allocation 和申请终态原子提交。SINGLE 仍使用原 SKU UPDATE 锁。分桶新候补暂不开放，历史订单与 SINGLE 候补继续按原生命周期处理。
 
-库存同步以 SKU X 与普通分桶 SKU S 互斥，在 pause/pending 排空之后校验并汇总四桶，再发布绝对 Redis 可售余额。Redis 命令默认超时为 1s，连接超时为 500ms，允许环境变量覆盖；AOF always 不变。锁冲突的三次有界重试发生在完整事务之间，重试耗尽保留原申请与预扣，不转换为无票失败。
+库存同步以 SKU X 与普通分桶 SKU S 互斥，在 pause/pending 排空之后校验并汇总该 SKU 的全部桶，再发布绝对 Redis 可售余额。Redis 命令默认超时为 1s，连接超时为 500ms，允许环境变量覆盖；AOF always 不变。锁冲突的三次有界重试发生在完整事务之间，重试耗尽保留原申请与预扣，不转换为无票失败。
 
 `PurchaseOrderWorker` 从 Redis 凭据读取可信业务参数，以 requestId 唯一键插入/锁定 `purchase_request`，与过期仲裁共享同一个数据库互斥协议。随后按原资源锁序调用 `TradeResourceLocker` 和 `OrderReservation`；MySQL 库存条件更新、场次额度、订单和价格明细快照、SUCCEEDED/orderId 在一个 READ_COMMITTED 本地事务提交。请求行 QUEUED 只是事务内协调占位，不独立提交为排队事实，没有 processing token、租约或第二条普通建单路径。
 
@@ -66,6 +66,8 @@ Redis 继续使用 AOF、`appendfsync always` 和 `noeviction`。Redis、RabbitM
 `StockSnapshotService` 收敛为父资源→SKU 行锁内的小型维护，不再保存 owner/fence/mutation、多层冻结租约、孤儿恢复或自动重建框架。`ticket_sku.redis_inventory_initialized` 区分从未初始化和已初始化后 Redis 账本丢失；后者停止受理，不能静默重置。
 
 库存释放、退款、销售资格或候补状态变化与 `inventory_sync_version` 递增同事务；普通建单成功不递增版本。版本单独按 SKU 存行，避免把分桶交易持有的 SKU 共享锁升级为排他锁。恢复任务按游标分批比较数据库版本和 Redis `inventoryVersion`，并在无在途预扣时检查余额；发现差异先暂停 SKU 新受理，待预扣归零后在 SKU 锁内发布权威绝对余额。旧版本不能覆盖新版本，重复扫描不会累加库存。
+
+`needsRefresh()` 的版本、就绪状态及余额比较共用一次 Redis 账本读取与解析；版本/就绪状态已不同或仍有预扣时，省去此次数据库余额读取。无预扣且版本一致时仍核对 MySQL 实际余额，不以版本相同代替一致性检查。真正发布仍在原 SKU 锁和 Lua 安全边界内执行。
 
 候补现在只负责持久 FIFO 与优先级调度，不创建订单、不另扣 MySQL 库存。旧 `allocateHead()`、`reserveWaitlist()`、`pauseForWaitlist()` 路径已删除。`PurchaseAdmission.submit(PurchaseIntent)` 由普通 HTTP 与可信候补调度共同调用，来源贯通 Redis、申请终态与正式订单；HTTP DTO 不能指定 WAITLIST_CONFIRM。
 

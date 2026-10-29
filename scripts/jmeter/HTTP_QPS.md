@@ -1,5 +1,7 @@
 # 购票接口 HTTP QPS 与 P99
 
+> 以下为 V15 历史执行说明。该脚本及复用的诊断审计尚未适配 V16（旧 Outbox 和 Confirm），目前不能直接运行，下一阶段统一处理。
+
 入口为 `purchase-http-qps.py`，计划为 `purchase-http-qps.jmx`。线程收到完整 POST 响应后即可使用下一独立账号继续请求，无需等待订单终态。原消费者、Redis 预扣、发布确认、认证和 CSRF 均真实运行。
 
 ```powershell
