@@ -19,7 +19,7 @@ PRIVATE = ROOT / '.local' / 'verification'
 BASE = 'http://127.0.0.1:18080'
 MONITOR = '/api/v1/admin/monitoring'
 TABLES = ['purchase_request', 'order_aftercare', 'refund_record', 'electronic_ticket', 'waitlist_entry',
-          'payment_record', 'ticket_order_item', 'ticket_order', 'outbox_event', 'ticket_sku',
+          'payment_record', 'ticket_order_item', 'ticket_order', 'inventory_sync_version', 'ticket_sku',
           'activity_session', 'activity', 'user_account']
 OVERRIDES = {'ORDER_PAYMENT_WINDOW_MINUTES', 'ORDER_EXPIRY_SCAN_DELAY_MS', 'ORDER_EXPIRY_ENABLED',
              'PURCHASE_MESSAGING_ENABLED', 'PURCHASE_QUEUE_SECONDS', 'PURCHASE_RECOVERY_SECONDS'}
@@ -114,7 +114,7 @@ def app_start(jar, rate_limit_mode='regression', **overrides):
         raise RuntimeError('先运行 stop，避免两个功能验收进程共用端口')
     # 不继承可能重定向数据源/端口或注入JVM参数的开发环境；只在子进程中隔离。
     prefixes = ('SPRING_','MANAGEMENT_','TICKETING_','MYSQL_','RABBITMQ_','REDIS_','SERVER_',
-                'ORDER_','WAITLIST_','PURCHASE_','OUTBOX_','CATALOG_','ADMIN_','SESSION_','TICKET_','CHECKIN_','LOGGING_','RATE_LIMIT_','VERIFY_','CLIENT_ADDRESS_','SMTP_','REGISTRATION_')
+                'ORDER_','WAITLIST_','PURCHASE_','CATALOG_','ADMIN_','SESSION_','TICKET_','CHECKIN_','LOGGING_','RATE_LIMIT_','VERIFY_','CLIENT_ADDRESS_','SMTP_','REGISTRATION_')
     env = {key:value for key,value in os.environ.items()
            if not key.upper().replace('.','_').replace('-','_').startswith(prefixes)
            and key.upper() not in ('JAVA_TOOL_OPTIONS','JDK_JAVA_OPTIONS','_JAVA_OPTIONS')}

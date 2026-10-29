@@ -1,5 +1,5 @@
--- 仅针对独立初始化且没有历史库存差额的 ticketing_perf 库。
--- 每条 SELECT 返回 violation_count；压测工具要求全部为零。
+-- 仅针对独立功能验收库及没有历史库存差额的隔离夹具，不用于业务库清理。
+-- 每条 SELECT 返回 violation_count；功能审计要求全部为零，不生成性能指标。
 SELECT 'stock_bounds' AS invariant, COUNT(*) AS violation_count FROM ticket_sku
  WHERE locked_stock<0 OR sold_stock<0 OR total_stock<CAST(locked_stock AS SIGNED)+sold_stock;
 SELECT 'stock_order_totals' AS invariant, COUNT(*) AS violation_count FROM ticket_sku t

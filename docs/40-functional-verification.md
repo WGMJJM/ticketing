@@ -2,6 +2,8 @@
 
 后端普通测试、MySQL/Redis/RabbitMQ集成测试、Playwright业务测试和业务审计SQL保留。清理旧负载工具时，将此前共用的功能验收代码提取到`scripts/verification/`；这里不生成负载，不计算性能结果，也不提供性能环境管理命令。
 
+当前正常应用/审计入口面向 V16：统计 `inventory_sync_version`，不再读取 `outbox_event`，候补扫描默认5000毫秒且可用 `WAITLIST_COMPENSATION_POLL_MS` 覆盖。旧表只出现在明确构建历史版本的迁移测试中；`upgrade-v7-v10.py` 等指定旧版本的工具及环境开关不用于 V16。下列命令是下一阶段执行说明，本轮仅编译和静态检查，未运行任何测试。
+
 ## 基础构建
 
 ```powershell
@@ -37,6 +39,8 @@ python -B scripts/verification/verify_backend.py --label functional_run
 ```
 
 验证器创建本轮随机schema，沿用原有成功后定向清理规则；失败或DDL失败保留现场。`scripts/verify-aftercare.py`保留为售后功能验证入口。`recover-v7.py`的备份验证目标容器须通过`RECOVERY_VERIFY_CONTAINER`显式给出，仍要求独立实例密码、随机guard和备份逐行核对；不自动恢复或迁移业务库。
+
+V16 的 `InventorySyncMigrationIT` 创建 `ticketing_inventory_migration_<16位小写十六进制>_it`，已纳入清理白名单。清理仍要求固定隔离连接及随机 guard、整轮成功、相对启动前新增、精确命名且没有 Flyway 失败记录；未扩大成任意 `ticketing_*` 清理。失败测试和 DDL 失败现场继续保留。本轮没有实际创建或删除测试数据库。
 
 ## 浏览器与只读业务审计
 

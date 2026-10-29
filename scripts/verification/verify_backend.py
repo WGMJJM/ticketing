@@ -40,7 +40,7 @@ def main():
     if completed.returncode:
         raise RuntimeError('测试失败，保留本轮数据库现场 ' + schema)
     # 测试中的迁移验证会创建多个独立schema，仅在整轮成功后删除新增且名称匹配者。
-    allowed = re.compile(r'ticketing_(?:' + re.escape(args.label) + r'_[a-f0-9]+_it|s1[46]_migration_[a-f0-9]+_it|s17_[a-f0-9]+_it|v7_guard_[a-f0-9]+|stage11_upgrade_[a-f0-9]+|stage10_(?:upgrade|failure)_[a-f0-9]+)\Z')
+    allowed = re.compile(r'ticketing_(?:' + re.escape(args.label) + r'_[a-f0-9]{12}_it|inventory_migration_[a-f0-9]{16}_it|s1[46]_migration_[a-f0-9]{32}_it|s17_[a-f0-9]{32}_it|v7_guard_[a-f0-9]{32}|stage11_upgrade_[a-f0-9]{32}|stage10_(?:upgrade|failure)_[a-f0-9]{32})\Z')
     with verification.connect() as db, db.cursor() as cur:
         cur.execute('SHOW DATABASES')
         created = {next(iter(row.values())) for row in cur.fetchall()} - original
