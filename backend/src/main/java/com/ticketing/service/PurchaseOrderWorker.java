@@ -105,13 +105,16 @@ public class PurchaseOrderWorker {
             if (current.terminal()) return current;
             if (!current.deadlineAt().isAfter(requests.now())) return fail(current, "EXPIRED", "QUEUE_EXPIRED");
             if (expiryOnly) { state.setRollbackOnly(); return null; }
-            TradeContext context = OrderOperation.CREATE_ORDER.name().equals(current.idempotencyOperation())
-                    && current.waitlistEntryId() == null
+            boolean ordinaryPurchase = OrderOperation.CREATE_ORDER.name().equals(current.idempotencyOperation())
+                    && current.waitlistEntryId() == null;
+            TradeContext context = ordinaryPurchase
                     ? resources.lockNewPurchase(current.userId(), current.skuId())
                     : resources.lockReservation(current.userId(), current.skuId(), true);
             participants.forEach(p -> p.validate(current));
-            long orderId = reservation.reservePurchase(context, current.quantity(),
-                    OrderOperation.valueOf(current.idempotencyOperation()), current.idempotencyKey(), current.id(), orderedBuckets);
+            long orderId = ordinaryPurchase
+                    ? reservation.reserveCoordinatedPurchase(context, current, orderedBuckets)
+                    : reservation.reservePurchase(context, current.quantity(),
+                            OrderOperation.valueOf(current.idempotencyOperation()), current.idempotencyKey(), current.id(), orderedBuckets);
             PurchaseRequest result = finishSuccess(current, orderId);
             participants.forEach(p -> p.allocated(result));
             return result;
@@ -163,6 +166,11 @@ public class PurchaseOrderWorker {
             }
             throw new IllegalStateException("购票终态未能保存");
         }
-        return requests.find(request.id());
+        // 仅用于当前事务的业务联动和提交后结算，不冒充数据库生成的 updatedAt。
+        // 需要完整数据库时间的详情查询仍从 Mapper 读取。
+        return new PurchaseRequest(request.id(), request.userId(), request.skuId(), request.quantity(),
+                request.idempotencyKey(), request.requestHash(), "SUCCEEDED", orderId, null,
+                request.acceptedAt(), request.deadlineAt(), null,
+                request.idempotencyOperation(), request.waitlistEntryId());
     }
 }

@@ -110,6 +110,67 @@ class AsyncPurchaseIT {
         stock(0,2);assertThat(stocks.find(id).status()).isEqualTo("SUCCEEDED");
     }
 
+    @Test void coordinatedCreateSkipsOrderLookupAndSuccessReadback() {
+        PurchaseRequest held = stocks.reserve(buyer.id, sku, 1, "fewer-selects");
+        clearInvocations(requests, orders, stocks);
+        worker.process(held.id(), sku);
+        // 唯一一次非锁定申请查询是事务外的终态短路；成功 UPDATE 后不再回读。
+        verify(requests, times(1)).find(held.id());
+        verify(requests, times(1)).lock(held.id());
+        verify(requests, times(1)).finishSuccess(eq(held.id()), anyLong());
+        verify(orders, never()).selectOne(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class));
+        var settled = org.mockito.ArgumentCaptor.forClass(PurchaseRequest.class);
+        verify(stocks).settle(settled.capture());
+        PurchaseRequest result = settled.getValue();
+        assertThat(result.status()).isEqualTo("SUCCEEDED");
+        assertThat(result.orderId()).isNotNull();
+        assertThat(result.failureCode()).isNull();
+        assertThat(result.id()).isEqualTo(held.id());
+        assertThat(result.userId()).isEqualTo(held.userId());
+        assertThat(result.skuId()).isEqualTo(held.skuId());
+        assertThat(result.quantity()).isEqualTo(held.quantity());
+        assertThat(result.requestHash()).isEqualTo(held.requestHash());
+        assertThat(result.idempotencyKey()).isEqualTo(held.idempotencyKey());
+        assertThat(result.acceptedAt()).isEqualTo(held.acceptedAt());
+        assertThat(result.deadlineAt()).isEqualTo(held.deadlineAt());
+        assertThat(result.updatedAt()).isNull();
+        PurchaseRequest saved = requests.find(held.id());
+        assertThat(saved.updatedAt()).isNotNull();
+        assertThat(saved.orderId()).isEqualTo(result.orderId());
+        assertThat(stocks.find(held.id()).status()).isEqualTo("SUCCEEDED");
+        stock(1, 0);
+        clearInvocations(requests, orders);
+        worker.process(held.id(), sku);
+        verify(requests, never()).lock(anyLong());
+        verify(requests, never()).finishSuccess(anyLong(), anyLong());
+        verify(orders, never()).insertPurchase(any(), anyInt());
+        assertThat(orderCount()).isEqualTo(1);
+    }
+
+    @Test void uniqueOrderViolationRollsBackWithoutSettlingTheReservation() {
+        PurchaseRequest first = stocks.reserve(buyer.id, sku, 1, "existing-unique-key");
+        worker.process(first.id(), sku);
+        PurchaseRequest held = stocks.reserve(buyer.id, sku, 1, "unique-rollback");
+        // 在隔离夹具中制造真实 uk_order_idempotency 冲突，SQL 异常必须离开并回滚整个事务。
+        doAnswer(call -> {
+            com.ticketing.entity.TicketOrder order = call.getArgument(0);
+            order.setIdempotencyKey(first.idempotencyKey());
+            return mybatis.getMapper(OrderMapper.class).insertPurchase(order, call.getArgument(1));
+        }).when(orders).insertPurchase(any(), anyInt());
+        assertThatThrownBy(() -> worker.process(held.id(), sku))
+                .isInstanceOf(org.springframework.dao.DuplicateKeyException.class);
+        assertThat(requests.find(held.id())).isNull();
+        assertThat(orderCount()).isEqualTo(1);
+        stock(1, 0);
+        assertThat(stocks.find(held.id()).status()).isEqualTo("QUEUED");
+        assertThat(available()).isEqualTo(6);
+        reset(orders);
+        worker.process(held.id(), sku);
+        assertThat(requests.find(held.id()).status()).isEqualTo("SUCCEEDED");
+        stock(2, 0);
+        assertThat(orderCount()).isEqualTo(2);
+    }
+
     @Test void fourBucketOrdersUseFourConsumerQueue() throws Exception {
         for(int n=0;n<4;n++)db.update("INSERT INTO ticket_stock_bucket(sku_id,bucket_no,total_stock) VALUES(?,?,2)",sku,n);
         db.update("INSERT INTO stock_strategy_switch(sku_id,bucket_count,operator_id,backup_sha256,previous_locked,previous_sold) VALUES(?,4,?,SHA2('guarded bucket fixture',256),0,0)",sku,buyer.id);
