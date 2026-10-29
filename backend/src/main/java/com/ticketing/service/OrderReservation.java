@@ -4,6 +4,7 @@ import com.ticketing.config.OrderProperties;
 import com.ticketing.dto.TicketSale;
 import com.ticketing.dto.TradeContext;
 import com.ticketing.entity.TicketOrder;
+import com.ticketing.entity.PurchaseRequest;
 import com.ticketing.enums.OrderOperation;
 import com.ticketing.enums.OrderStatus;
 import com.ticketing.enums.SaleStatus;
@@ -65,6 +66,14 @@ public class OrderReservation {
             return existing.getId();
         }
         return insert(context.userId(), quantity, operation, key, hash, context.sale(), requestId, orderedBuckets);
+    }
+
+    /** 仅供消费者持有并核对申请行锁后创建普通新订单；重投和历史终态由申请事实仲裁。
+     * 旧内部调用及候补仍走 reservePurchase，订单唯一键继续作为最终约束。
+     */
+    public long reserveCoordinatedPurchase(TradeContext context, PurchaseRequest request, boolean orderedBuckets) {
+        return insert(context.userId(), request.quantity(), OrderOperation.CREATE_ORDER, request.idempotencyKey(),
+                request.requestHash(), context.sale(), request.id(), orderedBuckets);
     }
 
     public boolean eligibleForWaitlist(TradeContext context, int quantity, LocalDateTime now) {
