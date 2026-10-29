@@ -63,8 +63,8 @@ public class StockSnapshotService {
         boolean initializeCounter = !initialized && tickets.redisInitializedCount() == 0;
         // 已持 SKU X，与交易 SKU S 互斥，此刻各桶是同一受保护的已提交余额。
         if (sku.bucketed() && sku.getBucketCount() != 4 && sku.getBucketCount() != 8
-                && sku.getBucketCount() != 16) {
-            throw new IllegalStateException("新销售仅支持四桶、八桶或十六桶");
+                && sku.getBucketCount() != 16 && sku.getBucketCount() != 32) {
+            throw new IllegalStateException("新销售仅支持四桶、八桶、十六桶或三十二桶");
         }
         inventory.balance(sku);
         boolean eligible = "PUBLISHED".equals(activity.getStatus())

@@ -9,7 +9,7 @@ public final class StockBucketRouter {
     }
 
     public static int route(long requestId, int bucketCount) {
-        if (requestId <= 0 || (bucketCount != 4 && bucketCount != 8 && bucketCount != 16)) {
+        if (requestId <= 0 || (bucketCount != 4 && bucketCount != 8 && bucketCount != 16 && bucketCount != 32)) {
             throw new IllegalArgumentException("requestId或库存桶数量不合法");
         }
         // MurmurHash3 64-bit finalizer：打散雪花ID的时间、节点和低位序列特征。

@@ -811,7 +811,7 @@ def audit(db, env, metadata, batch):
                        and ledger.get('ready') == '1' and not any(invariants.values())
                        and int(ledger.get('inventoryVersion', -1)) == sequence
                        and (sku['inventory_strategy'] != 'BUCKETED' or
-                            sku['bucket_count'] in (4,8,16) and [b['bucket_no'] for b in buckets] == list(range(sku['bucket_count']))
+                            sku['bucket_count'] in (4,8,16,32) and [b['bucket_no'] for b in buckets] == list(range(sku['bucket_count']))
                             and sum(b['total_stock'] for b in buckets) == sku['total_stock']
                             and main_counters == dict(locked_stock=0,sold_stock=0)))
     return orders, checks
@@ -1341,7 +1341,7 @@ def main():
     parser.add_argument('--users',type=int,default=10000,help='初始化独立账号预算，最多60000；预登录仍受资源保护')
     parser.add_argument('--prepare-account-pool', type=int, help='将现有隔离账号池一次补齐至指定人数，保留每轮领取游标')
     parser.add_argument('--fresh-bucketed-sku',action='store_true',help='guard隔离库新建空分桶票档并初始化Redis，不切换历史票档')
-    parser.add_argument('--bucket-count',type=int,choices=(4,8,16),default=8,help='新建隔离分桶票档的桶数')
+    parser.add_argument('--bucket-count',type=int,choices=(4,8,16,32),default=8,help='新建隔离分桶票档的桶数')
     parser.add_argument('--previous-runtime', type=Path, help='初始化新批次前核验并轮换旧隔离容器，保留全部旧卷')
     parser.add_argument('--fresh-sku', action='store_true', help='只在已有guard隔离库添加正常SINGLE测试票档，不清理旧数据')
     args = parser.parse_args()

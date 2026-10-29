@@ -159,13 +159,17 @@ class StockBucketIT {
         assertThat(db.queryForObject("SELECT paid_at FROM ticket_order WHERE id=?",java.time.LocalDateTime.class,id)).isNotNull();consistent();
     }
 
-    @Test void eightBucketsRouteToSeventhAndFallbackKeepsOriginalAllocations() {
-        sku=sku(session,8,8);
-        var single=routed(buyer,7);worker.process(single.id());
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints={8,32})
+    void highestBucketAndFallbackKeepOriginalAllocations(int bucketCount) {
+        sku=sku(session,bucketCount,bucketCount);
+        var single=routed(buyer,bucketCount-1);worker.process(single.id());
         long first=requests.find(single.id()).orderId();
         assertThat(db.queryForList("SELECT bucket_no FROM order_stock_allocation WHERE order_id=?",Integer.class,first))
-                .containsExactly(7);
-        var fragmented=routed(user("USER"),7,4);worker.process(fragmented.id());
+                .containsExactly(bucketCount-1);
+        worker.process(single.id()); // 重复消费仍返回原订单和分配。
+        assertThat(requests.find(single.id()).orderId()).isEqualTo(first);
+        var fragmented=routed(user("USER"),bucketCount-1,4);worker.process(fragmented.id());
         long second=requests.find(fragmented.id()).orderId();
         var original=db.queryForList("SELECT bucket_no FROM order_stock_allocation WHERE order_id=? ORDER BY bucket_no",Integer.class,second);
         assertThat(original).containsExactly(0,1,2,3);stock(sku,5,0);
@@ -174,6 +178,23 @@ class StockBucketIT {
         assertThat(refunds.refund(admin,first,RefundReason.CUSTOMER_REQUEST).status()).isEqualTo("SUCCEEDED");
         assertThat(db.queryForList("SELECT bucket_no FROM order_stock_allocation WHERE order_id=? ORDER BY bucket_no",Integer.class,second))
                 .isEqualTo(original);
+        stock(sku,0,0);consistent();
+        resize(sku,bucketCount*2);
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM ticket_stock_bucket WHERE sku_id=? AND total_stock=2",Integer.class,sku))
+                .isEqualTo(bucketCount);
+        db.update("UPDATE ticket_sku SET status='OFF_SALE' WHERE id=?",sku);
+        var principal=identities.loadUserByUsername(db.queryForObject("SELECT username FROM user_account WHERE id=?",String.class,admin));
+        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(principal,null,principal.getAuthorities()));
+        try {
+            management.publish(sku,new com.ticketing.dto.VersionRequest(db.queryForObject("SELECT version FROM ticket_sku WHERE id=?",Integer.class,sku)));
+        } finally { SecurityContextHolder.clearContext(); }
+        long expiring=order(user("USER"),sku,4);
+        db.update("UPDATE ticket_order SET created_at=TIMESTAMPADD(MINUTE,-10,UTC_TIMESTAMP(6)),expires_at=TIMESTAMPADD(SECOND,-1,UTC_TIMESTAMP(6)) WHERE id=?",expiring);
+        long owner=db.queryForObject("SELECT user_id FROM ticket_order WHERE id=?",Long.class,expiring);
+        assertThat(orders.expire(owner,expiring)).isTrue();
+        assertThat(orders.expire(owner,expiring)).isFalse();
+        assertThatThrownBy(()->waitlist.join(buyer,new JoinWaitlistRequest(Long.toString(sku),1)))
+                .isInstanceOf(BusinessException.class);
         stock(sku,0,0);consistent();
         assertThat(snapshots.synchronize(sku)).isTrue();
     }
@@ -214,7 +235,7 @@ class StockBucketIT {
         worker.process(attempt.id());stock(sku,3,0);consistent();
     }
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(ints={4,8,16})
+    @org.junit.jupiter.params.provider.ValueSource(ints={4,8,16,32})
     void oneHundredDistinctBuyersNeverOversellOrLeavePartialAllocations(int bucketCount) throws Exception {
         long hot=sku(session,100,bucketCount);var claims=new ArrayList<PurchaseRequest>();
         for(int n=0;n<100;n++) claims.add(claim(user("USER"),hot,1));

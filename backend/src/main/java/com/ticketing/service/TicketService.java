@@ -183,8 +183,8 @@ public class TicketService implements SessionWindowGuard {
         ActivitySession session = requireSession(existing.getSessionId(), true);
         TicketSku sku = requireTicket(id);
         if (sku.bucketed() && sku.getBucketCount() != 4 && sku.getBucketCount() != 8
-                && sku.getBucketCount() != 16) {
-            throw conflict("新销售仅支持四桶、八桶或十六桶库存");
+                && sku.getBucketCount() != 16 && sku.getBucketCount() != 32) {
+            throw conflict("新销售仅支持四桶、八桶、十六桶或三十二桶库存");
         }
         requireVersion(sku, request.version());
         if (TicketStatus.ON_SALE.name().equals(sku.getStatus())) {

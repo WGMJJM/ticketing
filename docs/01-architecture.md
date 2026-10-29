@@ -34,7 +34,7 @@ Lua 一次完成销售资格、Redis 时间窗口、单笔数量、场次内用�
 
 ## MySQL 消费与三道幂等
 
-普通分桶购票支持4、8或16桶。首次路由使用`StockBucketRouter.route(requestId,bucketCount)`，以MurmurHash3的64位finalizer混合原申请ID，再掩码映射桶号。跨桶路径仍在整笔回滚后按桶号升序获取X锁；已提交订单只按不可变allocation履约。分桶新候补仍禁用。
+普通分桶购票支持4、8、16或32桶。V17仅放宽票档、桶号及切换记录的CHECK上限，不改已有迁移或自动切换票档。首次路由使用`StockBucketRouter.route(requestId,bucketCount)`，以MurmurHash3的64位finalizer混合原申请ID，再掩码映射桶号。跨桶路径仍在整笔回滚后按桶号升序获取X锁；已提交订单只按不可变allocation履约。分桶新候补仍禁用。
 
 2026-10-28 新增四桶普通购票，完整实现与隔离验收见[四桶库存实现](jmeter/four-bucket-implementation.md)。V10 表结构直接复用，未新增迁移或自动切换业务 SKU。BUCKETED=4 按原 requestId 选择初始桶；SKU 配置用 SHARE，目标桶条件 UPDATE 获得独立 X 锁，不更新主 SKU 交易计数。单桶不足先整笔回滚，再按桶号升序跨桶，订单、明细、不可变 allocation 和申请终态原子提交。SINGLE 仍使用原 SKU UPDATE 锁。分桶新候补暂不开放，历史订单与 SINGLE 候补继续按原生命周期处理。
 

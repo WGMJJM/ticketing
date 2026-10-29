@@ -98,7 +98,7 @@ def main() -> int:
     parser.add_argument("--env-file", type=Path, default=DEFAULT_ENV)
     parser.add_argument("--users", type=int, default=1, help="新建测试账号数；每用户请求预算由 --orders-per-user 指定")
     parser.add_argument("--warmup-users", type=int, default=0, help="预热专用账号数，与正式测试账号隔离")
-    parser.add_argument("--bucket-count",type=int,choices=(0,4,8,16),default=0,help="仅新建空票档；0为SINGLE")
+    parser.add_argument("--bucket-count",type=int,choices=(0,4,8,16,32),default=0,help="仅新建空票档；0为SINGLE")
     parser.add_argument("--orders-per-user",type=int,choices=(1,2,3,4),default=1,help="按真实场次限购预留库存，不改变限购")
     parser.add_argument("--stop-file",type=Path,help="隔离初始化监控的停建标志")
     args = parser.parse_args()
@@ -132,8 +132,8 @@ def main() -> int:
                 raise RuntimeError("当前 schema 不是 ticketing_jmeter")
             cursor.execute("SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1")
             latest = cursor.fetchone()
-            if not latest or str(latest[0]) != "16":
-                raise RuntimeError("隔离应用迁移尚未完成 V16")
+            if not latest or str(latest[0]) != "17":
+                raise RuntimeError("隔离应用迁移尚未完成 V17")
         verify_guard(connection, env["JMETER_GUARD_TOKEN"])
         with connection.cursor() as cursor:
             for table in ("activity", "activity_session", "ticket_sku", "ticket_order", "purchase_request"):
@@ -214,7 +214,7 @@ def main() -> int:
             "project": PROJECT,
             "database": db_name,
             "mysqlVersion": db_version,
-            "flywayVersion": "16",
+            "flywayVersion": "17",
             "dockerContainerId": docker["containerId"],
             "dockerVolume": docker["volume"],
             "batch": batch,

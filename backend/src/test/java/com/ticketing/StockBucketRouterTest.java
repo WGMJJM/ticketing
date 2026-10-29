@@ -8,7 +8,7 @@ import static org.assertj.core.api.Assertions.*;
 class StockBucketRouterTest {
     @Test
     void validIdsAreDeterministicAndInvalidInputsAreRejected() {
-        for (int count : new int[] {4, 8, 16}) {
+        for (int count : new int[] {4, 8, 16, 32}) {
             for (long id : new long[] {1, 2, 4095, 1L << 42, Long.MAX_VALUE}) {
                 int bucket = StockBucketRouter.route(id, count);
                 assertThat(bucket).isBetween(0, count - 1);
@@ -18,14 +18,14 @@ class StockBucketRouterTest {
         for (long id : new long[] {0, -1, Long.MIN_VALUE}) {
             assertThatIllegalArgumentException().isThrownBy(() -> StockBucketRouter.route(id, 8));
         }
-        for (int count : new int[] {-1, 0, 1, 2, 3, 5, 32}) {
+        for (int count : new int[] {-1, 0, 1, 2, 3, 5, 31, 64}) {
             assertThatIllegalArgumentException().isThrownBy(() -> StockBucketRouter.route(1, count));
         }
     }
 
     @Test
     void sparseSnowflakeSequencesAcrossTimesAndWorkersLoseLowBitSkew() {
-        for (int count : new int[] {4, 8, 16}) {
+        for (int count : new int[] {4, 8, 16, 32}) {
             int[] old = new int[count], mixed = new int[count];
             for (int millis = 0; millis < 10000; millis++) {
                 for (int worker : new int[] {0, 1, 17, 31}) {
@@ -43,7 +43,7 @@ class StockBucketRouterTest {
 
     @Test
     void denseSameMillisecondSequencesRemainBalanced() {
-        for (int count : new int[] {4, 8, 16}) {
+        for (int count : new int[] {4, 8, 16, 32}) {
             int[] old = new int[count], mixed = new int[count];
             for (int slice = 0; slice < 20; slice++) {
                 for (int sequence = 0; sequence < 4096; sequence++) {
