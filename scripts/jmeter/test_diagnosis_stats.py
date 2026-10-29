@@ -32,7 +32,7 @@ class DiagnosisStatsTest(unittest.TestCase):
         def post(key,code,completed,fail=''):
             return dict(idempotencyKey=key,requestId=key,postStartMs=1000,postElapsedMs=5,
                 responseCode=code,failureCode=fail,orderStatus='SUCCEEDED',orderCompletedMs=completed,orderObservedMs=completed+10)
-        posts=[post('1','202',1100),post('2','503',1800,'PURCHASE_PUBLISH_UNCONFIRMED')]
+        posts=[post('1','202',1100),post('2','503',1800,'PURCHASE_ADMISSION_UNAVAILABLE')]
         orders=[dict(id=i,idempotency_key=str(i),status='SUCCEEDED',order_id=i,created_ms=1050,accepted_ms=1010) for i in (1,2)]
         self.assertEqual(summarize(posts,orders,1000,2000)['orderTps'],2)
         cohort=success_cohorts(posts,orders)
@@ -70,7 +70,7 @@ class DiagnosisStatsTest(unittest.TestCase):
 
     def test_db_window_is_independent_of_http_acceptance_and_deduplicated(self):
         posts = [dict(postStartMs=1100, scheduledMs=1090, idempotencyKey='k', requestId='',
-                      postElapsedMs=30, responseCode='503', failureCode='PURCHASE_PUBLISH_UNCONFIRMED')]
+                      postElapsedMs=30, responseCode='503', failureCode='PURCHASE_ADMISSION_UNAVAILABLE')]
         first = dict(id=1, idempotency_key='k', status='SUCCEEDED', order_id=7,
                      created_ms=1000, accepted_ms=900)
         at_end = dict(id=2, idempotency_key='other', status='SUCCEEDED', order_id=8,
@@ -81,7 +81,7 @@ class DiagnosisStatsTest(unittest.TestCase):
         self.assertEqual(result['acceptedRps'], 0)
         self.assertEqual(result['drainOrders'], 1)
         self.assertEqual(result['successfulDbWithout202'], 2)
-        self.assertEqual(result['failureCodes'], {'PURCHASE_PUBLISH_UNCONFIRMED': 1})
+        self.assertEqual(result['failureCodes'], {'PURCHASE_ADMISSION_UNAVAILABLE': 1})
         self.assertEqual(result['arrivalLatenessMs']['p99'], 10)
 
     def test_cpu_duration_and_fail_closed_monitor(self):

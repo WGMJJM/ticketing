@@ -580,7 +580,7 @@ class Monitor:
         if any(probe.is_alive() for probe in self.redis_probe_threads): self.trip('redis_probe_did_not_finish')
 
 
-def start_backend(runtime, directory, java, concurrency, pool, bootstrap=False, publisher_window=64, capacity=200):
+def start_backend(runtime, directory, java, concurrency, pool, bootstrap=False, capacity=200):
     env, evidence = docker_guard(runtime)
     with db_connect(env) as db:
         if bootstrap:
@@ -598,7 +598,6 @@ def start_backend(runtime, directory, java, concurrency, pool, bootstrap=False, 
     args = [java, '-Xms128m', '-Xmx512m', '-XX:+UseG1GC', f'-Xlog:gc:file={directory / "backend-gc.log"}',
             '-jar', str(ROOT / 'backend/target/ticketing-backend-0.1.0-SNAPSHOT.jar'),
             f'--ticketing.purchase.consumer.concurrency={concurrency}', '--ticketing.purchase.consumer.prefetch=1',
-            f'--ticketing.purchase.in-flight-window={publisher_window}',
             f'--ticketing.purchase.capacity={capacity}',
             f'--spring.datasource.hikari.maximum-pool-size={pool}', '--ticketing.diagnostics.enabled=true',
             '--management.server.address=127.0.0.1', '--management.server.port=18081',
@@ -742,10 +741,8 @@ def audit(db, env, metadata, batch):
             if statement.strip():
                 cur.execute(statement)
                 row = cur.fetchone(); invariants[row['invariant']] = row['violation_count']
-        cur.execute("SELECT COALESCE(MAX(id),0) sequence FROM outbox_event WHERE aggregate_type='TICKET_SKU' AND event_type='WAITLIST_DISPATCH_REQUESTED' AND aggregate_id=%s", (metadata['skuId'],))
-        sequence = cur.fetchone()['sequence']
-        cur.execute("SELECT status,COUNT(*) n FROM outbox_event WHERE status<>'SENT' GROUP BY status")
-        pending_outbox = cur.fetchall()
+        cur.execute("SELECT COALESCE((SELECT inventory_version FROM inventory_sync_version WHERE sku_id=%s),0) version", (metadata['skuId'],))
+        version = cur.fetchone()['version']
         cur.execute("SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1")
         migration = cur.fetchone()['version']
         cur.execute("""SELECT COUNT(*) n FROM user_session_quota q WHERE q.session_id=%s AND
@@ -781,13 +778,13 @@ def audit(db, env, metadata, batch):
                   redis=ledger, dead=dead, stockFromOrders=conserved,
                   bucketAudit=dict(strategy=sku['inventory_strategy'],bucketCount=sku['bucket_count'],
                     migration=migration,mainCounters=main_counters,rows=buckets,distribution=distribution,
-                    invariants=invariants,mysqlInventorySequence=sequence,unsettledOutbox=pending_outbox))
+                    invariants=invariants,mysqlInventoryVersion=version))
     checks['valid'] = (not any((mismatch, quota_errors, duplicate, orphan, dead)) and expected >= 0
                        and sku['locked_stock'] >= 0 and sku['sold_stock'] >= 0
                        and conserved['locked'] == sku['locked_stock'] and conserved['sold'] == sku['sold_stock']
                        and int(ledger.get('available', -1)) == expected and int(ledger.get('pending', -1)) == 0
                        and ledger.get('ready') == '1' and not any(invariants.values())
-                       and int(ledger.get('inventorySequence', -1)) == sequence and not pending_outbox
+                       and int(ledger.get('inventoryVersion', -1)) == version
                        and (sku['inventory_strategy'] != 'BUCKETED' or
                             sku['bucket_count'] in (4,8,16) and [b['bucket_no'] for b in buckets] == list(range(sku['bucket_count']))
                             and sum(b['total_stock'] for b in buckets) == sku['total_stock']
@@ -808,8 +805,7 @@ def run_round(args):
         raise RuntimeError('资源预检不通过；未启动后端或发压')
     metadata = json.loads((runtime / 'prepared-data.json').read_text(encoding='utf-8'))
     print('本轮目录 '+str(directory)+'；开始受监控的预登录',flush=True)
-    backend, logfile = start_backend(runtime, directory, args.java, args.concurrency, args.pool,
-                                    publisher_window=args.publisher_window, capacity=args.capacity)
+    backend, logfile = start_backend(runtime, directory, args.java, args.concurrency, args.pool, capacity=args.capacity)
     monitor = Monitor(env, directory, backend.pid, metadata['skuId'], allow_capacity_fill=args.allow_capacity_fill)
     monitor.start()
     jmeter = None
@@ -817,8 +813,8 @@ def run_round(args):
     try:
         if capacity_pressure_reason(args.inflight, 0, int(diag()['capacity']), args.allow_capacity_fill):
             raise RuntimeError('该在途窗口超过本轮容量保护线，禁止预登录和加压')
-        if metadata.get('inventoryStrategy') == 'BUCKETED' and (args.concurrency not in (4,8,12) or args.publisher_window not in (32,64,256)):
-            raise RuntimeError('本分桶验收批次允许4、8或12消费者，发布槽位为32、64或256')
+        if metadata.get('inventoryStrategy') == 'BUCKETED' and args.concurrency not in (4,8,12):
+            raise RuntimeError('本分桶验收批次允许4、8或12消费者')
         previous_drain = drain(env, 20)
         if not previous_drain['complete']: raise RuntimeError('上一批未排空，拒绝发单')
         with (runtime / 'measure-users.csv').open(encoding='utf-8-sig', newline='') as stream:
@@ -897,7 +893,7 @@ def run_round(args):
         monitor.jmeter_process = jmeter
         monitor.jmeter_pid = jmeter.pid
         run_record = dict(batch=batch, concurrency=args.concurrency, pool=args.pool,
-                                      publisherWindow=args.publisher_window,capacity=args.capacity,capacityFillAllowed=args.allow_capacity_fill,bucketCount=metadata.get('bucketCount',0),initialRampMs=max(2000,args.threads*20),
+                                      capacity=args.capacity,capacityFillAllowed=args.allow_capacity_fill,bucketCount=metadata.get('bucketCount',0),initialRampMs=max(2000,args.threads*20),
                                       offeredRps=None if args.inflight else args.rps, inflight=args.inflight,
                                       loadModel='completion-closed-loop' if args.inflight else 'paced-arrivals', skuId=metadata['skuId'],
                                       threads=args.threads, loadStartMs=load_start, startMs=start, endMs=end,
@@ -961,7 +957,7 @@ def run_round(args):
         result.update(batch=batch, offeredRps=None if args.inflight else args.rps, inflight=args.inflight,
                       capacity=args.capacity,
                       loadModel='completion-closed-loop' if args.inflight else 'paced-arrivals',
-                      concurrency=args.concurrency, pool=args.pool, publisherWindow=args.publisher_window,
+                      concurrency=args.concurrency, pool=args.pool,
                       checks=checks, drained=drained, fuseReason=monitor.failure,
                       noEscalation=monitor.gate.no_escalation, jmeterExit=jmeter.returncode)
         stop_time = json.loads(monitor.stop.read_text())['timeMs'] if monitor.stop.exists() else None
@@ -1177,16 +1173,15 @@ def fresh_bucketed_sku(args):
     save(runtime/f'prepared-data-before-bucket-{new_id}.json',metadata)
     metadata.update(skuId=str(new_id),inventoryStrategy='BUCKETED',bucketCount=bucket_count,totalStock=total)
     save(path,metadata)
-    backend,logfile=start_backend(runtime,directory,args.java,args.concurrency,args.pool,
-                                 publisher_window=args.publisher_window,capacity=args.capacity)
+    backend,logfile=start_backend(runtime,directory,args.java,args.concurrency,args.pool,capacity=args.capacity)
     monitor=Monitor(env,directory,backend.pid,new_id); monitor.start()
     try:
         for _ in range(30):
             ledger=json.loads(redis('HGETALL',f'ticketing:seckill:v2:ticketingjmeter:sku:{new_id}'))
             if ledger and ledger.get('ready') == '1':
                 with db_connect(env) as ready_db, ready_db.cursor() as ready_cur:
-                    ready_cur.execute("SELECT COUNT(*) n FROM outbox_event WHERE status<>'SENT'")
-                    if ready_cur.fetchone()['n'] == 0: break
+                    ready_cur.execute("SELECT COALESCE((SELECT inventory_version FROM inventory_sync_version WHERE sku_id=%s),0) version", (new_id,))
+                    if int(ledger.get('inventoryVersion', -1)) == ready_cur.fetchone()['version']: break
             if monitor.stop.exists(): raise RuntimeError('初始化资源保护触发')
             time.sleep(1)
         with db_connect(env) as db:
@@ -1285,8 +1280,6 @@ def main():
     parser.add_argument('--jmeter-jar', required=True)
     parser.add_argument('--concurrency', type=int, choices=(2,4,8,12), default=12)
     parser.add_argument('--pool', type=int, choices=(10,12,16,20), default=10)
-    parser.add_argument('--publisher-window', type=int, choices=(16,32,64,256), default=64,
-                        help='隔离应用中同时等待购票消息确认的槽位数')
     parser.add_argument('--rps', type=float, default=10)
     parser.add_argument('--inflight', type=int, choices=(0,2,16,32,64,96,100,128,150,200,500), default=100,
                         help='按消费者完成数补发的闭环在途窗口，启用后不限制RPS')

@@ -27,7 +27,7 @@ python -u -B scripts/jmeter/diagnose-purchase.py `
   --runtime .local/jmeter/redis-mysql-optimizations-20261028/runtime `
   --java <java.exe路径> --jmeter-jar <ApacheJMeter.jar路径> `
   --concurrency 12 --pool 16 --threads 200 --inflight 200 `
-  --capacity 1000 --publisher-window 256 --max-posts 7980 --seconds 30
+  --capacity 1000 --max-posts 7980 --seconds 30
 ```
 
 每轮领取 8000 名独立账号，其中 20 人用于低速检查，7980 人用于连续预热及正式窗口。新建空分桶票档使用同一入口的 `--fresh-bucketed-sku --bucket-count 8` 或 `16`，需要隔离后端关闭且旧申请排空；只修改独立测试库。实际测试以票档真实桶数和审计为准。
@@ -38,7 +38,7 @@ python -u -B scripts/jmeter/diagnose-purchase.py `
 
 同一个 JMeter 至少连续预热 30 秒，最近三个 5 秒完成率稳定后，不断流测量后续 30 秒。成功订单 TPS 按最终成功订单的 MySQL `created_at` 落窗计数，该时间早于 COMMIT；完整建单 P95/P99 使用 POST 发起至 MySQL 提交并完成 Redis 结算。HTTP POST RPS/P99 另列，不把 202 受理直接视作建单完成。
 
-约每 2 秒监控 Windows CPU、物理内存、JMeter、后端 JVM、Docker、MySQL 和 RabbitMQ。CPU/内存、严重 GC、错误、持续积压或监控过期触发时，停止新请求，等待已受理订单排空，再核对库存、额度及申请与订单关系。线程上限 500，业务默认容量、发布窗口和消费者不随测试模板变化。
+约每 2 秒监控 Windows CPU、物理内存、JMeter、后端 JVM、Docker、MySQL 和 RabbitMQ。CPU/内存、严重 GC、错误、持续积压或监控过期触发时，停止新请求，等待已受理订单排空，再核对库存、额度及申请与订单关系。线程上限 500，业务默认容量和消费者不随测试模板变化。
 
 ## 结果与清理
 
