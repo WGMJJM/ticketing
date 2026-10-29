@@ -1,6 +1,6 @@
 # 票务交易平台开发规范
 
-- 2026年10月29日用户要求精简消息链路：普通购票预扣后尝试发送，不等待 Publisher Confirm；失败由已有恢复索引处理。库存变更改为同事务递增 `inventory_sync_version`，后台分批同步 Redis，候补由后台扫描唤醒；旧库存 Outbox 和通知 MQ 已移除。分桶路由、分配及历史订单履约保持原协议。V16 历史库必须先停写、备份、排空旧消息与预扣并执行 `docs/41-inventory-sync-migration.md`，不得自动清库或 repair。用户要求先推送，在其他机器完成真实故障、业务集成和性能验证；不得把尚未执行的测试写成通过。下文旧库存 Outbox 和发布确认规定为历史记录。
+- 2026年10月29日用户要求精简消息链路：普通购票预扣后尝试发送，不等待 Publisher Confirm；失败由已有恢复索引处理。库存变更改为同事务递增 `inventory_sync_version`，后台分批同步 Redis，候补由后台扫描唤醒；旧库存 Outbox 和通知 MQ 已移除。分桶路由、分配及历史订单履约保持原协议。V16 历史库必须先停写、备份、排空旧消息与预扣并执行 `docs/41-inventory-sync-migration.md`，不得自动清库或 repair。用户要求先推送，并自行在其他机器编写测试脚本；仓库旧隔离验证和压测脚本未适配 V16，不得把尚未执行的测试写成通过。下文旧库存 Outbox 和发布确认规定为历史记录。
 
 - 2026年10月28日新增独立购票HTTP QPS/P99入口scripts/jmeter/purchase-http-qps.py及purchase-http-qps.jmx，线程收到HTTP响应即继续，绝不从完整建单闭环推算接口QPS。用户后续明确直接测100线程并允许旧账号，--reuse-accounts只读筛选有效且仍有额度的不同旧用户，每笔新幂等键，原领取游标不重置。本次容量1000、12消费者/prefetch1、Hikari16、确认256、8桶，500预扣门禁中断预热，未形成30秒稳定窗口；短时100.90 HTTP QPS/202 HTTP P99 2427ms不得宣称稳定能力，详见docs/jmeter/purchase-http-qps-20261028.md。保留本轮原始JTL与异常现场，不再加压。
 

@@ -103,6 +103,4 @@ V15 扩展 purchase_request 的 WAITLIST_CONFIRM 来源与 waitlist_entry_id，�
 
 ## 验证范围
 
-使用现有 `scripts/verification/verify_backend.py`，只连接独立 13307 MySQL、16379 Redis、15673 RabbitMQ 和随机 schema，不加载业务 .env。`--tests` 支持 Failsafe 类与方法筛选（#、+），避免无关全量运行。
-
-V16 的真实故障注入、完整业务集成回归和重构后性能测试仍需在独立环境执行；历史阶段测试结果不能视为本次验证结果。
+V16 的真实故障注入、完整业务集成回归和重构后性能测试仍需执行；历史阶段测试结果不能视为本次验证结果。仓库已有的隔离验证和压测脚本尚未适配 V16，不应直接用于本版本。

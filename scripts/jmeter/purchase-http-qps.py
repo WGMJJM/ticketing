@@ -29,19 +29,14 @@ def read_posts(directory):
 
 
 def inventory_notifications_drained(env, seconds=30):
-    """停发后等待已初始化票档的数据库版本与Redis账本一致。"""
+    """停发后等正常库存通知发送完成；不修改事件或干预旧订单。"""
     deadline=time.monotonic()+seconds
     with base.db_connect(env) as db:
         base.db_guard(db,env)
         while time.monotonic()<deadline:
             with db.cursor() as cur:
-                cur.execute("""SELECT t.id,COALESCE(v.inventory_version,0) version FROM ticket_sku t
-                    LEFT JOIN inventory_sync_version v ON v.sku_id=t.id WHERE t.redis_inventory_initialized=1""")
-                rows=cur.fetchall()
-            if all((lambda ledger: ledger.get('ready')=='1' and
-                    str(ledger.get('inventoryVersion'))==str(row['version']))(
-                    json.loads(base.redis('HGETALL',f"ticketing:seckill:v2:ticketingjmeter:sku:{row['id']}"))) for row in rows):
-                return True
+                cur.execute("SELECT COUNT(*) count FROM outbox_event WHERE status<>'SENT'")
+                if cur.fetchone()['count']==0: return True
             time.sleep(1)
     return False
 
@@ -114,7 +109,7 @@ def tier(args, directory, backend, env, metadata, threads, selftest=False):
         record=dict(batch=batch,threads=threads,accounts=len(sessions),accountOffset=offset,
             accountSource='existing_eligible_accounts' if args.reuse_accounts else 'unclaimed_accounts',
             bucketCount=metadata['bucketCount'],skuId=metadata['skuId'],consumers=12,prefetch=1,pool=16,
-            capacity=1000,loadStartMs=start_load,measurementConfirmed=selftest,
+            capacity=1000,publisherWindow=256,loadStartMs=start_load,measurementConfirmed=selftest,
             startMs=start,endMs=end,gateLimit=500,model='HTTP-response-closed-loop',
             planSha256=hashlib.sha256(PLAN.read_bytes()).hexdigest(),
             artifactSha256=hashlib.sha256((base.ROOT/'backend/target/ticketing-backend-0.1.0-SNAPSHOT.jar').read_bytes()).hexdigest())
@@ -238,7 +233,7 @@ def main():
     print('HTTP专项结果目录 '+str(directory),flush=True)
     base.save(directory/'source.json',dict(gitHead=base.command(['git','rev-parse','HEAD']),docker=evidence,
         scope='POST /api/v1/orders HTTP QPS/P99 only'))
-    backend,logfile=base.start_backend(args.runtime,directory,args.java,12,16,capacity=1000)
+    backend,logfile=base.start_backend(args.runtime,directory,args.java,12,16,publisher_window=256,capacity=1000)
     results=[]
     try:
         check=tier(args,directory/'selftest',backend,env,metadata,1,True)
