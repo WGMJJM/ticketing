@@ -41,10 +41,6 @@ spring:
       connect-timeout: ${REDIS_CONNECT_TIMEOUT:500ms}
       timeout: ${REDIS_COMMAND_TIMEOUT:1s}
   rabbitmq:
-    publisher-confirm-type: correlated
-    publisher-returns: true
-    template:
-      mandatory: true
     listener:
       simple:
         default-requeue-rejected: false
@@ -126,8 +122,6 @@ ticketing:
       prefetch: ${PURCHASE_CONSUMER_PREFETCH:1}
     capacity: ${PURCHASE_CAPACITY:200}
     queue-seconds: ${PURCHASE_QUEUE_SECONDS:120}
-    in-flight-window: ${PURCHASE_IN_FLIGHT_WINDOW:64}
-    confirm-timeout-ms: ${PURCHASE_CONFIRM_TIMEOUT_MS:3000}
     recovery-seconds: ${PURCHASE_RECOVERY_SECONDS:10}
     batch-size: ${PURCHASE_RECOVERY_BATCH_SIZE:100}
     scan-delay-ms: ${PURCHASE_SCAN_DELAY_MS:1000}
@@ -135,8 +129,8 @@ ticketing:
     messaging-enabled: ${PURCHASE_MESSAGING_ENABLED:true}
     exchange: ticketing.purchase
     queue: ticketing.purchase.orders
-  messaging:
-    jobs-enabled: ${OUTBOX_JOBS_ENABLED:true}
+  inventory:
+    migration-approved: ${INVENTORY_SYNC_MIGRATION_APPROVED:false}
   security:
     client-address:
       mode: ${CLIENT_ADDRESS_MODE:DIRECT}
@@ -204,21 +198,8 @@ ticketing:
   waitlist:
     max-wait-minutes: ${WAITLIST_MAX_WAIT_MINUTES:60}
     dispatch-max-steps: 50
-    messaging:
-      enabled: ${WAITLIST_MESSAGING_ENABLED:true}
     jobs:
       enabled: ${WAITLIST_JOBS_ENABLED:true}
-    exchange: ticketing.waitlist
-    queue: ticketing.waitlist.dispatch
-    outbox-poll-ms: ${WAITLIST_OUTBOX_POLL_MS:1000}
-    compensation-poll-ms: ${WAITLIST_COMPENSATION_POLL_MS:60000}
+    compensation-poll-ms: ${WAITLIST_COMPENSATION_POLL_MS:5000}
     compensation-initial-delay-ms: ${WAITLIST_COMPENSATION_INITIAL_DELAY_MS:1000}
     compensation-batch-size: 100
-    outbox:
-      in-flight-window: ${WAITLIST_OUTBOX_IN_FLIGHT_WINDOW:16}
-      batch-size: ${WAITLIST_OUTBOX_BATCH_SIZE:100}
-      lease-seconds: 30
-      confirm-timeout-ms: 5000
-      max-attempts: 10
-      retry-base-seconds: 2
-      retry-max-seconds: 300

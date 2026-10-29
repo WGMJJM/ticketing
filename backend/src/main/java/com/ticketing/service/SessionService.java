@@ -9,7 +9,6 @@ import com.ticketing.enums.SessionStatus;
 import com.ticketing.exception.BusinessException;
 import com.ticketing.mapper.ActivityMapper;
 import com.ticketing.mapper.ActivitySessionMapper;
-import com.ticketing.messaging.InventoryEvents;
 import com.ticketing.vo.SessionView;
 
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -36,20 +35,20 @@ public class SessionService {
     private final ActivityMapper activities;
     private final AuditWriter audit;
     private final CatalogCache cache;
-    private final InventoryEvents inventoryEvents;
+    private final InventoryVersionService inventoryVersions;
 
     public SessionService(
             ActivitySessionMapper mapper,
             ActivityService activityService,
             List<SessionWindowGuard> windowGuards,
-            ActivityMapper activities, AuditWriter audit, CatalogCache cache, InventoryEvents inventoryEvents) {
+            ActivityMapper activities, AuditWriter audit, CatalogCache cache, InventoryVersionService inventoryVersions) {
         this.mapper = mapper;
         this.activityService = activityService;
         this.windowGuards = List.copyOf(windowGuards);
         this.activities = activities;
         this.audit = audit;
         this.cache = cache;
-        this.inventoryEvents = inventoryEvents;
+        this.inventoryVersions = inventoryVersions;
     }
 
     public List<SessionView> list(long activityId, boolean publicOnly) {
@@ -121,7 +120,7 @@ public class SessionService {
             throw conflict("场次已被修改，请刷新后重试");
         }
         audit.record(operatorId, AuditAction.SESSION_UPDATE, "SESSION", id, snapshot(session), snapshot(requireSession(id)));
-        inventoryEvents.sessionConfigurationChanged(id);
+        inventoryVersions.sessionChanged(id);
         cache.invalidateAfterCommit();
         return SessionView.from(requireSession(id));
     }
@@ -141,7 +140,7 @@ public class SessionService {
             throw conflict("场次状态已变化，请刷新后重试");
         }
         audit.record(operatorId, AuditAction.SESSION_CANCEL, "SESSION", id, snapshot(session), snapshot(requireSession(id)));
-        inventoryEvents.sessionConfigurationChanged(id);
+        inventoryVersions.sessionChanged(id);
         cache.invalidateAfterCommit();
         return SessionView.from(requireSession(id));
     }

@@ -228,7 +228,7 @@ class StockBucketIT {
         stock(hot,100,0);
         assertThat(db.queryForObject("SELECT COUNT(DISTINCT a.bucket_no) FROM order_stock_allocation a WHERE a.sku_id=?",Integer.class,hot)).isEqualTo(bucketCount);
         assertThat(db.queryForObject("SELECT COUNT(*) FROM order_stock_allocation WHERE sku_id=?",Integer.class,hot)).isEqualTo(100);
-        assertThat(db.queryForObject("SELECT COUNT(*) FROM outbox_event WHERE aggregate_type='TICKET_SKU' AND aggregate_id=?",Integer.class,hot)).isZero();
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM inventory_sync_version WHERE sku_id=?",Integer.class,hot)).isZero();
         consistent();
     }
     @Test void sameBuyerAcrossBucketsAndTicketsStillSharesOneSessionQuota() throws Exception {

@@ -13,6 +13,8 @@ import org.springframework.beans.factory.annotation.Value;
 public class MigrationSafetyConfig {
     @Value("${ticketing.order.quota-migration-approved:false}")
     private boolean quotaMigrationApproved;
+    @Value("${ticketing.inventory.migration-approved:false}")
+    private boolean inventoryMigrationApproved;
     @Bean
     FlywayMigrationStrategy migrationSafetyStrategy() {
         return flyway -> {
@@ -34,6 +36,7 @@ public class MigrationSafetyConfig {
         boolean appliedV7 = false;
         boolean appliedV8 = false;
         boolean appliedV9 = false;
+        boolean appliedV16 = false;
         if (history) {
             try (var statement = connection.createStatement(); var rows = statement.executeQuery(
                     "SELECT version,success FROM flyway_schema_history ORDER BY installed_rank")) {
@@ -44,7 +47,21 @@ public class MigrationSafetyConfig {
                     if ("7".equals(rows.getString("version"))) appliedV7 = true;
                     if ("8".equals(rows.getString("version"))) appliedV8 = true;
                     if ("9".equals(rows.getString("version"))) appliedV9 = true;
+                    if ("16".equals(rows.getString("version"))) appliedV16 = true;
                 }
+            }
+        }
+        if (history && !appliedV16 && scalar(connection, "SELECT COUNT(*) FROM information_schema.tables "
+                + "WHERE table_schema=DATABASE() AND table_name='outbox_event'") != 0
+                && scalar(connection, "SELECT COUNT(*) FROM information_schema.tables "
+                + "WHERE table_schema=DATABASE() AND table_name='ticket_sku'") != 0) {
+            if (!inventoryMigrationApproved && (scalar(connection, "SELECT COUNT(*) FROM ticket_sku") != 0
+                    || scalar(connection, "SELECT COUNT(*) FROM outbox_event") != 0)) {
+                throw new IllegalStateException("STOP_INVENTORY_SWITCH 须先停写、停止旧实例并排空旧消息和预扣，再显式批准库存同步迁移");
+            }
+            if (scalar(connection, "SELECT COUNT(*) FROM outbox_event WHERE status<>'SENT' "
+                    + "OR aggregate_type<>'TICKET_SKU' OR event_type<>'WAITLIST_DISPATCH_REQUESTED'") != 0) {
+                throw new IllegalStateException("STOP_INVENTORY_OUTBOX 库存事件未排空或存在未知事件，停止迁移");
             }
         }
         if (history && !appliedV9 && !quotaMigrationApproved

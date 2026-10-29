@@ -523,7 +523,7 @@ class StaffAuditIT {
                 .isZero();
         assertThat(
                         count(
-                                "SELECT COUNT(*) FROM outbox_event WHERE aggregate_id=? AND aggregate_type='TICKET_SKU'",
+                                "SELECT COUNT(*) FROM inventory_sync_version WHERE sku_id=?",
                                 skuId))
                 .isZero();
     }

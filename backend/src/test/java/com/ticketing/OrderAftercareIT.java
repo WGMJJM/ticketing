@@ -70,7 +70,6 @@ class OrderAftercareIT {
         reset(refunds, tickets);
         if (sessionId != 0) {
             PurchaseTestSupport.cleanup(jdbc, sessionId);
-            jdbc.update("DELETE e FROM outbox_event e JOIN ticket_sku s ON e.aggregate_id=s.id WHERE e.aggregate_type='TICKET_SKU' AND s.session_id=?", sessionId);
             for (String table : List.of("order_aftercare", "refund_record", "waitlist_entry", "electronic_ticket", "payment_record", "ticket_order_item")) {
                 String link = table.equals("waitlist_entry") ? "reserved_order_id" : "order_id";
                 jdbc.update("DELETE t FROM " + table + " t JOIN ticket_order o ON o.id=t." + link + " WHERE o.session_id=?", sessionId);
@@ -96,7 +95,7 @@ class OrderAftercareIT {
         assertThat(state(id)).isEqualTo("REFUNDED"); stock(0,0);
         assertThat(count("electronic_ticket", "order_id=? AND status='VOID'", id)).isEqualTo(2);
         assertThat(count("ticket_order", "id=? AND paid_at IS NOT NULL", id)).isEqualTo(1);
-        assertThat(count("outbox_event", "aggregate_id=? AND JSON_UNQUOTE(JSON_EXTRACT(payload,'$.reason'))='ORDER_REFUNDED'", skuId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT inventory_version FROM inventory_sync_version WHERE sku_id=?", Long.class, skuId)).isEqualTo(1);
         assertThat(orders.limits(buyer.id, sessionId).usedQuantity()).isZero();
         JsonNode own = buyer.call("GET", "/orders/" + id, null, 200).path("data");
         assertThat(own.path("refund").path("simulated").asBoolean()).isTrue();
@@ -113,7 +112,7 @@ class OrderAftercareIT {
         for (JsonNode result : results) assertThat(result.path("data").path("refund").path("refundNo").asText()).isEqualTo(original);
         assertThat(refund(admin, id).path("data").path("refund").path("refundNo").asText()).isEqualTo(original);
         assertThat(count("refund_record", "order_id=?", id)).isEqualTo(1); stock(0,0);
-        assertThat(count("outbox_event", "aggregate_id=?", skuId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT inventory_version FROM inventory_sync_version WHERE sku_id=?", Long.class, skuId)).isEqualTo(1);
     }
 
     @Test
@@ -184,7 +183,7 @@ class OrderAftercareIT {
         assertThat(count("electronic_ticket", "order_id=? AND status='UNUSED'",id)).isEqualTo(2);
         assertThat(count("refund_record", "order_id=?",id)).isZero();
         assertThat(count("order_aftercare", "order_id=?",id)).isZero();
-        assertThat(count("outbox_event", "aggregate_id=?",skuId)).isZero();
+        assertThat(count("inventory_sync_version", "sku_id=?",skuId)).isZero();
         reset(refunds); refund(admin,id); stock(0,0);
     }
 

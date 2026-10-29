@@ -169,10 +169,10 @@ class UserSessionQuotaIT {
         assertThatThrownBy(()->orders.cancel(user,id)).isInstanceOf(org.springframework.dao.DataAccessResourceFailureException.class);
         assertThat(db.queryForObject("SELECT status FROM ticket_order WHERE id=?",String.class,id)).isEqualTo("CANCELLED");
         assertThat(quotas.occupied(user,session)).isZero();
-        long events=db.queryForObject("SELECT COUNT(*) FROM outbox_event WHERE aggregate_type='TICKET_SKU' AND aggregate_id=?",Long.class,sku);
+        long version=db.queryForObject("SELECT COALESCE((SELECT inventory_version FROM inventory_sync_version WHERE sku_id=?),0)",Long.class,sku);
         reset(orderMapper);
         assertThat(orders.cancel(user,id).status()).isEqualTo("CANCELLED");
-        assertThat(db.queryForObject("SELECT COUNT(*) FROM outbox_event WHERE aggregate_type='TICKET_SKU' AND aggregate_id=?",Long.class,sku)).isEqualTo(events);
+        assertThat(db.queryForObject("SELECT COALESCE((SELECT inventory_version FROM inventory_sync_version WHERE sku_id=?),0)",Long.class,sku)).isEqualTo(version);
         assertThat(quotas.occupied(user,session)).isZero();consistent();
     }
 

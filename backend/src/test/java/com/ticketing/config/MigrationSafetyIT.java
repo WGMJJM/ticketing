@@ -38,7 +38,7 @@ class MigrationSafetyIT {
     void guarded(Flyway flyway){new MigrationSafetyConfig().migrationSafetyStrategy().migrate(flyway);}
     @Test void schemaScopedOrdinaryAccountMigratesFreshDatabaseAndRepeatedStartupSafely(){
         grant(true);var flyway=migration(null);guarded(flyway);guarded(flyway);flyway.validate();
-        assertThat(db.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class)).isEqualTo(10);
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class)).isEqualTo(16);
         assertThat(db.queryForObject("SELECT COUNT(*) FROM information_schema.triggers WHERE trigger_schema=DATABASE()",Integer.class)).isEqualTo(2);
         var ordinary=jdbc(schema,"ticketing_perf",System.getenv("MIGRATION_TEST_PASSWORD"));
         assertThat(ordinary.queryForList("SHOW GRANTS",String.class)).noneMatch(value->value.contains("SUPER")||value.contains("ALL PRIVILEGES ON *.*"));
@@ -54,7 +54,7 @@ class MigrationSafetyIT {
         grant(true);migration("6").migrate();var flyway=migration(null);guarded(flyway);flyway.validate();
         db.execute("DROP TRIGGER admin_audit_no_update");
         assertThatThrownBy(()->guarded(flyway)).hasMessageContaining("STOP_V7_STRUCTURE");
-        assertThat(db.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class)).isEqualTo(10);
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=1",Integer.class)).isEqualTo(16);
     }
     @Test void existingBusinessRequiresExplicitStoppedBackupAuditedQuotaSwitchBeforeAnyV9Ddl(){
         grant(true);migration("8").migrate();

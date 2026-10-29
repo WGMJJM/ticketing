@@ -22,6 +22,13 @@ public interface TicketSkuMapper extends BaseMapper<TicketSku> {
     int markRedisInitialized(long id);
     @Select("SELECT id FROM ticket_sku WHERE id>#{after} ORDER BY id LIMIT #{size}")
     List<Long> inventoryCandidates(@Param("after") long after, @Param("size") int size);
+    @Select("""
+            SELECT CASE WHEN t.inventory_strategy='SINGLE' THEN t.total_stock-t.locked_stock-t.sold_stock
+              ELSE t.total_stock-(SELECT COALESCE(SUM(b.locked_stock+b.sold_stock),0)
+                                  FROM ticket_stock_bucket b WHERE b.sku_id=t.id) END
+            FROM ticket_sku t WHERE t.id=#{id}
+            """)
+    Long availableBalance(long id);
     @Update("""
             UPDATE ticket_sku SET sold_stock=sold_stock-#{quantity},updated_at=UTC_TIMESTAMP(6)
             WHERE id=#{skuId} AND inventory_strategy='SINGLE' AND sold_stock>=#{quantity}

@@ -4,7 +4,6 @@ import com.ticketing.dto.TicketSale;
 import com.ticketing.entity.PaymentRecord;
 import com.ticketing.entity.TicketOrder;
 import com.ticketing.enums.AuditAction;
-import com.ticketing.enums.InventoryChangeReason;
 import com.ticketing.enums.OrderStatus;
 import com.ticketing.enums.RefundReason;
 import com.ticketing.enums.SessionStatus;
@@ -13,7 +12,6 @@ import com.ticketing.mapper.AftercareMapper;
 import com.ticketing.mapper.OrderMapper;
 import com.ticketing.mapper.PaymentMapper;
 import com.ticketing.mapper.RefundMapper;
-import com.ticketing.messaging.InventoryEvents;
 import com.ticketing.vo.RefundResult;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -34,7 +32,7 @@ public class OrderRefundService {
     private final AftercareMapper aftercare;
     private final TradeResourceLocker resources;
     private final TicketInventory inventory;
-    private final InventoryEvents events;
+    private final InventoryVersionService versions;
     private final OrderStateService states;
     private final List<OrderLifecycle> participants;
     private final AuditWriter audit;
@@ -42,14 +40,14 @@ public class OrderRefundService {
 
     public OrderRefundService(OrderMapper orders, PaymentMapper payments, RefundMapper refunds,
             AftercareMapper aftercare, TradeResourceLocker resources, TicketInventory inventory,
-            InventoryEvents events, OrderStateService states, List<OrderLifecycle> participants, AuditWriter audit, UserSessionQuotaService quotas) {
+            InventoryVersionService versions, OrderStateService states, List<OrderLifecycle> participants, AuditWriter audit, UserSessionQuotaService quotas) {
         this.orders = orders;
         this.payments = payments;
         this.refunds = refunds;
         this.aftercare = aftercare;
         this.resources = resources;
         this.inventory = inventory;
-        this.events = events;
+        this.versions = versions;
         this.states = states;
         this.participants = List.copyOf(participants);
         this.audit = audit;
@@ -148,7 +146,7 @@ public class OrderRefundService {
                 payment, operatorId, reason) != 1) {
             throw conflict("模拟退款记录未完成，事务已回滚");
         }
-        events.append(order.getSkuId(), InventoryChangeReason.ORDER_REFUNDED);
+        versions.changed(order.getSkuId());
         aftercare.record(order.getId(), "COMPLETED", "REFUND_SUCCEEDED", "整单模拟退款已完成，未发生实际资金退回");
         return new RefundResult("SUCCEEDED", refunds.find(order.getId()), aftercare.find(order.getId()));
     }

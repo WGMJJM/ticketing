@@ -233,7 +233,7 @@ public class PurchaseDiagnosticsConfig {
                         case "redisStockReservationService" -> List.of("find", "require", "settle", "reserve").contains(method)
                                 ? "redis." + method : null;
                         case "orderReservation" -> method.equals("reservePurchase") ? "reservation" : null;
-                        case "purchasePublisher" -> method.equals("confirm") ? "publisher.confirm" : null;
+                        case "purchasePublisher" -> method.equals("publish") ? "publisher.send" : null;
                         case "stockSnapshotService" -> method.equals("synchronize") ? "inventory.synchronize" : null;
                         default -> null;
                     };

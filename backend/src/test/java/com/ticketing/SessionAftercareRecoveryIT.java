@@ -69,7 +69,6 @@ class SessionAftercareRecoveryIT {
         } finally {
             if (cleanup != null) {
                 PurchaseTestSupport.cleanup(cleanup,sessionId);
-                cleanup.update("DELETE e FROM outbox_event e JOIN ticket_sku s ON e.aggregate_id=s.id WHERE e.aggregate_type='TICKET_SKU' AND s.session_id=?",sessionId);
                 for (String table: List.of("order_aftercare","refund_record","electronic_ticket","payment_record","ticket_order_item")) cleanup.update("DELETE t FROM "+table+" t JOIN ticket_order o ON o.id=t.order_id WHERE o.session_id=?",sessionId);
                 cleanup.update("DELETE FROM ticket_order WHERE session_id=?",sessionId);
                 cleanup.update("DELETE FROM ticket_sku WHERE id=?",skuId);

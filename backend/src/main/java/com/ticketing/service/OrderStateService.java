@@ -4,14 +4,12 @@ import com.ticketing.dto.TicketSale;
 import com.ticketing.entity.PaymentRecord;
 import com.ticketing.entity.TicketOrder;
 import com.ticketing.enums.ActivityStatus;
-import com.ticketing.enums.InventoryChangeReason;
 import com.ticketing.enums.OrderStatus;
 import com.ticketing.enums.PaymentStatus;
 import com.ticketing.enums.SessionStatus;
 import com.ticketing.exception.BusinessException;
 import com.ticketing.mapper.OrderMapper;
 import com.ticketing.mapper.PaymentMapper;
-import com.ticketing.messaging.InventoryEvents;
 import com.ticketing.vo.PaymentView;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -33,7 +31,7 @@ public class OrderStateService {
     private final PaymentMapper payments;
     private final TradeResourceLocker resources;
     private final TicketInventory inventory;
-    private final InventoryEvents events;
+    private final InventoryVersionService versions;
     private final List<OrderLifecycle> participants;
     private final UserSessionQuotaService quotas;
 
@@ -42,13 +40,13 @@ public class OrderStateService {
             PaymentMapper payments,
             TradeResourceLocker resources,
             TicketInventory inventory,
-            InventoryEvents events,
+            InventoryVersionService versions,
             List<OrderLifecycle> participants, UserSessionQuotaService quotas) {
         this.orders = orders;
         this.payments = payments;
         this.resources = resources;
         this.inventory = inventory;
-        this.events = events;
+        this.versions = versions;
         this.participants = List.copyOf(participants);
         this.quotas = quotas;
     }
@@ -66,7 +64,7 @@ public class OrderStateService {
         inventory.release(locked.sale(), locked.order().getQuantity(), orderId);
         quotas.release(userId, locked.sale().sessionId(), locked.order().getQuantity());
         complete(locked.order(), OrderStatus.CANCELLED);
-        events.append(locked.sale().skuId(), InventoryChangeReason.ORDER_CANCELLED);
+        versions.changed(locked.sale().skuId());
     }
 
     public PaymentView pay(long userId, long orderId) {
@@ -106,7 +104,7 @@ public class OrderStateService {
         inventory.release(sale, order.getQuantity(), order.getId());
         quotas.release(order.getUserId(), sale.sessionId(), order.getQuantity());
         complete(order, OrderStatus.CANCELLED);
-        events.append(sale.skuId(), InventoryChangeReason.ORDER_CANCELLED);
+        versions.changed(sale.skuId());
     }
 
     public boolean expire(long userId, long orderId) {
@@ -118,7 +116,7 @@ public class OrderStateService {
         inventory.release(locked.sale(), locked.order().getQuantity(), orderId);
         quotas.release(userId, locked.sale().sessionId(), locked.order().getQuantity());
         complete(locked.order(), OrderStatus.EXPIRED);
-        events.append(locked.sale().skuId(), InventoryChangeReason.ORDER_EXPIRED);
+        versions.changed(locked.sale().skuId());
         return true;
     }
 

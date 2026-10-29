@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ArchitectureRulesTest {
     private static final Path SOURCES = Path.of("src/main/java/com/ticketing");
     private static final Set<String> MODULES = Set.of("application", "auth", "checkin", "common",
-            "appconfig", "activity", "messaging", "trade", "inventory", "waitlist", "audit", "staff", "admission");
+            "appconfig", "activity", "messaging", "trade", "inventory", "inventorysync", "waitlist", "audit", "staff", "admission");
     private static final Set<String> LAYERS = Set.of("controller", "service", "mapper", "entity", "dto", "vo",
             "config", "enums", "security", "task", "messaging", "cache", "exception", "common");
     private static final Set<String> ORDER_COLLABORATORS = Set.of(

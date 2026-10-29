@@ -67,7 +67,6 @@ class OrderExpiryRecoveryIT {
         } finally {
             if (cleanup != null) {
                 PurchaseTestSupport.cleanup(cleanup,sessionId);
-                cleanup.update("DELETE e FROM outbox_event e JOIN ticket_sku s ON e.aggregate_id=s.id WHERE e.aggregate_type='TICKET_SKU' AND s.session_id=?",sessionId);
                 cleanup.update("DELETE p FROM payment_record p JOIN ticket_order o ON o.id=p.order_id WHERE o.session_id=?", sessionId);
                 cleanup.update("DELETE i FROM ticket_order_item i JOIN ticket_order o ON o.id=i.order_id WHERE o.session_id=?", sessionId);
                 cleanup.update("DELETE FROM ticket_order WHERE session_id=?", sessionId);

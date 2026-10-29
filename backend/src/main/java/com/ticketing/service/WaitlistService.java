@@ -5,11 +5,9 @@ import com.ticketing.config.WaitlistProperties;
 import com.ticketing.dto.JoinWaitlistRequest;
 import com.ticketing.dto.TradeContext;
 import com.ticketing.entity.WaitlistEntry;
-import com.ticketing.enums.InventoryChangeReason;
 import com.ticketing.enums.WaitlistStatus;
 import com.ticketing.exception.BusinessException;
 import com.ticketing.mapper.WaitlistMapper;
-import com.ticketing.messaging.InventoryEvents;
 import com.ticketing.vo.WaitlistView;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -26,7 +24,7 @@ public class WaitlistService {
     private final WaitlistMapper waitlists;
     private final TradeResourceLocker resources;
     private final OrderReservation reservation;
-    private final InventoryEvents events;
+    private final InventoryVersionService versions;
     private final int waitMinutes;
     private final RedisStockReservationService stocks;
 
@@ -34,12 +32,12 @@ public class WaitlistService {
             WaitlistMapper waitlists,
             TradeResourceLocker resources,
             OrderReservation reservation,
-            InventoryEvents events,
+            InventoryVersionService versions,
             WaitlistProperties properties, RedisStockReservationService stocks) {
         this.waitlists = waitlists;
         this.resources = resources;
         this.reservation = reservation;
-        this.events = events;
+        this.versions = versions;
         this.waitMinutes = properties.maxWaitMinutes();
         this.stocks = stocks;
     }
@@ -97,7 +95,7 @@ public class WaitlistService {
         entry.setExpiresAt(deadline);
         // SKU锁覆盖ID分配直到提交，入队与分配共享同一互斥范围。
         waitlists.insert(entry);
-        events.append(skuId, InventoryChangeReason.WAITLIST_JOINED);
+        versions.changed(skuId);
         return view(userId, entry.getId());
     }
 
@@ -118,7 +116,6 @@ public class WaitlistService {
             throw conflict("仅等待中的候补可取消；分配中请等待结果，已分配请处理对应订单");
         }
         terminal(entry, WaitlistStatus.CANCELLED);
-        events.append(entry.getSkuId(), InventoryChangeReason.WAITLIST_CANCELLED);
         return view(userId, id);
     }
 
@@ -192,6 +189,7 @@ public class WaitlistService {
         boolean waiting = retryable && head.getExpiresAt().isAfter(now)
                 && reservation.eligibleForWaitlist(context, head.getQuantity(), now);
         waitlists.finishAttempt(id, requestId, waiting ? "WAITING" : "EXPIRED");
+        versions.changed(head.getSkuId());
     }
 
     private WaitlistEntry requireOwned(long userId, long id) {
@@ -210,6 +208,7 @@ public class WaitlistService {
         if (waitlists.finishWaiting(entry.getId(), status.name()) != 1) {
             throw conflict("候补状态已变化");
         }
+        versions.changed(entry.getSkuId());
     }
 
     private void validateView(WaitlistView view) {

@@ -14,8 +14,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class WaitlistPurchaseLifecycle implements PurchaseLifecycle {
     private final WaitlistMapper waitlists;
     private final TradeResourceLocker resources;
-    public WaitlistPurchaseLifecycle(WaitlistMapper waitlists, TradeResourceLocker resources) {
-        this.waitlists = waitlists; this.resources = resources;
+    private final InventoryVersionService versions;
+    public WaitlistPurchaseLifecycle(WaitlistMapper waitlists, TradeResourceLocker resources, InventoryVersionService versions) {
+        this.waitlists = waitlists; this.resources = resources; this.versions = versions;
     }
 
     @Override
@@ -33,9 +34,11 @@ public class WaitlistPurchaseLifecycle implements PurchaseLifecycle {
 
     @Override
     public void allocated(PurchaseRequest result) {
-        if (result.waitlistEntryId() != null
-                && waitlists.allocate(result.waitlistEntryId(), result.id(), result.orderId()) != 1) {
-            throw new IllegalStateException("候补分配关联未提交");
+        if (result.waitlistEntryId() != null) {
+            if (waitlists.allocate(result.waitlistEntryId(), result.id(), result.orderId()) != 1) {
+                throw new IllegalStateException("候补分配关联未提交");
+            }
+            versions.changed(result.skuId());
         }
     }
     @Override
@@ -51,6 +54,7 @@ public class WaitlistPurchaseLifecycle implements PurchaseLifecycle {
                 || "STOCK_UNAVAILABLE".equals(result.failureCode()) || "QUEUE_EXPIRED".equals(result.failureCode());
         if (!retryable || !entry.getExpiresAt().isAfter(waitlists.databaseNow())) {
             waitlists.expireProcessing(entry.getId(), result.id());
+            versions.changed(result.skuId());
         }
         // 可重试失败保持 PROCESSING，结算成功后调度器才允许推进尝试号。
         // 失效队首的 Redis waitlistPending 同样阻止下一位预扣/关闭门禁，直至结算完成。

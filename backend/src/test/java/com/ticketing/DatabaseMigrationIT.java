@@ -37,12 +37,13 @@ class DatabaseMigrationIT {
 
     @Test
     void flywayCreatesDomainAndAftercareTablesWithChecksAndIndexes() {
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("10");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("16");
         assertThat(jdbc.queryForList("SELECT column_name FROM information_schema.statistics WHERE table_schema=DATABASE() AND table_name='ticket_order' AND index_name='idx_order_user_session_status' ORDER BY seq_in_index", String.class))
                 .containsExactly("user_id", "session_id", "status", "id");
         flyway.validate();
         var tables = jdbc.queryForList("SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()", String.class);
-        assertThat(tables).containsAll(List.of("user_account", "activity", "activity_session", "ticket_sku", "ticket_order", "ticket_order_item", "payment_record", "waitlist_entry", "electronic_ticket", "outbox_event", "refund_record", "order_aftercare", "staff_session_permission", "admin_audit_log"));
+        assertThat(tables).containsAll(List.of("user_account", "activity", "activity_session", "ticket_sku", "ticket_order", "ticket_order_item", "payment_record", "waitlist_entry", "electronic_ticket", "inventory_sync_version", "refund_record", "order_aftercare", "staff_session_permission", "admin_audit_log"));
+        assertThat(tables).doesNotContain("outbox_event");
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.table_constraints WHERE constraint_schema = DATABASE() AND constraint_type = 'CHECK'", Integer.class)).isGreaterThanOrEqualTo(25);
         assertThat(jdbc.queryForList("SELECT column_name FROM information_schema.statistics WHERE table_schema = DATABASE() AND table_name = 'ticket_order' AND index_name = 'uk_order_idempotency' ORDER BY seq_in_index", String.class))
                 .containsExactly("user_id", "idempotency_operation", "idempotency_key");

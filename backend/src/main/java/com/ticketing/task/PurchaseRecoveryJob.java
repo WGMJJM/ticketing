@@ -31,9 +31,9 @@ public class PurchaseRecoveryJob {
         try {
             for (String member : stocks.due(properties.batchSize())) {
                 try {
-                    stocks.defer(member);
                     String[] parts = member.split(":", 2);
                     long skuId = Long.parseLong(parts[0]); long id = Long.parseLong(parts[1]);
+                    if (!stocks.defer(member, id)) continue;
                     if (!worker.recover(id, skuId)) publisher.publish(id, skuId);
                 } catch (RuntimeException exception) {
                     LOG.warn("购票恢复待重试，类型 {}", exception.getClass().getSimpleName());

@@ -20,7 +20,6 @@ import java.util.concurrent.*;
 import org.junit.jupiter.api.*;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.amqp.core.*;
-import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.rabbit.listener.RabbitListenerEndpointRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,13 +32,14 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
 
-/** 七个候补统一链路场景：真实 Redis Lua、Rabbit Confirm/消费与 MySQL 本地事务。 */
+/** 候补统一链路场景：真实 Redis Lua、Rabbit 消费与 MySQL 本地事务。 */
 @SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,properties={
     "server.servlet.session.cookie.secure=false", "ticketing.admin-bootstrap.enabled=false",
-    "ticketing.purchase.queue-seconds=60", "ticketing.purchase.confirm-timeout-ms=500",
+    "ticketing.purchase.queue-seconds=60",
     "ticketing.purchase.recovery-seconds=1", "ticketing.purchase.messaging-enabled=true",
+    "ticketing.purchase.jobs-enabled=false", "ticketing.waitlist.jobs.enabled=false",
     "ticketing.purchase.exchange=ticketing.purchase.waitlist.it", "ticketing.purchase.queue=ticketing.purchase.waitlist.it.orders",
-    "ticketing.waitlist.messaging.enabled=true", "ticketing.purchase.consumer.concurrency=2", "spring.rabbitmq.listener.simple.auto-startup=false",
+    "ticketing.purchase.consumer.concurrency=2", "spring.rabbitmq.listener.simple.auto-startup=false",
     "spring.rabbitmq.listener.simple.retry.max-attempts=2", "spring.rabbitmq.listener.simple.retry.initial-interval=100ms"})
 class WaitlistManagementIT {
     static final String QUEUE="ticketing.purchase.waitlist.it.orders";
@@ -63,7 +63,6 @@ class WaitlistManagementIT {
     @MockitoSpyBean RabbitTemplate rabbit;
     @MockitoSpyBean RedisStockReservationService stocks;
     @MockitoSpyBean PurchasePublisher publisher;
-    @Autowired InventoryConsumer inventoryConsumer;
     long activity,session,sku;
     Client buyer,other;
 
@@ -128,24 +127,21 @@ class WaitlistManagementIT {
         dispatcher.dispatch(sku);assertThat(priority()).isEqualTo("0");stock(0,1);
     }
 
-    @Test void repeatedReleaseEventsAndDispatchNeverDuplicateReservationOrderOrReturnedStock() throws Exception {
+    @Test void repeatedInventoryAndWaitlistScansNeverDuplicateReservationOrderOrReturnedStock() throws Exception {
         total(1);var held=stocks.reserve(buyer.id,sku,1,"held");worker.process(held.id());
         var entry=join(other,1);orderService.cancel(buyer.id,requests.find(held.id()).orderId());
-        var event=db.queryForMap("SELECT event_id,payload FROM outbox_event WHERE aggregate_id=? ORDER BY id DESC LIMIT 1",sku);
-        MessageProperties mp=new MessageProperties();mp.setMessageId(event.get("event_id").toString());
-        Message signal=new Message(event.get("payload").toString().getBytes(StandardCharsets.UTF_8),mp);
-        inventoryConsumer.consume(signal);long id=request(entry);inventoryConsumer.consume(signal);dispatcher.dispatch(sku);
+        dispatcher.dispatch(sku);long id=request(entry);dispatcher.dispatch(sku);dispatcher.dispatch(sku);
         assertThat(request(entry)).isEqualTo(id);assertThat(available()).isZero();
         start();long order=awaitAllocated(entry);worker.process(id);assertThat(orderCount()).isEqualTo(2);stock(1,0);
         db.update("UPDATE ticket_order SET expires_at=TIMESTAMPADD(SECOND,-1,UTC_TIMESTAMP(6)),created_at=TIMESTAMPADD(MINUTE,-20,UTC_TIMESTAMP(6)) WHERE id=?",order);
         assertThat(orderService.expire(other.id,order)).isTrue();assertThat(status(entry)).isEqualTo("EXPIRED");
-        inventoryConsumer.consume(signal);inventoryConsumer.consume(signal);
+        dispatcher.dispatch(sku);dispatcher.dispatch(sku);
         assertThat(available()).isEqualTo(1);assertThat(priority()).isEqualTo("0");stock(0,0);
     }
 
-    @Test void processingAndUnknownPublishKeepOneHeadAndStableRequestWhileOthersJoin() throws Exception {
+    @Test void processingAndLostSendKeepOneHeadAndStableRequestWhileOthersJoin() throws Exception {
         total(0);var entry=join(buyer,1);total(2);
-        doReturn(false).when(publisher).confirm(anyLong(),anyLong());dispatcher.dispatch(sku);
+        doNothing().when(publisher).publish(anyLong(),anyLong());dispatcher.dispatch(sku);
         long id=request(entry);assertThat(status(entry)).isEqualTo("PROCESSING");assertThat(available()).isEqualTo(1);
         var follower=join(other,1);dispatcher.dispatch(sku);assertThat(request(entry)).isEqualTo(id);
         assertThat(status(follower)).isEqualTo("WAITING");assertThat(priority()).isEqualTo("1");
@@ -153,6 +149,25 @@ class WaitlistManagementIT {
         reset(publisher);redis.opsForZSet().add(stocks.recoveryKey(),sku+":"+id,0);
         new PurchaseRecoveryJob(stocks,worker,publisher,inventory,properties).scan();start();awaitAllocated(entry);
         assertThat(requests.find(id).status()).isEqualTo("SUCCEEDED");assertThat(orderCount()).isEqualTo(1);
+    }
+
+    @Test void concurrentSnapshotAndScanCannotSkipProcessingHead() throws Exception {
+        total(0);var head=join(buyer,1);var follower=join(other,1);total(2);
+        assertThat(dispatcher.dispatch(sku)).isEqualTo(1);
+        long first=request(head);
+        try(var pool=Executors.newFixedThreadPool(2)) {
+            var snapshot=pool.submit(()->inventory.synchronize(sku));
+            var scan=pool.submit(()->dispatcher.dispatch(sku));
+            assertThat(snapshot.get(10,TimeUnit.SECONDS)).isFalse();
+            assertThat(scan.get(10,TimeUnit.SECONDS)).isZero();
+        }
+        assertThat(status(head)).isEqualTo("PROCESSING");assertThat(status(follower)).isEqualTo("WAITING");
+        assertThat(request(head)).isEqualTo(first);assertThat(available()).isEqualTo(1);
+        worker.process(first);dispatcher.dispatch(sku);
+        assertThat(status(head)).isEqualTo("ALLOCATED");
+        assertThat(status(follower)).isEqualTo("PROCESSING");
+        worker.process(request(follower));
+        assertThat(status(follower)).isEqualTo("ALLOCATED");assertThat(orderCount()).isEqualTo(2);
     }
 
     @Test void consumerRollbackAndDefinitiveFailureReuseRecoveryAndSettleBeforeAdvancing() throws Exception {

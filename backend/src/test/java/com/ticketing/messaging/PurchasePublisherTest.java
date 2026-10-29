@@ -3,50 +3,41 @@ package com.ticketing.messaging;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import java.util.ArrayList;
-import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.core.Message;
-import org.springframework.amqp.rabbit.connection.CorrelationData;
+import org.springframework.amqp.core.MessageDeliveryMode;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
 class PurchasePublisherTest {
     @Test
-    void distinguishesSlotExhaustionFromBrokerFailureAndReturnsSlotsAfterAck() {
+    void sendsPersistentCommandWithoutWaitingForAConfirm() throws Exception {
         RabbitTemplate rabbit = mock(RabbitTemplate.class);
-        SimpleMeterRegistry metrics = new SimpleMeterRegistry();
-        List<CorrelationData> sent = new ArrayList<>();
-        doAnswer(invocation -> { sent.add(invocation.getArgument(3)); return null; })
-                .when(rabbit).send(anyString(), anyString(), any(Message.class), any(CorrelationData.class));
-        PurchasePublisher publisher = new PurchasePublisher(rabbit, new ObjectMapper(), "purchase", 120, 2, 100, metrics, true);
-        var first = publisher.publish(1, 1);
-        var second = publisher.publish(2, 1);
-        assertThat(publisher.publish(3, 1).join()).isFalse();
-        assertThat(sent).hasSize(2);
-        assertThat(metrics.get("ticketing.diagnostics.publisher.result").tag("reason", "slot_full").counter().count()).isEqualTo(1);
-        sent.get(0).getFuture().complete(new CorrelationData.Confirm(true, null));
-        assertThat(first.join()).isTrue();
-        assertThat(publisher.publish(4, 1)).isNotDone();
-        sent.get(1).getFuture().complete(new CorrelationData.Confirm(false, "test"));
-        assertThat(second.join()).isFalse();
-        assertThat(metrics.get("ticketing.diagnostics.publisher.result").tag("reason", "nack").counter().count()).isEqualTo(1);
+        ObjectMapper json = new ObjectMapper();
+        var publisher = new PurchasePublisher(rabbit, json, "purchase", 120, new SimpleMeterRegistry());
+        publisher.publish(12, 34);
+        var sent = ArgumentCaptor.forClass(Message.class);
+        verify(rabbit).send(org.mockito.ArgumentMatchers.eq("purchase"),
+                org.mockito.ArgumentMatchers.eq(PurchaseCommand.ROUTING_KEY), sent.capture());
+        assertThat(sent.getValue().getMessageProperties().getDeliveryMode()).isEqualTo(MessageDeliveryMode.PERSISTENT);
+        assertThat(sent.getValue().getMessageProperties().getMessageId()).isEqualTo("12");
+        assertThat(sent.getValue().getMessageProperties().getExpiration()).isEqualTo("120000");
+        assertThat(json.readValue(sent.getValue().getBody(), PurchaseCommand.class)).isEqualTo(new PurchaseCommand(12, 34));
     }
 
     @Test
-    void timeoutIsObservedWithoutReleasingUnconfirmedSlotEarlyAndDefaultHasNoDiagnosticMeters() {
-        SimpleMeterRegistry metrics = new SimpleMeterRegistry();
-        PurchasePublisher publisher = new PurchasePublisher(mock(RabbitTemplate.class), new ObjectMapper(), "purchase", 120, 1, 1, metrics, true);
-        assertThat(publisher.confirm(1, 1)).isFalse();
-        assertThat(metrics.get("ticketing.diagnostics.publisher.result").tag("reason", "confirm_timeout").counter().count()).isEqualTo(1);
-        assertThat(publisher.publish(2, 1).join()).isFalse();
-        assertThat(metrics.get("ticketing.diagnostics.publisher.result").tag("reason", "slot_full").counter().count()).isEqualTo(1);
-        SimpleMeterRegistry disabled = new SimpleMeterRegistry();
-        new PurchasePublisher(mock(RabbitTemplate.class), new ObjectMapper(), "purchase", 120, 1, 1, disabled, false).confirm(1, 1);
-        assertThat(disabled.getMeters()).isEmpty();
+    void sendFailureIsObservedWithoutTurningTheAcceptedRequestIntoFailure() {
+        RabbitTemplate rabbit = mock(RabbitTemplate.class);
+        var metrics = new SimpleMeterRegistry();
+        doThrow(new AmqpException("offline")).when(rabbit).send(anyString(), anyString(), any(Message.class));
+        new PurchasePublisher(rabbit, new ObjectMapper(), "purchase", 120, metrics).publish(12, 34);
+        assertThat(metrics.get("ticketing.purchase.publish.failure").counter().count()).isEqualTo(1);
     }
 }

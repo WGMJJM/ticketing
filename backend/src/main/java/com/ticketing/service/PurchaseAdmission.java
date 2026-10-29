@@ -37,10 +37,7 @@ public class PurchaseAdmission {
     @Transactional(propagation = Propagation.NEVER)
     public PurchaseRequest submit(PurchaseIntent intent) {
         PurchaseRequest request = stocks.reserve(intent);
-        if (!request.terminal() && !publisher.confirm(request.id(), request.skuId())) {
-            throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, "PURCHASE_PUBLISH_UNCONFIRMED",
-                    "购票申请已记录，消息确认暂不确定，请按原幂等键查询或重试");
-        }
+        if (!request.terminal()) publisher.publish(request.id(), request.skuId());
         return request;
     }
 

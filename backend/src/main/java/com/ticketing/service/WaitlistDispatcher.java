@@ -34,6 +34,7 @@ public class WaitlistDispatcher {
                 continue;
             }
             var result = purchase.result(head.getPurchaseRequestId());
+            if (result != null && !result.terminal()) break;
             if (result != null && result.terminal()) {
                 if (!stocks.settle(result)) break;
                 if (!"SUCCEEDED".equals(result.status())) {
@@ -49,13 +50,12 @@ public class WaitlistDispatcher {
                         head.purchaseKey(), head.getId(), head.getAttemptNo(), head.getExpiresAt(), head.getPurchaseRequestId()));
                 submitted++;
             } catch (BusinessException exception) {
-                // 明确没有预扣的业务拒绝才退出尝试；发布确认未知维持 PROCESSING。
+                // 明确没有预扣的业务拒绝才退出尝试；未决申请继续阻挡队首。
                 String code = exception.getCode();
                 if (("STOCK_UNAVAILABLE".equals(code) || "TICKET_UNAVAILABLE".equals(code)
                         || "PURCHASE_LIMIT".equals(code)) && purchase.result(head.getPurchaseRequestId()) == null) {
                     service.finishAttempt(head.getId(), head.getPurchaseRequestId(), "STOCK_UNAVAILABLE".equals(code));
-                } else if (!"PURCHASE_PUBLISH_UNCONFIRMED".equals(code)
-                        && !"PURCHASE_QUEUE_FULL".equals(code) && !"PURCHASE_ADMISSION_UNAVAILABLE".equals(code)) {
+                } else if (!"PURCHASE_QUEUE_FULL".equals(code) && !"PURCHASE_ADMISSION_UNAVAILABLE".equals(code)) {
                     throw exception;
                 }
             }

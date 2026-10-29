@@ -20,7 +20,6 @@ import java.util.concurrent.*;
 import org.junit.jupiter.api.*;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.amqp.core.*;
-import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.rabbit.listener.RabbitListenerEndpointRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,11 +32,12 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
 
-/** 真实 Redis Lua、Rabbit Confirm/消费与 MySQL 本地事务的针对性场景。 */
+/** 真实 Redis Lua、Rabbit 消费与 MySQL 本地事务的针对性场景。 */
 @SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,properties={
     "server.servlet.session.cookie.secure=false", "ticketing.admin-bootstrap.enabled=false",
-    "ticketing.purchase.queue-seconds=5", "ticketing.purchase.confirm-timeout-ms=500",
+    "ticketing.purchase.queue-seconds=5",
     "ticketing.purchase.recovery-seconds=1", "ticketing.purchase.messaging-enabled=true",
+    "ticketing.purchase.jobs-enabled=false", "ticketing.waitlist.jobs.enabled=false",
     "ticketing.purchase.exchange=ticketing.purchase.direct.it", "ticketing.purchase.queue=ticketing.purchase.direct.it.orders",
     "ticketing.purchase.consumer.concurrency=4", "spring.rabbitmq.listener.simple.auto-startup=false",
     "spring.rabbitmq.listener.simple.retry.max-attempts=2", "spring.rabbitmq.listener.simple.retry.initial-interval=100ms"})
@@ -91,11 +91,10 @@ class AsyncPurchaseIT {
     }
     @AfterEach void stop() {registry.stop();reset(requests,orders,rabbit,stocks);}
 
-    @Test void realHttpAcceptsOnlyAfterConfirmAndQueriesRedisBeforeConsumerCommits() throws Exception {
+    @Test void realHttpAcceptsReservationAndQueriesRedisBeforeConsumerCommits() throws Exception {
         var value=accept(buyer,2,"normal");long id=value.path("requestId").asLong();
         assertThat(value.path("status").asText()).isEqualTo("QUEUED");
         assertThat(db.queryForObject("SELECT COUNT(*) FROM purchase_request WHERE id=?",Integer.class,id)).isZero();
-        assertThat(db.queryForObject("SELECT COUNT(*) FROM outbox_event WHERE aggregate_type='PURCHASE_REQUEST'",Integer.class)).isZero();
         verify(requests,never()).coordinate(any());verify(requests,never()).byKey(anyLong(),anyString());verify(requests,never()).find(anyLong());
         assertThat(buyer.call("GET","/purchase-requests/lookup",null,"normal",200).path("data").path("requestId")).isEqualTo(value.path("requestId"));
         other.call("GET","/purchase-requests/"+id,null,null,404);
@@ -111,7 +110,7 @@ class AsyncPurchaseIT {
         stock(0,2);assertThat(stocks.find(id).status()).isEqualTo("SUCCEEDED");
     }
 
-    @Test void fourBucketOrdersUseRealConfirmAndFourConsumerQueue() throws Exception {
+    @Test void fourBucketOrdersUseFourConsumerQueue() throws Exception {
         for(int n=0;n<4;n++)db.update("INSERT INTO ticket_stock_bucket(sku_id,bucket_no,total_stock) VALUES(?,?,2)",sku,n);
         db.update("INSERT INTO stock_strategy_switch(sku_id,bucket_count,operator_id,backup_sha256,previous_locked,previous_sold) VALUES(?,4,?,SHA2('guarded bucket fixture',256),0,0)",sku,buyer.id);
         db.update("UPDATE ticket_sku SET inventory_strategy='BUCKETED',bucket_count=4 WHERE id=?",sku);
@@ -141,9 +140,7 @@ class AsyncPurchaseIT {
         }
     }
 
-    @Test void distinctBuyersCannotOversellThroughHttpAndConfirmedMessaging() throws Exception {
-        assertThat(properties.inFlightWindow()).isEqualTo(
-                Integer.parseInt(System.getenv().getOrDefault("PURCHASE_IN_FLIGHT_WINDOW", "64")));
+    @Test void distinctBuyersCannotOversellThroughHttpAndMessaging() throws Exception {
         db.update("UPDATE ticket_sku SET total_stock=32 WHERE id=?", sku);
         assertThat(inventory.synchronize(sku)).isTrue();
         List<Client> buyers = new ArrayList<>(List.of(buyer, other));
@@ -200,26 +197,80 @@ class AsyncPurchaseIT {
 
     @Test void duplicateRabbitDeliveriesCommitExactlyOneOrderAndOneQuotaOccupation() throws Exception {
         long id=accept(buyer,1,"duplicate").path("requestId").asLong();
-        assertThat(publisher.confirm(id,sku)).isTrue();assertThat(publisher.confirm(id,sku)).isTrue();
+        publisher.publish(id,sku);publisher.publish(id,sku);
         start();assertThat(await(buyer,id).path("status").asText()).isEqualTo("SUCCEEDED");
         worker.process(id);assertThat(orderCount()).isEqualTo(1);stock(1,0);assertThat(available()).isEqualTo(7);
     }
 
-    @Test void failedAndUnknownPublishingPreserveReservationAndUnifiedRecoveryRedelivers() throws Exception {
+    @Test void failedPublishingStillAcceptsAndUnifiedRecoveryRedelivers() throws Exception {
         doThrow(new org.springframework.amqp.AmqpConnectException(new java.net.ConnectException("isolated fault")))
-                .when(rabbit).send(anyString(),anyString(),any(Message.class),any(CorrelationData.class));
-        buyer.call("POST","/orders",Map.of("skuId",Long.toString(sku),"quantity",1),"unknown",503);
+                .when(rabbit).send(anyString(),anyString(),any(Message.class));
+        buyer.call("POST","/orders",Map.of("skuId",Long.toString(sku),"quantity",1),"unknown",202);
         PurchaseRequest held=stocks.lookup(buyer.id,"unknown");assertThat(available()).isEqualTo(7);
-        reset(rabbit);List<CorrelationData> unknown=new ArrayList<>();
-        doAnswer(call->{unknown.add(call.getArgument(3));rabbit.send(call.getArgument(0,String.class),call.getArgument(1,String.class),call.getArgument(2,Message.class));return null;})
-                .when(rabbit).send(anyString(),anyString(),any(Message.class),any(CorrelationData.class));
-        buyer.call("POST","/orders",Map.of("skuId",Long.toString(sku),"quantity",1),"unknown",503);
-        assertThat(stocks.lookup(buyer.id,"unknown").id()).isEqualTo(held.id());assertThat(available()).isEqualTo(7);
-        reset(rabbit);unknown.forEach(c->c.getFuture().completeExceptionally(new TimeoutException("unknown outcome")));
+        assertThat(redis.opsForZSet().score(stocks.recoveryKey(),sku+":"+held.id())).isNotNull();
+        reset(rabbit);
+        redis.opsForZSet().add(stocks.recoveryKey(),sku+":"+held.id(),0);
+        var recovery=new PurchaseRecoveryJob(stocks,worker,publisher,inventory,properties);
+        recovery.scan();recovery.scan();
+        assertThat(broker.getQueueInfo(QUEUE).getMessageCount()).isEqualTo(1);
+        start();assertThat(await(buyer,held.id()).path("status").asText()).isEqualTo("SUCCEEDED");
+        assertThat(orderCount()).isEqualTo(1);stock(1,0);
+    }
+
+    @Test void crashAfterReservationBeforeSendIsRecoveredWithoutASecondReservation() throws Exception {
+        PurchaseRequest held=stocks.reserve(buyer.id,sku,1,"crash-before-send");
+        assertThat(available()).isEqualTo(7);
         redis.opsForZSet().add(stocks.recoveryKey(),sku+":"+held.id(),0);
         new PurchaseRecoveryJob(stocks,worker,publisher,inventory,properties).scan();
         start();assertThat(await(buyer,held.id()).path("status").asText()).isEqualTo("SUCCEEDED");
-        assertThat(orderCount()).isEqualTo(1);stock(1,0);
+        assertThat(orderCount()).isEqualTo(1);assertThat(available()).isEqualTo(7);
+    }
+
+    @Test void definitiveFailureReleasesTheReservationOnlyOnce() {
+        PurchaseRequest held=stocks.reserve(buyer.id,sku,1,"failed-once");
+        db.update("UPDATE user_account SET status='DISABLED' WHERE id=?",buyer.id);
+        worker.process(held.id());
+        assertThat(requests.find(held.id()).status()).isEqualTo("FAILED");
+        assertThat(available()).isEqualTo(8);
+        worker.process(held.id());
+        assertThat(worker.recover(held.id(),sku)).isTrue();
+        assertThat(available()).isEqualTo(8);assertThat(orderCount()).isZero();
+    }
+
+    @Test void committedReleasesOnMultipleSkusAreRecoveredAndRepeatedScansAreIdempotent() {
+        db.update("INSERT INTO ticket_sku(session_id,name,price_cents,total_stock,max_quantity_per_order,sale_starts_at,sale_ends_at,status) VALUES(?,'另一票档',12345,5,4,TIMESTAMPADD(HOUR,-1,UTC_TIMESTAMP(6)),TIMESTAMPADD(HOUR,1,UTC_TIMESTAMP(6)),'ON_SALE')",session);
+        long second=db.queryForObject("SELECT MAX(id) FROM ticket_sku WHERE session_id=?",Long.class,session);
+        assertThat(inventory.synchronize(second)).isTrue();
+        PurchaseRequest first=stocks.reserve(buyer.id,sku,1,"scan-first");
+        PurchaseRequest next=stocks.reserve(other.id,second,1,"scan-second");
+        worker.process(first.id());worker.process(next.id());
+        orderService.cancel(buyer.id,requests.find(first.id()).orderId());
+        orderService.cancel(other.id,requests.find(next.id()).orderId());
+        assertThat(available()).isEqualTo(7);
+        assertThat(Long.parseLong(Objects.toString(redis.opsForHash().get(stocks.skuKey(second),"available")))).isEqualTo(4);
+        var job=new PurchaseRecoveryJob(stocks,worker,publisher,inventory,properties);
+        for(int page=0;page<20 && (inventory.needsRefresh(sku) || inventory.needsRefresh(second));page++) job.scan();
+        assertThat(inventory.needsRefresh(sku)).isFalse();assertThat(inventory.needsRefresh(second)).isFalse();
+        assertThat(available()).isEqualTo(8);
+        assertThat(Long.parseLong(Objects.toString(redis.opsForHash().get(stocks.skuKey(second),"available")))).isEqualTo(5);
+        job.scan();job.scan();assertThat(available()).isEqualTo(8);
+    }
+
+    @Test void initializedMissingOrCorruptLedgerCannotBeRecreatedSilently() {
+        redis.delete(stocks.skuKey(sku));
+        assertThatThrownBy(()->inventory.synchronize(sku)).isInstanceOf(IllegalStateException.class);
+        assertThat(redis.hasKey(stocks.skuKey(sku))).isFalse();
+    }
+
+    @Test void corruptedWaitlistPriorityFailsClosedBeforeAnotherReservation() {
+        redis.opsForHash().put(stocks.skuKey(sku),"waitlistPriority","corrupt");
+        assertThatThrownBy(()->stocks.reserve(buyer.id,sku,1,"bad-ledger"))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        error->assertThat(error.getCode()).isEqualTo("PURCHASE_ADMISSION_UNAVAILABLE"));
+        assertThat(inventory.needsRefresh(sku)).isTrue();
+        assertThat(redis.opsForHash().get(stocks.skuKey(sku),"ready")).isEqualTo("0");
+        assertThatThrownBy(()->inventory.synchronize(sku)).isInstanceOf(BusinessException.class);
+        assertThat(available()).isEqualTo(8);
     }
 
     @Test void databaseRollbackAndPostCommitSettlementFailureRecoverWithoutSecondOrder() {

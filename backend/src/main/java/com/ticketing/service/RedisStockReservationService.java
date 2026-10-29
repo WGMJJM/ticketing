@@ -41,8 +41,19 @@ public class RedisStockReservationService {
     private static final DefaultRedisScript<Long> SETTLE = script("purchase-settle.lua", Long.class);
     private static final DefaultRedisScript<Long> PUBLISH = script("inventory-publish.lua", Long.class);
     private static final DefaultRedisScript<Long> REMEMBER = script("purchase-remember.lua", Long.class);
-    private static final DefaultRedisScript<Long> DEFER = new DefaultRedisScript<>(
-            "return redis.call('ZADD',KEYS[1],'XX',ARGV[1],ARGV[2])", Long.class);
+    private static final DefaultRedisScript<Long> DEFER = new DefaultRedisScript<>("""
+            local score = redis.call('ZSCORE', KEYS[1], ARGV[2])
+            local now = tonumber(ARGV[1])
+            if not score or tonumber(score) > now then return 0 end
+            local base = tonumber(ARGV[3])
+            local accepted = tonumber(redis.call('HGET', KEYS[2], 'acceptedAt')) or now
+            local deadline = tonumber(redis.call('HGET', KEYS[2], 'deadlineAt')) or 0
+            local delay = math.min(tonumber(ARGV[4]), base * (1 + math.floor(math.max(0, now - accepted) / base)))
+            local next = now + delay
+            if deadline > now then next = math.min(next, deadline) end
+            redis.call('ZADD', KEYS[1], 'XX', next, ARGV[2])
+            return 1
+            """, Long.class);
     private static final DefaultRedisScript<Long> PRIORITY = script("waitlist-priority.lua", Long.class);
     private static final DefaultRedisScript<List> ADMISSION_SNAPSHOT = new DefaultRedisScript<>(
             "return {redis.call('HGET',KEYS[1],'ready') or '',tostring(redis.call('EXISTS',KEYS[2])),"
@@ -287,10 +298,46 @@ public class RedisStockReservationService {
         if (result == null || result != 1) throw unavailable();
     }
 
-    public boolean needsInventoryReconciliation(long skuId, long sequence) {
+    public boolean needsInventoryReconciliation(long skuId, long version) {
         Map<Object, Object> fields = redis.opsForHash().entries(skuKey(skuId));
-        return !"1".equals(text(fields.get("ready")))
-                || Long.parseLong(text(fields.getOrDefault("inventorySequence", "0"))) < sequence;
+        if (fields.isEmpty()) return true;
+        String saved = text(fields.get("inventoryVersion"));
+        if (saved.isEmpty()) saved = text(fields.get("inventorySequence"));
+        try {
+            long current = Long.parseLong(saved);
+            long available = Long.parseLong(text(fields.get("available")));
+            long pendingCount = Long.parseLong(text(fields.get("pending")));
+            long waitlistPending = Long.parseLong(text(fields.get("waitlistPending")));
+            String priority = text(fields.get("waitlistPriority"));
+            String eligible = text(fields.get("eligible"));
+            if (current < 0 || available < 0 || pendingCount < 0
+                    || waitlistPending < 0 || waitlistPending > pendingCount
+                    || !("0".equals(priority) || "1".equals(priority))
+                    || !("0".equals(eligible) || "1".equals(eligible))
+                    || !fields.keySet().containsAll(List.of("eligible", "saleStartsAt", "saleEndsAt",
+                            "maxQuantity", "sessionId", "waitlistPending", "waitlistPriority"))) {
+                throw new IllegalStateException("库存账本字段异常");
+            }
+            return !"1".equals(text(fields.get("ready"))) || current != version;
+        } catch (NumberFormatException | IllegalStateException invalid) {
+            pause(skuId, "inventory_ledger_invalid");
+            return true;
+        }
+    }
+
+    /** 有在途预扣时 Redis 与数据库余额本就可能暂时不同，等待结算后再核对。 */
+    public boolean inventoryBalanceDiffers(long skuId, long version, long expected) {
+        Map<Object, Object> fields = redis.opsForHash().entries(skuKey(skuId));
+        String saved = text(fields.get("inventoryVersion"));
+        if (saved.isEmpty()) saved = text(fields.get("inventorySequence"));
+        try {
+            return !"1".equals(text(fields.get("ready"))) || Long.parseLong(saved) != version
+                    || (Long.parseLong(text(fields.get("pending"))) == 0
+                        && Long.parseLong(text(fields.get("available"))) != expected);
+        } catch (NumberFormatException invalid) {
+            pause(skuId, "inventory_ledger_invalid");
+            return true;
+        }
     }
 
     /** 调用者持 MySQL SKU 锁；同一原子脚本检查余额并开启门禁。 */
@@ -322,9 +369,12 @@ public class RedisStockReservationService {
         return result == null ? Set.of() : result;
     }
 
-    public void defer(String member) {
-        redis.execute(DEFER, List.of(recovery),
-                Long.toString(System.currentTimeMillis() + properties.recoverySeconds() * 1000L), member);
+    public boolean defer(String member, long requestId) {
+        long base = properties.recoverySeconds() * 1000L;
+        long maximum = Math.max(base, properties.queueSeconds() * 1000L / 3);
+        Long deferred = redis.execute(DEFER, List.of(recovery, requestKey(requestId)),
+                Long.toString(System.currentTimeMillis()), member, Long.toString(base), Long.toString(maximum));
+        return deferred != null && deferred == 1;
     }
 
     public String skuKey(long id) { return prefix + "sku:" + id; }

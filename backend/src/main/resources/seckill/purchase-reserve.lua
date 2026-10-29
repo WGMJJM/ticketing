@@ -6,7 +6,11 @@ if redis.call('EXISTS', KEYS[2]) == 1 then
 end
 if redis.call('HGET', KEYS[1], 'ready') ~= '1' or redis.call('EXISTS', KEYS[5]) == 0 then return {-3} end
 local priority = redis.call('HGET', KEYS[1], 'waitlistPriority')
-if not priority then return {-3} end
+local version = redis.call('HGET', KEYS[1], 'inventoryVersion')
+    or redis.call('HGET', KEYS[1], 'inventorySequence')
+local waitlistPending = tonumber(redis.call('HGET', KEYS[1], 'waitlistPending') or '')
+if (priority ~= '0' and priority ~= '1') or not version or not string.match(version, '^%d+$')
+    or not waitlistPending or waitlistPending < 0 then return {-3} end
 if ARGV[12] == 'CREATE_ORDER' and priority == '1' then return {-12} end
 if ARGV[12] == 'WAITLIST_CONFIRM' and (priority ~= '1'
     or redis.call('HGET', KEYS[1], 'waitlistHead') ~= ARGV[14]) then return {-13} end

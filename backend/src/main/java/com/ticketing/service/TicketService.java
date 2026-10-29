@@ -8,14 +8,12 @@ import com.ticketing.entity.Activity;
 import com.ticketing.entity.ActivitySession;
 import com.ticketing.entity.TicketSku;
 import com.ticketing.enums.AuditAction;
-import com.ticketing.enums.InventoryChangeReason;
 import com.ticketing.enums.SaleStatus;
 import com.ticketing.enums.TicketStatus;
 import com.ticketing.exception.BusinessException;
 import com.ticketing.mapper.ActivityMapper;
 import com.ticketing.mapper.ActivitySessionMapper;
 import com.ticketing.mapper.TicketSkuMapper;
-import com.ticketing.messaging.InventoryEvents;
 import com.ticketing.vo.TicketView;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -41,7 +39,7 @@ public class TicketService implements SessionWindowGuard {
     private final TicketSkuMapper tickets;
     private final ActivitySessionMapper sessions;
     private final ActivityMapper activities;
-    private final InventoryEvents events;
+    private final InventoryVersionService versions;
     private final AuditWriter audit;
     private final CatalogCache cache;
     private final TicketInventory inventory;
@@ -50,11 +48,11 @@ public class TicketService implements SessionWindowGuard {
             TicketSkuMapper tickets,
             ActivitySessionMapper sessions,
             ActivityMapper activities,
-            InventoryEvents events, AuditWriter audit, CatalogCache cache, TicketInventory inventory) {
+            InventoryVersionService versions, AuditWriter audit, CatalogCache cache, TicketInventory inventory) {
         this.tickets = tickets;
         this.sessions = sessions;
         this.activities = activities;
-        this.events = events;
+        this.versions = versions;
         this.audit = audit;
         this.cache = cache;
         this.inventory = inventory;
@@ -171,8 +169,7 @@ public class TicketService implements SessionWindowGuard {
         } catch (DuplicateKeyException exception) {
             throw duplicateName();
         }
-        events.append(id, request.totalStock() > sku.getTotalStock()
-                ? InventoryChangeReason.STOCK_INCREASED : InventoryChangeReason.SKU_CONFIGURATION_CHANGED);
+        versions.changed(id);
         audit.record(operatorId, !sku.getTotalStock().equals(request.totalStock()) ? AuditAction.STOCK_ADJUST : AuditAction.TICKET_UPDATE,
                 "TICKET_SKU", id, snapshot(sku), snapshot(requireTicket(id)));
         cache.invalidateAfterCommit();
@@ -206,7 +203,7 @@ public class TicketService implements SessionWindowGuard {
                 != 1) {
             throw conflict("票档状态已变化，请刷新后重试");
         }
-        events.append(id, InventoryChangeReason.SKU_CONFIGURATION_CHANGED);
+        versions.changed(id);
         audit.record(operatorId, AuditAction.TICKET_PUBLISH, "TICKET_SKU", id, snapshot(sku), snapshot(requireTicket(id)));
         cache.invalidateAfterCommit();
         return view(requireTicket(id), session);
@@ -227,7 +224,7 @@ public class TicketService implements SessionWindowGuard {
                 != 1) {
             throw conflict("票档状态已变化，请刷新后重试");
         }
-        events.append(id, InventoryChangeReason.SKU_CONFIGURATION_CHANGED);
+        versions.changed(id);
         audit.record(operatorId, AuditAction.TICKET_OFFLINE, "TICKET_SKU", id, snapshot(sku), snapshot(requireTicket(id)));
         cache.invalidateAfterCommit();
         return view(requireTicket(id), session);

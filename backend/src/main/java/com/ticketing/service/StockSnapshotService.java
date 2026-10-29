@@ -9,7 +9,6 @@ import com.ticketing.entity.PurchaseRequest;
 import com.ticketing.entity.TicketSku;
 import com.ticketing.mapper.ActivityMapper;
 import com.ticketing.mapper.ActivitySessionMapper;
-import com.ticketing.mapper.OutboxMapper;
 import com.ticketing.mapper.PurchaseRequestMapper;
 import com.ticketing.mapper.TicketSkuMapper;
 import java.time.ZoneOffset;
@@ -25,16 +24,16 @@ public class StockSnapshotService {
     private final ActivitySessionMapper sessions;
     private final TicketSkuMapper tickets;
     private final PurchaseRequestMapper requests;
-    private final OutboxMapper outbox;
+    private final InventoryVersionService versions;
     private final RedisStockReservationService stocks;
     private final TicketInventory inventory;
     private final RedisCommandDiagnostics diagnostics;
 
     public StockSnapshotService(ActivityMapper activities, ActivitySessionMapper sessions, TicketSkuMapper tickets,
-            PurchaseRequestMapper requests, OutboxMapper outbox, RedisStockReservationService stocks, TicketInventory inventory,
+            PurchaseRequestMapper requests, InventoryVersionService versions, RedisStockReservationService stocks, TicketInventory inventory,
             ObjectProvider<RedisCommandDiagnostics> diagnostics) {
         this.activities = activities; this.sessions = sessions; this.tickets = tickets;
-        this.requests = requests; this.outbox = outbox; this.stocks = stocks; this.inventory = inventory;
+        this.requests = requests; this.versions = versions; this.stocks = stocks; this.inventory = inventory;
         this.diagnostics = diagnostics.getIfAvailable();
     }
 
@@ -73,7 +72,7 @@ public class StockSnapshotService {
                 && !sku.getSaleStartsAt().isBefore(session.getSaleStartsAt()) && !sku.getSaleEndsAt().isAfter(session.getStartsAt());
         stocks.publish(skuId, (long) sku.getTotalStock() - sku.getLockedStock() - sku.getSoldStock(), eligible,
                 sku.getSaleStartsAt().toInstant(ZoneOffset.UTC).toEpochMilli(), sku.getSaleEndsAt().toInstant(ZoneOffset.UTC).toEpochMilli(),
-                sku.getMaxQuantityPerOrder(), session.getId(), outbox.latestInventorySequence(skuId), !initialized, initializeCounter, tickets.hasWaitlist(skuId));
+                sku.getMaxQuantityPerOrder(), session.getId(), versions.current(skuId), !initialized, initializeCounter, tickets.hasWaitlist(skuId));
         if (!initialized) tickets.markRedisInitialized(skuId);
         if (diagnostics != null) diagnostics.inventoryReady(skuId);
         return true;
@@ -81,6 +80,9 @@ public class StockSnapshotService {
 
     public List<Long> candidates(long after, int size) { return tickets.inventoryCandidates(after, size); }
     public boolean needsRefresh(long skuId) {
-        return stocks.needsInventoryReconciliation(skuId, outbox.latestInventorySequence(skuId));
+        long version = versions.current(skuId);
+        if (stocks.needsInventoryReconciliation(skuId, version)) return true;
+        Long available = tickets.availableBalance(skuId);
+        return available != null && stocks.inventoryBalanceDiffers(skuId, version, available);
     }
 }
