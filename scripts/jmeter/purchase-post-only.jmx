@@ -106,6 +106,7 @@ if (stop.exists() || System.currentTimeMillis() >= (long)config.endMs) {
 }
 def session = config.sessions[index]
 vars.put('requestIndex', Integer.toString(index))
+vars.put('accountIndex', session.containsKey('accountIndex') ? session.accountIndex.toString() : Integer.toString(index))
 def key = "jmeter-${config.batch}-${index}"
 vars.put('idempotencyKey', key); vars.put('requestId', ''); vars.put('failureCode', '')
 vars.put('orderCompletedMs',''); vars.put('orderObservedMs',''); vars.put('orderStatus','')

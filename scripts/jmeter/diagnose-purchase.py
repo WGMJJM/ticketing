@@ -829,6 +829,8 @@ def run_round(args):
     if SafetyGate().update(baseline):
         raise RuntimeError('资源预检不通过；未启动后端或发压')
     metadata = json.loads((runtime / 'prepared-data.json').read_text(encoding='utf-8'))
+    if args.repeat_per_user > min(int(metadata.get('ordersPerUser',1)),int(env.get('ORDER_SESSION_LIMIT','4'))):
+        raise RuntimeError('每用户请求预算超过新账号夹具或真实场次限购')
     print('本轮目录 '+str(directory)+'；开始受监控的预登录',flush=True)
     backend, logfile = start_backend(runtime, directory, args.java, args.concurrency, args.pool,
                                     publisher_window=args.publisher_window, capacity=args.capacity)
@@ -849,16 +851,19 @@ def run_round(args):
         offset = json.loads(cursor_path.read_text()) if cursor_path.exists() else 0
         count = args.max_posts if args.inflight else int(args.rps * args.seconds)
         continuous_warmup = bool(args.inflight and not args.selftest)
-        warmup_count = 10 if args.selftest else 20
+        warmup_count = 10 if args.selftest else args.startup_checks
+        unique_count = (count + args.repeat_per_user - 1) // args.repeat_per_user
         if args.reuse_accounts:
-            selected = eligible_accounts(runtime, env, metadata, count + warmup_count)
+            if args.repeat_per_user != 1: raise RuntimeError('多笔预算仅用于全新账号池，不猜测旧用户剩余额度')
+            selected = eligible_accounts(runtime, env, metadata, unique_count + warmup_count)
         else:
-            if count + warmup_count + offset > len(accounts): raise RuntimeError('独立账号余额不足，不复用已有账号')
-            selected = accounts[offset:offset + count + warmup_count]
-            save(cursor_path, offset + count + warmup_count)  # 失败账号也不再用于其他档位。
+            if unique_count + warmup_count + offset > len(accounts): raise RuntimeError('独立账号余额不足，不复用已有账号')
+            selected = accounts[offset:offset + unique_count + warmup_count]
+            save(cursor_path, offset + unique_count + warmup_count)  # 失败账号也不再用于其他档位。
         sessions = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=args.login_workers) as executor:
             for value in executor.map(login, selected):
+                value['accountIndex'] = len(sessions)
                 sessions.append(value)
                 if len(sessions)%1000 == 0: print(f'预登录 {len(sessions)}/{len(selected)}',flush=True)
                 if monitor.stop.exists(): raise RuntimeError('预登录期间资源/监测保护触发；未发购票')
@@ -874,7 +879,7 @@ def run_round(args):
             if response.status_code != 202: raise RuntimeError('独立预热被拒绝；本轮不进入正式负载')
             time.sleep(.2)
         if warmup_count and not drain(env, 40)['complete']: raise RuntimeError('独立预热未排空')
-        sessions = sessions[warmup_count:]
+        sessions = (sessions[warmup_count:] * args.repeat_per_user)[:count]
         batch = 'diag-' + secrets.token_hex(8)
         load_start = int(time.time() * 1000) + 12000
         start = load_start + (60000 if continuous_warmup else 0)
@@ -908,7 +913,7 @@ def run_round(args):
         jmeter_args = [args.java, '-Xms64m', '-Xmx256m', '-XX:+UseG1GC',
                        f'-Xlog:gc:file={directory / "jmeter-gc.log"}', '-jar', args.jmeter_jar,
                        '-n', '-t', str(PLAN), f'-JsessionsFile={sessions_path}', f'-JstopFile={monitor.stop}',
-                       f'-Jthreads={args.threads}', '-Jsample_variables=batch,idempotencyKey,requestId,failureCode,scheduledMs,postStartMs,httpCompletedMs,postElapsedMs,requestIndex,completionCredit,orderCompletedMs,orderObservedMs,orderStatus,flowReadRetries,resolution',
+                       f'-Jthreads={args.threads}', '-Jsample_variables=batch,idempotencyKey,requestId,failureCode,scheduledMs,postStartMs,httpCompletedMs,postElapsedMs,requestIndex,accountIndex,completionCredit,orderCompletedMs,orderObservedMs,orderStatus,flowReadRetries,resolution',
                        f'-JinitialRampMs={max(2000,args.threads*20)}',
                        '-Jjmeter.save.saveservice.output_format=csv', '-Jjmeter.save.saveservice.print_field_names=true',
                        '-Jjmeter.save.saveservice.autoflush=true', '-Jjmeter.save.saveservice.response_data=false',
@@ -923,7 +928,8 @@ def run_round(args):
         monitor.jmeter_pid = jmeter.pid
         run_record = dict(batch=batch, concurrency=args.concurrency, pool=args.pool,
                                       publisherConfirmEnabled=False,publisherWindow=None,capacity=args.capacity,capacityFillAllowed=args.allow_capacity_fill,bucketCount=metadata.get('bucketCount',0),initialRampMs=max(2000,args.threads*20),
-                                      accountPolicy='eligible-distinct-existing-users' if args.reuse_accounts else 'unclaimed-users',
+                                      accountPolicy='eligible-distinct-existing-users' if args.reuse_accounts else 'new-users-with-bounded-distinct-requests',
+                                      preloggedUsers=len(selected),startupChecks=warmup_count,maxRequestsPerUser=args.repeat_per_user,
                                       offeredRps=None if args.inflight else args.rps, inflight=args.inflight,
                                       loadModel='completion-closed-loop' if args.inflight else 'paced-arrivals', skuId=metadata['skuId'],
                                       threads=args.threads, loadStartMs=load_start, startMs=start, endMs=end,
@@ -996,7 +1002,7 @@ def run_round(args):
         result['postsAfterStop'] = sum(int(p['postStartMs']) > stop_time for p in posts) if stop_time else 0
         result['postsAfterDeadline'] = sum(int(p['postStartMs']) >= end for p in posts)
         from http_qps_stats import http_summary
-        result['httpInterface'] = http_summary([dict(p,accountIndex=p['requestIndex']) for p in posts], start, end, stop_time)
+        result['httpInterface'] = http_summary([dict(p,accountIndex=p.get('accountIndex') or p['requestIndex']) for p in posts], start, end, stop_time)
         result['selftestPassed'] = bool(args.selftest and result['fuseReason'] == 'selftest_stop_after_five_posts'
                                        and 5 <= len(posts) <= 10 and not result['postsAfterStop']
                                        and checks['valid'] and drained['complete'] and result['completeAccepted'])
@@ -1318,10 +1324,12 @@ def main():
     parser.add_argument('--publisher-window', type=int, choices=(16,32,64,256), default=64,
                         help='历史兼容参数，V16已移除发布确认，不传给应用、不参与负载控制')
     parser.add_argument('--reuse-accounts',action='store_true',help='筛选固定池中符合资格的不同旧账号，保持原游标')
+    parser.add_argument('--repeat-per-user',type=int,choices=(1,2,3,4),default=1,help='仅新账号池，每用户有限不同幂等请求，不突破真实4张限购')
+    parser.add_argument('--startup-checks',type=int,choices=range(1,21),default=20,help='正式负载前少量独立用户真实请求检查')
     parser.add_argument('--rps', type=float, default=10)
     parser.add_argument('--inflight', type=int, choices=(0,2,16,32,64,96,100,128,150,200,500), default=100,
                         help='按消费者完成数补发的闭环在途窗口，启用后不限制RPS')
-    parser.add_argument('--max-posts', type=int, default=7980, help='闭环账号预算，另预登录20个启动检查账号；耗尽则本轮不能认定容量')
+    parser.add_argument('--max-posts', type=int, default=7980, help='闭环新请求预算，另取 startup-checks 个检查账号；耗尽则本轮不能认定容量')
     parser.add_argument('--threads', type=int, default=100, help='仅HTTP发送线程，不等于在途申请或消费者数量')
     parser.add_argument('--capacity',type=int,default=200,help='仅本轮隔离实例的购票在途容量，不修改业务默认值')
     parser.add_argument('--allow-capacity-fill', action='store_true', help='显式允许闭环在途达到容量上限，仍保留资源和持续积压保护')
@@ -1340,7 +1348,7 @@ def main():
     args.runtime = args.runtime.resolve()
     if not args.runtime.is_relative_to((ROOT / '.local/jmeter').resolve()): parser.error('运行目录必须在.local/jmeter')
     if args.rps <= 0 or args.seconds < (10 if args.selftest else 30): parser.error('正式窗口至少30秒；熔断自检至少10秒')
-    if args.inflight and not 10 <= args.max_posts <= 50000: parser.error('闭环独立账号预算须在10至50000')
+    if args.inflight and not 10 <= args.max_posts <= 50000: parser.error('闭环新请求预算须在10至50000')
     if not 1 <= args.users <= 60000: parser.error('初始化预算须在1至60000')
     if args.prepare_account_pool is not None and not 1 <= args.prepare_account_pool <= 60000:
         parser.error('隔离账号池人数须在1至60000')

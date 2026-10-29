@@ -96,8 +96,10 @@ def write_csv(path: Path, rows: list[tuple[str, str]]) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="仅初始化隔离购票账号、合法活动场次和足量库存")
     parser.add_argument("--env-file", type=Path, default=DEFAULT_ENV)
-    parser.add_argument("--users", type=int, default=1, help="正式测试账号数，每个账号仅执行一笔新订单")
+    parser.add_argument("--users", type=int, default=1, help="新建测试账号数；每用户请求预算由 --orders-per-user 指定")
     parser.add_argument("--warmup-users", type=int, default=0, help="预热专用账号数，与正式测试账号隔离")
+    parser.add_argument("--bucket-count",type=int,choices=(0,4,8,16),default=0,help="仅新建空票档；0为SINGLE")
+    parser.add_argument("--orders-per-user",type=int,choices=(1,2,3,4),default=1,help="按真实场次限购预留库存，不改变限购")
     parser.add_argument("--stop-file",type=Path,help="隔离初始化监控的停建标志")
     args = parser.parse_args()
     if args.users < 1 or args.warmup_users < 0 or args.users + args.warmup_users > 60000:
@@ -130,8 +132,8 @@ def main() -> int:
                 raise RuntimeError("当前 schema 不是 ticketing_jmeter")
             cursor.execute("SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1")
             latest = cursor.fetchone()
-            if not latest or str(latest[0]) != "15":
-                raise RuntimeError("隔离应用迁移尚未完成 V15")
+            if not latest or str(latest[0]) != "16":
+                raise RuntimeError("隔离应用迁移尚未完成 V16")
         verify_guard(connection, env["JMETER_GUARD_TOKEN"])
         with connection.cursor() as cursor:
             for table in ("activity", "activity_session", "ticket_sku", "ticket_order", "purchase_request"):
@@ -158,7 +160,7 @@ def main() -> int:
                 email = f"{username}@example.invalid"
                 cohorts[cohort].append((username, password))
 
-        stock = args.users + args.warmup_users
+        stock = (args.users + args.warmup_users) * args.orders_per_user
         sale_start = now - timedelta(minutes=5)
         starts_at = now + timedelta(days=7)
         ends_at = starts_at + timedelta(hours=2)
@@ -191,6 +193,17 @@ def main() -> int:
                 (session_id, stock, sale_start, sale_end),
             )
             sku_id = cursor.lastrowid
+            if args.bucket_count:
+                # 只处理当前事务刚创建的空票档，不切换任何历史库存归属。
+                cursor.execute("UPDATE ticket_sku SET inventory_strategy='BUCKETED',bucket_count=%s WHERE id=%s",
+                               (args.bucket_count,sku_id))
+                cursor.executemany("INSERT INTO ticket_stock_bucket(sku_id,bucket_no,total_stock) VALUES(%s,%s,%s)",
+                    [(sku_id,b,stock//args.bucket_count+(b<stock%args.bucket_count)) for b in range(args.bucket_count)])
+                cursor.execute("INSERT INTO ticket_waitlist_gate(sku_id) VALUES(%s)",(sku_id,))
+                receipt=hashlib.sha256(json.dumps(dict(kind='NEW_EMPTY_SKU',skuId=sku_id,
+                    bucketCount=args.bucket_count,total=stock),sort_keys=True).encode()).hexdigest()
+                cursor.execute("INSERT INTO stock_strategy_switch(sku_id,bucket_count,operator_id,backup_sha256,previous_locked,previous_sold) VALUES(%s,%s,%s,%s,0,0)",
+                               (sku_id,args.bucket_count,seed[0],receipt))
         connection.commit()
 
         runtime = env_path.parent
@@ -201,7 +214,7 @@ def main() -> int:
             "project": PROJECT,
             "database": db_name,
             "mysqlVersion": db_version,
-            "flywayVersion": "15",
+            "flywayVersion": "16",
             "dockerContainerId": docker["containerId"],
             "dockerVolume": docker["volume"],
             "batch": batch,
@@ -212,6 +225,9 @@ def main() -> int:
             "warmupUsers": args.warmup_users,
             "measureUsers": args.users,
             "accountsPerOrder": 1,
+            "ordersPerUser": args.orders_per_user,
+            "inventoryStrategy": "BUCKETED" if args.bucket_count else "SINGLE",
+            "bucketCount": args.bucket_count,
             "preparedAtUtc": now.isoformat(timespec="microseconds"),
         }
         (runtime / "prepared-data.json").write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
