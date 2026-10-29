@@ -16,6 +16,8 @@ python -u -B scripts/jmeter/diagnose-purchase.py --runtime .local/jmeter/redis-m
 
 `--reuse-accounts`只读筛选原账号池内有效且有场次额度的不同用户，每人本轮一笔新幂等键，原领取游标不重置。预登录不计入窗口。至少预热30秒并确认稳定后不断流测30秒；HTTP QPS 使用 `httpCompletedMs` 落在正式窗口内的真实响应数，不从TPS反推。旧 `--publisher-window` 只接受历史命令兼容，不再生效，结果记为null。运行前须单独核实隔离库的V16升级条件，不自动批准迁移。
 
+用户指定的200线程/200在途、Hikari16、容量200对照已完成一轮，实际命令和QPS/TPS见[200线程对照](../../docs/jmeter/v16-200threads-hikari16-20261029.md)。该档使用现有 `--allow-capacity-fill` 明确允许在途达到容量，其他保护保留，不自动提高Redis容量。
+
 - `diagnose-purchase.py`：隔离检查、预登录、持续预热、JMeter 发单、资源保护、排空和库存审计。
 - `purchase-post-only.jmx`：正式窗口只发购票 POST，由完整建单完成事件驱动闭环补发。
 - `diagnosis_stats.py`、`analyze-diagnosis.py`：窗口统计与诊断分析。
