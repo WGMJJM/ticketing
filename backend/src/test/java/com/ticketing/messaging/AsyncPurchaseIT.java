@@ -110,15 +110,15 @@ class AsyncPurchaseIT {
         stock(0,2);assertThat(stocks.find(id).status()).isEqualTo("SUCCEEDED");
     }
 
-    @Test void coordinatedCreateSkipsOrderLookupAndSuccessReadback() {
+    @Test void ordinaryCreateKeepsOrderLookupAndSuccessReadback() {
         PurchaseRequest held = stocks.reserve(buyer.id, sku, 1, "fewer-selects");
         clearInvocations(requests, orders, stocks);
         worker.process(held.id(), sku);
-        // 唯一一次非锁定申请查询是事务外的终态短路；成功 UPDATE 后不再回读。
-        verify(requests, times(1)).find(held.id());
+        // 回退后恢复事务外终态查询、订单幂等查重及成功 UPDATE 后的申请回读。
+        verify(requests, times(2)).find(held.id());
         verify(requests, times(1)).lock(held.id());
         verify(requests, times(1)).finishSuccess(eq(held.id()), anyLong());
-        verify(orders, never()).selectOne(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class));
+        verify(orders, times(1)).selectOne(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class));
         var settled = org.mockito.ArgumentCaptor.forClass(PurchaseRequest.class);
         verify(stocks).settle(settled.capture());
         PurchaseRequest result = settled.getValue();
@@ -133,7 +133,7 @@ class AsyncPurchaseIT {
         assertThat(result.idempotencyKey()).isEqualTo(held.idempotencyKey());
         assertThat(result.acceptedAt()).isEqualTo(held.acceptedAt());
         assertThat(result.deadlineAt()).isEqualTo(held.deadlineAt());
-        assertThat(result.updatedAt()).isNull();
+        assertThat(result.updatedAt()).isNotNull();
         PurchaseRequest saved = requests.find(held.id());
         assertThat(saved.updatedAt()).isNotNull();
         assertThat(saved.orderId()).isEqualTo(result.orderId());
