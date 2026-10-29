@@ -112,6 +112,7 @@ vars.put('orderCompletedMs',''); vars.put('orderObservedMs',''); vars.put('order
 vars.put('resolution','')
 vars.put('flowReadRetries',state.flowRetries.toString())
 vars.put('batch', config.batch); vars.put('scheduledMs', Long.toString(scheduled))
+vars.put('httpCompletedMs','')
 def request = java.net.http.HttpRequest.newBuilder(java.net.URI.create(config.target))
     .timeout(java.time.Duration.ofSeconds(15)).header('Content-Type', 'application/json')
     .header('Cookie', session.cookie).header(session.csrfHeader, session.csrfToken)
@@ -151,6 +152,7 @@ long monotonic = System.nanoTime()
 vars.put('postStartMs', Long.toString(start))
 try {
     def response = state.client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString())
+    vars.put('httpCompletedMs',Long.toString(System.currentTimeMillis()))
     vars.put('postElapsedMs', Long.toString(java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - monotonic)))
     SampleResult.setResponseCode(Integer.toString(response.statusCode()))
     try {
@@ -162,6 +164,7 @@ try {
     }
     SampleResult.setSuccessful(response.statusCode() == 202 && vars.get('requestId').isLong())
 } catch (Exception failure) {
+    vars.put('httpCompletedMs',Long.toString(System.currentTimeMillis()))
     vars.put('postElapsedMs', Long.toString(java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - monotonic)))
     SampleResult.setResponseCode('NETWORK_ERROR'); SampleResult.setSuccessful(false)
     vars.put('failureCode', 'HTTP_'+failure.getClass().getSimpleName())

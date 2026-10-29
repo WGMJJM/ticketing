@@ -1,12 +1,20 @@
 # Apache JMeter 性能验证
 
-> V16 状态：下列购票工具仍是历史实现，含已删除的 Outbox 表/发布窗口假设，尚未适配。不要对 V16 直接执行；下一阶段统一适配和验收。本轮不运行或重写压测体系，历史结果不代表 V16 性能。
+> V16 状态：`diagnose-purchase.py` 闭环入口已改用 `inventory_sync_version` 审计，不再向应用传递发布确认窗口；可同时按真实 HTTP 响应和成功建单时间统计 QPS/TPS。独立 `purchase-http-qps.py` 尚未完成 V16 适配，不要直接执行。历史结果不代表 V16 性能。
 
 仅测购票接口 HTTP QPS/P99 使用 [独立 HTTP 专项入口](HTTP_QPS.md)，按完整响应完成时间统计；不使用完整建单闭环结果推算。
 
 购票统一使用 [安全诊断入口](DIAGNOSIS.md)；活动详情查询使用 [活动 RPS 场景](ACTIVITY_RPS.md)。旧版轮询购票、固定 RPS 发单、独立会话准备及其调度和分析脚本已删除。
 
 ## 当前购票入口
+
+V16 本轮100线程/100在途、容量200、12消费者/prefetch1、Hikari10、8000旧账号（20启动检查）复现：
+
+```powershell
+python -u -B scripts/jmeter/diagnose-purchase.py --runtime .local/jmeter/redis-mysql-optimizations-20261028/runtime --java D:/JDK17/bin/java.exe --jmeter-jar C:/Users/28298/AppData/Local/Temp/apache-jmeter-5.6.3/bin/ApacheJMeter.jar --concurrency 12 --pool 10 --threads 100 --inflight 100 --capacity 200 --max-posts 7980 --seconds 30 --reuse-accounts
+```
+
+`--reuse-accounts`只读筛选原账号池内有效且有场次额度的不同用户，每人本轮一笔新幂等键，原领取游标不重置。预登录不计入窗口。至少预热30秒并确认稳定后不断流测30秒；HTTP QPS 使用 `httpCompletedMs` 落在正式窗口内的真实响应数，不从TPS反推。旧 `--publisher-window` 只接受历史命令兼容，不再生效，结果记为null。运行前须单独核实隔离库的V16升级条件，不自动批准迁移。
 
 - `diagnose-purchase.py`：隔离检查、预登录、持续预热、JMeter 发单、资源保护、排空和库存审计。
 - `purchase-post-only.jmx`：正式窗口只发购票 POST，由完整建单完成事件驱动闭环补发。

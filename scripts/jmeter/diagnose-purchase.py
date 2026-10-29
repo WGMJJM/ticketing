@@ -580,7 +580,8 @@ class Monitor:
         if any(probe.is_alive() for probe in self.redis_probe_threads): self.trip('redis_probe_did_not_finish')
 
 
-def start_backend(runtime, directory, java, concurrency, pool, bootstrap=False, publisher_window=64, capacity=200):
+def start_backend(runtime, directory, java, concurrency, pool, bootstrap=False, publisher_window=64, capacity=200,
+                  inventory_migration_approved=False):
     env, evidence = docker_guard(runtime)
     with db_connect(env) as db:
         if bootstrap:
@@ -598,7 +599,6 @@ def start_backend(runtime, directory, java, concurrency, pool, bootstrap=False, 
     args = [java, '-Xms128m', '-Xmx512m', '-XX:+UseG1GC', f'-Xlog:gc:file={directory / "backend-gc.log"}',
             '-jar', str(ROOT / 'backend/target/ticketing-backend-0.1.0-SNAPSHOT.jar'),
             f'--ticketing.purchase.consumer.concurrency={concurrency}', '--ticketing.purchase.consumer.prefetch=1',
-            f'--ticketing.purchase.in-flight-window={publisher_window}',
             f'--ticketing.purchase.capacity={capacity}',
             f'--spring.datasource.hikari.maximum-pool-size={pool}', '--ticketing.diagnostics.enabled=true',
             '--management.server.address=127.0.0.1', '--management.server.port=18081',
@@ -610,6 +610,8 @@ def start_backend(runtime, directory, java, concurrency, pool, bootstrap=False, 
             '--management.metrics.distribution.percentiles.hikaricp.connections.acquire=0.5,0.95,0.99',
             '--management.metrics.distribution.percentiles.lettuce.command.completion=0.5,0.95,0.99',
             '--management.metrics.distribution.percentiles.lettuce.command.firstresponse=0.5,0.95,0.99']
+    if inventory_migration_approved:
+        args.append('--ticketing.inventory.migration-approved=true')
     logfile = (directory / 'backend.log').open('w', encoding='utf-8')
     process = subprocess.Popen(args, cwd=ROOT, env=inherited, stdout=logfile, stderr=subprocess.STDOUT,
                                creationflags=subprocess.CREATE_NO_WINDOW)
@@ -684,6 +686,28 @@ def login(row):
                 csrfHeader=csrf['headerName'], csrfToken=csrf['token'])
 
 
+def eligible_accounts(runtime, env, metadata, count):
+    """从固定池筛选不同的有效旧用户；每人本轮仅发一笔，原领取游标不重置。"""
+    with (runtime/'measure-users.csv').open(encoding='utf-8-sig',newline='') as stream:
+        accounts = list(csv.DictReader(stream))
+    if len({row['username'] for row in accounts}) != len(accounts):
+        raise RuntimeError('账号池存在重复用户名')
+    selected = []
+    with db_connect(env) as db, db.cursor() as cur:
+        db_guard(db,env)
+        for start in range(0,len(accounts),500):
+            chunk = accounts[start:start+500]
+            placeholders = ','.join(['%s']*len(chunk))
+            cur.execute("SELECT u.username FROM user_account u LEFT JOIN user_session_quota q "
+                        "ON q.user_id=u.id AND q.session_id=%s WHERE u.status='ACTIVE' AND u.role='USER' "
+                        "AND u.email_verified_at IS NOT NULL AND COALESCE(q.occupied_quantity,0)<4 "
+                        f"AND u.username IN ({placeholders})",[metadata['sessionId'],*[row['username'] for row in chunk]])
+            eligible = {row['username'] for row in cur.fetchall()}
+            selected.extend(row for row in chunk if row['username'] in eligible)
+            if len(selected) >= count: return selected[:count]
+    raise RuntimeError('符合资格且有剩余额度的旧账号不足；不扩大预算或创建账号')
+
+
 def drain(env, seconds=120):
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
@@ -742,10 +766,8 @@ def audit(db, env, metadata, batch):
             if statement.strip():
                 cur.execute(statement)
                 row = cur.fetchone(); invariants[row['invariant']] = row['violation_count']
-        cur.execute("SELECT COALESCE(MAX(id),0) sequence FROM outbox_event WHERE aggregate_type='TICKET_SKU' AND event_type='WAITLIST_DISPATCH_REQUESTED' AND aggregate_id=%s", (metadata['skuId'],))
+        cur.execute("SELECT COALESCE((SELECT inventory_version FROM inventory_sync_version WHERE sku_id=%s),0) sequence", (metadata['skuId'],))
         sequence = cur.fetchone()['sequence']
-        cur.execute("SELECT status,COUNT(*) n FROM outbox_event WHERE status<>'SENT' GROUP BY status")
-        pending_outbox = cur.fetchall()
         cur.execute("SELECT version FROM flyway_schema_history WHERE success=1 ORDER BY installed_rank DESC LIMIT 1")
         migration = cur.fetchone()['version']
         cur.execute("""SELECT COUNT(*) n FROM user_session_quota q WHERE q.session_id=%s AND
@@ -781,13 +803,13 @@ def audit(db, env, metadata, batch):
                   redis=ledger, dead=dead, stockFromOrders=conserved,
                   bucketAudit=dict(strategy=sku['inventory_strategy'],bucketCount=sku['bucket_count'],
                     migration=migration,mainCounters=main_counters,rows=buckets,distribution=distribution,
-                    invariants=invariants,mysqlInventorySequence=sequence,unsettledOutbox=pending_outbox))
+                    invariants=invariants,mysqlInventoryVersion=sequence))
     checks['valid'] = (not any((mismatch, quota_errors, duplicate, orphan, dead)) and expected >= 0
                        and sku['locked_stock'] >= 0 and sku['sold_stock'] >= 0
                        and conserved['locked'] == sku['locked_stock'] and conserved['sold'] == sku['sold_stock']
                        and int(ledger.get('available', -1)) == expected and int(ledger.get('pending', -1)) == 0
                        and ledger.get('ready') == '1' and not any(invariants.values())
-                       and int(ledger.get('inventorySequence', -1)) == sequence and not pending_outbox
+                       and int(ledger.get('inventoryVersion', -1)) == sequence
                        and (sku['inventory_strategy'] != 'BUCKETED' or
                             sku['bucket_count'] in (4,8,16) and [b['bucket_no'] for b in buckets] == list(range(sku['bucket_count']))
                             and sum(b['total_stock'] for b in buckets) == sku['total_stock']
@@ -817,8 +839,8 @@ def run_round(args):
     try:
         if capacity_pressure_reason(args.inflight, 0, int(diag()['capacity']), args.allow_capacity_fill):
             raise RuntimeError('该在途窗口超过本轮容量保护线，禁止预登录和加压')
-        if metadata.get('inventoryStrategy') == 'BUCKETED' and (args.concurrency not in (4,8,12) or args.publisher_window not in (32,64,256)):
-            raise RuntimeError('本分桶验收批次允许4、8或12消费者，发布槽位为32、64或256')
+        if metadata.get('inventoryStrategy') == 'BUCKETED' and args.concurrency not in (4,8,12):
+            raise RuntimeError('本分桶验收批次允许4、8或12消费者')
         previous_drain = drain(env, 20)
         if not previous_drain['complete']: raise RuntimeError('上一批未排空，拒绝发单')
         with (runtime / 'measure-users.csv').open(encoding='utf-8-sig', newline='') as stream:
@@ -828,9 +850,12 @@ def run_round(args):
         count = args.max_posts if args.inflight else int(args.rps * args.seconds)
         continuous_warmup = bool(args.inflight and not args.selftest)
         warmup_count = 10 if args.selftest else 20
-        if count + warmup_count + offset > len(accounts): raise RuntimeError('独立账号余额不足，不复用已有账号')
-        selected = accounts[offset:offset + count + warmup_count]
-        save(cursor_path, offset + count + warmup_count)  # 失败账号也不再用于其他档位。
+        if args.reuse_accounts:
+            selected = eligible_accounts(runtime, env, metadata, count + warmup_count)
+        else:
+            if count + warmup_count + offset > len(accounts): raise RuntimeError('独立账号余额不足，不复用已有账号')
+            selected = accounts[offset:offset + count + warmup_count]
+            save(cursor_path, offset + count + warmup_count)  # 失败账号也不再用于其他档位。
         sessions = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=args.login_workers) as executor:
             for value in executor.map(login, selected):
@@ -883,7 +908,7 @@ def run_round(args):
         jmeter_args = [args.java, '-Xms64m', '-Xmx256m', '-XX:+UseG1GC',
                        f'-Xlog:gc:file={directory / "jmeter-gc.log"}', '-jar', args.jmeter_jar,
                        '-n', '-t', str(PLAN), f'-JsessionsFile={sessions_path}', f'-JstopFile={monitor.stop}',
-                       f'-Jthreads={args.threads}', '-Jsample_variables=batch,idempotencyKey,requestId,failureCode,scheduledMs,postStartMs,postElapsedMs,requestIndex,completionCredit,orderCompletedMs,orderObservedMs,orderStatus,flowReadRetries,resolution',
+                       f'-Jthreads={args.threads}', '-Jsample_variables=batch,idempotencyKey,requestId,failureCode,scheduledMs,postStartMs,httpCompletedMs,postElapsedMs,requestIndex,completionCredit,orderCompletedMs,orderObservedMs,orderStatus,flowReadRetries,resolution',
                        f'-JinitialRampMs={max(2000,args.threads*20)}',
                        '-Jjmeter.save.saveservice.output_format=csv', '-Jjmeter.save.saveservice.print_field_names=true',
                        '-Jjmeter.save.saveservice.autoflush=true', '-Jjmeter.save.saveservice.response_data=false',
@@ -897,7 +922,8 @@ def run_round(args):
         monitor.jmeter_process = jmeter
         monitor.jmeter_pid = jmeter.pid
         run_record = dict(batch=batch, concurrency=args.concurrency, pool=args.pool,
-                                      publisherWindow=args.publisher_window,capacity=args.capacity,capacityFillAllowed=args.allow_capacity_fill,bucketCount=metadata.get('bucketCount',0),initialRampMs=max(2000,args.threads*20),
+                                      publisherConfirmEnabled=False,publisherWindow=None,capacity=args.capacity,capacityFillAllowed=args.allow_capacity_fill,bucketCount=metadata.get('bucketCount',0),initialRampMs=max(2000,args.threads*20),
+                                      accountPolicy='eligible-distinct-existing-users' if args.reuse_accounts else 'unclaimed-users',
                                       offeredRps=None if args.inflight else args.rps, inflight=args.inflight,
                                       loadModel='completion-closed-loop' if args.inflight else 'paced-arrivals', skuId=metadata['skuId'],
                                       threads=args.threads, loadStartMs=load_start, startMs=start, endMs=end,
@@ -961,7 +987,7 @@ def run_round(args):
         result.update(batch=batch, offeredRps=None if args.inflight else args.rps, inflight=args.inflight,
                       capacity=args.capacity,
                       loadModel='completion-closed-loop' if args.inflight else 'paced-arrivals',
-                      concurrency=args.concurrency, pool=args.pool, publisherWindow=args.publisher_window,
+                      concurrency=args.concurrency, pool=args.pool, publisherWindow=None,
                       checks=checks, drained=drained, fuseReason=monitor.failure,
                       noEscalation=monitor.gate.no_escalation, jmeterExit=jmeter.returncode)
         stop_time = json.loads(monitor.stop.read_text())['timeMs'] if monitor.stop.exists() else None
@@ -969,6 +995,8 @@ def run_round(args):
             result['fuseReason'] = json.loads(monitor.stop.read_text())['reason']
         result['postsAfterStop'] = sum(int(p['postStartMs']) > stop_time for p in posts) if stop_time else 0
         result['postsAfterDeadline'] = sum(int(p['postStartMs']) >= end for p in posts)
+        from http_qps_stats import http_summary
+        result['httpInterface'] = http_summary([dict(p,accountIndex=p['requestIndex']) for p in posts], start, end, stop_time)
         result['selftestPassed'] = bool(args.selftest and result['fuseReason'] == 'selftest_stop_after_five_posts'
                                        and 5 <= len(posts) <= 10 and not result['postsAfterStop']
                                        and checks['valid'] and drained['complete'] and result['completeAccepted'])
@@ -1029,6 +1057,7 @@ def run_round(args):
             except subprocess.TimeoutExpired:
                 print('发压进程尚未退出，保留后端及停止文件供核对', file=sys.stderr)
         if feed: feed.close()
+        (directory/'sessions.json').unlink(missing_ok=True)
         monitor.close()
         # 只结束本函数启动且已确认排空的隔离JVM；未排空时保留后端继续恢复。
         if (jmeter is None or jmeter.poll() is not None) and drain(env, 10)['complete']:
@@ -1178,15 +1207,16 @@ def fresh_bucketed_sku(args):
     metadata.update(skuId=str(new_id),inventoryStrategy='BUCKETED',bucketCount=bucket_count,totalStock=total)
     save(path,metadata)
     backend,logfile=start_backend(runtime,directory,args.java,args.concurrency,args.pool,
-                                 publisher_window=args.publisher_window,capacity=args.capacity)
+                                 publisher_window=args.publisher_window,capacity=args.capacity,
+                                 inventory_migration_approved=getattr(args,'inventory_migration_approved',False))
     monitor=Monitor(env,directory,backend.pid,new_id); monitor.start()
     try:
         for _ in range(30):
             ledger=json.loads(redis('HGETALL',f'ticketing:seckill:v2:ticketingjmeter:sku:{new_id}'))
             if ledger and ledger.get('ready') == '1':
                 with db_connect(env) as ready_db, ready_db.cursor() as ready_cur:
-                    ready_cur.execute("SELECT COUNT(*) n FROM outbox_event WHERE status<>'SENT'")
-                    if ready_cur.fetchone()['n'] == 0: break
+                    ready_cur.execute("SELECT COALESCE((SELECT inventory_version FROM inventory_sync_version WHERE sku_id=%s),0) version",(new_id,))
+                    if int(ledger.get('inventoryVersion',-1)) == ready_cur.fetchone()['version']: break
             if monitor.stop.exists(): raise RuntimeError('初始化资源保护触发')
             time.sleep(1)
         with db_connect(env) as db:
@@ -1286,7 +1316,8 @@ def main():
     parser.add_argument('--concurrency', type=int, choices=(2,4,8,12), default=12)
     parser.add_argument('--pool', type=int, choices=(10,12,16,20), default=10)
     parser.add_argument('--publisher-window', type=int, choices=(16,32,64,256), default=64,
-                        help='隔离应用中同时等待购票消息确认的槽位数')
+                        help='历史兼容参数，V16已移除发布确认，不传给应用、不参与负载控制')
+    parser.add_argument('--reuse-accounts',action='store_true',help='筛选固定池中符合资格的不同旧账号，保持原游标')
     parser.add_argument('--rps', type=float, default=10)
     parser.add_argument('--inflight', type=int, choices=(0,2,16,32,64,96,100,128,150,200,500), default=100,
                         help='按消费者完成数补发的闭环在途窗口，启用后不限制RPS')

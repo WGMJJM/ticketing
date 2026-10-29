@@ -1,5 +1,7 @@
 # 票务交易平台开发规范
 
+- 2026年10月29日用户另行要求按8桶/100线程与100在途/容量200/12消费者prefetch1/Hikari10/8000预登录用户（20启动检查）测当前QPS/TPS。本轮已适配diagnose-purchase.py的V16版本审计和旧账号筛选，JMX记录真实HTTP完成时间；不再向应用传发布窗口64，结果记null。仅ticketing-jmeter隔离库在排空、账本核对及临时备份后迁移V16，新建空SKU6，验证后删除临时备份；业务库未动。单轮预热31.336秒后连续测30秒，HTTP QPS76.90、成功建单TPS77.20、HTTP P99 353ms、POST至建单结算P99 1597ms，整轮及审计有效，CPU峰值47.47%，无保护触发并正常关闭。原隔离环境21255笔到期历史订单的正常维护仍启用，不用该单轮计算优化百分比。固定账号池游标59980不变，未新建账号；原始证据保留，session文件删除。见docs/jmeter/v16-eight-bucket-100threads-20261029.md。独立purchase-http-qps.py仍待V16适配，勿混用。下文上一轮“不运行测试”仅对应源码收尾阶段。
+
 - 2026年10月29日本轮按V16收尾提示修复源码，不运行任何测试、不启动应用、不迁移或修改业务数据库。正常功能审计改读inventory_sync_version；迁移测试库清理精确覆盖ticketing_inventory_migration_<16位hex>_it且保留失败现场。MigrationSafetyConfig在Flyway任何DDL前阻断非终态购票申请和PROCESSING候补，授权及旧事件门禁保留，V1～V16迁移原文不变。库存扫描合并重复Redis读取，保留无在途时MySQL余额核对和原SKU锁/pause/pending协议；分桶及Lua原文未改。旧JMeter购票工具仍待下一阶段适配V16，不能直接运行或将历史结果当成当前能力。本轮只做test-compile与静态检查，新补测试代码尚未执行。
 
 - 2026年10月29日用户要求精简消息链路：普通购票预扣后尝试发送，不等待 Publisher Confirm；失败由已有恢复索引处理。库存变更改为同事务递增 `inventory_sync_version`，后台分批同步 Redis，候补由后台扫描唤醒；旧库存 Outbox 和通知 MQ 已移除。分桶路由、分配及历史订单履约保持原协议。V16 历史库必须先停写、备份、排空旧消息与预扣并执行 `docs/41-inventory-sync-migration.md`，不得自动清库或 repair。用户要求先推送，并自行在其他机器编写测试脚本；仓库旧隔离验证和压测脚本未适配 V16，不得把尚未执行的测试写成通过。下文旧库存 Outbox 和发布确认规定为历史记录。
