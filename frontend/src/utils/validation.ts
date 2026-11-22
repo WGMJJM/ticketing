@@ -30,3 +30,9 @@ export function clearValidation(event: Event) {
   )
     field.setCustomValidity('')
 }
+
+export function passwordValidationMessage(password: string, confirmation: string) {
+  if (password !== confirmation) return '两次输入的密码不一致'
+  if (new TextEncoder().encode(password).length > 72) return '密码的UTF-8编码不能超过72字节，请减少字符'
+  return ''
+}

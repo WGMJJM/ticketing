@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { onUnmounted, ref } from 'vue'
-import axios from 'axios'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { registerAccount, sendRegistrationCode } from '../api/auth'
-import { chineseValidation, clearValidation } from '../utils/validation'
+import { chineseValidation, clearValidation, passwordValidationMessage } from '../utils/validation'
+import { useEmailCodeCooldown } from '../utils/useEmailCodeCooldown'
 import AuthLayout from '../components/AuthLayout.vue'
 const username = ref('')
 const email = ref('')
@@ -14,20 +14,9 @@ const confirmation = ref('')
 const error = ref('')
 const busy = ref(false)
 const sending = ref(false)
-const cooldown = ref(0)
 const notice = ref('')
-let timer: ReturnType<typeof setInterval> | undefined
+const { cooldown, start, useRetryAfter } = useEmailCodeCooldown()
 const router = useRouter()
-function startCooldown(seconds: number) {
-  if (timer) clearInterval(timer)
-  const deadline = Date.now() + seconds * 1000
-  cooldown.value = seconds
-  timer = setInterval(() => {
-    cooldown.value = Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
-    if (!cooldown.value && timer) clearInterval(timer)
-  }, 1000)
-}
-onUnmounted(() => { if (timer) clearInterval(timer) })
 async function sendCode() {
   if (sending.value || busy.value || cooldown.value > 0) return
   email.value = email.value.trim().toLowerCase()
@@ -43,28 +32,18 @@ async function sendCode() {
     await sendRegistrationCode(email.value)
     notice.value = '验证码已发送，5分钟内有效，请检查收件箱或垃圾邮件。重新发送后旧验证码失效。'
     code.value = ''
-    startCooldown(60)
+    start()
   } catch (failure) {
     error.value = failure instanceof Error ? failure.message : '验证码发送失败，请稍后重试'
-    if (axios.isAxiosError(failure) && failure.response?.status === 429) {
-      const retry = Number(failure.response.headers['retry-after'])
-      if (Number.isInteger(retry) && retry > 0 && retry <= 86400) startCooldown(retry)
-    }
+    useRetryAfter(failure)
   } finally {
     sending.value = false
   }
 }
 async function submit() {
   if (busy.value || sending.value) return
-  error.value = ''
-  if (password.value !== confirmation.value) {
-    error.value = '两次输入的密码不一致'
-    return
-  }
-  if (new TextEncoder().encode(password.value).length > 72) {
-    error.value = '密码的UTF-8编码不能超过72字节，请减少字符'
-    return
-  }
+  error.value = passwordValidationMessage(password.value, confirmation.value)
+  if (error.value) return
   busy.value = true
   try {
     await registerAccount({

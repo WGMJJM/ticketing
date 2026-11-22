@@ -22,11 +22,13 @@ const router = createRouter({
     },
     { path: '/login', component: () => import('../views/LoginView.vue') },
     { path: '/register', component: () => import('../views/RegisterView.vue') },
+    { path: '/password-reset', component: () => import('../views/PasswordResetView.vue') },
     {
       path: '/orders',
       component: () => import('../views/OrdersView.vue'),
       meta: { requiresAuth: true },
     },
+    { path: '/profile/security', component: () => import('../views/AccountSecurityView.vue'), meta: { requiresAuth: true } },
     { path: '/purchase-requests', component: () => import('../views/PurchaseRequestsView.vue'), meta: { requiresAuth: true } },
     { path: '/purchase-requests/:id', component: () => import('../views/PurchaseRequestsView.vue'), props: true, meta: { requiresAuth: true } },
     {
@@ -104,7 +106,8 @@ router.beforeEach(async (to) => {
 })
 const pageTitles: Record<string, string> = {
   '/': '演出发现', '/about': '购票指南', '/activities/:id': '演出详情',
-  '/login': '登录', '/register': '注册账号', '/profile': '个人中心',
+  '/login': '登录', '/register': '注册账号', '/password-reset': '找回密码',
+  '/profile': '个人中心', '/profile/security': '账号与安全',
   '/orders': '我的订单', '/orders/:id': '订单详情',
   '/purchase-requests': '购票进度', '/purchase-requests/:id': '购票进度',
   '/followed-activities': '关注演出', '/waitlist': '候补记录', '/waitlist/:id': '候补详情',

@@ -46,11 +46,14 @@ export const useAuthStore = defineStore('auth', () => {
     initialized.value = true
     sessionError.value = ''
   }
-  async function logout() {
-    await request<void>({ method: 'POST', url: '/auth/logout' })
+  function forgetSession() {
     user.value = null
     initialized.value = true
     sessionError.value = ''
+  }
+  async function logout() {
+    await request<void>({ method: 'POST', url: '/auth/logout' })
+    forgetSession()
     await refreshCsrf()
   }
   async function request<T>(config: AxiosRequestConfig): Promise<T> {
@@ -74,6 +77,7 @@ export const useAuthStore = defineStore('auth', () => {
     canCheckin,
     restore,
     acceptLogin,
+    forgetSession,
     logout,
     request,
   }

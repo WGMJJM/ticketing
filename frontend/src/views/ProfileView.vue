@@ -51,6 +51,7 @@ async function logout() {
       <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
       <div class="auth-links">
         <RouterLink to="/">继续发现演出</RouterLink>
+        <RouterLink to="/profile/security">账号与安全</RouterLink>
         <RouterLink v-if="auth.canCheckin" :to="auth.isAdmin ? '/admin/checkins' : '/staff/checkin'">入场核销</RouterLink>
         <RouterLink v-if="auth.isAdmin" to="/admin/activities">演出管理</RouterLink>
         <ElButton :loading="busy" @click="logout">退出登录</ElButton>

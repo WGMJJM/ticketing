@@ -7,6 +7,11 @@ export interface CurrentUser {
   username: string
   role: 'USER' | 'ADMIN' | 'CHECKIN_STAFF'
 }
+export interface AccountSession {
+  id: string
+  current: boolean
+  lastActiveAt: string
+}
 interface CsrfView {
   headerName: string
   token: string
@@ -41,6 +46,20 @@ export function sendRegistrationCode(email: string) {
     url: '/auth/email-code',
     data: { email },
     timeout: 15000,
+  })
+}
+export function sendPasswordResetCode(email: string) {
+  return sessionRequest<void>({
+    method: 'POST',
+    url: '/auth/password/reset-code',
+    data: { email },
+  })
+}
+export function resetPassword(email: string, code: string, newPassword: string) {
+  return sessionRequest<void>({
+    method: 'POST',
+    url: '/auth/password/reset',
+    data: { email, code, newPassword },
   })
 }
 export async function sessionRequest<T>(

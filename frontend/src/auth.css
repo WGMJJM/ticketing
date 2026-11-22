@@ -66,6 +66,17 @@
 .shortcut-arrow { position: absolute; top: 22px; right: 13px; color: #9c9c91; }
 .shortcut-arrow .site-icon { width: 16px; height: 16px; }
 .profile-card .auth-links { border-top: 1px solid var(--border); padding-top: 22px; }
+.account-security-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; }
+.account-security-grid h2 { margin: 0 0 8px; }
+.account-password-form, .account-password-form label { display: grid; gap: 8px; }
+.account-password-form { margin-top: 20px; gap: 14px; }
+.account-password-form label { font-size: 13px; }
+.account-password-form input { min-width: 0; border: 1px solid var(--border); border-radius: 8px; padding: 11px 12px; font: inherit; }
+.account-password-form > .el-button { justify-self: start; }
+.account-session-heading, .account-session-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.account-session-list { margin: 12px 0 16px; padding: 0; list-style: none; }
+.account-session-list li { padding: 12px 0; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.account-session-list time { font-variant-numeric: tabular-nums; }
 .session-error { margin: 16px 0; padding: 15px 18px; border-radius: 8px; background: var(--warning-soft); color: #77511b; font-size: 12px; display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
 @media (max-width: 1050px) {
   .header-tickets { display: none; }
@@ -94,6 +105,8 @@
   .profile-card dl { gap: 25px; }
   .profile-avatar { width: 50px; height: 50px; border-radius: 12px; font-size: 21px; }
   .profile-card h2 { font-size: 20px; }
+  .account-security-grid { grid-template-columns: 1fr; }
+  .account-password-form input { font-size: 16px; }
   .profile-shortcuts { grid-template-columns: 1fr 1fr; gap: 10px; }
   .profile-shortcuts > a { padding: 16px 13px; }
   .profile-section-heading { align-items: flex-start; }

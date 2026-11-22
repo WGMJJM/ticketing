@@ -27,6 +27,7 @@ async function submit() {
       typeof route.query.redirect === 'string' ? route.query.redirect : ''
     const allowed =
       redirect === '/profile' ||
+      redirect === '/profile/security' ||
       redirect === '/orders' ||
       redirect === '/purchase-requests' ||
       redirect === '/waitlist' ||
@@ -67,6 +68,9 @@ async function submit() {
     <p v-if="route.query.registered" class="success-notice">
       注册成功，请使用新账号登录
     </p>
+    <p v-if="route.query.passwordChanged === '1'" class="success-notice" role="status">
+      密码已更新，请使用新密码登录
+    </p>
     <form
       @submit.prevent="submit"
       @invalid.capture="chineseValidation"
@@ -96,6 +100,7 @@ async function submit() {
       }}</ElButton>
     </form>
     <div class="auth-links">
+      <RouterLink to="/password-reset">忘记密码？</RouterLink>
       <RouterLink to="/register">没有账号？立即注册</RouterLink
       ><RouterLink to="/profile" v-if="auth.authenticated"
         >进入个人中心</RouterLink
