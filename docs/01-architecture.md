@@ -15,15 +15,18 @@ flowchart LR
     H[普通购票与安全限流] --> P[PurchaseAdmission.submit]
     W[候补持久 FIFO 队首] --> P
     P --> R[同一 Redis Lua 原子预扣]
-    R --> Q[RabbitMQ 直接发布]
-    Q --> A[尝试发送后 HTTP 202]
+    R --> F[PurchasePublisher 尝试发送]
+    F -->|普通购票已受理| A[HTTP 202]
+    F -->|消息送达时| Q[RabbitMQ]
     Q --> C[消费者执行 MySQL 本地事务]
     C --> O[库存及额度条件更新、订单和申请终态提交]
-    O --> S[Redis 原子结算]
-    S --> K[成功返回后 MQ AUTO ACK]
+    O --> S[尝试 Redis 原子结算]
+    C -->|提交后正常返回| K[MQ AUTO ACK]
     R --> J[唯一 PurchaseRecoveryJob]
-    J --> Q
-    J --> E[MySQL 过期仲裁或补齐终态结算]
+    J -->|仍有效且无终态时重发| Q
+    J -->|申请已过期且无终态| E[MySQL 过期仲裁]
+    J -->|读取已提交终态| S
+    E --> S
 ```
 
 HTTP `POST /api/v1/orders` 由 `PurchaseAdmission` 编排，只调用 Redis 和 RabbitMQ，没有购票申请 SQL、MySQL 受理事务或购票 Outbox。既有安全过滤器仍按数据库最新账号状态鉴权，并执行 CSRF 与独立请求限流。requestId 由服务端生成；Lua 首先检查用户、固定 CREATE_ORDER 域和幂等键，同参重放复用原 ID，异参冲突，不重复预扣。
@@ -34,9 +37,7 @@ Lua 一次完成销售资格、Redis 时间窗口、单笔数量、场次内用�
 
 ## MySQL 消费与三道幂等
 
-普通分桶购票支持4、8、16或32桶。V17仅放宽票档、桶号及切换记录的CHECK上限，不改已有迁移或自动切换票档。首次路由使用`StockBucketRouter.route(requestId,bucketCount)`，以MurmurHash3的64位finalizer混合原申请ID，再掩码映射桶号。跨桶路径仍在整笔回滚后按桶号升序获取X锁；已提交订单只按不可变allocation履约。分桶新候补仍禁用。
-
-2026-10-28 新增四桶普通购票，完整实现与隔离验收见[四桶库存实现](jmeter/four-bucket-implementation.md)。V10 表结构直接复用，未新增迁移或自动切换业务 SKU。BUCKETED=4 按原 requestId 选择初始桶；SKU 配置用 SHARE，目标桶条件 UPDATE 获得独立 X 锁，不更新主 SKU 交易计数。单桶不足先整笔回滚，再按桶号升序跨桶，订单、明细、不可变 allocation 和申请终态原子提交。SINGLE 仍使用原 SKU UPDATE 锁。分桶新候补暂不开放，历史订单与 SINGLE 候补继续按原生命周期处理。
+普通分桶购票支持 4、8、16 或 32 桶。首次路由使用 `StockBucketRouter.route(requestId, bucketCount)`，以 MurmurHash3 的 64 位 finalizer 混合原申请 ID，再掩码映射桶号。消费事务持 SKU SHARE，目标桶的条件 UPDATE 获取独立 X 锁。单桶不足时，整笔事务先回滚，再按桶号升序走跨桶路径。订单、明细、不可变 allocation 和申请终态原子提交，后续履约沿用原 allocation。新候补适用于 `SINGLE`。早期验收见[四桶库存实现](jmeter/four-bucket-implementation.md)。
 
 库存同步以 SKU X 与普通分桶 SKU S 互斥，在 pause/pending 排空之后校验并汇总该 SKU 的全部桶，再发布绝对 Redis 可售余额。Redis 命令默认超时为 1s，连接超时为 500ms，允许环境变量覆盖；AOF always 不变。锁冲突的三次有界重试发生在完整事务之间，重试耗尽保留原申请与预扣，不转换为无票失败。
 
@@ -83,7 +84,7 @@ ALLOCATED 支付后 COMPLETED，取消/订单超时后 EXPIRED，退款保留已
 
 ## 原业务边界
 
-交易锁序继续为账号 SHARE→活动 SHARE→场次 SHARE→需要写额度时的用户场次额度 UPDATE→SKU UPDATE→已有订单→候补→电子票。消费的请求唯一键协调先于这条资源锁链；候补失效仲裁在请求锁后按相同资源顺序锁账号、父资源和 SKU，再更新候补。管理员/多账号操作及退款保持原升序账号协议，核销不占买家额度。
+交易先按账号 SHARE → 活动 SHARE → 场次 SHARE → 需要写额度时的用户场次额度 UPDATE 加锁。普通分桶建单再取 SKU SHARE 和实际涉及的桶 X 锁，`SINGLE` 及库存维护使用 SKU UPDATE。涉及已有订单时，随后按订单、候补、电子票的顺序加锁。购票消费的请求唯一键协调先于资源锁链。候补失效仲裁按请求、账号、父资源、SKU、候补顺序加锁。管理员及多账号操作遵守原升序账号协议，核销不占买家额度。
 
 MySQL 是订单和最终库存权威。默认每用户每场四张，PENDING/PAID 占额，取消/到期/退款条件释放，支付不重复占额。金额由服务端人民币分整数乘算并保存快照。订单截止、状态条件更新、整单模拟退款、场次取消善后、原 paid_at 和核销历史保持。
 
@@ -101,8 +102,12 @@ V1–V13 不变；V14 在任何破坏性 DDL 前拒绝仍有 QUEUED/PROCESSING �
 
 V15 扩展 purchase_request 的 WAITLIST_CONFIRM 来源与 waitlist_entry_id，候补增加 attempt_no、purchase_request_id 和 PROCESSING 活跃唯一约束。没有新增请求表；不在请求插入时增加候补外键行锁，候补关联由 SKU 协调、事务参与者和审计验证，避免倒置订单→候补锁序。V1–V14 保持不变。
 
+V17 放宽票档、桶号及切换记录的 CHECK 约束以支持 32 桶，已有票档继续使用原策略。
+
+### 2026-10-27 本机 V13 至 V15 迁移记录
+
 用户于 2026-10-27 明确授权更新本机开发库。已停止旧后端，复核无 QUEUED/PROCESSING 申请、无未完成购票消息，退款/候补/额度预检通过后，将 127.0.0.1:3307/ticketing 从 V13 升级至 V15，两项迁移登记成功，未新增备份。新版后端8080与前端5173返回正常；升级后库存、订单、支付、候补、电子票、额度及申请审计全部零偏差，7个Redis账本与MySQL一致。原账号/活动/订单/候补行数保留3/8/6/1，没有在业务库注入测试。仅本机开发库授权，不包含生产部署或以后迁移。
 
 ## 验证范围
 
-V16 的真实故障注入、完整业务集成回归和重构后性能测试仍需执行；历史阶段测试结果不能视为本次验证结果。仓库已有的隔离验证和压测脚本尚未适配 V16，不应直接用于本版本。
+日常验证使用[独立功能验证入口](40-functional-verification.md)。异步购票、候补和分桶的相关回归分别见 `AsyncPurchaseIT`、`WaitlistManagementIT` 和 `StockBucketIT`。性能结果按 [JMeter 各轮记录](jmeter/) 的源码版本、环境和参数理解。

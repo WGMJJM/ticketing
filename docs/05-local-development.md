@@ -19,7 +19,7 @@ macOS/Linux 使用同样的 Compose 命令，后端执行 `bash scripts/start-ba
 
 ## 配置
 
-注册要求邮箱验证码。SMTP或独立验证码密钥未配置时发送/验证返回503，既有用户登录不受开关影响。配置项和V12升级前提见[注册升级说明](36-registration-four-points.md)。本机最后一次已授权迁移为V15，见[架构说明](01-architecture.md)；当前源码包含V16，启动前必须取得该次升级授权并完成[迁移检查](41-inventory-sync-migration.md)，不能将历史V13启动记录当作当前数据库版本。
+注册要求邮箱验证码。SMTP或独立验证码密钥未配置时发送/验证返回503，既有用户登录不受开关影响。配置项和V12升级前提见[注册升级说明](36-registration-four-points.md)。当前源码包含 V17。启动已有库前核对目标库的 Flyway 版本，确认所需迁移已获授权。跨 V16 的升级须完成[切换检查](41-inventory-sync-migration.md)。
 
 从 `.env.example` 生成 `.env` 并配置三个密码；本次初始化已生成随机本地密码。`.env`、`.local`、构建目录被忽略。不要把 `docker compose config` 的完整输出贴到公开日志，它会展开凭据；日常使用 `config --quiet`。
 
