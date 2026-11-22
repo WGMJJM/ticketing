@@ -1,6 +1,7 @@
 package com.ticketing.controller;
 
 import com.ticketing.common.ApiResponse;
+import com.ticketing.dto.TicketBatchCreateRequest;
 import com.ticketing.dto.TicketWriteRequest;
 import com.ticketing.dto.VersionRequest;
 import com.ticketing.service.TicketService;
@@ -31,6 +32,12 @@ public class AdminTicketController {
     @PostMapping("/sessions/{sessionId}/tickets")
     public ApiResponse<TicketView> create(@PathVariable @Positive long sessionId, @Valid @RequestBody TicketWriteRequest request) {
         return ApiResponse.success(tickets.create(sessionId, request));
+    }
+
+    @PostMapping("/sessions/{sessionId}/tickets/batch")
+    public ApiResponse<List<TicketView>> createBatch(
+            @PathVariable @Positive long sessionId, @Valid @RequestBody TicketBatchCreateRequest request) {
+        return ApiResponse.success(tickets.createBatch(sessionId, request.tickets()));
     }
 
     @PutMapping("/tickets/{ticketId}")

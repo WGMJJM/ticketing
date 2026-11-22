@@ -28,6 +28,8 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -52,6 +54,7 @@ class AsyncPurchaseIT {
     @Autowired PurchaseProperties properties;
     @Autowired com.ticketing.config.OrderProperties orderProperties;
     @Autowired OrderService orderService;
+    @Autowired OrderRefundService refunds;
     @Autowired WaitlistService waitlists;
     @Autowired WaitlistDispatcher dispatcher;
     @Autowired RabbitListenerEndpointRegistry registry;
@@ -64,6 +67,7 @@ class AsyncPurchaseIT {
     @MockitoSpyBean RabbitTemplate rabbit;
     @MockitoSpyBean RedisStockReservationService stocks;
     @Autowired PurchasePublisher publisher;
+    @Autowired PlatformTransactionManager transactions;
     long activity,session,sku;
     Client buyer,other;
 
@@ -206,6 +210,79 @@ class AsyncPurchaseIT {
         }
     }
 
+    @Test void differentSkuCanCommitWhileFirstBuyerWaitsOnItsSkuRow() throws Exception {
+        long second = anotherSku();
+        var held = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        start();
+        try (var executor = Executors.newSingleThreadExecutor()) {
+            var blocker = executor.submit(() -> new TransactionTemplate(transactions).executeWithoutResult(state -> {
+                db.queryForObject("SELECT id FROM ticket_sku WHERE id=? FOR UPDATE", Long.class, sku);
+                held.countDown();
+                try {
+                    assertThat(release.await(10, TimeUnit.SECONDS)).isTrue();
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    throw new AssertionError(exception);
+                }
+            }));
+            long firstRequest;
+            try {
+                assertThat(held.await(5, TimeUnit.SECONDS)).isTrue();
+                firstRequest = accept(buyer, 1, "blocked-sku").path("requestId").asLong();
+                awaitSkuLockWait();
+                long secondRequest = accept(other, second, 1, "independent-sku").path("requestId").asLong();
+                var independent = await(other, secondRequest);
+                assertThat(independent.path("status").asText()).isEqualTo("SUCCEEDED");
+                assertThat(db.queryForObject("SELECT sku_id FROM ticket_order_item WHERE order_id=?", Long.class,
+                        independent.path("orderId").asLong())).isEqualTo(second);
+                assertThat(stocks.find(firstRequest).status()).isEqualTo("QUEUED");
+            } finally {
+                release.countDown();
+            }
+            blocker.get(5, TimeUnit.SECONDS);
+            assertThat(await(buyer, firstRequest).path("status").asText()).isEqualTo("SUCCEEDED");
+        }
+        assertThat(available(second)).isEqualTo(4);
+        stock(1, 0);
+    }
+
+    @Test void selloutAndOfflineStayLocalWhileBuyerQuotaSpansTiers() throws Exception {
+        long second = anotherSku();
+        db.update("UPDATE ticket_sku SET total_stock=2 WHERE id=?", sku);
+        assertThat(inventory.synchronize(sku)).isTrue();
+        start();
+        var first = await(buyer, accept(buyer, 2, "two-a").path("requestId").asLong());
+        assertThat(first.path("status").asText()).isEqualTo("SUCCEEDED");
+        other.call("POST", "/orders", purchaseBody(sku, 1), "sold-out-a", 409);
+        var overLimit = await(buyer, accept(buyer, second, 3, "three-b").path("requestId").asLong());
+        assertThat(overLimit.path("failureCode").asText()).isEqualTo("PURCHASE_LIMIT");
+        awaitSettlement(overLimit.path("requestId").asLong(), "FAILED");
+        assertThat(available()).isZero();
+        assertThat(available(second)).isEqualTo(5);
+        db.update("UPDATE ticket_sku SET status='OFF_SALE' WHERE id=?", sku);
+        assertThat(inventory.synchronize(sku)).isTrue();
+        var next = await(buyer, accept(buyer, second, 2, "two-b").path("requestId").asLong());
+        assertThat(next.path("status").asText()).isEqualTo("SUCCEEDED");
+        assertThat(available(second)).isEqualTo(3);
+        orderService.cancel(buyer.id, first.path("orderId").asLong());
+        assertThat(inventory.synchronize(sku)).isTrue();
+        assertThat(available()).isEqualTo(2);
+        assertThat(available(second)).isEqualTo(3);
+        stock(0, 0);
+        long secondOrder = next.path("orderId").asLong();
+        orderService.pay(buyer.id, secondOrder);
+        assertThat(db.queryForList("SELECT sku_id FROM electronic_ticket WHERE order_id=?", Long.class, secondOrder))
+                .containsExactly(second, second);
+        long admin = Long.parseLong(AccountTestSupport.legacyAdmin(db, "multi_" + UUID.randomUUID(), UUID.randomUUID().toString()).id());
+        assertThat(refunds.refund(admin, secondOrder, com.ticketing.enums.RefundReason.CUSTOMER_REQUEST).refund())
+                .isNotNull();
+        assertThat(inventory.synchronize(second)).isTrue();
+        assertThat(available(second)).isEqualTo(5);
+        assertThat(available()).isEqualTo(2);
+        stock(0, 0);
+    }
+
     @Test void sameKeyConcurrentReplayKeepsRequestAndDifferentParametersConflict() throws Exception {
         try(var pool=Executors.newFixedThreadPool(8)) {
             List<Future<PurchaseRequest>> futures=new ArrayList<>();
@@ -264,9 +341,7 @@ class AsyncPurchaseIT {
     }
 
     @Test void committedReleasesOnMultipleSkusAreRecoveredAndRepeatedScansAreIdempotent() {
-        db.update("INSERT INTO ticket_sku(session_id,name,price_cents,total_stock,max_quantity_per_order,sale_starts_at,sale_ends_at,status) VALUES(?,'另一票档',12345,5,4,TIMESTAMPADD(HOUR,-1,UTC_TIMESTAMP(6)),TIMESTAMPADD(HOUR,1,UTC_TIMESTAMP(6)),'ON_SALE')",session);
-        long second=db.queryForObject("SELECT MAX(id) FROM ticket_sku WHERE session_id=?",Long.class,session);
-        assertThat(inventory.synchronize(second)).isTrue();
+        long second = anotherSku();
         PurchaseRequest first=stocks.reserve(buyer.id,sku,1,"scan-first");
         PurchaseRequest next=stocks.reserve(other.id,second,1,"scan-second");
         worker.process(first.id());worker.process(next.id());
@@ -283,9 +358,14 @@ class AsyncPurchaseIT {
     }
 
     @Test void initializedMissingOrCorruptLedgerCannotBeRecreatedSilently() {
+        long second = anotherSku();
         redis.delete(stocks.skuKey(sku));
         assertThatThrownBy(()->inventory.synchronize(sku)).isInstanceOf(IllegalStateException.class);
         assertThat(redis.hasKey(stocks.skuKey(sku))).isFalse();
+        var independent = stocks.reserve(other.id, second, 1, "healthy-ledger");
+        worker.process(independent.id(), second);
+        assertThat(requests.find(independent.id()).status()).isEqualTo("SUCCEEDED");
+        assertThat(available(second)).isEqualTo(4);
     }
 
     @Test void corruptedWaitlistPriorityFailsClosedBeforeAnotherReservation() {
@@ -333,6 +413,7 @@ class AsyncPurchaseIT {
     }
 
     @Test void expiryArbitrationRacesLateConsumerWithoutSuccessfulOrderAndReturnedStockTogether() throws Exception {
+        long second = anotherSku();
         PurchaseRequest held=stocks.reserve(buyer.id,sku,1,"expiry-race");
         var entered=new CountDownLatch(1);var release=new CountDownLatch(1);
         doAnswer(call->{entered.countDown();assertThat(release.await(12,TimeUnit.SECONDS)).isTrue();return mybatis.getMapper(OrderMapper.class).insertItem(call.getArgument(0),call.getArgument(1),call.getArgument(2));})
@@ -346,9 +427,11 @@ class AsyncPurchaseIT {
         assertThat(requests.find(held.id()).status()).isEqualTo("EXPIRED");
         assertThat(orderCount()).isZero();stock(0,0);assertThat(available()).isEqualTo(8);
         worker.process(held.id());assertThat(available()).isEqualTo(8);
+        assertThat(available(second)).isEqualTo(5);
     }
 
     @Test void orderReleaseAndFifoWaitlistCannotConsumeUnfinishedOrdinaryReservation() throws Exception {
+        long second = anotherSku();
         db.update("UPDATE ticket_sku SET total_stock=1 WHERE id=?",sku);inventory.synchronize(sku);
         var ordinary=stocks.reserve(buyer.id,sku,1,"before-gate");
         var waiting=waitlists.join(other.id,new JoinWaitlistRequest(Long.toString(sku),1));
@@ -359,17 +442,59 @@ class AsyncPurchaseIT {
         long until=System.nanoTime()+TimeUnit.SECONDS.toNanos(10);
         while(System.nanoTime()<until && !waitlists.detail(other.id,Long.parseLong(waiting.id())).status().equals("ALLOCATED")) Thread.sleep(30);
         assertThat(waitlists.detail(other.id,Long.parseLong(waiting.id())).status()).isEqualTo("ALLOCATED");
+        Long allocated = db.queryForObject("SELECT reserved_order_id FROM waitlist_entry WHERE id=?", Long.class, waiting.id());
+        assertThat(db.queryForObject("SELECT sku_id FROM ticket_order_item WHERE order_id=?", Long.class, allocated))
+                .isEqualTo(sku);
+        assertThat(available(second)).isEqualTo(5);
         stock(1,0);assertThat(stocks.find(ordinary.id()).status()).isEqualTo("SUCCEEDED");
     }
 
     void start(){registry.getListenerContainer("purchaseOrders").start();}
-    JsonNode accept(Client who,int quantity,String key)throws Exception{return who.call("POST","/orders",Map.of("skuId",Long.toString(sku),"quantity",quantity),key,202).path("data");}
+    JsonNode accept(Client who,int quantity,String key)throws Exception{return accept(who,sku,quantity,key);}
+    JsonNode accept(Client who,long skuId,int quantity,String key)throws Exception {
+        return who.call("POST","/orders",purchaseBody(skuId,quantity),key,202).path("data");
+    }
+    Map<String,Object> purchaseBody(long skuId,int quantity) {
+        return Map.of("skuId",Long.toString(skuId),"quantity",quantity);
+    }
+    long anotherSku() {
+        db.update("""
+                INSERT INTO ticket_sku(session_id,name,price_cents,total_stock,max_quantity_per_order,sale_starts_at,sale_ends_at,status)
+                SELECT session_id,'另一票档',23456,5,max_quantity_per_order,sale_starts_at,sale_ends_at,status FROM ticket_sku WHERE id=?
+                """, sku);
+        long second = db.queryForObject("SELECT id FROM ticket_sku WHERE session_id=? AND name='另一票档'", Long.class, session);
+        assertThat(inventory.synchronize(second)).isTrue();
+        return second;
+    }
+    void awaitSkuLockWait() throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+        do {
+            if (db.queryForObject("""
+                    SELECT COUNT(*) FROM performance_schema.data_lock_waits w
+                    JOIN performance_schema.data_locks l ON l.ENGINE_LOCK_ID=w.REQUESTING_ENGINE_LOCK_ID
+                    WHERE l.OBJECT_SCHEMA=DATABASE() AND l.OBJECT_NAME='ticket_sku' AND l.INDEX_NAME='PRIMARY' AND l.LOCK_DATA=?
+                    """, Integer.class, Long.toString(sku)) > 0) return;
+            Thread.sleep(20);
+        } while (System.nanoTime() < deadline);
+        throw new AssertionError("未观察到首个 SKU 的行锁等待");
+    }
+    void awaitSettlement(long requestId, String status) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        do {
+            if (status.equals(stocks.find(requestId).status())) return;
+            Thread.sleep(20);
+        } while (System.nanoTime() < deadline);
+        throw new AssertionError("Redis 未结算申请 " + requestId);
+    }
     JsonNode await(Client who,long id)throws Exception {
         long until=System.nanoTime()+TimeUnit.SECONDS.toNanos(15);
         while(System.nanoTime()<until){var r=who.call("GET","/purchase-requests/"+id,null,null,200).path("data");if(Set.of("SUCCEEDED","FAILED","EXPIRED").contains(r.path("status").asText()))return r;Thread.sleep(30);}
         throw new AssertionError("request did not finish");
     }
-    long available(){return Long.parseLong(Objects.requireNonNull(redis.opsForHash().get(stocks.skuKey(sku),"available")).toString());}
+    long available(){return available(sku);}
+    long available(long skuId) {
+        return Long.parseLong(Objects.requireNonNull(redis.opsForHash().get(stocks.skuKey(skuId),"available")).toString());
+    }
     int orderCount(){return db.queryForObject("SELECT COUNT(*) FROM ticket_order WHERE session_id=?",Integer.class,session);}
     void stock(int locked,int sold){assertThat(db.queryForObject("SELECT locked_stock FROM ticket_sku WHERE id=?",Integer.class,sku)).isEqualTo(locked);assertThat(db.queryForObject("SELECT sold_stock FROM ticket_sku WHERE id=?",Integer.class,sku)).isEqualTo(sold);com.ticketing.PurchaseTestSupport.assertQuotaConsistent(db,session);}
     Client client()throws Exception {

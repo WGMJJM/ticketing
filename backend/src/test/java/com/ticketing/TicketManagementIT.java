@@ -51,15 +51,112 @@ class TicketManagementIT {
 
     @BeforeEach
     void parents() throws Exception {
-        String name = "ticket_" + UUID.randomUUID().toString().replace("-", "").substring(0, 24);
-        AccountTestSupport.legacyAdmin(jdbc, name, UUID.randomUUID().toString());
-        administrator = identities.loadUserByUsername(name);
-        administrator.eraseCredentials();
+        administrator = admin();
         var activity = mutate(post("/api/v1/admin/activities"), Map.of("title", "票档测试" + UUID.randomUUID(),
                 "category", "CONCERT", "city", "上海", "venue", "测试场馆", "summary", "测试简介", "description", "测试详情"), 200);
         activityId = activity.path("id").asText();
         mutate(post("/api/v1/admin/activities/" + activityId + "/publish"), Map.of("version", 0), 200);
         sessionId = mutate(post("/api/v1/admin/activities/" + activityId + "/sessions"), sessionPayload(), 200).path("id").asText();
+    }
+
+    private AccountPrincipal admin() {
+        String name = "ticket_" + UUID.randomUUID().toString().replace("-", "").substring(0, 24);
+        AccountTestSupport.legacyAdmin(jdbc, name, UUID.randomUUID().toString());
+        AccountPrincipal result = identities.loadUserByUsername(name);
+        result.eraseCredentials();
+        return result;
+    }
+
+    @Test
+    void batchCreatesFourIndependentDraftsWithOneAuditPerSku() throws Exception {
+        List<Map<String, Object>> inputs = new ArrayList<>();
+        for (int index = 1; index <= 4; index++) {
+            var input = payload("座区 " + index, 0);
+            input.put("priceCents", Integer.toString(10000 * index));
+            input.put("totalStock", 20 * index);
+            input.put("maxQuantityPerOrder", index);
+            input.put("saleStartsAt", "2025-02-0" + index + "T00:00:00Z");
+            inputs.add(input);
+        }
+        JsonNode result = mutate(post(base() + "/batch"), Map.of("tickets", inputs), 200);
+        assertThat(result).hasSize(4);
+        List<String> ids = new ArrayList<>();
+        for (int i = 0; i < result.size(); i++) {
+            JsonNode ticket = result.get(i);
+            ids.add(ticket.path("id").asText());
+            assertThat(ticket.path("id").isTextual()).isTrue();
+            assertThat(ticket.path("name").asText()).isEqualTo(inputs.get(i).get("name"));
+            assertThat(ticket.path("priceCents").asText()).isEqualTo(inputs.get(i).get("priceCents"));
+            assertThat(ticket.path("totalStock").asInt()).isEqualTo(inputs.get(i).get("totalStock"));
+            assertThat(ticket.path("maxQuantityPerOrder").asInt()).isEqualTo(inputs.get(i).get("maxQuantityPerOrder"));
+            assertThat(java.time.Instant.parse(ticket.path("saleStartsAt").asText()))
+                    .isEqualTo(java.time.Instant.parse((String) inputs.get(i).get("saleStartsAt")));
+            assertThat(ticket.path("status").asText()).isEqualTo("DRAFT");
+        }
+        assertThat(ids).doesNotHaveDuplicates();
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM ticket_sku WHERE session_id=? AND inventory_strategy='SINGLE'
+                    AND bucket_count=0 AND locked_stock=0 AND sold_stock=0
+                """, Integer.class, sessionId)).isEqualTo(4);
+        assertThat(ticketCreateAudits()).isEqualTo(4);
+        publicGet().andExpect(jsonPath("$.data.length()").value(0));
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void batchRollsBackEarlierDraftAndAuditOnInvalidWindowOrDuplicateName() throws Exception {
+        try {
+            create("已有票档");
+            var bad = payload("窗口超出场次", 0);
+            bad.put("saleEndsAt", "2036-01-01T00:00:00Z");
+            mutate(post(base() + "/batch"), Map.of("tickets", List.of(payload("前一条", 0), bad)), 400);
+            mutate(post(base() + "/batch"), Map.of("tickets", List.of(payload("前一条", 0), payload("已有票档", 0))), 409);
+            mutate(post(base() + "/batch"), Map.of("tickets", List.of(payload("前一条", 0), payload(" 前一条 ", 0))), 409);
+            var forbidden = payload("只读字段", 0);
+            forbidden.put("soldStock", 1);
+            mutate(post(base() + "/batch"), Map.of("tickets", List.of(forbidden)), 400);
+            mutate(post(base() + "/batch"), Map.of("tickets", List.of()), 400);
+            assertThat(jdbc.queryForList("SELECT name FROM ticket_sku WHERE session_id=?", String.class, sessionId))
+                    .containsExactly("已有票档");
+            assertThat(ticketCreateAudits()).isEqualTo(1);
+        } finally {
+            removeCommittedFixture();
+        }
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void concurrentBatchesByDifferentAdministratorsShareTheSameSessionCap() throws Exception {
+        try {
+            var secondAdmin = admin();
+            jdbc.batchUpdate("""
+                    INSERT INTO ticket_sku(session_id,name,price_cents,total_stock,max_quantity_per_order,sale_starts_at,sale_ends_at)
+                    VALUES (?,?,10000,1,1,'2025-02-01','2035-05-01')
+                    """, java.util.stream.IntStream.range(0, 198)
+                    .mapToObj(i -> new Object[]{sessionId, "已有票档 " + i}).toList());
+            var start = new CountDownLatch(1);
+            try (var pool = Executors.newFixedThreadPool(2)) {
+                var futures = new ArrayList<java.util.concurrent.Future<Integer>>();
+                for (var operator : List.of(administrator, secondAdmin)) {
+                    var body = Map.of("tickets", List.of(
+                            payload("新票档 A " + operator.getId(), 0), payload("新票档 B " + operator.getId(), 0)));
+                    futures.add(pool.submit(() -> {
+                        start.await();
+                        return mvc.perform(post(base() + "/batch").with(user(operator)).with(csrf())
+                                .contentType(MediaType.APPLICATION_JSON).content(json.writeValueAsString(body)))
+                                .andReturn().getResponse().getStatus();
+                    }));
+                }
+                start.countDown();
+                assertThat(List.of(futures.get(0).get(15, TimeUnit.SECONDS), futures.get(1).get(15, TimeUnit.SECONDS)))
+                        .containsExactlyInAnyOrder(200, 409);
+            }
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ticket_sku WHERE session_id=?", Integer.class, sessionId))
+                    .isEqualTo(200);
+            mutate(post(base()), payload("超限单档", 0), 409);
+        } finally {
+            removeCommittedFixture();
+        }
     }
 
     @Test
@@ -228,11 +325,19 @@ class TicketManagementIT {
             }
             assertThat(jdbc.queryForObject("SELECT version FROM ticket_sku WHERE id = ?", Integer.class, sku.path("id").asLong())).isEqualTo(1);
         } finally {
-            jdbc.update("DELETE FROM ticket_sku WHERE session_id = ?", Long.parseLong(sessionId));
-            jdbc.update("DELETE FROM activity_session WHERE id = ?", Long.parseLong(sessionId));
-            jdbc.update("DELETE FROM activity WHERE id = ?", Long.parseLong(activityId));
-            jdbc.update("DELETE FROM user_account WHERE id = ? AND id NOT IN (SELECT operator_id FROM admin_audit_log)", administrator.getId());
+            removeCommittedFixture();
         }
+    }
+
+    private int ticketCreateAudits() {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM admin_audit_log WHERE operator_id=? AND action='TICKET_CREATE'",
+                Integer.class, administrator.getId());
+    }
+
+    private void removeCommittedFixture() {
+        jdbc.update("DELETE FROM ticket_sku WHERE session_id=?", sessionId);
+        jdbc.update("DELETE FROM activity_session WHERE id=?", sessionId);
+        jdbc.update("DELETE FROM activity WHERE id=?", activityId);
     }
 
     private JsonNode create(String name) throws Exception { return mutate(post(base()), payload(name, 0), 200); }

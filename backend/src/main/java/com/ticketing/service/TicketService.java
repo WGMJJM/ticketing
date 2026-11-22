@@ -99,18 +99,31 @@ public class TicketService implements SessionWindowGuard {
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public TicketView create(long sessionId, TicketWriteRequest request) {
+        return createBatch(sessionId, List.of(request)).getFirst();
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public List<TicketView> createBatch(long sessionId, List<TicketWriteRequest> requests) {
         long operatorId = audit.begin();
         ActivitySession session = requireSession(sessionId, true);
         validateSession(session);
-        validateWindow(session, request);
-        if (tickets.selectCount(
-                        new LambdaQueryWrapper<TicketSku>().eq(TicketSku::getSessionId, sessionId))
-                >= MAX_TICKETS_PER_SESSION) {
+        long existing = tickets.selectCount(
+                new LambdaQueryWrapper<TicketSku>().eq(TicketSku::getSessionId, sessionId));
+        if (existing + requests.size() > MAX_TICKETS_PER_SESSION) {
             throw conflict("每个场次最多支持200个票档");
         }
-        requireUniqueName(sessionId, request.name().trim(), null);
+        Instant now = Instant.now();
+        List<TicketView> created = requests.stream()
+                .map(request -> insertDraft(session, request, operatorId, now))
+                .toList();
+        cache.invalidateAfterCommit();
+        return created;
+    }
+
+    private TicketView insertDraft(ActivitySession session, TicketWriteRequest request, long operatorId, Instant now) {
+        validateWindow(session, request);
         TicketSku sku = new TicketSku();
-        sku.setSessionId(sessionId);
+        sku.setSessionId(session.getId());
         sku.setName(request.name().trim());
         sku.setPriceCents(price(request.priceCents()));
         sku.setTotalStock(request.totalStock());
@@ -123,7 +136,7 @@ public class TicketService implements SessionWindowGuard {
         sku.setMaxQuantityPerOrder(request.maxQuantityPerOrder());
         sku.setStatus(TicketStatus.DRAFT.name());
         sku.setVersion(0);
-        sku.setCreatedAt(LocalDateTime.now(ZoneOffset.UTC));
+        sku.setCreatedAt(LocalDateTime.ofInstant(now, ZoneOffset.UTC));
         sku.setUpdatedAt(sku.getCreatedAt());
         try {
             tickets.insert(sku);
@@ -131,8 +144,7 @@ public class TicketService implements SessionWindowGuard {
             throw duplicateName();
         }
         audit.record(operatorId, AuditAction.TICKET_CREATE, "TICKET_SKU", sku.getId(), Map.of(), snapshot(sku));
-        cache.invalidateAfterCommit();
-        return view(sku, session);
+        return TicketView.from(sku, SaleStatus.UNAVAILABLE, now);
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
