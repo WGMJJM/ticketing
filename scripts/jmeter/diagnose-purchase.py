@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+from collections import Counter
 import csv
 import ctypes
 from ctypes import wintypes
@@ -21,7 +22,7 @@ import time
 
 import pymysql
 import requests
-from diagnosis_stats import SafetyGate, summarize, quantiles, has_persistent_pending_growth, success_cohorts, warmup_stability, capacity_pressure_reason
+from diagnosis_stats import SafetyGate, summarize, quantiles, has_persistent_pending_growth, success_cohorts, warmup_stability, capacity_pressure_reason, sku_targets
 
 ROOT = Path(__file__).resolve().parents[2]
 PLAN = Path(__file__).with_name('purchase-post-only.jmx')
@@ -29,6 +30,8 @@ spec = importlib.util.spec_from_file_location('prepare_data', Path(__file__).wit
 prepare = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(prepare)
 GIB = 1024 ** 3
+SKU_COMPARISON = {'single': (100,), 'uniform': (1, 1, 1), 'hot': (80, 15, 5)}
+COMPARISON_WARMUP_SECONDS = 30
 
 
 def save(path, value):
@@ -192,20 +195,26 @@ def config(runtime):
                 'REDIS_PORT': '16379', 'RABBITMQ_PORT': '15673', 'RABBITMQ_MANAGEMENT_PORT': '15674', 'SERVER_PORT': '18080'}
     if any(env.get(key) != value for key, value in expected.items()) or not env.get('JMETER_GUARD_TOKEN'):
         raise RuntimeError('专用配置地址、schema或guard不符')
+    prepare.project_name(env)
     return env
+
+
+def container_name(env, service):
+    return f'{prepare.project_name(env)}-{service}-1'
 
 
 def docker_guard(runtime):
     env = config(runtime)
+    project = prepare.project_name(env)
     evidence = []
     for service, dest, port in [('mysql', '/var/lib/mysql', '13307'), ('redis', '/data', '16379'), ('rabbitmq', '/var/lib/rabbitmq', '15673')]:
-        name = f'ticketing-jmeter-{service}-1'
+        name = container_name(env, service)
         item = json.loads(command(['docker', 'inspect', name]))[0]
         labels = item['Config']['Labels']
-        if labels.get('com.docker.compose.project') != 'ticketing-jmeter' or labels.get('com.docker.compose.service') != service:
+        if labels.get('com.docker.compose.project') != project or labels.get('com.docker.compose.service') != service:
             raise RuntimeError('隔离项目标签不符')
         mounts = [m for m in item['Mounts'] if m['Destination'] == dest]
-        if len(mounts) != 1 or mounts[0]['Type'] != 'volume' or not mounts[0]['Name'].startswith('ticketing-jmeter_'):
+        if len(mounts) != 1 or mounts[0]['Type'] != 'volume' or not mounts[0]['Name'].startswith(project + '_'):
             raise RuntimeError('隔离卷不符')
         bindings = [b for values in item['HostConfig']['PortBindings'].values() for b in (values or [])]
         if not any(b['HostIp'] == '127.0.0.1' and b['HostPort'] == port for b in bindings):
@@ -234,8 +243,8 @@ def db_guard(db, env):
             raise RuntimeError('数据库随机guard不符')
 
 
-def redis(*args):
-    return command(['docker', 'exec', 'ticketing-jmeter-redis-1', 'redis-cli', '--json', *map(str, args)], timeout=5)
+def redis(*args, env=None):
+    return command(['docker', 'exec', container_name(env or {}, 'redis'), 'redis-cli', '--json', *map(str, args)], timeout=5)
 
 
 def redis_command(sock, reader, *args):
@@ -338,7 +347,7 @@ def digest(db):
 
 
 class Monitor:
-    def __init__(self, env, directory, backend_pid=None, sku_id=None, allow_capacity_fill=False):
+    def __init__(self, env, directory, backend_pid=None, sku_id=None, allow_capacity_fill=False, sku_ids=None):
         self.env, self.directory, self.backend_pid = env, directory, backend_pid
         self.jmeter_pid = None
         self.stop = directory / 'stop.flag'
@@ -349,7 +358,7 @@ class Monitor:
         self.thread = None
         self.fuse_after = None
         self.jmeter_process = None
-        self.sku_id = sku_id
+        self.sku_ids = [str(sku_id)] if sku_ids is None else sku_ids
         self.allow_capacity_fill = allow_capacity_fill
         self.measurement_start_ms = None
         self.redis_probe_done = threading.Event()
@@ -504,7 +513,7 @@ class Monitor:
                     sample['mysql'] = database_sample(db)
                     # 每轮均采容器内存；命令典型耗时约1秒，超过5秒将失败关闭。
                     rows = command(['docker', 'stats', '--no-stream', '--format', '{{json .}}',
-                                    'ticketing-jmeter-mysql-1', 'ticketing-jmeter-redis-1', 'ticketing-jmeter-rabbitmq-1'], timeout=4)
+                                    *(container_name(self.env, service) for service in ('mysql', 'redis', 'rabbitmq'))], timeout=4)
                     sample['docker'] = [json.loads(row) for row in rows.splitlines()]
                     sample['dockerMemoryPercentSum'] = sum(float(row['MemPerc'].strip('%')) for row in sample['docker'])
                     if any(float(row['MemPerc'].strip('%')) > 85 for row in sample['docker']):
@@ -512,10 +521,15 @@ class Monitor:
                     if sample['dockerMemoryPercentSum'] > 85:
                         sample['unsafe'] = 'isolated_containers_memory_sum_over_85'
                     capacity = int(sample.get('diagnostics', {}).get('capacity', 200))
-                    ledger = json.loads(redis('EVAL', "return {redis.call('GET',KEYS[1]),redis.call('HGETALL',KEYS[2])}", 2,
-                        'ticketing:seckill:v2:ticketingjmeter:pending', f'ticketing:seckill:v2:ticketingjmeter:sku:{self.sku_id}'))
+                    prefix = 'ticketing:seckill:v2:ticketingjmeter:'
+                    ledger = json.loads(redis('EVAL', """local values = {redis.call('GET',KEYS[1])}
+                        for index = 2, #KEYS do values[index] = redis.call('HGETALL',KEYS[index]) end
+                        return values""", len(self.sku_ids) + 1, prefix + 'pending',
+                        *(prefix + 'sku:' + sku_id for sku_id in self.sku_ids), env=self.env))
                     sample['redisPending'] = int(ledger[0] or 0)
-                    sample['stockLedger'] = ledger[1] if isinstance(ledger[1], dict) else dict(zip(ledger[1][::2], ledger[1][1::2]))
+                    sample['skuLedgers'] = {sku_id: value if isinstance(value, dict) else dict(zip(value[::2], value[1::2]))
+                                            for sku_id, value in zip(self.sku_ids, ledger[1:], strict=True)}
+                    sample['stockLedger'] = sample['skuLedgers'][self.sku_ids[0]]
                     capacity_reason = capacity_pressure_reason(sample['redisPending'],
                         sample['mq']['ready'] + sample['mq']['unacked'], capacity, self.allow_capacity_fill)
                     if capacity_reason: sample['unsafe'] = capacity_reason
@@ -588,7 +602,7 @@ def start_backend(runtime, directory, java, concurrency, pool, bootstrap=False, 
             with db.cursor() as cur:
                 cur.execute('SELECT COUNT(*) n FROM information_schema.tables WHERE table_schema=DATABASE()')
                 if cur.fetchone()['n'] != 0: raise RuntimeError('首次Flyway启动必须是空隔离schema')
-            if json.loads(redis('GET', 'ticketing:jmeter:environment-guard')) != hashlib.sha256(env['JMETER_GUARD_TOKEN'].encode()).hexdigest():
+            if json.loads(redis('GET', 'ticketing:jmeter:environment-guard', env=env)) != hashlib.sha256(env['JMETER_GUARD_TOKEN'].encode()).hexdigest():
                 raise RuntimeError('首次空库启动的独立Redis随机guard不符')
         else:
             db_guard(db, env)
@@ -712,8 +726,8 @@ def drain(env, seconds=120):
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
         mq = queue(env)
-        pending = json.loads(redis('GET', 'ticketing:seckill:v2:ticketingjmeter:pending'))
-        recovery = json.loads(redis('ZCARD', 'ticketing:seckill:v2:ticketingjmeter:recovery'))
+        pending = json.loads(redis('GET', 'ticketing:seckill:v2:ticketingjmeter:pending', env=env))
+        recovery = json.loads(redis('ZCARD', 'ticketing:seckill:v2:ticketingjmeter:recovery', env=env))
         if not mq['ready'] and not mq['unacked'] and int(pending or 0) == 0 and recovery == 0:
             return dict(mq=mq, pending=int(pending or 0), recovery=recovery, complete=True)
         time.sleep(2)
@@ -723,7 +737,7 @@ def drain(env, seconds=120):
 def audit(db, env, metadata, batch):
     prefix = f'jmeter-{batch}-%'
     with db.cursor() as cur:
-        cur.execute("""SELECT p.id,p.idempotency_key,p.status,p.order_id,p.failure_code,
+        cur.execute("""SELECT p.id,p.sku_id,p.idempotency_key,p.status,p.order_id,p.failure_code,
                        UNIX_TIMESTAMP(p.accepted_at)*1000 accepted_ms,UNIX_TIMESTAMP(o.created_at)*1000 created_ms
                        FROM purchase_request p LEFT JOIN ticket_order o ON o.id=p.order_id
                        WHERE p.idempotency_key LIKE %s AND p.idempotency_operation='CREATE_ORDER'""", (prefix,))
@@ -792,7 +806,7 @@ def audit(db, env, metadata, batch):
         cur.execute("""SELECT COUNT(*) n FROM ticket_order o WHERE o.idempotency_key LIKE %s AND NOT EXISTS
                        (SELECT 1 FROM purchase_request p WHERE p.order_id=o.id AND p.status='SUCCEEDED')""", (prefix,))
         orphan = cur.fetchone()['n']
-    ledger = json.loads(redis('HGETALL', f"ticketing:seckill:v2:ticketingjmeter:sku:{metadata['skuId']}"))
+    ledger = json.loads(redis('HGETALL', f"ticketing:seckill:v2:ticketingjmeter:sku:{metadata['skuId']}", env=env))
     expected = sku['total_stock'] - sku['locked_stock'] - sku['sold_stock']
     response = requests.get('http://127.0.0.1:15674/api/queues/%2F/ticketing.purchase.orders.dead',
                             auth=(env['RABBITMQ_USER'], env['RABBITMQ_PASSWORD']), timeout=2)
@@ -817,6 +831,48 @@ def audit(db, env, metadata, batch):
     return orders, checks
 
 
+def prepare_sku_comparison(runtime):
+    env, _ = docker_guard(runtime)
+    for port in (18080, 18081):
+        with socket.socket() as probe:
+            if probe.connect_ex(('127.0.0.1', port)) == 0:
+                raise RuntimeError('请先关闭本轮隔离后端再建立空场次')
+    if not drain(env, 10)['complete']:
+        raise RuntimeError('先排空隔离购票请求')
+    path = runtime / 'prepared-data.json'
+    metadata = json.loads(path.read_text(encoding='utf-8'))
+    if metadata.get('skuComparison'):
+        raise RuntimeError('隔离运行目录已有对照场次，请另用新批次')
+    profiles = {}
+    with db_connect(env) as db, db.cursor() as cur:
+        db_guard(db, env)
+        db.begin()
+        for profile, weights in SKU_COMPARISON.items():
+            cur.execute("""INSERT INTO activity_session(activity_id,title,starts_at,ends_at,sale_starts_at,status)
+                           SELECT activity_id,%s,starts_at,ends_at,sale_starts_at,'SCHEDULED'
+                           FROM activity_session WHERE id=%s AND status='SCHEDULED' AND starts_at>UTC_TIMESTAMP(6)""",
+                        ('隔离购票对照 ' + profile, metadata['sessionId']))
+            if cur.rowcount != 1:
+                raise RuntimeError('隔离场次模板不可用')
+            session_id = str(cur.lastrowid)
+            sku_ids = []
+            for index in range(len(weights)):
+                cur.execute("""INSERT INTO ticket_sku(session_id,name,price_cents,total_stock,max_quantity_per_order,
+                               sale_starts_at,sale_ends_at,status)
+                               SELECT %s,%s,price_cents,%s,1,sale_starts_at,sale_ends_at,'ON_SALE'
+                               FROM ticket_sku WHERE id=%s AND sale_starts_at<=UTC_TIMESTAMP(6) AND sale_ends_at>UTC_TIMESTAMP(6)""",
+                            (session_id, f'隔离票档 {index + 1}', 30000 // len(weights), metadata['skuId']))
+                if cur.rowcount != 1:
+                    raise RuntimeError('隔离票档模板不可售')
+                sku_ids.append(str(cur.lastrowid))
+            profiles[profile] = dict(sessionId=session_id, skuId=sku_ids[0], skuIds=sku_ids,
+                                     inventoryStrategy='SINGLE', bucketCount=0, totalStock=30000)
+        db.commit()
+    metadata['skuComparison'] = profiles
+    save(path, metadata)
+    print('已建立三个独立对照场次，各30000张，原有场次及库存保留')
+
+
 def run_round(args):
     runtime = args.runtime.resolve()
     if not runtime.is_relative_to((ROOT / '.local/jmeter').resolve()): raise RuntimeError('运行目录须在.local/jmeter')
@@ -829,12 +885,24 @@ def run_round(args):
     if SafetyGate().update(baseline):
         raise RuntimeError('资源预检不通过；未启动后端或发压')
     metadata = json.loads((runtime / 'prepared-data.json').read_text(encoding='utf-8'))
+    profile = args.sku_profile
+    if profile:
+        metadata.update(metadata['skuComparison'][profile])
+        with db_connect(env) as check_db, check_db.cursor() as cur:
+            db_guard(check_db, env)
+            cur.execute("""SELECT COUNT(*) n FROM ticket_sku s WHERE s.session_id=%s AND
+                           (s.locked_stock<>0 OR s.sold_stock<>0 OR EXISTS
+                               (SELECT 1 FROM purchase_request p WHERE p.sku_id=s.id))""", (metadata['sessionId'],))
+            if cur.fetchone()['n']:
+                raise RuntimeError('对照场次已有购票历史，需使用新的隔离批次')
+    sku_ids = metadata['skuIds'] if profile else [metadata['skuId']]
     if args.repeat_per_user > min(int(metadata.get('ordersPerUser',1)),int(env.get('ORDER_SESSION_LIMIT','4'))):
         raise RuntimeError('每用户请求预算超过新账号夹具或真实场次限购')
     print('本轮目录 '+str(directory)+'；开始受监控的预登录',flush=True)
     backend, logfile = start_backend(runtime, directory, args.java, args.concurrency, args.pool,
                                     publisher_window=args.publisher_window, capacity=args.capacity)
-    monitor = Monitor(env, directory, backend.pid, metadata['skuId'], allow_capacity_fill=args.allow_capacity_fill)
+    monitor = Monitor(env, directory, backend.pid, metadata['skuId'],
+                      allow_capacity_fill=args.allow_capacity_fill, sku_ids=sku_ids)
     monitor.start()
     jmeter = None
     feed = None
@@ -849,9 +917,10 @@ def run_round(args):
             accounts = list(csv.DictReader(stream))
         cursor_path = runtime / 'next-account.json'
         offset = json.loads(cursor_path.read_text()) if cursor_path.exists() else 0
-        count = args.max_posts if args.inflight else int(args.rps * args.seconds)
+        warmup_seconds = COMPARISON_WARMUP_SECONDS if profile else 0
+        count = args.max_posts if args.inflight else int(args.rps * (args.seconds + warmup_seconds))
         continuous_warmup = bool(args.inflight and not args.selftest)
-        warmup_count = 10 if args.selftest else args.startup_checks
+        warmup_count = 3 if profile else 10 if args.selftest else args.startup_checks
         unique_count = (count + args.repeat_per_user - 1) // args.repeat_per_user
         if args.reuse_accounts:
             if args.repeat_per_user != 1: raise RuntimeError('多笔预算仅用于全新账号池，不猜测旧用户剩余额度')
@@ -860,6 +929,8 @@ def run_round(args):
             if unique_count + warmup_count + offset > len(accounts): raise RuntimeError('独立账号余额不足，不复用已有账号')
             selected = accounts[offset:offset + unique_count + warmup_count]
             save(cursor_path, offset + unique_count + warmup_count)  # 失败账号也不再用于其他档位。
+        if profile and len({row['username'] for row in selected}) != len(selected):
+            raise RuntimeError('对照试验账号存在重复')
         sessions = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=args.login_workers) as executor:
             for value in executor.map(login, selected):
@@ -875,14 +946,24 @@ def run_round(args):
             response = requests.post('http://127.0.0.1:18080/api/v1/orders',
                     headers={'Cookie': session['cookie'], session['csrfHeader']: session['csrfToken'],
                              'Idempotency-Key': f'jmeter-{warmup_batch}-{index}'},
-                    json=dict(skuId=metadata['skuId'], quantity=1), timeout=15)
+                    json=dict(skuId=sku_ids[index % len(sku_ids)], quantity=1), timeout=15)
             if response.status_code != 202: raise RuntimeError('独立预热被拒绝；本轮不进入正式负载')
             time.sleep(.2)
         if warmup_count and not drain(env, 40)['complete']: raise RuntimeError('独立预热未排空')
+        if profile:
+            with db_connect(env) as db:
+                db_guard(db, env)
+                startup_orders, startup_audit = audit(db, env, metadata, warmup_batch)
+            if not startup_audit['valid'] or len(startup_orders) != warmup_count or any(
+                    order['status'] != 'SUCCEEDED' for order in startup_orders):
+                raise RuntimeError('三个启动检查未全部成功完成')
         sessions = (sessions[warmup_count:] * args.repeat_per_user)[:count]
+        if profile:
+            for session, sku_id in zip(sessions, sku_targets(sku_ids, SKU_COMPARISON[profile], count), strict=True):
+                session['skuId'] = sku_id
         batch = 'diag-' + secrets.token_hex(8)
         load_start = int(time.time() * 1000) + 12000
-        start = load_start + (60000 if continuous_warmup else 0)
+        start = load_start + (60000 if continuous_warmup else warmup_seconds * 1000)
         end = start + args.seconds * 1000
         # 连续预热期间允许闭环队列有界填充；绝对容量、CPU、内存等保护全程有效。
         monitor.measurement_start_ms = load_start + (30000 if continuous_warmup else 0)
@@ -907,13 +988,13 @@ def run_round(args):
         before_metrics = diag()
         if capacity_pressure_reason(args.inflight, 0, int(before_metrics['capacity']), args.allow_capacity_fill):
             raise RuntimeError('在途窗口超过本轮容量保护线，拒绝启动该档')
-        if args.inflight:
+        if args.inflight or profile:
             feed = CompletionFeed(directory, monitor, before_metrics['completions']['count'])
             feed.start()
         jmeter_args = [args.java, '-Xms64m', '-Xmx256m', '-XX:+UseG1GC',
                        f'-Xlog:gc:file={directory / "jmeter-gc.log"}', '-jar', args.jmeter_jar,
                        '-n', '-t', str(PLAN), f'-JsessionsFile={sessions_path}', f'-JstopFile={monitor.stop}',
-                       f'-Jthreads={args.threads}', '-Jsample_variables=batch,idempotencyKey,requestId,failureCode,scheduledMs,postStartMs,httpCompletedMs,postElapsedMs,requestIndex,accountIndex,completionCredit,orderCompletedMs,orderObservedMs,orderStatus,flowReadRetries,resolution',
+                       f'-Jthreads={args.threads}', '-Jsample_variables=batch,idempotencyKey,requestId,targetSku,failureCode,scheduledMs,postStartMs,httpCompletedMs,postElapsedMs,requestIndex,accountIndex,completionCredit,orderCompletedMs,orderObservedMs,orderStatus,flowReadRetries,resolution',
                        f'-JinitialRampMs={max(2000,args.threads*20)}',
                        '-Jjmeter.save.saveservice.output_format=csv', '-Jjmeter.save.saveservice.print_field_names=true',
                        '-Jjmeter.save.saveservice.autoflush=true', '-Jjmeter.save.saveservice.response_data=false',
@@ -936,6 +1017,9 @@ def run_round(args):
                                       measurementConfirmed=not continuous_warmup, clocks=clocks, mysql=mysql,
                                       planSha256=hashlib.sha256(PLAN.read_bytes()).hexdigest(),
                                       artifactSha256=hashlib.sha256((ROOT/'backend/target/ticketing-backend-0.1.0-SNAPSHOT.jar').read_bytes()).hexdigest())
+        if profile:
+            run_record.update(skuProfile=profile, skuIds=sku_ids, skuWeights=SKU_COMPARISON[profile],
+                              warmup=dict(seconds=warmup_seconds), totalPlannedPosts=count)
         save(directory/'run.json', run_record)
         snapshots = set()
         next_stability_check = load_start + 30000
@@ -970,15 +1054,32 @@ def run_round(args):
             time.sleep(.5)
         monitor.jmeter_pid = None
         stdout.close()
+        drain_started = time.monotonic()
         drained = drain(env)
+        drained['elapsedSeconds'] = round(time.monotonic() - drain_started, 3)
         if feed: feed.close()
         after_metrics = diag()
         with db_connect(env) as db:
             db_guard(db, env)
             orders, checks = audit(db, env, metadata, batch)
+            if profile:
+                per_sku = {sku_ids[0]: checks.copy()}
+                for sku_id in sku_ids[1:]:
+                    _, per_sku[sku_id] = audit(db, env, dict(metadata, skuId=sku_id), batch)
+                checks['skuAudits'] = per_sku
+                checks['valid'] = all(row['valid'] for row in per_sku.values())
             after_digest = digest(db)
         with (directory/'post.jtl').open(encoding='utf-8-sig', newline='') as stream:
             posts = list(csv.DictReader(stream))
+        if profile:
+            for post in posts:
+                completion = feed.completed.get(post['requestId'])
+                if completion:
+                    post.update(orderCompletedMs=completion['completedMs'], orderObservedMs=completion['observerMs'],
+                                orderStatus=completion['status'])
+            intended = {post['idempotencyKey']: post['targetSku'] for post in posts}
+            checks['skuRoutingErrors'] = sum(intended.get(row['idempotency_key']) != str(row['sku_id']) for row in orders)
+            checks['valid'] = checks['valid'] and not checks['skuRoutingErrors']
         clock = min(clocks,key=lambda c:c['rttMs'])
         calibrated_orders = [dict(row,created_ms=float(row['created_ms'])-clock['offsetMs'] if row['created_ms'] is not None else None,
                                  accepted_ms=float(row['accepted_ms'])-clock['offsetMs']) for row in orders]
@@ -1024,7 +1125,7 @@ def run_round(args):
                                and not all_phases['acceptedMissingRequestId'] and jmeter.returncode == 0
                                and run_record['measurementConfirmed']
                                and all_phases['accepted'] == all_phases['attempted']
-                               and (not args.inflight and result['attempted'] == count
+                               and (not args.inflight and all_phases['attempted'] == count
                                     or args.inflight and result['attempted'] > 0 and not result['accountBudgetExhausted']
                                     and result['completedWorkerCalls'] == all_phases['accepted'])
                                and (not args.inflight or result['maxGrantedOutstanding'] <= args.inflight
@@ -1042,6 +1143,29 @@ def run_round(args):
             and not result['postsAfterDeadline'] and not result['postsAfterStop'])
         result['wholeRunValid'] = result['valid']
         result['capacityConclusionEligible'] = bool(result['wholeRunValid'] and not result['noEscalation'])
+        if profile:
+            samples = [s for s in monitor.samples if start <= s['timeMs'] < end]
+            lock_encounters = Counter(str(wait['LOCK_DATA']) for sample in samples for wait in sample['mysql']['waits']
+                                      if wait['OBJECT_NAME'] == 'ticket_sku' and wait['INDEX_NAME'] == 'PRIMARY')
+            settled = sum(value['status'] == 'SUCCEEDED' and start <= value['completedMs'] < end
+                          for value in feed.completed.values())
+            result['skuComparison'] = dict(profile=profile, plannedPosts=count,
+                users=len(selected), totalStock=metadata['totalStock'],
+                skuWeights=dict(zip(sku_ids, SKU_COMPARISON[profile], strict=True)),
+                attemptsBySku=dict(Counter(p['targetSku'] for p in measured_posts)),
+                acceptedBySku=dict(Counter(p['targetSku'] for p in measured_posts if p['responseCode'] == '202')),
+                successfulBySku=dict(Counter(str(row['sku_id']) for row in calibrated_orders
+                    if row['status'] == 'SUCCEEDED' and start <= row['created_ms'] < end)),
+                settlementsInWindow=settled, settledTps=settled / result['seconds'],
+                skuLockWaitSampleHits={sku_id: lock_encounters[sku_id] for sku_id in sku_ids},
+                peakMqReady=max((sample['mq']['ready'] for sample in samples), default=None),
+                peakMqUnacked=max((sample['mq']['unacked'] for sample in samples), default=None),
+                peakHikariActive=max((sample['diagnostics']['pool']['active'] for sample in samples), default=None),
+                peakHikariPending=max((sample['diagnostics']['pool']['pending'] for sample in samples), default=None),
+                peakCpuPercent=max((sample['cpu'] for sample in samples), default=None))
+            result['capacityConclusionEligible'] = False  # 固定给定负载不能证明系统饱和。
+            result['wholeRunValid'] = result['valid'] = bool(result['valid']
+                and result['cohorts']['success202']['samples'] == result['accepted'])
         result['maximumStableCapacityProven'] = False  # 单轮不证明吞吐平台；需另行比较安全档位。
         checks['bucketAudit']['lockSamples'] = [dict(timeMs=s['timeMs'],locks=s['mysql'].get('stockLocks',[]),
             waits=s['mysql']['waits']) for s in monitor.samples if start <= s['timeMs'] < end]
@@ -1075,11 +1199,13 @@ def run_round(args):
 def initialize(args):
     runtime = args.runtime.resolve()
     if not runtime.is_relative_to((ROOT / '.local/jmeter').resolve()): raise RuntimeError('初始化须在.local/jmeter')
+    project = 'ticketing-jmeter-' + secrets.token_hex(6) if args.fresh_project else 'ticketing-jmeter'
+    project_label = 'label=com.docker.compose.project=' + project
     if args.previous_runtime:
         rotate_previous(args)
-    elif command(['docker', 'ps', '-a', '-q', '--filter', 'label=com.docker.compose.project=ticketing-jmeter']):
+    elif command(['docker', 'ps', '-a', '-q', '--filter', project_label]):
         raise RuntimeError('已有同名隔离容器，不覆盖或重建')
-    if not args.previous_runtime and command(['docker', 'volume', 'ls', '-q', '--filter', 'label=com.docker.compose.project=ticketing-jmeter']):
+    if not args.previous_runtime and command(['docker', 'volume', 'ls', '-q', '--filter', project_label]):
         raise RuntimeError('已有同名隔离卷，不复用或清空')
     native = WindowsResources(); native.host(); time.sleep(2)
     host = native.host()
@@ -1088,7 +1214,10 @@ def initialize(args):
     if SafetyGate().update(host): raise RuntimeError('主机资源不满足安全底线')
     command(['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
              ROOT/'scripts/jmeter/prepare-environment.ps1', '-RuntimeDirectory', runtime])
-    compose = ['docker', 'compose', '--project-name', 'ticketing-jmeter', '--env-file', runtime/'compose.env',
+    if args.fresh_project:
+        with (runtime/'compose.env').open('a', encoding='utf-8') as stream:
+            stream.write('JMETER_PROJECT=' + project + '\n')
+    compose = ['docker', 'compose', '--project-name', project, '--env-file', runtime/'compose.env',
                '--file', ROOT/'deploy/compose.yml']
     if args.previous_runtime:
         suffix = secrets.token_hex(6)
@@ -1103,7 +1232,7 @@ def initialize(args):
         cur.execute('SELECT COUNT(*) n FROM information_schema.tables WHERE table_schema=DATABASE()')
         if cur.fetchone()['n'] != 0: raise RuntimeError('新隔离库非空，拒绝初始化')
     expected_guard = hashlib.sha256(env['JMETER_GUARD_TOKEN'].encode()).hexdigest()
-    if json.loads(redis('SET', 'ticketing:jmeter:environment-guard', expected_guard, 'NX')) != 'OK':
+    if json.loads(redis('SET', 'ticketing:jmeter:environment-guard', expected_guard, 'NX', env=env)) != 'OK':
         raise RuntimeError('初次Redis guard已存在；拒绝覆盖')
     directory = runtime.parent/'bootstrap'; directory.mkdir()
     backend, logfile = start_backend(runtime, directory, args.java, 2, 10, bootstrap=True)
@@ -1124,8 +1253,8 @@ def initialize(args):
             preparation_monitor.close()
         (directory/'prepare-output.txt').write_text(text, encoding='utf-8')
         save(directory/'isolation.json', dict(docker=proof, host=resource,
-                                             redisAof=json.loads(redis('CONFIG', 'GET', 'appendonly')),
-                                             redisFsync=json.loads(redis('CONFIG', 'GET', 'appendfsync'))))
+                                             redisAof=json.loads(redis('CONFIG', 'GET', 'appendonly', env=env)),
+                                             redisFsync=json.loads(redis('CONFIG', 'GET', 'appendfsync', env=env))))
         print(f'隔离环境与{args.users}个独立账号已准备；凭据只写入忽略目录')
     finally:
         # 此时没有任何POST、订单或在途购票，安全结束自建的引导JVM。
@@ -1218,7 +1347,7 @@ def fresh_bucketed_sku(args):
     monitor=Monitor(env,directory,backend.pid,new_id); monitor.start()
     try:
         for _ in range(30):
-            ledger=json.loads(redis('HGETALL',f'ticketing:seckill:v2:ticketingjmeter:sku:{new_id}'))
+            ledger=json.loads(redis('HGETALL',f'ticketing:seckill:v2:ticketingjmeter:sku:{new_id}', env=env))
             if ledger and ledger.get('ready') == '1':
                 with db_connect(env) as ready_db, ready_db.cursor() as ready_cur:
                     ready_cur.execute("SELECT COALESCE((SELECT inventory_version FROM inventory_sync_version WHERE sku_id=%s),0) version",(new_id,))
@@ -1338,12 +1467,15 @@ def main():
     parser.add_argument('--selftest', action='store_true')
     parser.add_argument('--host-only', action='store_true')
     parser.add_argument('--initialize', action='store_true')
+    parser.add_argument('--fresh-project', action='store_true', help='为本次初始化生成独立 Compose 项目和数据卷')
     parser.add_argument('--users',type=int,default=10000,help='初始化独立账号预算，最多60000；预登录仍受资源保护')
     parser.add_argument('--prepare-account-pool', type=int, help='将现有隔离账号池一次补齐至指定人数，保留每轮领取游标')
     parser.add_argument('--fresh-bucketed-sku',action='store_true',help='guard隔离库新建空分桶票档并初始化Redis，不切换历史票档')
     parser.add_argument('--bucket-count',type=int,choices=(4,8,16,32),default=8,help='新建隔离分桶票档的桶数')
     parser.add_argument('--previous-runtime', type=Path, help='初始化新批次前核验并轮换旧隔离容器，保留全部旧卷')
     parser.add_argument('--fresh-sku', action='store_true', help='只在已有guard隔离库添加正常SINGLE测试票档，不清理旧数据')
+    parser.add_argument('--prepare-sku-comparison', action='store_true', help='创建单SKU、均匀和热点三个空场次')
+    parser.add_argument('--sku-profile', choices=SKU_COMPARISON, help='使用对照场次，固定速率连续预热30秒后正式测量')
     args = parser.parse_args()
     args.runtime = args.runtime.resolve()
     if not args.runtime.is_relative_to((ROOT / '.local/jmeter').resolve()): parser.error('运行目录必须在.local/jmeter')
@@ -1358,6 +1490,12 @@ def main():
     if args.allow_capacity_fill and (not args.inflight or args.inflight > args.capacity):
         parser.error('满容量验证仅允许不超过服务端容量的闭环在途窗口')
     if args.previous_runtime and not args.initialize: parser.error('旧批次轮换只可与initialize一起使用')
+    if args.fresh_project and (not args.initialize or args.previous_runtime):
+        parser.error('独立新项目只用于初始化并保留旧项目')
+    if args.sku_profile and (args.inflight or args.reuse_accounts or args.repeat_per_user != 1 or args.selftest):
+        parser.error('多SKU对照需固定速率、不同新账号及每人一笔')
+    if args.sku_profile and (not args.rps.is_integer() or args.rps * (args.seconds + COMPARISON_WARMUP_SECONDS) > 50000):
+        parser.error('对照到达率须为正整数且总请求数不超过50000')
     if args.host_only:
         native = WindowsResources(); samples = []
         for _ in range(3):
@@ -1372,6 +1510,9 @@ def main():
         return
     if args.fresh_bucketed_sku:
         fresh_bucketed_sku(args)
+        return
+    if args.prepare_sku_comparison:
+        prepare_sku_comparison(args.runtime)
         return
     if args.fresh_sku:
         env, _ = docker_guard(args.runtime)
@@ -1393,7 +1534,9 @@ def main():
         save(path, metadata)
         print('新增正常SINGLE诊断票档 ' + str(new_id) + '；原数据全部保留')
         return
-    run_round(args)
+    result = run_round(args)
+    if args.sku_profile and (not result['wholeRunValid'] or result['noEscalation']):
+        raise SystemExit('本轮对照未通过完整窗口或资源验证')
 
 
 if __name__ == '__main__':

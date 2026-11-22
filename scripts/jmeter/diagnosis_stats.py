@@ -8,6 +8,17 @@ DEFINITE_REJECTIONS = frozenset(('RATE_LIMIT_UNAVAILABLE', 'TOO_MANY_REQUESTS', 
                                 'TICKET_UNAVAILABLE', 'PURCHASE_LIMIT', 'WAITLIST_PRIORITY'))
 
 
+def sku_targets(sku_ids, weights, count):
+    """平滑加权轮询，让预热和测量窗口内的流量比例可复现。"""
+    shares = [0] * len(weights)
+    weight_sum = sum(weights)
+    for _ in range(count):
+        shares = [share + weight for share, weight in zip(shares, weights, strict=True)]
+        selected = max(range(len(weights)), key=shares.__getitem__)
+        shares[selected] -= weight_sum
+        yield sku_ids[selected]
+
+
 def success_cohorts(posts, orders):
     by_key = {r['idempotency_key']: r for r in orders}
     main, recovered, outcomes = [], [], Counter()

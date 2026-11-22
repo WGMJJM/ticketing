@@ -1,8 +1,16 @@
 import unittest
-from diagnosis_stats import SafetyGate, summarize, has_persistent_pending_growth, success_cohorts, warmup_stability, capacity_pressure_reason
+from collections import Counter
+from diagnosis_stats import SafetyGate, summarize, has_persistent_pending_growth, success_cohorts, warmup_stability, capacity_pressure_reason, sku_targets
 
 
 class DiagnosisStatsTest(unittest.TestCase):
+    def test_weighted_sku_targets_are_repeatable_across_warmup_and_measurement(self):
+        uniform = list(sku_targets(('A', 'B', 'C'), (1, 1, 1), 60))
+        self.assertEqual(uniform, ['A', 'B', 'C'] * 20)
+        hot = list(sku_targets(('A', 'B', 'C'), (80, 15, 5), 600))
+        self.assertEqual(hot[:300], hot[300:])
+        self.assertEqual(Counter(hot[300:]), {'A': 240, 'B': 45, 'C': 15})
+
     def test_full_capacity_closed_loop_requires_explicit_opt_in_and_still_rejects_overflow(self):
         self.assertEqual(capacity_pressure_reason(150, 0, 200), 'redis_pending_reaches_75_percent_capacity')
         self.assertEqual(capacity_pressure_reason(0, 150, 200), 'queue_reaches_75_percent_capacity')

@@ -41,12 +41,20 @@ def run(command: list[str]) -> str:
     return result.stdout.strip()
 
 
+def project_name(env: dict[str, str]) -> str:
+    project = env.get("JMETER_PROJECT", PROJECT)
+    if not re.fullmatch(r"ticketing-jmeter(?:-[0-9a-f]{12})?", project):
+        raise RuntimeError("隔离 JMeter 项目名不合法")
+    return project
+
+
 def verify_docker_volume(env_file: Path) -> dict[str, object]:
+    project = project_name(read_env(env_file))
     compose = [
         "docker",
         "compose",
         "--project-name",
-        PROJECT,
+        project,
         "--env-file",
         str(env_file),
         "--file",
@@ -57,10 +65,10 @@ def verify_docker_volume(env_file: Path) -> dict[str, object]:
         raise RuntimeError("ticketing-jmeter 的 MySQL 容器未运行")
     container = json.loads(run(["docker", "inspect", container_id]))[0]
     labels = container.get("Config", {}).get("Labels") or {}
-    if labels.get("com.docker.compose.project") != PROJECT or labels.get("com.docker.compose.service") != "mysql":
+    if labels.get("com.docker.compose.project") != project or labels.get("com.docker.compose.service") != "mysql":
         raise RuntimeError("MySQL 容器 Compose 项目或服务标签不匹配")
     mounts = [mount for mount in container.get("Mounts", []) if mount.get("Destination") == "/var/lib/mysql"]
-    if len(mounts) != 1 or mounts[0].get("Type") != "volume" or PROJECT not in mounts[0].get("Name", ""):
+    if len(mounts) != 1 or mounts[0].get("Type") != "volume" or not mounts[0].get("Name", "").startswith(project + "_"):
         raise RuntimeError("MySQL 数据卷不属于 ticketing-jmeter；拒绝准备测试数据")
     return {"containerId": container_id, "volume": mounts[0]["Name"]}
 
@@ -211,7 +219,7 @@ def main() -> int:
         write_csv(runtime / "measure-users.csv", cohorts["measure"])
         metadata = {
             "environment": "ticketing-jmeter-only",
-            "project": PROJECT,
+            "project": project_name(env),
             "database": db_name,
             "mysqlVersion": db_version,
             "flywayVersion": "17",

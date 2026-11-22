@@ -105,6 +105,8 @@ if (stop.exists() || System.currentTimeMillis() >= (long)config.endMs) {
     SampleResult.setIgnore(); ctx.getThread().stop(); return
 }
 def session = config.sessions[index]
+def targetSku = (session.skuId ?: config.skuId).toString()
+vars.put('targetSku', targetSku)
 vars.put('requestIndex', Integer.toString(index))
 vars.put('accountIndex', session.containsKey('accountIndex') ? session.accountIndex.toString() : Integer.toString(index))
 def key = "jmeter-${config.batch}-${index}"
@@ -118,7 +120,7 @@ def request = java.net.http.HttpRequest.newBuilder(java.net.URI.create(config.ta
     .timeout(java.time.Duration.ofSeconds(15)).header('Content-Type', 'application/json')
     .header('Cookie', session.cookie).header(session.csrfHeader, session.csrfToken)
     .header('Idempotency-Key', key)
-    .POST(java.net.http.HttpRequest.BodyPublishers.ofString('{"skuId":"' + config.skuId + '","quantity":1}')).build()
+    .POST(java.net.http.HttpRequest.BodyPublishers.ofString('{"skuId":"' + targetSku + '","quantity":1}')).build()
 // 初始请求逐个放行，500线程仅延长预热放行时间；正式阶段不限制RPS。
 if (config.inflight) {
     boolean admitted = false
