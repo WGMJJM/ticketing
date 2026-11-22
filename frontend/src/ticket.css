@@ -22,10 +22,15 @@
   background: white;
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 28px;
+  padding: 20px 24px;
   box-shadow: var(--shadow);
   border-top: 3px solid var(--border);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
 }
+.ticket-card.selected { outline: 2px solid var(--primary); outline-offset: -2px; }
+.ticket-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
 .ticket-card.selling { border-top-color: var(--success); }
 .ticket-card.selling .ticket-sale-label { color: var(--success); background: var(--success-soft); }
 .ticket-card.sold_out { border-top-color: #c0a178; }
@@ -35,7 +40,7 @@
   align-items: flex-start;
   gap: 15px;
 }
-.ticket-card h3 {
+.ticket-name {
   font-size: 18px;
   line-height: 1.6;
   color: var(--ink);
@@ -64,10 +69,11 @@
   color: var(--muted);
 }
 .ticket-price {
-  font-size: 32px;
+  display: block;
+  font-size: 27px;
   font-weight: 650;
   color: var(--primary);
-  margin: 25px 0 18px;
+  margin: 14px 0 8px;
   letter-spacing: -0.8px;
   overflow-wrap: anywhere;
   font-variant-numeric: tabular-nums;
@@ -94,25 +100,14 @@
 .ticket-stock > span {
   margin-left: auto;
 }
-.ticket-card dl {
-  display: grid;
-  gap: 12px;
-  margin: 22px 0 0;
-  padding-top: 20px;
-  border-top: 1px solid var(--border);
-  font-size: 12px;
-  color: var(--muted);
+.selected-ticket {
+  margin-top: 24px;
+  padding: clamp(16px, 4vw, 28px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: white;
 }
-.ticket-card dl > div {
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  gap: 15px;
-  justify-content: space-between;
-}
-.ticket-card dd {
-  margin: 0;
-  color: var(--muted);
-  text-align: right;
+.selected-ticket h3 {
   overflow-wrap: anywhere;
 }
 .ticket-query-note {
@@ -123,12 +118,27 @@
 }
 .ticket-manager-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   margin: 20px 0;
 }
 .ticket-manager-actions .el-button {
   margin-left: 0;
 }
+.ticket-edit-row {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+.ticket-edit-row + .ticket-edit-row {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+.ticket-edit-row legend { font-weight: 600; }
+.ticket-edit-row > .el-button { justify-self: start; }
 .ticket-table {
   min-width: 880px;
 }

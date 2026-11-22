@@ -1,20 +1,18 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import axios from 'axios'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import 'element-plus/es/components/message-box/style/css'
 import { useAuthStore } from '../stores/auth'
-import { orderApi, type PurchaseLimit } from '../api/orders'
+import type { PurchaseLimit } from '../api/orders'
 import { waitlistApi } from '../api/waitlist'
 import type { TicketSku } from '../api/tickets'
 import { chineseValidation, clearValidation } from '../utils/validation'
-const props = defineProps<{ ticket: TicketSku }>()
+const props = defineProps<{ ticket: TicketSku; limit?: PurchaseLimit }>()
 const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
-const limit = ref<PurchaseLimit>()
-const loading = ref(false)
 const busy = ref(false)
 const error = ref('')
 const minimum = 1
@@ -22,31 +20,21 @@ const quantity = ref(1)
 const maximum = computed(() =>
   Math.min(
     props.ticket.maxQuantityPerOrder,
-    limit.value?.remainingQuantity ?? props.ticket.maxQuantityPerOrder,
+    props.limit?.remainingQuantity ?? props.ticket.maxQuantityPerOrder,
   ),
 )
 const show = computed(() => minimum <= maximum.value)
-async function loadLimit() {
-  limit.value = undefined
-  if (!auth.authenticated) return
-  loading.value = true
-  error.value = ''
-  try {
-    limit.value = await orderApi.limits(props.ticket.sessionId)
-  } catch (failure) {
-    error.value = failure instanceof Error ? failure.message : '限购查询失败'
-  } finally {
-    loading.value = false
-  }
-}
-watch(() => auth.user?.id, loadLimit, { immediate: true })
+let mounted = true
+onBeforeUnmount(() => { mounted = false })
 async function join() {
-  if (!auth.authenticated) {
+  if (busy.value) return
+  const userId = auth.user?.id
+  if (!userId) {
     await router.push({ path: '/login', query: { redirect: route.path } })
     return
   }
   if (
-    !Number.isInteger(quantity.value) ||
+    !props.limit || !Number.isInteger(quantity.value) ||
     quantity.value < minimum ||
     quantity.value > maximum.value
   ) {
@@ -55,6 +43,8 @@ async function join() {
   }
   busy.value = true
   error.value = ''
+  const skuId = props.ticket.id
+  const requestedQuantity = quantity.value
   try {
     try {
       await ElMessageBox.confirm(
@@ -69,8 +59,14 @@ async function join() {
     } catch {
       return
     }
-    const entry = await waitlistApi.join(props.ticket.id, quantity.value)
-    await router.push('/waitlist/' + entry.id)
+    if (!mounted || auth.user?.id !== userId) return
+    if (!props.limit || requestedQuantity > maximum.value ||
+        !['SELLING', 'SOLD_OUT'].includes(props.ticket.saleStatus)) {
+      error.value = '票档或限购已变化，请重新确认候补数量'
+      return
+    }
+    const entry = await waitlistApi.join(skuId, requestedQuantity)
+    if (mounted && auth.user?.id === userId) await router.push('/waitlist/' + entry.id)
   } catch (failure) {
     const rejected = axios.isAxiosError(failure) &&
       (failure.response?.status === 429 || failure.response?.data?.code === 'RATE_LIMIT_UNAVAILABLE')
@@ -94,9 +90,6 @@ async function join() {
     <p>
       库存不足或已有候补排队时可申请，按记录顺序优先分配；不足以满足队首时会继续等待。
     </p>
-    <p v-if="limit">
-      本场还可购买 {{ limit.remainingQuantity }} 张，分配时将再次检查限购。
-    </p>
     <label :for="'wait-quantity-' + ticket.id">候补数量</label>
     <input
       :id="'wait-quantity-' + ticket.id"
@@ -112,11 +105,8 @@ async function join() {
     <ElButton
       native-type="submit"
       :loading="busy"
-      :disabled="loading || (auth.authenticated && !limit)"
+      :disabled="auth.authenticated && !limit"
       >{{ auth.authenticated ? '申请候补' : '登录后申请候补' }}</ElButton
-    >
-    <ElButton v-if="auth.authenticated && !limit && !loading" @click="loadLimit"
-      >重试限购查询</ElButton
     >
     <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
     <RouterLink v-if="auth.authenticated" to="/waitlist"

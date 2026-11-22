@@ -10,14 +10,12 @@ import { readAttempt, saveAttempt, clearAttempt, type PurchaseAttempt } from '..
 import type { TicketSku } from '../api/tickets'
 import { formatCents } from '../utils/money'
 import { chineseValidation, clearValidation } from '../utils/validation'
-const props = defineProps<{ ticket: TicketSku }>()
+const props = defineProps<{ ticket: TicketSku; limit?: PurchaseLimit }>()
 const emit = defineEmits<{ changed: [] }>()
 const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
 const quantity = ref(1)
-const limit = ref<PurchaseLimit>()
-const loading = ref(false)
 const busy = ref(false)
 const error = ref('')
 const attempt = ref<PurchaseAttempt>()
@@ -25,28 +23,15 @@ const selling = computed(() => props.ticket.saleStatus === 'SELLING')
 let generation = 0
 onBeforeUnmount(() => { generation++ })
 const maximum = computed(() => Math.min(props.ticket.availableStock, props.ticket.maxQuantityPerOrder,
-  limit.value?.remainingQuantity ?? props.ticket.maxQuantityPerOrder))
+  props.limit?.remainingQuantity ?? props.ticket.maxQuantityPerOrder))
 const estimate = computed(() => formatCents((BigInt(props.ticket.priceCents) *
   BigInt(Number.isInteger(quantity.value) ? quantity.value : 0)).toString()))
-async function loadLimit() {
-  const active = generation
-  if (!auth.authenticated) return
-  loading.value = true
-  limit.value = undefined
-  try {
-    const result = await orderApi.limits(props.ticket.sessionId)
-    if (active === generation) limit.value = result
-  } catch (failure) {
-    if (active === generation) error.value = failure instanceof Error ? failure.message : '限购信息加载失败'
-  } finally { if (active === generation) loading.value = false }
-}
 watch([() => auth.user?.id, () => props.ticket.id], () => {
   generation++
   busy.value = false
   error.value = ''
   attempt.value = auth.user ? readAttempt(auth.user.id, props.ticket.id) : undefined
   quantity.value = attempt.value?.quantity ?? 1
-  void loadLimit()
 }, { immediate: true })
 async function purchase() {
   if (busy.value) return
@@ -54,6 +39,7 @@ async function purchase() {
   if (!userId) { await router.push({ path: '/login', query: { redirect: route.path } }); return }
   if (attempt.value?.requestId) { await router.push('/purchase-requests/' + attempt.value.requestId); return }
   if (!attempt.value && !selling.value) return
+  if (!attempt.value && !props.limit) return
   if (!attempt.value && (!Number.isInteger(quantity.value) || quantity.value < 1 || quantity.value > maximum.value)) {
     error.value = '请按库存与限购范围选择数量'; return
   }
@@ -72,6 +58,10 @@ async function purchase() {
         )
       } catch { return }
       if (active !== generation) return
+      if (!selling.value || !props.limit || quantity.value > maximum.value) {
+        error.value = '票档库存或限购已变化，请重新确认购买数量'
+        return
+      }
       current = { quantity: quantity.value, key: crypto.randomUUID() }
       saveAttempt(userId, skuId, current)
       attempt.value = current
@@ -100,9 +90,13 @@ async function purchase() {
         try { result = await purchaseApi.lookup(current.key) } catch { throw writeFailure }
       } else throw writeFailure
     }
+    if (active !== generation) {
+      if (readAttempt(userId, skuId)?.key === current.key)
+        saveAttempt(userId, skuId, { ...current, requestId: result.requestId })
+      return
+    }
     if (result.status === 'QUEUED') saveAttempt(userId, skuId, { ...current, requestId: result.requestId })
     else clearAttempt(userId, skuId, current.key)
-    if (active !== generation) return
     attempt.value = result.status === 'QUEUED' ? { ...current, requestId: result.requestId } : undefined
     if (result.status === 'SUCCEEDED' && result.orderId) {
       await router.push('/orders/' + result.orderId)
@@ -115,7 +109,6 @@ async function purchase() {
       if (rejected) {
         attempt.value = undefined
         emit('changed')
-        void loadLimit()
       }
       error.value = (failure instanceof Error ? failure.message : '购票申请提交失败') +
         (rejected ? (priority ? '。可在下方申请候补。' : '。可调整数量后重新提交。')
@@ -133,11 +126,6 @@ function definitivelyRejected(failure: unknown) {
 <template>
   <form class="purchase-panel" @submit.prevent="purchase" @invalid.capture="chineseValidation"
     @input.capture="clearValidation" @change.capture="clearValidation">
-    <template v-if="selling && auth.authenticated">
-      <p v-if="loading">正在读取限购信息…</p>
-      <p v-else-if="limit">本场限购 {{ limit.maxPerSession }} 张，已占用 {{ limit.usedQuantity }} 张，还可购买 {{ limit.remainingQuantity }} 张</p>
-      <ElButton v-else @click="loadLimit">重试限购查询</ElButton>
-    </template>
     <template v-if="selling">
       <label :for="'quantity-' + ticket.id">购买数量</label>
       <input :id="'quantity-' + ticket.id" v-model.number="quantity" type="number" min="1"
@@ -149,9 +137,8 @@ function definitivelyRejected(failure: unknown) {
     <p v-if="attempt" role="status">已保留原购票申请（{{ attempt.quantity }} 张），可查询受理结果。</p>
     <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
     <ElButton v-if="selling || attempt" type="primary" native-type="submit" :loading="busy"
-      :disabled="!attempt && (maximum < 1 || (auth.authenticated && (!limit || loading)))">
+      :disabled="!attempt && (maximum < 1 || (auth.authenticated && !limit))">
       {{ !auth.authenticated ? '登录后购票' : attempt?.requestId ? '查看购票进度' : attempt ? (selling ? '查询或重试原申请' : '查询原购票申请') : '提交购票申请' }}
     </ElButton>
-    <RouterLink v-if="auth.authenticated" to="/purchase-requests">查看购票进度</RouterLink>
   </form>
 </template>

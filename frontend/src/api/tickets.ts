@@ -67,6 +67,12 @@ export const adminTickets = {
       url: `/admin/sessions/${sessionId}/tickets`,
       data,
     }),
+  createBatch: (sessionId: string, tickets: TicketInput[]) =>
+    useAuthStore().request<TicketSku[]>({
+      method: 'POST',
+      url: `/admin/sessions/${sessionId}/tickets/batch`,
+      data: { tickets },
+    }),
   update: (id: string, data: TicketInput) =>
     useAuthStore().request<TicketSku>({
       method: 'PUT',

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { useAuthStore } from '../stores/auth'
 import { purchaseApi, purchaseStatusText, type PurchaseRequest } from '../api/orders'
-import { readAttempt, clearAttempt } from '../utils/purchaseAttempts'
+import { readAttempt, clearAttempt, listAttempts, saveAttempt, type PurchaseAttempt } from '../utils/purchaseAttempts'
 import { formatTime } from '../utils/date'
 const props = defineProps<{ id?: string }>()
 const router = useRouter()
@@ -13,6 +13,11 @@ const rows = ref<PurchaseRequest[]>([])
 const loading = ref(false)
 const error = ref('')
 const paused = ref(false)
+const saved = ref<ReturnType<typeof listAttempts>>([])
+const recovering = ref('')
+const recoveryError = ref('')
+const unlisted = computed(() => saved.value.filter(attempt => !rows.value.some(request =>
+  attempt.requestId ? request.requestId === attempt.requestId : request.skuId === attempt.skuId)))
 let timer: ReturnType<typeof setTimeout> | undefined
 let controller: AbortController | undefined
 let generation = 0
@@ -25,6 +30,7 @@ async function load(restart = false) {
   if (loading.value) return
   const active = generation
   const userId = auth.user.id
+  if (!props.id) saved.value = listAttempts(userId)
   controller = new AbortController()
   loading.value = true
   error.value = ''
@@ -54,7 +60,29 @@ async function load(restart = false) {
     }
   }
 }
-watch(() => [props.id, auth.user?.id], () => { rows.value = []; stop(); void load(true) }, { immediate: true })
+async function recover(attempt: PurchaseAttempt & { skuId: string }) {
+  const userId = auth.user?.id
+  if (!userId || recovering.value) return
+  recovering.value = attempt.key
+  recoveryError.value = ''
+  try {
+    const current = await purchaseApi.lookup(attempt.key)
+    if (disposed || auth.user?.id !== userId) return
+    saveAttempt(userId, attempt.skuId, { ...attempt, requestId: current.requestId })
+    await router.push('/purchase-requests/' + current.requestId)
+  } catch (failure) {
+    recoveryError.value = failure instanceof Error ? failure.message : '暂时无法查询原申请'
+  } finally {
+    recovering.value = ''
+  }
+}
+watch(() => [props.id, auth.user?.id], () => {
+  rows.value = []
+  saved.value = []
+  recoveryError.value = ''
+  stop()
+  void load(true)
+}, { immediate: true })
 function visibility() { if (document.hidden) stop(); else void load(true) }
 document.addEventListener('visibilitychange', visibility)
 onBeforeUnmount(() => { disposed = true; stop(); document.removeEventListener('visibilitychange', visibility) })
@@ -67,7 +95,7 @@ onBeforeUnmount(() => { disposed = true; stop(); document.removeEventListener('v
     <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
     <p v-if="!auth.authenticated" class="stage-notice" role="status">登录状态已失效，请重新登录后查看原申请。<RouterLink :to="{path:'/login',query:{redirect:id ? '/purchase-requests/'+id : '/purchase-requests'}}">重新登录 →</RouterLink></p>
     <p v-if="paused" class="stage-notice" role="status">已暂停自动查询，页面不会因此改变服务端处理结果，可稍后手动刷新。</p>
-    <div v-if="auth.authenticated && !loading && !error && !rows.length" class="content-state">当前没有待处理的购票申请。这里显示最近 50 笔进行中的申请。</div>
+    <div v-if="auth.authenticated && !loading && !error && !rows.length && !unlisted.length" class="content-state">当前没有待处理的购票申请。这里显示最近 50 笔进行中的申请。</div>
     <article v-for="request in rows" :key="request.requestId" class="order-card">
       <div class="order-card-heading"><h2>{{ purchaseStatusText[request.status] }}</h2><span class="state-pill">申请 {{ request.requestId }}</span></div>
       <p>票档 {{ request.skuId }} · {{ request.quantity }} 张</p>
@@ -76,6 +104,17 @@ onBeforeUnmount(() => { disposed = true; stop(); document.removeEventListener('v
       <RouterLink v-if="!id" :to="'/purchase-requests/' + request.requestId">查看申请进度 →</RouterLink>
       <RouterLink v-if="request.orderId" :to="'/orders/' + request.orderId">查看正式订单 →</RouterLink>
     </article>
+    <template v-if="!id">
+      <article v-for="attempt in unlisted" :key="attempt.skuId" class="order-card">
+        <h2>本标签页保留的购票申请</h2>
+        <p>票档 {{ attempt.skuId }} · {{ attempt.quantity }} 张</p>
+        <RouterLink v-if="attempt.requestId" :to="'/purchase-requests/' + attempt.requestId">查看申请进度 →</RouterLink>
+        <ElButton v-else :loading="recovering === attempt.key" :disabled="!!recovering" @click="recover(attempt)">
+          查询原申请
+        </ElButton>
+      </article>
+      <p v-if="recoveryError" class="inline-error" role="alert">{{ recoveryError }}</p>
+    </template>
     <div class="hero-actions"><RouterLink to="/orders">查看我的订单 →</RouterLink><RouterLink to="/waitlist">查看缺票候补 →</RouterLink></div>
   </div>
 </template>

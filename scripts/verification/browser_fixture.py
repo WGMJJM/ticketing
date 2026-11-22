@@ -60,26 +60,35 @@ def main():
         'title': '第十九阶段浏览器演示 ' + run, 'category': 'CONCERT', 'city': '上海',
         'venue': '隔离测试场馆', 'summary': '浏览器真实业务验收', 'description': '仅用于独立验收，不是真实演出'})
     operator.request('POST', '/api/v1/admin/activities/' + activity['id'] + '/publish', {'version': activity['version']})
-    def target(name, stock):
+    def target(name, stock, second_tier=False):
         session = operator.request('POST', '/api/v1/admin/activities/' + activity['id'] + '/sessions', {
             'title': name, 'saleStartsAt': (now - timedelta(hours=1)).isoformat(),
             'startsAt': (now + timedelta(minutes=40)).isoformat(), 'endsAt': (now + timedelta(hours=3)).isoformat()})
-        sku = operator.request('POST', '/api/v1/admin/sessions/' + session['id'] + '/tickets', {
+        endpoint = '/api/v1/admin/sessions/' + session['id'] + '/tickets'
+        payload = {
             'name': name + '票档', 'priceCents': '12800', 'totalStock': stock,
             'saleStartsAt': (now - timedelta(minutes=30)).isoformat(),
-            'saleEndsAt': (now + timedelta(minutes=35)).isoformat(), 'maxQuantityPerOrder': 4})
+            'saleEndsAt': (now + timedelta(minutes=35)).isoformat(), 'maxQuantityPerOrder': 4}
+        if second_tier:
+            sku, secondary = operator.request('POST', endpoint + '/batch', {'tickets': [
+                payload, {**payload, 'name': '内场票档', 'priceCents': '29900', 'totalStock': 5, 'maxQuantityPerOrder': 2}]})
+            secondary = operator.request('POST', '/api/v1/admin/tickets/' + secondary['id'] + '/publish',
+                                         {'version': secondary['version']})
+        else:
+            sku = operator.request('POST', endpoint, payload)
         sku = operator.request('POST', '/api/v1/admin/tickets/' + sku['id'] + '/publish', {'version': sku['version']})
-        return {'activityId': activity['id'], 'sessionId': session['id'], 'skuId': sku['id'], 'title': name}
-    main = target('正常购票场次', 20)
+        return {'activityId': activity['id'], 'sessionId': session['id'], 'skuId': sku['id'], 'title': name,
+                **({'secondSkuId': secondary['id'], 'secondSkuName': secondary['name']} if second_tier else {})}
+    main = target('正常购票场次', 20, second_tier=True)
     waitlist = target('FIFO候补场次', 2)
     aftercare = target('取消善后场次', 10)
-    # 新票档由既有库存同步任务初始化；在真实购票前等待三个隔离票档就绪。
+    # 新票档由既有库存同步任务初始化；在真实购票前等待四个隔离票档就绪。
     deadline = time.monotonic() + 20
     while True:
         with verification.connect() as db, db.cursor() as cur:
-            cur.execute('SELECT COUNT(*) n FROM ticket_sku WHERE id IN (%s,%s,%s) AND redis_inventory_initialized=1',
-                        (main['skuId'], waitlist['skuId'], aftercare['skuId']))
-            if cur.fetchone()['n'] == 3:
+            cur.execute('SELECT COUNT(*) n FROM ticket_sku WHERE id IN (%s,%s,%s,%s) AND redis_inventory_initialized=1',
+                        (main['skuId'], main['secondSkuId'], waitlist['skuId'], aftercare['skuId']))
+            if cur.fetchone()['n'] == 4:
                 break
         if time.monotonic() >= deadline:
             raise RuntimeError('隔离票档库存初始化超时')

@@ -20,3 +20,17 @@ export function saveAttempt(userId: string, skuId: string, attempt: PurchaseAtte
 export function clearAttempt(userId: string, skuId: string, key: string) {
   if (readAttempt(userId, skuId)?.key === key) sessionStorage.removeItem(slot(userId, skuId))
 }
+export function listAttempts(userId: string) {
+  const prefix = slot(userId, '')
+  const attempts: Array<PurchaseAttempt & { skuId: string }> = []
+  try {
+    for (let index = 0; index < sessionStorage.length; index++) {
+      const key = sessionStorage.key(index)
+      if (!key?.startsWith(prefix)) continue
+      const skuId = key.slice(prefix.length)
+      const attempt = readAttempt(userId, skuId)
+      if (attempt) attempts.push({ skuId, ...attempt })
+    }
+  } catch { /* 服务端进行中的申请仍然可查。 */ }
+  return attempts
+}

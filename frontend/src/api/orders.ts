@@ -88,10 +88,11 @@ export const orderStatusText = {
   REFUNDED: '已退款',
 }
 export const orderApi = {
-  limits: (sessionId: string) =>
+  limits: (sessionId: string, signal?: AbortSignal) =>
     useAuthStore().request<PurchaseLimit>({
       url: '/orders/limits',
       params: { sessionId },
+      signal,
     }),
   create: (skuId: string, quantity: number, key: string) =>
     useAuthStore().request<PurchaseRequest>({

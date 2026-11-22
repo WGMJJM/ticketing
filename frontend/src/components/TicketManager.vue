@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import 'element-plus/es/components/message-box/style/css'
 import type { ActivitySession } from '../api/activities'
@@ -22,14 +22,10 @@ const error = ref('')
 const notice = ref('')
 const formOpen = ref(false)
 const editing = ref<TicketSku>()
-const form = reactive({
-  name: '',
-  priceYuan: '0.00',
-  totalStock: 0,
-  saleStartsAt: '',
-  saleEndsAt: '',
-  maxQuantityPerOrder: 4,
-})
+const batch = ref(false)
+const forms = ref<ReturnType<typeof newForm>[]>([])
+const remainingSlots = computed(() => 200 - rows.value.length)
+let nextFormId = 0
 async function load() {
   loading.value = true
   error.value = ''
@@ -57,11 +53,9 @@ watch(
   },
   { immediate: true },
 )
-function edit(ticket?: TicketSku) {
-  editing.value = ticket
-  error.value = ''
-  notice.value = ''
-  Object.assign(form, {
+function newForm(ticket?: TicketSku) {
+  return {
+    id: ++nextFormId,
     name: ticket?.name ?? '',
     priceYuan: ticket ? centsToYuan(ticket.priceCents) : '0.00',
     totalStock: ticket?.totalStock ?? 0,
@@ -74,64 +68,81 @@ function edit(ticket?: TicketSku) {
         ).toISOString(),
     ),
     saleEndsAt: toBeijingInput(ticket?.saleEndsAt ?? props.session.startsAt),
-  })
-  formOpen.value = true
+  }
 }
-async function save() {
+function edit(ticket?: TicketSku, multiple = false) {
+  editing.value = ticket
+  batch.value = multiple
   error.value = ''
   notice.value = ''
-  try {
-    if (
-      editing.value &&
-      form.totalStock < editing.value.lockedStock + editing.value.soldStock
-    )
-      throw new Error('总库存不能小于已锁定库存与已售库存之和')
-    const enabled = editing.value?.status === 'ON_SALE'
-    const payload: TicketInput =
-      enabled && editing.value
+  forms.value = [newForm(ticket)]
+  if (multiple) forms.value.push(newForm())
+  formOpen.value = true
+}
+function toPayload(form: ReturnType<typeof newForm>, ticket?: TicketSku): TicketInput {
+  if (ticket && form.totalStock < ticket.lockedStock + ticket.soldStock)
+    throw new Error('总库存不能小于已锁定库存与已售库存之和')
+  const payload: TicketInput =
+      ticket?.status === 'ON_SALE'
         ? {
-            name: editing.value.name,
-            priceCents: editing.value.priceCents,
+            name: ticket.name,
+            priceCents: ticket.priceCents,
             totalStock: form.totalStock,
-            saleStartsAt: editing.value.saleStartsAt,
-            saleEndsAt: editing.value.saleEndsAt,
-            maxQuantityPerOrder: editing.value.maxQuantityPerOrder,
-            version: editing.value.version,
+            saleStartsAt: ticket.saleStartsAt,
+            saleEndsAt: ticket.saleEndsAt,
+            maxQuantityPerOrder: ticket.maxQuantityPerOrder,
+            version: ticket.version,
           }
         : {
             name: form.name.trim(),
             priceCents: yuanToCents(form.priceYuan),
             totalStock: form.totalStock,
             saleStartsAt:
-              editing.value &&
-              form.saleStartsAt === toBeijingInput(editing.value.saleStartsAt)
-                ? editing.value.saleStartsAt
+              ticket &&
+              form.saleStartsAt === toBeijingInput(ticket.saleStartsAt)
+                ? ticket.saleStartsAt
                 : fromBeijingInput(form.saleStartsAt),
             saleEndsAt:
-              editing.value &&
-              form.saleEndsAt === toBeijingInput(editing.value.saleEndsAt)
-                ? editing.value.saleEndsAt
+              ticket &&
+              form.saleEndsAt === toBeijingInput(ticket.saleEndsAt)
+                ? ticket.saleEndsAt
                 : fromBeijingInput(form.saleEndsAt),
             maxQuantityPerOrder: form.maxQuantityPerOrder,
-            ...(editing.value ? { version: editing.value.version } : {}),
+            ...(ticket ? { version: ticket.version } : {}),
           }
-    if (
-      new Date(payload.saleEndsAt).getTime() <=
-      new Date(payload.saleStartsAt).getTime()
-    )
-      throw new Error('停售时间必须晚于开售时间')
-    if (
-      new Date(payload.saleStartsAt).getTime() <
-        new Date(props.session.saleStartsAt).getTime() ||
-      new Date(payload.saleEndsAt).getTime() >
-        new Date(props.session.startsAt).getTime()
-    )
-      throw new Error('票档开售不得早于场次开售，停售不得晚于场次开始')
+  if (
+    new Date(payload.saleEndsAt).getTime() <=
+    new Date(payload.saleStartsAt).getTime()
+  )
+    throw new Error('停售时间必须晚于开售时间')
+  if (
+    new Date(payload.saleStartsAt).getTime() <
+      new Date(props.session.saleStartsAt).getTime() ||
+    new Date(payload.saleEndsAt).getTime() >
+      new Date(props.session.startsAt).getTime()
+  )
+    throw new Error('票档开售不得早于场次开售，停售不得晚于场次开始')
+  return payload
+}
+async function save() {
+  error.value = ''
+  notice.value = ''
+  try {
+    const payload = forms.value.map((form, index) => {
+      try {
+        return toPayload(form, editing.value)
+      } catch (failure) {
+        if (batch.value && failure instanceof Error)
+          throw new Error(`第 ${index + 1} 个票档：${failure.message}`)
+        throw failure
+      }
+    })
     saving.value = true
-    if (editing.value) await adminTickets.update(editing.value.id, payload)
-    else await adminTickets.create(props.session.id, payload)
+    if (editing.value) await adminTickets.update(editing.value.id, payload[0]!)
+    else if (batch.value) await adminTickets.createBatch(props.session.id, payload)
+    else await adminTickets.create(props.session.id, payload[0]!)
     formOpen.value = false
-    notice.value = '票档已保存'
+    notice.value = batch.value ? `已创建 ${payload.length} 个票档草稿` : '票档已保存'
     await load()
   } catch (failure) {
     report(failure)
@@ -190,10 +201,12 @@ async function transition(ticket: TicketSku) {
     <div class="ticket-manager-actions">
       <ElButton
         type="primary"
-        :disabled="saving || loading || session.status !== 'SCHEDULED'"
+        :disabled="saving || loading || remainingSlots < 1 || session.status !== 'SCHEDULED'"
         @click="edit()"
-        >新增票档</ElButton
-      ><ElButton :loading="loading" :disabled="saving" @click="load"
+        >新增票档</ElButton>
+      <ElButton :disabled="saving || loading || remainingSlots < 2 || session.status !== 'SCHEDULED'"
+        @click="edit(undefined, true)">批量新增票档</ElButton>
+      <ElButton :loading="loading" :disabled="saving" @click="load"
         >刷新列表</ElButton
       >
     </div>
@@ -205,10 +218,12 @@ async function transition(ticket: TicketSku) {
       @input.capture="clearValidation"
       @change.capture="clearValidation"
     >
-      <h3>{{ editing ? '编辑票档与库存' : '新增票档草稿' }}</h3>
+      <h3>{{ editing ? '编辑票档与库存' : batch ? '批量新增票档草稿' : '新增票档草稿' }}</h3>
       <p v-if="editing?.status === 'ON_SALE'" class="form-hint">
         当前已启用销售，只能调整总库存；其他信息请先下架后修改。
       </p>
+      <fieldset v-for="(form, index) in forms" :key="form.id" class="ticket-edit-row" :disabled="saving">
+      <legend v-if="batch">票档 {{ index + 1 }}</legend>
       <div class="form-pair">
         <label
           >票档名称<input
@@ -260,11 +275,16 @@ async function transition(ticket: TicketSku) {
             :disabled="editing?.status === 'ON_SALE'"
         /></label>
       </div>
+      <ElButton v-if="batch && forms.length > 1" @click="forms.splice(index, 1)">移除此票档</ElButton>
+      </fieldset>
       <div class="form-actions">
+        <ElButton v-if="batch" :disabled="saving || forms.length >= remainingSlots" @click="forms.push(newForm())">
+          添加一行
+        </ElButton>
         <ElButton :disabled="saving" @click="formOpen = false"
           >取消编辑</ElButton
         ><ElButton type="primary" native-type="submit" :loading="saving"
-          >保存票档</ElButton
+          >{{ batch ? '创建全部草稿' : '保存票档' }}</ElButton
         >
       </div>
     </form>

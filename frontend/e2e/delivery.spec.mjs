@@ -34,7 +34,7 @@ async function api(page, method, url, data, key) {
 async function select(page, target = fixture.main) {
   await page.goto('/activities/' + target.activityId)
   await page.getByRole('button', { name: new RegExp(target.title) }).click()
-  await expect(page.locator('.ticket-card')).toBeVisible()
+  await expect(page.locator('.ticket-card').first()).toBeVisible()
 }
 async function purchase(page) {
   await select(page)
@@ -123,10 +123,27 @@ test('01 公开查询 注册登录 刷新登出 越权跳转和移动宽度', as
 test('02 普通202购票 丢失响应后刷新恢复 模拟支付与二维码不持久化', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await login(page)
+  let limitCalls = 0
+  page.on('request', request => {
+    if (new URL(request.url()).pathname === '/api/v1/orders/limits') limitCalls++
+  })
   await select(page)
+  const standard = page.getByLabel(fixture.main.title + '票档购买数量')
+  const secondary = page.getByLabel(fixture.main.secondSkuName + '购买数量')
+  await expect(standard).toBeVisible()
+  await standard.fill('3')
+  await page.getByRole('button', { name: new RegExp(fixture.main.secondSkuName) }).click()
+  await expect(page.locator('form.purchase-panel:not(.waitlist-purchase)')).toHaveCount(1)
+  await expect(standard).toHaveCount(0)
+  await expect(secondary).toHaveValue('1')
+  await expect(secondary).toHaveAttribute('max', '2')
+  await expect(page.getByLabel(fixture.main.secondSkuName + '候补数量')).toBeVisible()
+  await expect(page.locator('.purchase-estimate')).toContainText('299.00')
+  expect(limitCalls).toBe(1)
   // 真实后端已提交后丢弃网络响应；不伪造任何业务响应。
   await page.route('**/api/v1/orders', async route => {
     if (route.request().method() !== 'POST') return route.continue()
+    expect(route.request().postDataJSON().skuId).toBe(fixture.main.secondSkuId)
     const response = await route.fetch()
     expect(response.status()).toBe(202)
     await route.abort('connectionreset')
@@ -300,7 +317,7 @@ test('07 管理员从页面创建发布活动 场次票档及库存调整', asyn
   await dialog.getByRole('button', { name: '保存场次' }).click()
   await dialog.getByRole('button', { name: '票档管理' }).click()
   dialog = page.getByRole('dialog').last()
-  await dialog.getByRole('button', { name: '新增票档' }).click()
+  await dialog.getByRole('button', { name: '新增票档', exact: true }).click()
   await dialog.getByLabel('票档名称').fill('页面新增票档')
   await dialog.getByLabel('票价（人民币元）').fill('100.00')
   await dialog.getByLabel('总库存（张）').fill('10')
@@ -314,6 +331,16 @@ test('07 管理员从页面创建发布活动 场次票档及库存调整', asyn
   await dialog.getByLabel('总库存（张）').fill('13')
   await dialog.getByRole('button', { name: '保存票档' }).click()
   await expect(dialog.getByText('可售 13', { exact: true })).toBeVisible()
+  await dialog.getByRole('button', { name: '批量新增票档', exact: true }).click()
+  for (const [index, name] of ['页面内场票', '页面看台票'].entries()) {
+    const tier = dialog.getByRole('group', { name: '票档 ' + (index + 1), exact: true })
+    await tier.getByLabel('票档名称').fill(name)
+    await tier.getByLabel('票价（人民币元）').fill(index ? '50' : '300')
+    await tier.getByLabel('总库存（张）').fill(index ? '20' : '5')
+  }
+  await dialog.getByRole('button', { name: '创建全部草稿' }).click()
+  await expect(dialog.getByRole('row').filter({ hasText: '页面内场票' })).toContainText('草稿')
+  await expect(dialog.getByRole('row').filter({ hasText: '页面看台票' })).toContainText('总量 20')
 })
 
 test('08 场次取消逐单善后及管理审计页面', async ({ page }) => {
@@ -354,9 +381,29 @@ test('10 消费者停止时202排队 刷新恢复及真实排队截止', async (
   try {
     await login(page)
     await select(page)
+    let allowResponse
+    const release = new Promise(resolve => { allowResponse = resolve })
+    let noteAccepted
+    const received = new Promise(resolve => { noteAccepted = resolve })
+    await page.route('**/api/v1/orders', async route => {
+      const response = await route.fetch()
+      noteAccepted((await response.json()).data.requestId)
+      await release
+      await route.fulfill({ response })
+    })
     await page.getByRole('button', { name: '提交购票申请', exact: true }).click()
     await page.getByRole('button', { name: '提交购票申请', exact: true }).last().click()
-    await expect(page).toHaveURL(/\/purchase-requests\/\d+$/)
+    const requestId = await received
+    try {
+      await page.getByRole('button', { name: new RegExp(fixture.main.secondSkuName) }).click()
+      await expect(page.getByLabel(fixture.main.secondSkuName + '购买数量')).toBeVisible()
+    } finally { allowResponse() }
+    await expect.poll(async () => page.evaluate(({ user, sku }) =>
+      JSON.parse(sessionStorage.getItem('ticketing.purchase.' + user + '.' + sku))?.requestId,
+      { user: (await api(page, 'GET', '/auth/me')).body.data.id, sku: fixture.main.skuId })).toBe(requestId)
+    await page.getByRole('link', { name: '查看购票进度', exact: true }).click()
+    await page.locator(`a[href="/purchase-requests/${requestId}"]`).click()
+    await expect(page).toHaveURL('/purchase-requests/' + requestId)
     await page.reload()
     await expect(page.getByRole('heading', { name: '排队已超时', exact: true })).toBeVisible({ timeout: 20000 })
     const result = await api(page, 'GET', '/purchase-requests/' + page.url().split('/').pop())
