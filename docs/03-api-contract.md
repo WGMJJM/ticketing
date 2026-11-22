@@ -170,11 +170,11 @@ Spring Scheduling默认开启，启动即扫描MySQL的 `PENDING AND expires_at<
 | POST /waitlist | JSON `{ "skuId": "10001", "quantity": 2 }`；拒绝userId、状态、截止等未知字段；创建或返回本人同SKU同数量的有效记录 |
 | GET /waitlist | page默认1、size默认10，上限分别10000/50，返回本人分页记录 |
 | GET /waitlist/{id} | 本人候补详情，非本人或不存在404 WAITLIST_NOT_FOUND |
-| POST /waitlist/{id}/cancel | 只取消WAITING；重复CANCELLED原样返回，ALLOCATED需走关联订单取消，其他状态409 |
+| POST /waitlist/{id}/cancel | 等待中和已选中但尚未预扣的候补可以取消；重复CANCELLED原样返回，已预扣返回409，ALLOCATED需走关联订单取消 |
 
 skuId为正十进制字符串且不超过Java long，quantity为正INT整数，拒绝小数及未知字段（400）。申请时须在有效销售窗口、父级可售、账号有效、满足单笔及场次剩余额度，且可售库存小于请求数量；库存充足提示直接购买。相同有效记录同数量返回原记录，异数量409 WAITLIST_CONFLICT，数据库有效唯一键兜底。不要求客户端传幂等键。等待截止取数据库当前时间加WAITLIST_MAX_WAIT_MINUTES（默认60）与票档停售时间的较早值。等待不占库存或限额，可在其他票档购票；分配时再次检查，额度不足的队首会终结为EXPIRED并继续下一位。
 
-WaitlistView字段：id/skuId/sessionId/activityId/activityTitle/sessionTitle/skuName/priceCents/quantity/status/createdAt/expiresAt/reservedOrderId/orderStatus/orderExpiresAt/canCancel。ID与金额分为字符串，时间带Z，界面北京时间。priceCents是当前票价，实际支付使用分配订单的价格快照。reservedOrderId及订单状态、截止在未分配时为null；已分配关联需匹配用户、场次、SKU、数量，否则409。canCancel仅表示WAITING可提交取消，最终以事务状态检查为准。
+WaitlistView字段：id/skuId/sessionId/activityId/activityTitle/sessionTitle/skuName/priceCents/quantity/status/createdAt/expiresAt/reservedOrderId/orderStatus/orderExpiresAt/canCancel。ID与金额分为字符串，时间带Z，界面北京时间。priceCents是当前票价，实际支付使用分配订单的价格快照。reservedOrderId及订单状态、截止在未分配时为null；已分配关联需匹配用户、场次、SKU、数量，否则409。已选中但尚未预扣的队首仍显示WAITING，取消以实际预扣状态为准。
 
 状态映射：WAITING等待候补、ALLOCATED已分配待支付、COMPLETED候补完成、CANCELLED已取消候补、EXPIRED候补已过期或失效。ALLOCATED的支付截止以orderExpiresAt为准，原expiresAt仅是等待申请截止。支付成功→COMPLETED；预留订单主动取消或自动过期→EXPIRED，状态联动与库存同事务。已分配不可直接取消候补，重复支付仍返回原流水。
 
@@ -182,7 +182,7 @@ WaitlistView字段：id/skuId/sessionId/activityId/activityTitle/sessionTitle/sk
 
 ## 候补消息与补偿
 
-订单取消、超时、退款、库存和候补变更在原事务递增 SKU 库存同步版本。后台按游标扫描并安全同步 Redis 绝对余额，候补调度默认每5秒扫描、每批最多100个SKU。队首 PROCESSING 未决时不能跳过；候补建单复用普通购票队列和恢复任务，不再使用独立通知 MQ 或 Outbox。
+订单取消、超时、退款、库存和候补变更在原事务递增 SKU 库存同步版本。后台按游标扫描并安全同步 Redis 绝对余额，候补调度默认每5秒扫描、每批最多100个SKU。队首 PROCESSING 未决时不能跳过。排队满或同场次另一笔进行中的购票暂占 Redis 限额时，队首回到等待并保持原顺位；已建单占用的额度仍按 MySQL 规则检查。候补建单复用普通购票队列和恢复任务，不再使用独立通知 MQ 或 Outbox。
 
 ## 电子票查询与入场凭证
 

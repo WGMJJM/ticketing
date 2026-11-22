@@ -112,17 +112,24 @@ public class WaitlistService {
         if (WaitlistStatus.CANCELLED.name().equals(entry.getStatus())) {
             return view(userId, id);
         }
-        if (!WaitlistStatus.WAITING.name().equals(entry.getStatus())) {
-            throw conflict("仅等待中的候补可取消；分配中请等待结果，已分配请处理对应订单");
+        if (WaitlistStatus.PROCESSING.name().equals(entry.getStatus())) {
+            if (!stocks.finishWaitlistAttempt(entry.getSkuId(), id, entry.getAttemptNo())) {
+                throw conflict("候补已进入库存分配，请等待结果");
+            }
+            waitlists.finishAttempt(id, entry.getPurchaseRequestId(), WaitlistStatus.CANCELLED.name());
+            versions.changed(entry.getSkuId());
+        } else if (WaitlistStatus.WAITING.name().equals(entry.getStatus())) {
+            terminal(entry, WaitlistStatus.CANCELLED);
+        } else {
+            throw conflict("仅等待中的候补可取消；已分配请处理对应订单");
         }
-        terminal(entry, WaitlistStatus.CANCELLED);
         return view(userId, id);
     }
 
     @Transactional(readOnly = true, isolation = Isolation.READ_COMMITTED)
     public PageResponse<WaitlistView> list(long userId, int page, int size) {
-        var items = waitlists.listOwned(userId, size, (long) (page - 1) * size);
-        items.forEach(this::validateView);
+        var items = waitlists.listOwned(userId, size, (long) (page - 1) * size)
+                .stream().map(this::visible).toList();
         return new PageResponse<>(
                 items,
                 waitlists.selectCount(
@@ -142,8 +149,7 @@ public class WaitlistService {
         if (view == null) {
             throw notFound();
         }
-        validateView(view);
-        return view;
+        return visible(view);
     }
 
     /** 只选取队首并登记尝试，不创建订单、不预扣库存、不等待 MQ。 */
@@ -189,7 +195,7 @@ public class WaitlistService {
         boolean waiting = retryable && head.getExpiresAt().isAfter(now)
                 && reservation.eligibleForWaitlist(context, head.getQuantity(), now);
         waitlists.finishAttempt(id, requestId, waiting ? "WAITING" : "EXPIRED");
-        versions.changed(head.getSkuId());
+        if (!waiting) versions.changed(head.getSkuId());
     }
 
     private WaitlistEntry requireOwned(long userId, long id) {
@@ -211,10 +217,15 @@ public class WaitlistService {
         versions.changed(entry.getSkuId());
     }
 
-    private void validateView(WaitlistView view) {
+    private WaitlistView visible(WaitlistView view) {
         if (view.reservedOrderId() != null && view.orderStatus() == null) {
             throw conflict("候补与预留订单关联不一致");
         }
+        if (WaitlistStatus.PROCESSING.name().equals(view.status())
+                && !stocks.hasWaitlistReservation(Long.parseLong(view.skuId()))) {
+            return view.waiting();
+        }
+        return view;
     }
 
     private BusinessException conflict(String message) {

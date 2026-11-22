@@ -22,7 +22,9 @@ if redis.call('HGET', KEYS[1], 'eligible') ~= '1'
     or now >= tonumber(redis.call('HGET', KEYS[1], 'saleEndsAt')) then return {-10} end
 local quantity = tonumber(ARGV[4])
 if quantity < 1 or quantity > tonumber(redis.call('HGET', KEYS[1], 'maxQuantity')) then return {-11} end
-if tonumber(redis.call('GET', KEYS[7]) or '0') + quantity > tonumber(ARGV[9]) then return {-11} end
+if tonumber(redis.call('GET', KEYS[7]) or '0') + quantity > tonumber(ARGV[9]) then
+    return {ARGV[12] == 'WAITLIST_CONFIRM' and -14 or -11}
+end
 if tonumber(redis.call('GET', KEYS[5])) >= tonumber(ARGV[7]) then return {-2} end
 if tonumber(redis.call('HGET', KEYS[1], 'available')) < quantity then return {-1} end
 if redis.call('EXISTS', KEYS[3]) == 1 then return {-3} end

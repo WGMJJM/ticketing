@@ -50,13 +50,14 @@ public class WaitlistDispatcher {
                         head.purchaseKey(), head.getId(), head.getAttemptNo(), head.getExpiresAt(), head.getPurchaseRequestId()));
                 submitted++;
             } catch (BusinessException exception) {
-                // 明确没有预扣的业务拒绝才退出尝试；未决申请继续阻挡队首。
                 String code = exception.getCode();
-                if (("STOCK_UNAVAILABLE".equals(code) || "TICKET_UNAVAILABLE".equals(code)
-                        || "PURCHASE_LIMIT".equals(code)) && purchase.result(head.getPurchaseRequestId()) == null) {
-                    service.finishAttempt(head.getId(), head.getPurchaseRequestId(), "STOCK_UNAVAILABLE".equals(code));
-                } else if (!"PURCHASE_QUEUE_FULL".equals(code) && !"PURCHASE_ADMISSION_UNAVAILABLE".equals(code)) {
-                    throw exception;
+                switch (code) {
+                    case "STOCK_UNAVAILABLE", "PURCHASE_QUEUE_FULL", "WAITLIST_QUOTA_PENDING" ->
+                            service.finishAttempt(head.getId(), head.getPurchaseRequestId(), true);
+                    case "TICKET_UNAVAILABLE", "PURCHASE_LIMIT" ->
+                            service.finishAttempt(head.getId(), head.getPurchaseRequestId(), false);
+                    case "WAITLIST_ATTEMPT_STALE", "PURCHASE_ADMISSION_UNAVAILABLE" -> { }
+                    default -> throw exception;
                 }
             }
             break;

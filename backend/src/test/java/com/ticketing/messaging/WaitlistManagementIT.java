@@ -3,6 +3,7 @@ package com.ticketing.messaging;
 import com.ticketing.AccountTestSupport;
 import com.ticketing.config.PurchaseProperties;
 import com.ticketing.dto.JoinWaitlistRequest;
+import com.ticketing.dto.PurchaseIntent;
 import com.ticketing.entity.PurchaseRequest;
 import com.ticketing.exception.BusinessException;
 import com.ticketing.mapper.OrderMapper;
@@ -141,6 +142,75 @@ class WaitlistManagementIT {
         assertThat(orderService.expire(other.id,order)).isTrue();assertThat(status(entry)).isEqualTo("EXPIRED");
         dispatcher.dispatch(sku);dispatcher.dispatch(sku);
         assertThat(available()).isEqualTo(1);assertThat(priority()).isEqualTo("0");stock(0,0);
+    }
+
+    @Test void aPreparedHeadCanCancelBeforeRedisReserves() throws Exception {
+        total(0);
+        var entry = join(buyer, 1);
+        var follower = join(other, 1);
+        total(1);
+        var prepared = waitlists.prepare(sku);
+        var view = waitlists.detail(buyer.id, prepared.getId());
+        assertThat(view.status()).isEqualTo("WAITING");
+        assertThat(view.canCancel()).isTrue();
+        buyer.call("POST", "/waitlist/" + entry.id() + "/cancel", null, null, 200);
+        assertThatThrownBy(() -> stocks.reserve(new PurchaseIntent(buyer.id, sku, 1, "WAITLIST_CONFIRM",
+                prepared.purchaseKey(), prepared.getId(), prepared.getAttemptNo(),
+                prepared.getExpiresAt(), prepared.getPurchaseRequestId())))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        failure -> assertThat(failure.getCode()).isEqualTo("WAITLIST_ATTEMPT_STALE"));
+        assertThat(status(entry)).isEqualTo("CANCELLED");
+        assertThat(dispatcher.dispatch(sku)).isEqualTo(1);
+        assertThat(status(follower)).isEqualTo("PROCESSING");
+        worker.process(request(follower));
+        assertThat(status(follower)).isEqualTo("ALLOCATED");
+        stock(1, 0);
+    }
+
+    @Test void aTemporaryQuotaHoldKeepsTheSameWaitlistHeadUntilItClears() {
+        total(0);
+        var entry = join(buyer, 1);
+        var follower = join(other, 1);
+        total(2);
+        db.update("""
+                INSERT INTO ticket_sku(session_id,name,price_cents,total_stock,max_quantity_per_order,
+                  sale_starts_at,sale_ends_at,status)
+                SELECT session_id,'同场次另一票档',price_cents,4,4,sale_starts_at,sale_ends_at,status
+                FROM ticket_sku WHERE id=?
+                """, sku);
+        long otherSku = db.queryForObject("SELECT MAX(id) FROM ticket_sku WHERE session_id=?", Long.class, session);
+        assertThat(inventory.synchronize(otherSku)).isTrue();
+        var pending = stocks.reserve(buyer.id, otherSku, 4, "temporary-quota");
+        assertThat(dispatcher.dispatch(sku)).isZero();
+        assertThat(waitlists.detail(buyer.id, Long.parseLong(entry.id())).canCancel()).isTrue();
+        assertThat(status(entry)).isEqualTo("WAITING");
+        assertThat(status(follower)).isEqualTo("WAITING");
+
+        db.update("UPDATE ticket_sku SET status='OFF_SALE' WHERE id=?", otherSku);
+        worker.process(pending.id());
+        assertThat(stocks.find(pending.id()).status()).isEqualTo("FAILED");
+        assertThat(dispatcher.dispatch(sku)).isEqualTo(1);
+        worker.process(request(entry));
+        assertThat(status(entry)).isEqualTo("ALLOCATED");
+        assertThat(status(follower)).isEqualTo("WAITING");
+        stock(1, 0);
+    }
+
+    @Test void fullPurchaseQueueLeavesTheWaitlistHeadWaitingAndCancellable() {
+        total(0);
+        var entry = join(buyer, 1);
+        total(1);
+        String pendingKey = stocks.recoveryKey().replace(":recovery", ":pending");
+        String previous = redis.opsForValue().get(pendingKey);
+        redis.opsForValue().set(pendingKey, Integer.toString(properties.capacity()));
+        try {
+            assertThat(dispatcher.dispatch(sku)).isZero();
+            assertThat(status(entry)).isEqualTo("WAITING");
+            assertThat(waitlists.detail(buyer.id, Long.parseLong(entry.id())).canCancel()).isTrue();
+            assertThat(available()).isEqualTo(1);
+        } finally {
+            redis.opsForValue().set(pendingKey, previous);
+        }
     }
 
     @Test void processingAndLostSendKeepOneHeadAndStableRequestWhileOthersJoin() throws Exception {

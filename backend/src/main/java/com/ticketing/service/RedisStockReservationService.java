@@ -131,6 +131,7 @@ public class RedisStockReservationService {
             if (diagnostics != null) diagnostics.branch("purchase.reserve.lua", code, luaStarted, branchFacts);
             if (code == -12) throw failure(HttpStatus.CONFLICT, "WAITLIST_PRIORITY", "该票档正在优先处理候补，请加入候补队列");
             if (code == -13) throw failure(HttpStatus.CONFLICT, "WAITLIST_ATTEMPT_STALE", "候补分配状态已变化");
+            if (code == -14) throw failure(HttpStatus.CONFLICT, "WAITLIST_QUOTA_PENDING", "同场次购票请求正在结算");
             if (code == -1) throw failure(HttpStatus.CONFLICT, "CREATE_ORDER".equals(operation) ? "TICKET_UNAVAILABLE" : "STOCK_UNAVAILABLE", "票档当前可预扣库存不足");
             if (code == -6) throw failure(HttpStatus.CONFLICT, "IDEMPOTENCY_CONFLICT", "同一幂等键不能用于不同票档或数量");
             if (code == -11) throw failure(HttpStatus.CONFLICT, "PURCHASE_LIMIT", "购买数量超过票档或本场入口限额");
@@ -355,6 +356,14 @@ public class RedisStockReservationService {
 
     public boolean finishWaitlistAttempt(long skuId, long entryId, int attempt) {
         return priority(skuId, "finish", entryId + ":" + attempt, "") == 1;
+    }
+
+    public boolean hasWaitlistReservation(long skuId) {
+        try {
+            return !"0".equals(text(redis.opsForHash().get(skuKey(skuId), "waitlistPending")));
+        } catch (DataAccessException exception) {
+            return true;
+        }
     }
 
     public boolean closePriority(long skuId) { return priority(skuId, "close", "", "") == 1; }
