@@ -50,4 +50,6 @@ V16 的 `InventorySyncMigrationIT` 创建 `ticketing_inventory_migration_<16位�
 
 浏览器夹具使用注册邮箱验证码。隔离配置还须包含随机 `registrationSecret`（32 字节 Base64）和空闲本地 `smtpPort`；先在独立环境启动 `python -B scripts/verification/mail_sink.py --port <smtpPort>`，该测试收件箱只监听 127.0.0.1，验证码只写入忽略目录，不发送外部邮件。随后运行 `python -B scripts/verification/browser_fixture.py --jar backend/target/ticketing-backend-0.1.0-SNAPSHOT.jar --action prepare`。在 `frontend/` 设置唯一 `TICKETING_E2E_LABEL` 并执行 `npm run e2e`；完成后运行 `python -B scripts/verification/browser_fixture.py --action audit --label <唯一标签>`。全部服务均使用隔离端口和 guard，测试结束停止隔离进程并清理临时凭据。
 
+密码找回集成测试 `PasswordResetIT` 使用独立的本地 Mailpit。运行 MySQL 集成测试时设置 `ACCOUNT_IT_SMTP_PORT` 和 `ACCOUNT_IT_MAIL_WEB_PORT` 指向该 Mailpit 的 SMTP 和 HTTP 端口，以验证真实投递及验证码的一次性使用。
+
 业务部署健康检查仍使用`scripts/check-deployment.py --base-url <来源地址> --output <本地报告>`；旧负载环境专用选项已移除。加载受保护管理诊断配置时，沿用现有管理员会话与网络边界。

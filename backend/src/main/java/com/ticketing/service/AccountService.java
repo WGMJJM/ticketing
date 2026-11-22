@@ -2,9 +2,13 @@ package com.ticketing.service;
 
 import com.ticketing.dto.RegisterRequest;
 import com.ticketing.dto.AdminCredentials;
+import com.ticketing.dto.PasswordChangeRequest;
+import com.ticketing.dto.PasswordResetRequest;
 import com.ticketing.entity.UserAccount;
 import com.ticketing.exception.BusinessException;
 import com.ticketing.mapper.UserAccountMapper;
+import com.ticketing.security.AccountPrincipal;
+import com.ticketing.security.AccountSessions;
 import com.ticketing.vo.UserView;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -27,14 +31,16 @@ public class AccountService {
     private final RegistrationEmailService emails;
     private final Validator validator;
     private final TransactionTemplate write;
+    private final AccountSessions sessions;
 
     public AccountService(UserAccountMapper accounts, PasswordEncoder passwords, RegistrationBloomFilter bloom,
-            RegistrationEmailService emails, Validator validator, PlatformTransactionManager manager) {
+            RegistrationEmailService emails, Validator validator, PlatformTransactionManager manager, AccountSessions sessions) {
         this.accounts = accounts;
         this.passwords = passwords;
         this.bloom = bloom;
         this.emails = emails;
         this.validator = validator;
+        this.sessions = sessions;
         write = new TransactionTemplate(manager);
         write.setTimeout(10);
     }
@@ -59,7 +65,61 @@ public class AccountService {
         return UserView.from(account);
     }
 
-    /** 仅由显式开启的启动初始化调用，不提供提权或重置密码的公开接口。 */
+    public void requestPasswordReset(String email, String address) {
+        emails.requestPasswordReset(email, address, () -> {
+            var account = findVerifiedEmail(email);
+            return account == null ? null : AccountPrincipal.credentialStamp(account.getPasswordHash());
+        });
+    }
+
+    public long resetPassword(PasswordResetRequest request) {
+        requireOutsideTransaction();
+        var account = findVerifiedEmail(request.email());
+        String stamp = account == null ? "" : AccountPrincipal.credentialStamp(account.getPasswordHash());
+        emails.consumePasswordReset(request.email(), request.code(), stamp);
+        if (account == null) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "EMAIL_CODE_INVALID",
+                    "验证码不正确、已使用或已过期，请检查或重新获取");
+        }
+        replacePassword(account, request.newPassword());
+        return account.getId();
+    }
+
+    public void changePassword(AccountPrincipal principal, PasswordChangeRequest request) {
+        requireOutsideTransaction();
+        var account = accounts.selectById(principal.getId());
+        if (account == null || !"ACTIVE".equals(account.getStatus())
+                || !principal.credentialStamp().equals(AccountPrincipal.credentialStamp(account.getPasswordHash()))) {
+            throw new BusinessException(HttpStatus.UNAUTHORIZED, "SESSION_EXPIRED", "登录状态已变更，请重新登录");
+        }
+        if (!passwords.matches(request.currentPassword(), account.getPasswordHash())) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "CURRENT_PASSWORD_INVALID", "当前密码不正确");
+        }
+        if (request.currentPassword().equals(request.newPassword())) {
+            throw new BusinessException(HttpStatus.BAD_REQUEST, "PASSWORD_UNCHANGED", "新密码须与当前密码不同");
+        }
+        replacePassword(account, request.newPassword());
+    }
+
+    private void replacePassword(UserAccount account, String plaintext) {
+        String encoded = passwords.encode(plaintext);
+        int changed = write.execute(status ->
+                accounts.replacePassword(account.getId(), account.getPasswordHash(), encoded));
+        if (changed != 1) {
+            throw new BusinessException(HttpStatus.CONFLICT, "PASSWORD_UPDATE_CONFLICT", "账号状态或密码已变化，请重新操作");
+        }
+        sessions.revokeCredential(AccountPrincipal.forSession(account));
+    }
+
+    private UserAccount findVerifiedEmail(String email) {
+        return accounts.selectOne(new LambdaQueryWrapper<UserAccount>()
+                .select(UserAccount::getId, UserAccount::getUsername, UserAccount::getPasswordHash,
+                        UserAccount::getRole, UserAccount::getStatus)
+                .eq(UserAccount::getEmail, email).eq(UserAccount::getStatus, "ACTIVE")
+                .isNotNull(UserAccount::getEmailVerifiedAt));
+    }
+
+    /** 仅由显式开启的启动初始化调用。 */
     public void initializeAdmin(AdminCredentials request) {
         requireOutsideTransaction();
         if (!validator.validate(request).isEmpty()) throw new IllegalArgumentException("管理员初始化凭据不符合要求");
@@ -101,7 +161,7 @@ public class AccountService {
 
     private void requireOutsideTransaction() {
         if (TransactionSynchronizationManager.isActualTransactionActive()) {
-            throw new IllegalStateException("注册及管理员初始化必须从数据库事务外调用");
+            throw new IllegalStateException("账号凭据操作必须从数据库事务外调用");
         }
     }
 }

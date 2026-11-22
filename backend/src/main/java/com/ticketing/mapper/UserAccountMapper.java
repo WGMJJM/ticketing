@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 import java.util.List;
 
 @Mapper
@@ -15,4 +16,10 @@ public interface UserAccountMapper extends BaseMapper<UserAccount> {
 
     @Select("SELECT id,username,email FROM user_account WHERE id>#{after} AND id<=#{through} ORDER BY id LIMIT #{size}")
     List<UserAccount> registrationPage(@Param("after") long after, @Param("through") long through, @Param("size") int size);
+
+    @Update("""
+            UPDATE user_account SET password_hash=#{replacement}, updated_at=UTC_TIMESTAMP(6)
+            WHERE id=#{id} AND status='ACTIVE' AND CAST(password_hash AS BINARY)=CAST(#{previous} AS BINARY)
+            """)
+    int replacePassword(@Param("id") long id, @Param("previous") String previous, @Param("replacement") String replacement);
 }

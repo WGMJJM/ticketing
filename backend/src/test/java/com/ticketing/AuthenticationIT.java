@@ -132,6 +132,72 @@ class AuthenticationIT {
     }
 
     @Test
+    void accountSessionsCanOnlyBeRevokedByTheirOwner() throws Exception {
+        Browser current = new Browser();
+        Browser second = new Browser();
+        Browser third = new Browser();
+        Browser other = new Browser();
+        String username = name();
+        createUser(username);
+        String otherName = name();
+        createUser(otherName);
+        current.csrf();
+        current.login(username, password, 200);
+        for (Browser browser : List.of(second, third, other)) {
+            browser.csrf();
+            browser.login(browser == other ? otherName : username, password, 200);
+        }
+        JsonNode sessions = current.get("/auth/sessions", 200).path("data");
+        JsonNode remote = second.get("/auth/sessions", 200).path("data").get(0);
+        assertThat(sessions.size()).isEqualTo(3);
+        assertThat(sessions.get(0).path("current").asBoolean()).isTrue();
+        assertThat(remote.path("current").asBoolean()).isTrue();
+        assertThat(remote.path("lastActiveAt").asText()).isNotEmpty();
+        String handle = remote.path("id").asText();
+        assertThat(handle).matches("[0-9a-f]{64}").doesNotContain(second.cookie().substring("JSESSIONID=".length()));
+        other.csrf();
+        other.json("DELETE", "/auth/sessions/" + handle, null, 404);
+        current.json("DELETE", "/auth/sessions/" + handle, null, 403);
+        current.csrf();
+        current.json("DELETE", "/auth/sessions/" + sessions.get(0).path("id").asText(), null, 409);
+        current.json("DELETE", "/auth/sessions/" + handle, null, 200);
+        assertThat(second.get("/auth/me", 401).path("code").asText()).isEqualTo("SESSION_EXPIRED");
+        current.json("DELETE", "/auth/sessions/others", null, 200);
+        third.get("/auth/me", 401);
+        assertThat(current.get("/auth/sessions", 200).path("data").size()).isEqualTo(1);
+        other.get("/auth/me", 200);
+    }
+
+    @Test
+    void changingPasswordInvalidatesEveryOldLoginAndRequiresCurrentPassword() throws Exception {
+        Browser first = new Browser();
+        Browser second = new Browser();
+        String username = name();
+        long id = createUser(username);
+        first.csrf();
+        second.csrf();
+        first.login(username, password, 200);
+        second.login(username, password, 200);
+        first.csrf();
+        String newPassword = UUID.randomUUID().toString();
+        first.json("POST", "/auth/password/change",
+                Map.of("currentPassword", "wrong-password", "newPassword", newPassword), 400);
+        first.json("POST", "/auth/password/change",
+                Map.of("currentPassword", password, "newPassword", password), 400);
+        first.json("POST", "/auth/password/change",
+                Map.of("currentPassword", password, "newPassword", newPassword), 200);
+        first.get("/auth/me", 401);
+        second.get("/auth/me", 401);
+        first.csrf();
+        first.login(username, password, 401);
+        first.login(username, newPassword, 200);
+        first.get("/auth/me", 200);
+        // 模拟数据库中的凭据已变，但尚未通知 SessionRegistry。
+        jdbc.update("UPDATE user_account SET password_hash=? WHERE id=?", passwords.encode(password), id);
+        first.get("/auth/me", 401);
+    }
+
+    @Test
     void anonymousUserAndBasicCredentialsCannotAccessAdministration() throws Exception {
         Browser browser = new Browser();
         browser.get("/auth/me", 401);
@@ -327,6 +393,13 @@ class AuthenticationIT {
         JsonNode user = browser.json("POST", "/auth/register", Map.of("username", name, "password", password), 200).path("data");
         userIds.add(user.path("id").asLong());
         return user;
+    }
+    private long createUser(String username) {
+        jdbc.update("INSERT INTO user_account (username,password_hash,role,status,created_at,updated_at) "
+                + "VALUES (?,?,'USER','ACTIVE',UTC_TIMESTAMP(6),UTC_TIMESTAMP(6))", username, passwords.encode(password));
+        long id = jdbc.queryForObject("SELECT id FROM user_account WHERE username=?", Long.class, username);
+        userIds.add(id);
+        return id;
     }
     private String admin() {
         String name = name();

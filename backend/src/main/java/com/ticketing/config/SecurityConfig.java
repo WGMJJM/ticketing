@@ -15,17 +15,23 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.web.servlet.ServletListenerRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.core.session.SessionRegistry;
+import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.savedrequest.NullRequestCache;
+import org.springframework.security.web.authentication.logout.CookieClearingLogoutHandler;
+import org.springframework.security.web.session.HttpSessionEventPublisher;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.context.DelegatingSecurityContextRepository;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
@@ -41,6 +47,24 @@ public class SecurityConfig {
     PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
 
     @Bean
+    SessionRegistry sessionRegistry() { return new SessionRegistryImpl(); }
+
+    @Bean
+    ServletListenerRegistrationBean<HttpSessionEventPublisher> sessionEvents() {
+        return new ServletListenerRegistrationBean<>(new HttpSessionEventPublisher());
+    }
+
+    @Bean(defaultCandidate = false)
+    ThreadPoolTaskExecutor passwordResetMailer() {
+        var executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(1);
+        executor.setQueueCapacity(32);
+        executor.setThreadNamePrefix("password-reset-mail-");
+        return executor;
+    }
+
+    @Bean
     ClientAddressResolver clientAddressResolver(ClientAddressProperties properties,
             @Value("${server.forward-headers-strategy:none}") String forwarding) {
         if (!"none".equalsIgnoreCase(forwarding)) {
@@ -51,9 +75,13 @@ public class SecurityConfig {
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper objectMapper, UserAccountMapper accounts,
-            RateLimitProperties rateLimit, ObjectProvider<RedisRateLimiter> limiters, ClientAddressResolver addresses) throws Exception {
+            RateLimitProperties rateLimit, ObjectProvider<RedisRateLimiter> limiters, ClientAddressResolver addresses,
+            SessionRegistry registry) throws Exception {
         var paths = PathPatternRequestMatcher.withDefaults();
-        var currentUser = paths.matcher(HttpMethod.GET, "/api/v1/auth/me");
+        var accountSecurity = new OrRequestMatcher(
+                paths.matcher(HttpMethod.GET, "/api/v1/auth/me"),
+                paths.matcher(HttpMethod.POST, "/api/v1/auth/password/change"),
+                paths.matcher("/api/v1/auth/sessions/**"));
         var administration = paths.matcher("/api/v1/admin/**");
         var orderRequests = paths.matcher("/api/v1/orders/**");
         var purchaseRequests = paths.matcher("/api/v1/purchase-requests/**");
@@ -67,11 +95,12 @@ public class SecurityConfig {
                 paths.matcher(HttpMethod.PUT, "/api/v1/activities/*/follow"),
                 paths.matcher(HttpMethod.DELETE, "/api/v1/activities/*/follow"));
         var followedActivities = paths.matcher(HttpMethod.GET, "/api/v1/me/followed-activities");
-        var protectedRequests = new OrRequestMatcher(currentUser, administration, orderRequests,
+        var protectedRequests = new OrRequestMatcher(accountSecurity, administration, orderRequests,
                 waitlistRequests, ticketRequests, checkinRequests, purchaseRequests,
                 activityLikeRequests, activityFollowRequests, followedActivities);
         var contexts = new DelegatingSecurityContextRepository(
                 new RequestAttributeSecurityContextRepository(), new HttpSessionSecurityContextRepository());
+        var sessionCookie = new CookieClearingLogoutHandler("JSESSIONID");
         http
                 .authorizeHttpRequests(authorize -> authorize
                         .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
@@ -81,7 +110,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/activities/*/sessions/*/tickets").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/auth/csrf").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/register", "/api/v1/auth/email-code", "/api/v1/auth/login", "/api/v1/auth/logout").permitAll()
-                        .requestMatchers(currentUser).authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/password/reset-code", "/api/v1/auth/password/reset").permitAll()
+                        .requestMatchers(accountSecurity).authenticated()
                         .requestMatchers(orderRequests).authenticated()
                         .requestMatchers(purchaseRequests).authenticated()
                         .requestMatchers(waitlistRequests).authenticated()
@@ -97,7 +127,13 @@ public class SecurityConfig {
                         AuthorizationFilter.class)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .requestCache(cache -> cache.requestCache(new NullRequestCache()))
-                .sessionManagement(session -> session.sessionFixation(fixation -> fixation.changeSessionId()))
+                .sessionManagement(session -> {
+                    session.sessionFixation(fixation -> fixation.changeSessionId());
+                    session.maximumSessions(-1).sessionRegistry(registry).expiredSessionStrategy(event -> {
+                        sessionCookie.logout(event.getRequest(), event.getResponse(), null);
+                        writeError(event.getResponse(), objectMapper, 401, "SESSION_EXPIRED", "登录会话已结束，请重新登录");
+                    });
+                })
                 .formLogin(form -> form.loginPage("/api/v1/auth/login").loginProcessingUrl("/api/v1/auth/login")
                         .successHandler((request, response, authentication) -> writeResponse(response, objectMapper, 200,
                                 ApiResponse.success(UserView.from((AccountPrincipal) authentication.getPrincipal()))))

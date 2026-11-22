@@ -6,7 +6,6 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
-import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 public record RegisterRequest(
@@ -26,7 +25,7 @@ public record RegisterRequest(
     }
     @AssertTrue(message = "密码的UTF-8编码不能超过72字节")
     public boolean isPasswordWithinByteLimit() {
-        return password == null || password.getBytes(StandardCharsets.UTF_8).length <= 72;
+        return PasswordChangeRequest.withinByteLimit(password);
     }
 
     @JsonAnySetter

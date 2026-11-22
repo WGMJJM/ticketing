@@ -23,6 +23,8 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
     private static final PathPatternRequestMatcher.Builder PATHS = PathPatternRequestMatcher.withDefaults();
     private static final RequestMatcher LOGIN = PATHS.matcher(HttpMethod.POST, "/api/v1/auth/login");
     private static final RequestMatcher REGISTER = PATHS.matcher(HttpMethod.POST, "/api/v1/auth/register");
+    private static final RequestMatcher RESET_PASSWORD = PATHS.matcher(HttpMethod.POST, "/api/v1/auth/password/reset");
+    private static final RequestMatcher CHANGE_PASSWORD = PATHS.matcher(HttpMethod.POST, "/api/v1/auth/password/change");
     private static final RequestMatcher ORDER = PATHS.matcher(HttpMethod.POST, "/api/v1/orders");
     private static final RequestMatcher WAITLIST = PATHS.matcher(HttpMethod.POST, "/api/v1/waitlist");
     private static final RequestMatcher CSRF = PATHS.matcher("/api/v1/auth/csrf");
@@ -51,8 +53,8 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
             return request.getSession(false) != null || !(csrfRead || CsrfFilter.DEFAULT_CSRF_MATCHER.matches(request));
         }
         return scope == Scope.AUTHENTICATION
-                ? !LOGIN.matches(request) && !REGISTER.matches(request)
-                : !ORDER.matches(request) && !WAITLIST.matches(request);
+                ? !LOGIN.matches(request) && !REGISTER.matches(request) && !RESET_PASSWORD.matches(request)
+                : !ORDER.matches(request) && !WAITLIST.matches(request) && !CHANGE_PASSWORD.matches(request);
     }
 
     @Override
@@ -73,12 +75,15 @@ public class RequestRateLimitFilter extends OncePerRequestFilter {
         if (scope == Scope.SESSION_CREATION) {
             decision = limiter.csrfSession(address);
         } else if (scope == Scope.AUTHENTICATION) {
-            // 只读formLogin本身要使用的表单参数；注册分支不读取JSON请求体。
-            decision = LOGIN.matches(request) ? limiter.login(address, request.getParameter("username"))
-                    : limiter.registration(address);
+            // 只读 formLogin 要用的参数，注册与重置沿用 JSON 请求体。
+            if (LOGIN.matches(request)) decision = limiter.login(address, request.getParameter("username"));
+            else if (RESET_PASSWORD.matches(request)) decision = limiter.passwordReset(address);
+            else decision = limiter.registration(address);
         } else {
             AccountPrincipal principal = (AccountPrincipal) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            decision = ORDER.matches(request) ? limiter.order(principal.getId()) : limiter.waitlist(principal.getId());
+            if (ORDER.matches(request)) decision = limiter.order(principal.getId());
+            else if (CHANGE_PASSWORD.matches(request)) decision = limiter.passwordChange(principal.getId());
+            else decision = limiter.waitlist(principal.getId());
         }
         if (decision.outcome() == Outcome.ALLOWED) {
             // 不捕获下游认证或业务异常，保留既有401/403/409语义。

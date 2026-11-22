@@ -53,19 +53,19 @@ public class CurrentAccountFilter extends OncePerRequestFilter {
         UserAccount account = null;
         if (authentication.isAuthenticated() && authentication.getPrincipal() instanceof AccountPrincipal principal) {
             account = accounts.selectOne(new LambdaQueryWrapper<UserAccount>()
-                    .select(UserAccount::getId, UserAccount::getUsername, UserAccount::getStatus, UserAccount::getRole)
+                    .select(UserAccount::getId, UserAccount::getUsername, UserAccount::getStatus,
+                            UserAccount::getRole, UserAccount::getPasswordHash)
                     .eq(UserAccount::getId, principal.getId()));
         }
         if (account == null || !"ACTIVE".equals(account.getStatus())) {
-            logout.logout(request, response, authentication);
-            cookies.logout(request, response, authentication);
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.setContentType("application/json;charset=UTF-8");
-            response.setHeader("Cache-Control", "no-store");
-            json.writeValue(response.getOutputStream(), ApiResponse.failure("ACCOUNT_UNAVAILABLE", "账号已停用或不存在，请重新登录"));
+            reject(request, response, "ACCOUNT_UNAVAILABLE", "账号已停用或不存在，请重新登录");
             return;
         }
         AccountPrincipal previous = (AccountPrincipal) authentication.getPrincipal();
+        if (!AccountPrincipal.credentialStamp(account.getPasswordHash()).equals(previous.credentialStamp())) {
+            reject(request, response, "SESSION_EXPIRED", "密码已更新，请重新登录");
+            return;
+        }
         if (!previous.getRole().equals(account.getRole()) || !previous.getUsername().equals(account.getUsername())) {
             AccountPrincipal principal = AccountPrincipal.forSession(account);
             var refreshed = UsernamePasswordAuthenticationToken.authenticated(principal, null, principal.getAuthorities());
@@ -77,5 +77,16 @@ public class CurrentAccountFilter extends OncePerRequestFilter {
             contexts.saveContext(context, request, response);
         }
         chain.doFilter(request, response);
+    }
+
+    private void reject(HttpServletRequest request, HttpServletResponse response, String code, String message)
+            throws IOException {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        logout.logout(request, response, authentication);
+        cookies.logout(request, response, authentication);
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json;charset=UTF-8");
+        response.setHeader("Cache-Control", "no-store");
+        json.writeValue(response.getOutputStream(), ApiResponse.failure(code, message));
     }
 }

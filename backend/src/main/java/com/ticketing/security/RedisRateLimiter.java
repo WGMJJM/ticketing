@@ -73,6 +73,15 @@ public class RedisRateLimiter {
         return evaluate("register", List.of(key("register-ip", address)), List.of(properties.registerIp()));
     }
 
+    public Decision passwordReset(String address) {
+        return evaluate("password-reset", List.of(key("password-reset-ip", address)), List.of(properties.registerIp()));
+    }
+
+    public Decision passwordChange(long userId) {
+        return evaluate("password-change", List.of(key("password-change-user", Long.toString(userId))),
+                List.of(properties.loginAccountIp()));
+    }
+
     /** IP、邮箱冷却与邮箱日窗口在原多KEY Lua中全部通过后才一起扣额。 */
     public Decision emailCode(String address, String email) {
         return evaluate("email-code", List.of(key("email-code-ip", address), key("email-code-cooldown", email),
