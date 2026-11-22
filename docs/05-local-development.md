@@ -19,13 +19,38 @@ macOS/Linux 使用同样的 Compose 命令，后端执行 `bash scripts/start-ba
 
 ## 配置
 
-注册现要求真实邮箱验证码。SMTP或独立验证码密钥未配置时发送/验证返回503，既有用户登录不受开关影响。配置项和V12升级前提见[注册升级说明](36-registration-four-points.md)。本机最后一次已授权迁移为V15，见[架构说明](01-architecture.md)；当前源码包含V16，启动前必须取得该次升级授权并完成[迁移检查](41-inventory-sync-migration.md)，不能将历史V13启动记录当作当前数据库版本。
+注册要求邮箱验证码。SMTP或独立验证码密钥未配置时发送/验证返回503，既有用户登录不受开关影响。配置项和V12升级前提见[注册升级说明](36-registration-four-points.md)。本机最后一次已授权迁移为V15，见[架构说明](01-architecture.md)；当前源码包含V16，启动前必须取得该次升级授权并完成[迁移检查](41-inventory-sync-migration.md)，不能将历史V13启动记录当作当前数据库版本。
 
 从 `.env.example` 生成 `.env` 并配置三个密码；本次初始化已生成随机本地密码。`.env`、`.local`、构建目录被忽略。不要把 `docker compose config` 的完整输出贴到公开日志，它会展开凭据；日常使用 `config --quiet`。
 
 Compose 默认数据库 `ticketing`，应用用户 `ticketing`；Flyway 用该开发用户建表。生产环境应拆分迁移账号与运行账号，本阶段不涉及生产部署。镜像缺失才拉取；若机器本地使用其他兼容标签，先通过 `docker image ls` 确认，再修改 `.env`，不能直接改用不兼容的主版本。
 
 PowerShell 脚本为 UTF-8 BOM，Bash 为 LF UTF-8。脚本读取 `.env` 而不执行文件内容；IDE 不经过脚本时自行注入变量。端口与代理需要一致；浏览器访问 Vite 5173，后端连接由 Vite `/api` 和 `/actuator` 代理完成，无须关闭浏览器安全设置或随意开放 CORS。
+
+## 本地注册邮件
+
+在项目根目录启动独立的 Mailpit 收件箱：
+
+```powershell
+docker compose -f deploy/compose.local-mail.yml up -d --wait
+```
+
+在私有 `.env` 中设置以下变量，并将 `REGISTRATION_CODE_SECRET` 填为独立生成的随机 Base64 密钥（解码后 32 至 128 字节）。保留已有的注册限流配置。
+
+```dotenv
+REGISTRATION_EMAIL_ENABLED=true
+REGISTRATION_NAMESPACE=local-mail
+SMTP_HOST=127.0.0.1
+SMTP_PORT=1025
+SMTP_FROM=ticketing@example.test
+SMTP_AUTH=false
+SMTP_STARTTLS_ENABLED=false
+SMTP_SSL_ENABLED=false
+```
+
+启动或重启后端后，在 `/register` 填入如 `buyer@example.test` 的测试地址，点击发送，再到 `http://127.0.0.1:8025` 查看验证码。Mailpit 的端口仅绑定本机，邮件保留在临时收件箱。用完可以运行 `docker compose -f deploy/compose.local-mail.yml stop`，停止后清空收件箱。
+
+注册并发测试在独立验收环境使用本地收件箱。购票压测使用预建账号，不通过注册接口发验证码。真实邮箱投递使用[注册邮件配置](36-registration-four-points.md#真实邮件配置)做少量联调。
 
 ## 验收顺序
 
