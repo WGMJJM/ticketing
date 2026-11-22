@@ -136,6 +136,8 @@ Redis Lua 按已初始化的 SKU 配置、销售时间、可售量和容量原�
 
 POST原安全429/故障503仍可能先于业务查重，不因同键而放宽。丢失首次响应时可登录后用上述只读lookup恢复既有事实；404才表示当前读取时尚无已提交申请，重试写入仍须原键。客户端不自动循环重发写请求。取消响应超时或提交后详情读取失败也不代表取消未发生，应查询订单状态；CANCELLED可安全重试取消而不再次释放库存或额度。
 
+首次购票明确被拒绝后可调整数量重新提交。首次提交结果不明时保留原幂等键，票档售罄或停售后仍可在票档上查询原申请。
+
 skuId为正十进制字符串且不能超过Java long，quantity为正INT整数，拒绝小数。未知创建字段（userId、价格、金额、状态、库存等）400；身份和价格只能来自服务端。幂等键为1至128位可见ASCII字符（不含空格），区分大小写；缺失或非法400。操作域固定CREATE_ORDER，同一用户同键同参返回同一个requestId，不续期或重复预扣；未决重放可能再次发送同一消息，消费者按 requestId 幂等处理。同键异SKU/数量409 IDEMPOTENCY_CONFLICT。
 
 PurchaseRequestView为 `{requestId,skuId,quantity,status,orderId,failureCode,failureMessage,acceptedAt,deadlineAt,serverTime}`，ID按字符串传输。状态为QUEUED、SUCCEEDED、FAILED、EXPIRED；只有SUCCEEDED有真实orderId。202证明Redis预扣及申请凭据已登记，不证明消息已到达或订单已创建。默认容量200、排队120秒；容量满时503 PURCHASE_QUEUE_FULL。账本丢失时停卖核对，不猜测重建。

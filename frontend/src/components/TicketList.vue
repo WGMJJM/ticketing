@@ -3,9 +3,12 @@ import { onBeforeUnmount, ref, watch } from 'vue'
 import { listTickets, saleStatusText, type TicketSku } from '../api/tickets'
 import { formatCents } from '../utils/money'
 import { formatTime } from '../utils/date'
+import { useAuthStore } from '../stores/auth'
+import { readAttempt } from '../utils/purchaseAttempts'
 import PurchasePanel from './PurchasePanel.vue'
 import WaitlistPanel from './WaitlistPanel.vue'
 const props = defineProps<{ activityId: string; sessionId: string }>()
+const auth = useAuthStore()
 const rows = ref<TicketSku[]>([])
 const loading = ref(false)
 const error = ref('')
@@ -16,13 +19,13 @@ async function load() {
   controller = active
   loading.value = true
   error.value = ''
-  rows.value = []
   try {
-    rows.value = await listTickets(
+    const result = await listTickets(
       props.activityId,
       props.sessionId,
       active.signal,
     )
+    if (!active.signal.aborted) rows.value = result
   } catch (failure) {
     if (!active.signal.aborted)
       error.value = failure instanceof Error ? failure.message : '票档加载失败'
@@ -30,7 +33,10 @@ async function load() {
     if (!active.signal.aborted) loading.value = false
   }
 }
-watch(() => [props.activityId, props.sessionId], load, { immediate: true })
+watch(() => [props.activityId, props.sessionId], () => {
+  rows.value = []
+  void load()
+}, { immediate: true })
 onBeforeUnmount(() => controller?.abort())
 </script>
 <template>
@@ -42,7 +48,7 @@ onBeforeUnmount(() => controller?.abort())
       </div>
       <ElButton :loading="loading" @click="load">刷新票档</ElButton>
     </div>
-    <div v-if="loading" class="content-state" role="status">
+    <div v-if="loading && !rows.length" class="content-state" role="status">
       正在加载场次票档…
     </div>
     <div v-else-if="error" class="content-state error-state" role="alert">
@@ -85,7 +91,7 @@ onBeforeUnmount(() => controller?.abort())
           </div>
         </dl>
         <PurchasePanel
-          v-if="ticket.saleStatus === 'SELLING'"
+          v-if="ticket.saleStatus === 'SELLING' || (auth.user && readAttempt(auth.user.id, ticket.id))"
           :ticket="ticket"
           @changed="load"
         />
