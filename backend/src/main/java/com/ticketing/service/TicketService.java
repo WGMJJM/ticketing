@@ -43,12 +43,14 @@ public class TicketService implements SessionWindowGuard {
     private final AuditWriter audit;
     private final CatalogCache cache;
     private final TicketInventory inventory;
+    private final RedisStockReservationService stocks;
 
     public TicketService(
             TicketSkuMapper tickets,
             ActivitySessionMapper sessions,
             ActivityMapper activities,
-            InventoryVersionService versions, AuditWriter audit, CatalogCache cache, TicketInventory inventory) {
+            InventoryVersionService versions, AuditWriter audit, CatalogCache cache, TicketInventory inventory,
+            RedisStockReservationService stocks) {
         this.tickets = tickets;
         this.sessions = sessions;
         this.activities = activities;
@@ -56,6 +58,7 @@ public class TicketService implements SessionWindowGuard {
         this.audit = audit;
         this.cache = cache;
         this.inventory = inventory;
+        this.stocks = stocks;
     }
 
     @Transactional(readOnly = true)
@@ -150,6 +153,16 @@ public class TicketService implements SessionWindowGuard {
             throw conflict("总库存不能小于已锁定库存与已售库存之和");
         }
         requireUniqueName(session.getId(), request.name().trim(), id);
+        if (request.totalStock() < sku.getTotalStock()) {
+            // 场次写锁挡住建单和快照同步；Redis 原子检查在途并关停新预扣。
+            long pending = stocks.pauseIfIdle(id);
+            if (pending > 0) {
+                throw conflict("还有购票请求正在处理，请稍后再减少库存");
+            }
+            if (pending < 0 && tickets.redisInitialized(id)) {
+                throw conflict("库存账本暂不可用，请待同步恢复后再减少库存");
+            }
+        }
         inventory.resize(sku, request.totalStock());
         var update =
                 mutation(sku)

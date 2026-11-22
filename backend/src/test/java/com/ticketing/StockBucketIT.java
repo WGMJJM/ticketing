@@ -336,6 +336,31 @@ class StockBucketIT {
         assertThat(view.lockedStock()).isEqualTo(3);assertThat(view.availableStock()).isEqualTo(5);
         assertThat(db.queryForObject("SELECT SUM(total_stock) FROM ticket_stock_bucket WHERE sku_id=?",Integer.class,sku)).isEqualTo(8);consistent();
     }
+
+    @Test void reduceStockWaitsForAcceptedReservationsWithoutPausingThem() {
+        sku = sku(session, 32, 32);
+        PurchaseRequest request = claim(buyer, sku, 3);
+        assertThatThrownBy(() -> resize(sku, 2)).isInstanceOfSatisfying(BusinessException.class,
+                failure -> assertThat(failure.getMessage()).contains("还有购票请求正在处理"));
+        assertThat(db.queryForObject("SELECT total_stock FROM ticket_sku WHERE id=?", Integer.class, sku)).isEqualTo(32);
+        PurchaseRequest next = stocks.reserve(user("USER"), sku, 1, "after-rejected-reduction");
+        worker.process(request.id());
+        worker.process(next.id());
+        assertThat(stocks.find(request.id()).status()).isEqualTo("SUCCEEDED");
+        stock(sku, 4, 0);
+        resize(sku, 4);
+        assertThatThrownBy(() -> stocks.reserve(user("USER"), sku, 1, "before-smaller-snapshot"))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        failure -> assertThat(failure.getCode()).isEqualTo("PURCHASE_ADMISSION_UNAVAILABLE"));
+        assertThat(snapshots.synchronize(sku)).isTrue();
+        assertThatThrownBy(() -> stocks.reserve(user("USER"), sku, 1, "after-smaller-snapshot"))
+                .isInstanceOfSatisfying(BusinessException.class,
+                        failure -> assertThat(failure.getCode()).isEqualTo("TICKET_UNAVAILABLE"));
+        assertThat(db.queryForObject("SELECT SUM(total_stock) FROM ticket_stock_bucket WHERE sku_id=?",
+                Integer.class, sku)).isEqualTo(4);
+        consistent();
+    }
+
     @Test void missingAllocationFailsClosedBeforePaymentAndDoesNotUseLegacyCounters() {
         long id=order(buyer,sku,2);var rows=db.queryForList("SELECT * FROM order_stock_allocation WHERE order_id=?",id);
         db.update("DELETE FROM order_stock_allocation WHERE order_id=?",id);

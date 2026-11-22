@@ -1,8 +1,9 @@
--- 调用方持 MySQL SKU 行锁；暂停新受理，待已有预扣结算完才重置绝对余额。
-if ARGV[1] == 'pause' then
+-- 暂停新受理，待已有预扣结算完才重置绝对余额；减库存只在无在途时暂停。
+if ARGV[1] == 'pause' or ARGV[1] == 'pause-if-idle' then
     if redis.call('EXISTS', KEYS[1]) == 0 then return -1 end
-    redis.call('HSET', KEYS[1], 'ready', '0')
-    return tonumber(redis.call('HGET', KEYS[1], 'pending') or '-1')
+    local pendingCount = tonumber(redis.call('HGET', KEYS[1], 'pending')) or -1
+    if ARGV[1] == 'pause' or pendingCount == 0 then redis.call('HSET', KEYS[1], 'ready', '0') end
+    return pendingCount
 end
 local exists = redis.call('EXISTS', KEYS[1]) == 1
 if not exists and ARGV[1] ~= 'initialize' then return -1 end

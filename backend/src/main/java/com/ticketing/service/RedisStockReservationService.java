@@ -22,6 +22,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.http.HttpStatus;
@@ -268,6 +269,16 @@ public class RedisStockReservationService {
     /** 暂停可以独立调用；发布绝对余额必须持 MySQL SKU 锁，不使用冻结租约。 */
     public long pause(long skuId) {
         return pause(skuId, "explicit_pause");
+    }
+
+    public long pauseIfIdle(long skuId) {
+        try {
+            Long result = redis.execute(PUBLISH, List.of(skuKey(skuId), pending), "pause-if-idle");
+            if (result != null) return result;
+        } catch (DataAccessException exception) {
+            throw unavailable();
+        }
+        throw unavailable();
     }
 
     private long pause(long skuId, String reason) {
