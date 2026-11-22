@@ -38,6 +38,8 @@ public class TicketOrder {
     @TableField(exist = false)
     private LocalDateTime sessionStartsAt;
     @TableField(exist = false)
+    private LocalDateTime sessionEndsAt;
+    @TableField(exist = false)
     private String activityStatus;
     @TableField(exist = false)
     private String sessionStatus;
@@ -115,4 +117,6 @@ public class TicketOrder {
     public void setSessionTitle(String sessionTitle) { this.sessionTitle = sessionTitle; }
     public LocalDateTime getSessionStartsAt() { return sessionStartsAt; }
     public void setSessionStartsAt(LocalDateTime sessionStartsAt) { this.sessionStartsAt = sessionStartsAt; }
+    public LocalDateTime getSessionEndsAt() { return sessionEndsAt; }
+    public void setSessionEndsAt(LocalDateTime sessionEndsAt) { this.sessionEndsAt = sessionEndsAt; }
 }

@@ -32,6 +32,10 @@ public record OrderView(
     public static OrderView from(TicketOrder order, Instant now) {
         Instant deadline = order.getExpiresAt().toInstant(ZoneOffset.UTC);
         boolean pending = OrderStatus.PENDING.name().equals(order.getStatus());
+        Instant sessionEnd = order.getSessionEndsAt().toInstant(ZoneOffset.UTC);
+        if (pending && sessionEnd.isBefore(deadline)) {
+            deadline = sessionEnd;
+        }
         PaymentView payment =
                 order.getPaymentNo() == null
                         ? null

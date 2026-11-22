@@ -29,7 +29,7 @@ class OrderReservationTest {
         existing(OrderOperation.CREATE_ORDER, 1);
         assertThat(reservation.reservePurchase(context, 1, "historical")).isEqualTo(99);
         verify(orders).selectOne(any(Wrapper.class));
-        verify(orders, never()).insertPurchase(any(), anyInt());
+        verify(orders, never()).insertPurchase(any(), anyInt(), any());
         verifyNoInteractions(inventory, quotas);
     }
 
@@ -38,7 +38,7 @@ class OrderReservationTest {
         assertThatThrownBy(() -> reservation.reservePurchase(context, 2, "historical"))
                 .isInstanceOfSatisfying(BusinessException.class,
                         e -> assertThat(e.getCode()).isEqualTo("IDEMPOTENCY_CONFLICT"));
-        verify(orders, never()).insertPurchase(any(), anyInt());
+        verify(orders, never()).insertPurchase(any(), anyInt(), any());
         verifyNoInteractions(inventory, quotas);
     }
 
@@ -47,7 +47,7 @@ class OrderReservationTest {
         assertThat(reservation.reservePurchase(context, 1, OrderOperation.WAITLIST_CONFIRM,
                 "historical", 123L, false)).isEqualTo(99);
         verify(orders).selectOne(any(Wrapper.class));
-        verify(orders, never()).insertPurchase(any(), anyInt());
+        verify(orders, never()).insertPurchase(any(), anyInt(), any());
         verifyNoInteractions(inventory, quotas);
     }
 

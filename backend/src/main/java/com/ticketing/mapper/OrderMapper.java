@@ -20,7 +20,8 @@ public interface OrderMapper extends BaseMapper<TicketOrder> {
     String VIEW =
             """
             SELECT o.*,i.sku_id,i.quantity,i.unit_price_cents,i.sku_name_snapshot,
-                   s.title AS session_title,s.starts_at AS session_starts_at,s.status AS session_status,
+                   s.title AS session_title,s.starts_at AS session_starts_at,s.ends_at AS session_ends_at,
+                   s.status AS session_status,
                    a.id AS activity_id,a.title AS activity_title,a.status AS activity_status,
                    p.payment_no,p.amount_cents AS payment_amount_cents,p.paid_at AS payment_paid_at,
                    u.username,r.refund_no,r.reason AS refund_reason,r.refunded_at
@@ -60,16 +61,19 @@ public interface OrderMapper extends BaseMapper<TicketOrder> {
     @Select("SELECT UTC_TIMESTAMP(6)")
     LocalDateTime databaseNow();
 
-    /** 创建与支付截止时间由同一条写入语句使用数据库时间确定。 */
+    /** 库存锁已取得，在创建订单时以数据库时间确认仍可售。 */
     @Insert("""
             INSERT INTO ticket_order(order_no,user_id,session_id,status,total_amount_cents,
                     idempotency_operation,idempotency_key,request_hash,created_at,updated_at,expires_at)
-            VALUES(#{order.orderNo},#{order.userId},#{order.sessionId},#{order.status},#{order.totalAmountCents},
+            SELECT #{order.orderNo},#{order.userId},#{order.sessionId},#{order.status},#{order.totalAmountCents},
                     #{order.idempotencyOperation},#{order.idempotencyKey},#{order.requestHash},
-                    UTC_TIMESTAMP(6),UTC_TIMESTAMP(6),TIMESTAMPADD(MINUTE,#{paymentWindowMinutes},UTC_TIMESTAMP(6)))
+                    UTC_TIMESTAMP(6),UTC_TIMESTAMP(6),
+                    LEAST(TIMESTAMPADD(MINUTE,#{paymentWindowMinutes},UTC_TIMESTAMP(6)),#{sale.sessionEndsAt})
+            WHERE UTC_TIMESTAMP(6)<#{sale.saleEndsAt}
             """)
     @Options(useGeneratedKeys = true, keyProperty = "order.id", keyColumn = "id")
-    int insertPurchase(@Param("order") TicketOrder order, @Param("paymentWindowMinutes") int paymentWindowMinutes);
+    int insertPurchase(@Param("order") TicketOrder order, @Param("paymentWindowMinutes") int paymentWindowMinutes,
+            @Param("sale") TicketSale sale);
 
     @Select(
             """
@@ -96,8 +100,9 @@ public interface OrderMapper extends BaseMapper<TicketOrder> {
 
     @Update(
             """
-            UPDATE ticket_order SET status='PAID',paid_at=UTC_TIMESTAMP(6),updated_at=UTC_TIMESTAMP(6)
-            WHERE id=#{id} AND user_id=#{userId} AND status='PENDING' AND expires_at>UTC_TIMESTAMP(6)
+            UPDATE ticket_order o SET status='PAID',paid_at=UTC_TIMESTAMP(6),updated_at=UTC_TIMESTAMP(6)
+            WHERE o.id=#{id} AND o.user_id=#{userId} AND o.status='PENDING' AND o.expires_at>UTC_TIMESTAMP(6)
+              AND EXISTS(SELECT 1 FROM activity_session s WHERE s.id=o.session_id AND s.ends_at>UTC_TIMESTAMP(6))
             """)
     int markPaid(@Param("id") long id, @Param("userId") long userId);
 

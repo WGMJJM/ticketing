@@ -122,6 +122,10 @@ class WaitlistManagementIT {
         start();long order=awaitAllocated(entry);assertThat(requests.find(id).orderId()).isEqualTo(order);
         assertThat(db.queryForObject("SELECT idempotency_operation FROM ticket_order WHERE id=?",String.class,order)).isEqualTo("WAITLIST_CONFIRM");
         assertThat(db.queryForObject("SELECT status FROM ticket_order WHERE id=?",String.class,order)).isEqualTo("PENDING");
+        var sessionEnd = db.queryForObject("SELECT ends_at FROM activity_session WHERE id=?",java.time.LocalDateTime.class,session);
+        db.update("UPDATE ticket_order SET expires_at=? WHERE id=?",sessionEnd.plusMinutes(5),order);
+        assertThat(waitlists.detail(buyer.id,Long.parseLong(entry.id())).orderExpiresAt())
+                .isEqualTo(sessionEnd.toInstant(java.time.ZoneOffset.UTC));
         orderService.pay(buyer.id,order);assertThat(status(entry)).isEqualTo("COMPLETED");
         assertThat(db.queryForObject("SELECT COUNT(*) FROM electronic_ticket WHERE order_id=?",Integer.class,order)).isEqualTo(1);
         dispatcher.dispatch(sku);assertThat(priority()).isEqualTo("0");stock(0,1);

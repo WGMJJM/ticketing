@@ -143,7 +143,7 @@ class AsyncPurchaseIT {
         worker.process(held.id(), sku);
         verify(requests, never()).lock(anyLong());
         verify(requests, never()).finishSuccess(anyLong(), anyLong());
-        verify(orders, never()).insertPurchase(any(), anyInt());
+        verify(orders, never()).insertPurchase(any(), anyInt(), any());
         assertThat(orderCount()).isEqualTo(1);
     }
 
@@ -155,8 +155,8 @@ class AsyncPurchaseIT {
         doAnswer(call -> {
             com.ticketing.entity.TicketOrder order = call.getArgument(0);
             order.setIdempotencyKey(first.idempotencyKey());
-            return mybatis.getMapper(OrderMapper.class).insertPurchase(order, call.getArgument(1));
-        }).when(orders).insertPurchase(any(), anyInt());
+            return mybatis.getMapper(OrderMapper.class).insertPurchase(order, call.getArgument(1), call.getArgument(2));
+        }).when(orders).insertPurchase(any(), anyInt(), any());
         assertThatThrownBy(() -> worker.process(held.id(), sku))
                 .isInstanceOf(org.springframework.dao.DuplicateKeyException.class);
         assertThat(requests.find(held.id())).isNull();

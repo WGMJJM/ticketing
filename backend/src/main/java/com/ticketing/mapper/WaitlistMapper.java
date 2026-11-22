@@ -34,7 +34,8 @@ public interface WaitlistMapper extends BaseMapper<WaitlistEntry> {
             SELECT CAST(w.id AS CHAR) AS id,CAST(w.sku_id AS CHAR) AS sku_id,CAST(s.id AS CHAR) AS session_id,
               CAST(a.id AS CHAR) AS activity_id,a.title AS activity_title,s.title AS session_title,t.name AS sku_name,
               CAST(t.price_cents AS CHAR) AS price_cents,w.quantity,w.status,w.created_at,w.expires_at,
-              CAST(w.reserved_order_id AS CHAR) AS reserved_order_id,o.status AS order_status,o.expires_at AS order_expires_at,
+              CAST(w.reserved_order_id AS CHAR) AS reserved_order_id,o.status AS order_status,
+              CASE WHEN o.status='PENDING' THEN LEAST(o.expires_at,s.ends_at) ELSE o.expires_at END AS order_expires_at,
               (w.status='WAITING') AS can_cancel
             FROM waitlist_entry w JOIN ticket_sku t ON t.id=w.sku_id JOIN activity_session s ON s.id=t.session_id
             JOIN activity a ON a.id=s.activity_id

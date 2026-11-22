@@ -145,7 +145,9 @@ public class OrderReservation {
         order.setIdempotencyOperation(operation.name());
         order.setIdempotencyKey(key);
         order.setRequestHash(hash);
-        orders.insertPurchase(order, properties.paymentWindowMinutes());
+        if (orders.insertPurchase(order, properties.paymentWindowMinutes(), sale) != 1) {
+            throw conflict("TICKET_UNAVAILABLE", "票档已停售");
+        }
         orders.insertItem(order, sale, quantity);
         inventory.allocate(sale, order.getId(), allocation);
         return order.getId();

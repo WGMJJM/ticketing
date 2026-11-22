@@ -137,11 +137,11 @@ skuId为正十进制字符串且不能超过Java long，quantity为正INT整数�
 
 PurchaseRequestView为 `{requestId,skuId,quantity,status,orderId,failureCode,failureMessage,acceptedAt,deadlineAt,serverTime}`，ID按字符串传输。状态为QUEUED、SUCCEEDED、FAILED、EXPIRED；只有SUCCEEDED有真实orderId。202证明Redis预扣及申请凭据已登记，不证明消息已到达或订单已创建。默认容量200、排队120秒；容量满时503 PURCHASE_QUEUE_FULL。账本丢失时停卖核对，不猜测重建。
 
-消费者先验证 Redis 凭据，以 requestId 在 MySQL 协调重复消息及过期仲裁，再按既有资源锁序检查资格和库存。订单、明细、库存、额度和 SUCCEEDED 同事务提交；确定失败先登记终态，再由 Lua 幂等释放预扣。排队截止与订单支付截止独立。
+消费者先验证 Redis 凭据，以 requestId 在 MySQL 协调重复消息及过期仲裁，再按既有资源锁序检查资格和库存。取得库存锁后，写入订单时用数据库时间检查是否已停售。订单、明细、库存、额度和 SUCCEEDED 同事务提交；确定失败先登记终态，再由 Lua 幂等释放预扣。排队截止与订单支付截止独立。
 
 OrderView字段：id/orderNo/activityId/activityTitle/sessionId/sessionTitle/sessionStartsAt/skuId/skuName/quantity/unitPriceCents/totalAmountCents/status/createdAt/expiresAt/paymentDeadlinePassed/canCancel/canPay/payment/serverTime。ID和金额分为字符串，数量为整数，时间UTC带Z、页面北京时间。skuName、单价和数量来自下单明细快照，活动/场次名称及开始时间是当前关联资料。总额为服务端单价乘数量，不采用客户端预计金额。payment无成功流水时为null，否则为PaymentView，列表通过JOIN读取，不逐订单额外查询。
 
-状态为PENDING（待支付）、PAID（已支付）、CANCELLED（已取消）、EXPIRED（已过期）、REFUNDED（已模拟退款）。PENDING仅可支付、取消或过期，PAID仅能经管理员/场次善后整单模拟退款；REFUNDED不可支付或取消。支付窗口配置 `ticketing.order.payment-window-minutes` 默认15分钟；创建及查询使用MySQL UTC时间。PENDING截止前且活动PUBLISHED、场次SCHEDULED时canPay=true；明细完整的PENDING仍可主动取消，其他状态canCancel=false。超过截止但扫描尚未处理的PENDING仍占库存与限额，paymentDeadlinePassed=true且不能支付；只有收到EXPIRED才展示已过期。前端以serverTime和单调计时推进支付按钮的禁用提示，不能自行修改订单终态。
+状态为PENDING（待支付）、PAID（已支付）、CANCELLED（已取消）、EXPIRED（已过期）、REFUNDED（已模拟退款）。PENDING仅可支付、取消或过期，PAID仅能经管理员/场次善后整单模拟退款；REFUNDED不可支付或取消。支付窗口配置 `ticketing.order.payment-window-minutes` 默认15分钟，新订单的支付截止取该窗口与场次结束时间中较早的时间。待支付的历史订单及改期订单展示实际可支付的截止，即订单记录的截止与当前场次结束时间中较早的时间。PENDING截止前且活动PUBLISHED、场次SCHEDULED时canPay=true；明细完整的PENDING仍可主动取消，其他状态canCancel=false。超过截止但扫描尚未处理的PENDING仍占库存与限额，paymentDeadlinePassed=true且不能支付；只有收到EXPIRED才展示已过期。前端以serverTime和单调计时推进支付按钮的禁用提示，不能自行修改订单终态。
 
 ## 模拟支付与自动超时关闭
 
@@ -149,7 +149,7 @@ pay与payment沿用全部订单路径的Session和当前账号复查，POST需CS
 
 PaymentView为 `{orderId,paymentNo,amountCents,status,paidAt,simulated}`，ID/金额分为字符串，status=SUCCEEDED，paidAt为UTC时间，simulated=true明确标记模拟业务，不接真实平台、不实际扣款。订单和支付时间/金额在同事务内一致，支付流水号唯一且同订单仅一条。
 
-支付事务锁定用户→活动→场次→票档→订单。只允许未截止的PENDING，最终SQL要求 `expires_at>UTC_TIMESTAMP(6)`，锁等待不会延长期限；超过截止返回409 ORDER_EXPIRED。活动不再PUBLISHED或场次非SCHEDULED返回409 ORDER_UNPAYABLE；CANCELLED/EXPIRED返回409 ORDER_STATE_CONFLICT。库存必须locked足量，将locked等量转sold，状态、库存和SUCCEEDED流水同事务提交，失败全部回滚。SKU停售只禁止新订单，不撤销已占库存订单的支付资格；父级不可售则阻止继续支付。
+支付事务锁定用户→活动→场次→票档→订单。最终SQL以MySQL UTC时间确认PENDING订单尚未截止、场次尚未结束，越过任一截止返回409 ORDER_EXPIRED。活动不再PUBLISHED或场次非SCHEDULED返回409 ORDER_UNPAYABLE；CANCELLED/EXPIRED返回409 ORDER_STATE_CONFLICT。库存必须locked足量，将locked等量转sold，状态、库存和SUCCEEDED流水同事务提交，失败全部回滚。SKU停售只禁止新订单，不撤销已占库存订单的支付资格；父级不可售则阻止继续支付。
 
 重复支付PAID直接返回原PaymentView，既不新增流水也不变库存；即使此后父级下架，仍可查询或重放成功结果。请求结果不明时刷新本人订单或payment查询可恢复事实，不自动重放POST。支付或取消失败时Vue重新查询订单，展示竞争后的真实状态。
 

@@ -230,6 +230,38 @@ class OrderManagementIT {
     }
 
     @Test
+    void shortSessionCapsTheNewOrderDeadlineAndBlocksPaymentAfterItEnds() throws Exception {
+        jdbc.update("UPDATE ticket_sku SET sale_ends_at=TIMESTAMPADD(MINUTE,1,UTC_TIMESTAMP(6)) WHERE id=?", skuId);
+        jdbc.update("""
+                UPDATE activity_session SET starts_at=TIMESTAMPADD(MINUTE,2,UTC_TIMESTAMP(6)),
+                  ends_at=TIMESTAMPADD(MINUTE,3,UTC_TIMESTAMP(6)) WHERE id=?
+                """, sessionId);
+        JsonNode created = buyer.create(skuId, 1, "short-session", 200).path("data");
+        long orderId = created.path("id").asLong();
+        assertThat(created.path("canPay").asBoolean()).isTrue();
+        assertThat(jdbc.queryForObject("""
+                SELECT o.expires_at=s.ends_at FROM ticket_order o
+                JOIN activity_session s ON s.id=o.session_id WHERE o.id=?
+                """, Boolean.class, orderId)).isTrue();
+
+        // 模拟历史或改期订单，订单原截止尚未到，但场次已经结束。
+        jdbc.update("""
+                UPDATE activity_session SET starts_at=TIMESTAMPADD(MINUTE,-2,UTC_TIMESTAMP(6)),
+                  ends_at=TIMESTAMPADD(MINUTE,-1,UTC_TIMESTAMP(6)) WHERE id=?
+                """, sessionId);
+        String path = "/orders/" + orderId;
+        JsonNode order = buyer.call("GET", path, null, null, 200).path("data");
+        assertThat(order.path("paymentDeadlinePassed").asBoolean()).isTrue();
+        assertThat(order.path("canPay").asBoolean()).isFalse();
+        buyer.call("POST", path + "/pay", null, null, 409);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM payment_record WHERE order_id=?",
+                Integer.class, orderId)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM electronic_ticket WHERE order_id=?",
+                Integer.class, orderId)).isZero();
+        invariant(1, 0);
+    }
+
+    @Test
     void paidOccupiesQuotaButCancelledAndExpiredDoNot() throws Exception {
         String id = buyer.create(skuId, 3, "paid-fixture", 200).path("data").path("id").asText();
         buyer.call("POST", "/orders/" + id + "/pay", null, null, 200);

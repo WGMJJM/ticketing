@@ -282,6 +282,31 @@ class StockBucketIT {
                 .isEqualTo(StockBucketRouter.route(request.id(),4));
         worker.process(request.id());stock(sku,1,0);consistent();
     }
+    @Test void bucketLockWaitCrossingTheSalesCutoffRollsBackTheWholeOrder() throws Exception {
+        sku = sku(session, 32, 32);
+        PurchaseRequest request = routed(buyer, 31);
+        db.update("UPDATE ticket_sku SET sale_ends_at=TIMESTAMPADD(SECOND,5,UTC_TIMESTAMP(6)) WHERE id=?", sku);
+        try (var pool = Executors.newSingleThreadExecutor()) {
+            Future<?> consumer = tx().execute(state -> {
+                db.queryForMap("SELECT * FROM ticket_stock_bucket WHERE sku_id=? AND bucket_no=31 FOR UPDATE", sku);
+                Future<?> task = pool.submit(() -> worker.process(request.id()));
+                awaitWaiter("ticket_stock_bucket");
+                db.queryForObject("""
+                        SELECT SLEEP(GREATEST(TIMESTAMPDIFF(MICROSECOND,UTC_TIMESTAMP(6),sale_ends_at),0)
+                          / 1000000 + 0.05) FROM ticket_sku WHERE id=?
+                        """, Integer.class, sku);
+                return task;
+            });
+            consumer.get(10, TimeUnit.SECONDS);
+        }
+        assertThat(stocks.find(request.id()).status()).isEqualTo("FAILED");
+        assertThat(requests.find(request.id()).failureCode()).isEqualTo("TICKET_UNAVAILABLE");
+        stock(sku, 0, 0);
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM ticket_order WHERE user_id=?", Integer.class, buyer)).isZero();
+        PurchaseTestSupport.assertQuotaConsistent(db, session);
+        consistent();
+    }
+
     @Test void pendingReservationBlocksAbsoluteSnapshotUntilSettlementAndReplayDoesNotAddStock() {
         var request=claim(buyer,sku,3);
         assertThat(snapshots.synchronize(sku)).isFalse();
