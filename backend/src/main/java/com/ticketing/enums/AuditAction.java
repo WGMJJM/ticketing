@@ -19,7 +19,8 @@ public enum AuditAction {
     STAFF_DISABLE("停用工作人员"),
     SESSION_GRANT("授权核销场次"),
     SESSION_REVOKE("撤销核销场次"),
-    ORDER_REFUND("处理整单模拟退款");
+    ORDER_REFUND("处理整单模拟退款"),
+    ORDER_AFTERCARE_RESOLVE("登记人工售后结果");
 
     private final String label;
 

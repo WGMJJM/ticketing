@@ -13,6 +13,7 @@ import com.ticketing.mapper.OrderMapper;
 import com.ticketing.mapper.PaymentMapper;
 import com.ticketing.mapper.RefundMapper;
 import com.ticketing.vo.RefundResult;
+import com.ticketing.vo.AftercareView;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import java.util.Map;
@@ -69,11 +70,31 @@ public class OrderRefundService {
         return result;
     }
 
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public AftercareView resolveAftercare(long operatorId, long orderId, String note) {
+        TicketOrder order = requireOrder(orderId);
+        resources.lockRefundUsers(order.getUserId(), operatorId);
+        resources.lockSession(order.getSessionId());
+        resources.lockOrder(orderId, order.getUserId());
+        var previous = aftercare.find(orderId);
+        if (aftercare.resolve(orderId, note) != 1) {
+            throw conflict("只有待人工处理的售后可以登记结果");
+        }
+        audit.record(operatorId, AuditAction.ORDER_AFTERCARE_RESOLVE, "ORDER", orderId,
+                Map.of("status", previous.status(), "reason", previous.reasonCode()),
+                Map.of("status", "COMPLETED", "note", note));
+        return aftercare.find(orderId);
+    }
+
     /** 每单一个独立事务，禁用买家也必须释放历史库存。 */
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public void processCancelledSession(long orderId) {
         Locked locked = lock(orderId, null);
         if (locked.sessionStatus() != SessionStatus.CANCELLED) {
+            return;
+        }
+        var existing = aftercare.find(orderId);
+        if (existing != null && !"RETRY".equals(existing.status())) {
             return;
         }
         if (locked.sale() == null) {
@@ -167,10 +188,7 @@ public class OrderRefundService {
 
     private Locked lock(long orderId, Long operatorId) {
         // 只发现不可变归属；取得用户及父资源锁后重读状态和快照。
-        TicketOrder initial = orders.selectById(orderId);
-        if (initial == null) {
-            throw new BusinessException(HttpStatus.NOT_FOUND, "ORDER_NOT_FOUND", "订单不存在");
-        }
+        TicketOrder initial = requireOrder(orderId);
         resources.lockRefundUsers(initial.getUserId(), operatorId);
         TicketOrder detail = orders.snapshot(orderId);
         if (detail == null || detail.getSkuId() == null) {
@@ -184,6 +202,14 @@ public class OrderRefundService {
         }
         OrderStatus status = resources.lockOrder(orderId, initial.getUserId());
         return new Locked(orders.snapshot(orderId), sale, status, sale.sessionStatus());
+    }
+
+    private TicketOrder requireOrder(long orderId) {
+        TicketOrder order = orders.selectById(orderId);
+        if (order == null) {
+            throw new BusinessException(HttpStatus.NOT_FOUND, "ORDER_NOT_FOUND", "订单不存在");
+        }
+        return order;
     }
 
     private BusinessException conflict(String message) {

@@ -135,9 +135,10 @@ public class SessionService {
         if (mapper.update(
                         null,
                         mutation(session, version)
+                                .apply("ends_at > UTC_TIMESTAMP(6)")
                                 .set(ActivitySession::getStatus, SessionStatus.CANCELLED.name()))
                 != 1) {
-            throw conflict("场次状态已变化，请刷新后重试");
+            throw conflict("场次已结束或状态已变化，请刷新后确认");
         }
         audit.record(operatorId, AuditAction.SESSION_CANCEL, "SESSION", id, snapshot(session), snapshot(requireSession(id)));
         inventoryVersions.sessionChanged(id);

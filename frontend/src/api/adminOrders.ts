@@ -42,4 +42,7 @@ export const adminOrdersApi = {
   refund: (id: string, reason: RefundReason) => useAuthStore().request<{ status: 'SUCCEEDED' | 'MANUAL_REQUIRED'; refund: Refund | null; aftercare: Aftercare | null }>({
     method: 'POST', url: '/admin/orders/' + id + '/refund', data: { reason },
   }),
+  resolveAftercare: (id: string, note: string) => useAuthStore().request<Aftercare>({
+    method: 'POST', url: '/admin/orders/' + id + '/aftercare/resolve', data: { note },
+  }),
 }

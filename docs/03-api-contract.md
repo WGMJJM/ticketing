@@ -17,6 +17,7 @@ V16 的202表示 Redis 已受理并已尝试发送普通购票消息，不表示
 | GET /admin/orders | page默认1、1至10000；size默认10、1至50。可选orderNo/username精确匹配（最多64位）、正整数userId/activityId/sessionId、订单status、带时区createdFrom/createdTo。创建时间左闭右开，结束必须晚于开始；按created_at和id降序稳定分页 |
 | GET /admin/orders/{id} | summary、waitlist、tickets、refund、aftercare；summary包含order、字符串userId、username、paidAt。tickets仅total/unused/used/voided数量，waitlist仅ID、状态和预留关联；不含入场凭证 |
 | POST /admin/orders/{id}/refund | JSON仅`{"reason":"CUSTOMER_REQUEST"}`，可选原因CUSTOMER_REQUEST、SERVICE_ADJUSTMENT、SESSION_CANCELLED；最后一种只允许场次已取消。拒绝金额、用户ID、操作人、状态及任何其他字段 |
+| POST /admin/orders/{id}/aftercare/resolve | JSON `{"note":"人工处理结果"}`，1至255字；仅待人工处理的售后可登记。返回COMPLETED售后记录并审计操作人；登记不改变订单、票券或退款流水 |
 
 退款返回`{status,refund,aftercare}`。status为SUCCEEDED表示整单模拟退款已完成；重复成功返回原refundNo和退款记录，不再改变库存。MANUAL_REQUIRED表示未退款，aftercare提供原因，订单仍PAID、票券和支付不变。PENDING/CANCELLED/EXPIRED不能退款，409 REFUND_STATE_CONFLICT。
 
@@ -24,7 +25,7 @@ refund包含字符串orderId/refundNo/paymentNo/amountCents/operatorId（系统N
 
 用户订单新增refund（未退款为NULL）。REFUNDED显示“已模拟退款”，保留原payment；本单电子票为VOID，凭证接口409，不再提供二维码。历史异常明细缺失时skuId/skuName/quantity/unitPriceCents为NULL，显示待核对，canPay和canCancel为false，不伪造金额或数量；管理员可查询对应人工待办。
 
-取消场次接口仍只快速持久化CANCELLED并返回场次；后台有界逐单处理PENDING→CANCELLED或PAID→REFUNDED。已核销、缺票及异常订单保留MANUAL_REQUIRED；已禁用买家不阻止善后。可刷新运营订单详情读取结果，不能把场次取消响应当作全场退款已完成。活动OFFLINE不触发自动售后。
+场次结束后不能取消，最终以数据库时间为准。取消仍只快速持久化CANCELLED并返回场次；后台有界逐单处理PENDING→CANCELLED或PAID→REFUNDED。已核销、缺票及异常订单保留MANUAL_REQUIRED；已禁用买家不阻止善后。可刷新运营订单详情读取结果，不能把场次取消响应当作全场退款已完成。活动OFFLINE不触发自动售后。
 
 统一前缀 /api/v1。成功响应为ApiResponse的code=OK、message=操作成功、data=结果；业务错误沿用同一结构，data为null。使用400参数错误、401未认证或账号失效、403无权限或CSRF无效、404资源不存在或订单不属于本人、409库存/限购/幂等/状态/版本冲突、500服务内部异常。错误文案为中文，不返回SQL或堆栈。
 

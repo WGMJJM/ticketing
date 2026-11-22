@@ -291,6 +291,23 @@ class OrderAftercareIT {
     }
 
     @Test
+    void endedSessionCannotBeCancelledOrTriggerAutomaticAftercare() throws Exception {
+        long id = paid(buyer, 1);
+        jdbc.update("""
+                UPDATE activity_session SET starts_at=TIMESTAMPADD(MINUTE,-2,UTC_TIMESTAMP(6)),
+                  ends_at=TIMESTAMPADD(MINUTE,-1,UTC_TIMESTAMP(6)) WHERE id=?
+                """, sessionId);
+        admin.call("POST", "/admin/sessions/" + sessionId + "/cancel", Map.of("version", 0), 409);
+        assertThat(jdbc.queryForObject("SELECT status FROM activity_session WHERE id=?", String.class, sessionId))
+                .isEqualTo("SCHEDULED");
+        new SessionAftercareJob(aftercare, service, new AftercareProperties(100, 3, 1)).scan();
+        assertThat(state(id)).isEqualTo("PAID");
+        assertThat(aftercare.find(id)).isNull();
+        assertThat(count("refund_record", "order_id=?", id)).isZero();
+        stock(0, 1);
+    }
+
+    @Test
     void missingOrderItemIsPersistedAsManualAndRemainsVisibleToAdministrators() throws Exception {
         long id = buyer.create(1);
         jdbc.update("DELETE FROM ticket_order_item WHERE order_id=?",id);
@@ -302,6 +319,22 @@ class OrderAftercareIT {
         assertThat(detail.path("summary").path("order").path("quantity").isNull()).isTrue();
         assertThat(detail.path("aftercare").path("status").asText()).isEqualTo("MANUAL_REQUIRED");
         assertThat(state(id)).isEqualTo("PENDING"); stock(1,0);
+        String path = "/admin/orders/" + id + "/aftercare/resolve";
+        buyer.call("POST", path, Map.of("note", "越权测试"), 403);
+        admin.call("POST", path, Map.of("note", "  "), 400);
+        var result = admin.call("POST", path, Map.of("note", "已与买家沟通并登记处理结果"), 200).path("data");
+        assertThat(result.path("status").asText()).isEqualTo("COMPLETED");
+        assertThat(result.path("reasonCode").asText()).isEqualTo("MANUAL_RESOLVED");
+        admin.call("POST", path, Map.of("note", "重复提交"), 409);
+        service.processCancelledSession(id);
+        assertThat(aftercare.find(id).message()).isEqualTo("已与买家沟通并登记处理结果");
+        assertThat(jdbc.queryForObject("""
+                SELECT operator_id FROM admin_audit_log
+                WHERE action='ORDER_AFTERCARE_RESOLVE' AND resource_id=?
+                """, Long.class, id)).isEqualTo(admin.id);
+        assertThat(state(id)).isEqualTo("PENDING");
+        assertThat(count("refund_record", "order_id=?", id)).isZero();
+        stock(1, 0);
     }
 
     @Test

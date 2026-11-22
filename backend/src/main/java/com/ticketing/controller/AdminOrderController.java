@@ -3,12 +3,14 @@ package com.ticketing.controller;
 import com.ticketing.common.ApiResponse;
 import com.ticketing.common.PageResponse;
 import com.ticketing.dto.AdminOrderQuery;
+import com.ticketing.dto.AftercareResolutionRequest;
 import com.ticketing.dto.RefundRequest;
 import com.ticketing.security.AccountPrincipal;
 import com.ticketing.service.AdminOrderService;
 import com.ticketing.service.OrderRefundService;
 import com.ticketing.vo.AdminOrderDetail;
 import com.ticketing.vo.AdminOrderView;
+import com.ticketing.vo.AftercareView;
 import com.ticketing.vo.RefundResult;
 
 import jakarta.servlet.http.HttpServletResponse;
@@ -53,5 +55,13 @@ public class AdminOrderController {
             HttpServletResponse response) {
         response.setHeader("Cache-Control", "no-store");
         return ApiResponse.success(refunds.refund(user.getId(), id, request.reason()));
+    }
+
+    @PostMapping("/{id}/aftercare/resolve")
+    public ApiResponse<AftercareView> resolveAftercare(@AuthenticationPrincipal AccountPrincipal user,
+            @PathVariable @Positive long id, @Valid @RequestBody AftercareResolutionRequest request,
+            HttpServletResponse response) {
+        response.setHeader("Cache-Control", "no-store");
+        return ApiResponse.success(refunds.resolveAftercare(user.getId(), id, request.note().strip()));
     }
 }

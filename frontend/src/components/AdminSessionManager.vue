@@ -216,7 +216,7 @@ onBeforeUnmount(() => { generation++ })
               <td class="table-actions">
                 <ElButton
                   size="small"
-                  :disabled="saving || session.status !== 'SCHEDULED'"
+                  :disabled="saving || session.status !== 'SCHEDULED' || Date.parse(session.endsAt) <= Date.now()"
                   @click="editSession(session)"
                   >编辑</ElButton
                 ><ElButton

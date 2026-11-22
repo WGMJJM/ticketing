@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Update;
 import java.util.List;
 
 @Mapper
@@ -24,6 +25,13 @@ public interface AftercareMapper {
             """)
     int record(@Param("id") long id, @Param("status") String status,
             @Param("code") String code, @Param("message") String message);
+
+    @Update("""
+            UPDATE order_aftercare SET status='COMPLETED',reason_code='MANUAL_RESOLVED',message=#{note},
+              last_attempt_at=UTC_TIMESTAMP(6)
+            WHERE order_id=#{id} AND status='MANUAL_REQUIRED'
+            """)
+    int resolve(@Param("id") long id, @Param("note") String note);
 
     @Insert("""
             INSERT INTO order_aftercare(order_id,status,reason_code,message,next_retry_at)

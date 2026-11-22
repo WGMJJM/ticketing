@@ -12,6 +12,7 @@ import OrderCard from './OrderCard.vue'
 const props = defineProps<{ id: string }>()
 const detail = ref<AdminOrderDetail>()
 const reason = ref<RefundReason>('CUSTOMER_REQUEST')
+const resolution = ref('')
 const loading = ref(false)
 const busy = ref(false)
 const error = ref('')
@@ -30,7 +31,12 @@ async function load() {
     if (current === generation) loading.value = false
   }
 }
-watch(() => props.id, () => { detail.value = undefined; notice.value = ''; void load() }, { immediate: true })
+watch(() => props.id, () => {
+  detail.value = undefined
+  notice.value = ''
+  resolution.value = ''
+  void load()
+}, { immediate: true })
 onBeforeUnmount(() => { generation++ })
 async function refund() {
   if (!detail.value) return
@@ -55,6 +61,21 @@ async function refund() {
     }
   } finally { busy.value = false }
 }
+async function resolveAftercare() {
+  const id = props.id
+  busy.value = true
+  error.value = ''
+  notice.value = ''
+  try {
+    await adminOrdersApi.resolveAftercare(id, resolution.value.trim())
+    if (id !== props.id) return
+    resolution.value = ''
+    notice.value = '已登记人工处理结果'
+    await load()
+  } catch (failure) {
+    if (id === props.id) error.value = failure instanceof Error ? failure.message : '人工处理结果登记失败'
+  } finally { busy.value = false }
+}
 </script>
 <template>
   <div class="admin-order-detail">
@@ -71,8 +92,14 @@ async function refund() {
         <p v-if="detail.waitlist">候补编号 {{ detail.waitlist.id }} · {{ waitlistStatusText[detail.waitlist.status as keyof typeof waitlistStatusText] ?? '未知状态' }} · 关联预留订单 {{ detail.waitlist.reservedOrderId }}</p>
         <div v-if="detail.aftercare" class="aftercare-state" :data-status="detail.aftercare.status" role="status">
           <strong>{{ aftercareStatusText[detail.aftercare.status] }}</strong><p>{{ detail.aftercare.message }}</p>
-          <small>最近尝试 {{ formatTime(detail.aftercare.lastAttemptAt) }} · 共 {{ detail.aftercare.attemptCount }} 次<span v-if="detail.aftercare.nextRetryAt"> · 下次重试 {{ formatTime(detail.aftercare.nextRetryAt) }}</span></small>
+          <small v-if="detail.aftercare.reasonCode === 'MANUAL_RESOLVED'">登记时间 {{ formatTime(detail.aftercare.lastAttemptAt) }}</small>
+          <small v-else>最近尝试 {{ formatTime(detail.aftercare.lastAttemptAt) }} · 共 {{ detail.aftercare.attemptCount }} 次<span v-if="detail.aftercare.nextRetryAt"> · 下次重试 {{ formatTime(detail.aftercare.nextRetryAt) }}</span></small>
         </div>
+        <form v-if="detail.aftercare?.status === 'MANUAL_REQUIRED'" class="refund-form" @submit.prevent="resolveAftercare">
+          <label>人工处理结果<textarea v-model="resolution" maxlength="255" rows="3" required :disabled="busy" /></label>
+          <ElButton native-type="submit" :loading="busy" :disabled="loading || !resolution.trim()">登记并结案</ElButton>
+          <p>仅记录处理结果，订单、票券及退款记录保持原状。</p>
+        </form>
         <form v-if="detail.summary.order.status === 'PAID'" class="refund-form" @submit.prevent="refund">
           <label>退款原因<select v-model="reason" :disabled="busy"><option v-for="(label, value) in refundReasonText" :key="value" :value="value">{{ label }}</option></select></label>
           <ElButton type="primary" native-type="submit" :loading="busy" :disabled="loading">整单退款</ElButton>
