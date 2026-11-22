@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import 'element-plus/es/components/message-box/style/css'
 import {
@@ -10,7 +10,9 @@ import {
 import { orderStatusText } from '../api/orders'
 import { formatTime } from '../utils/date'
 import { formatCents } from '../utils/money'
+import { useAuthStore } from '../stores/auth'
 const props = defineProps<{ id?: string }>()
+const auth = useAuthStore()
 const rows = ref<WaitlistEntry[]>([])
 const page = ref(1)
 const total = ref(0)
@@ -19,10 +21,25 @@ const busy = ref(false)
 const error = ref('')
 const notice = ref('')
 let generation = 0
-async function load() {
+let timer: ReturnType<typeof setTimeout> | undefined
+
+function hasActiveEntry() {
+  return rows.value.some(entry => ['WAITING', 'PROCESSING', 'ALLOCATED'].includes(entry.status))
+}
+
+function refreshWhenVisible() {
+  clearTimeout(timer)
+  if (!document.hidden && hasActiveEntry()) void load(true)
+}
+
+async function load(quiet = false) {
+  clearTimeout(timer)
+  if (!auth.authenticated || (quiet && document.hidden)) return
   const active = ++generation
-  loading.value = true
-  error.value = ''
+  if (!quiet) {
+    loading.value = true
+    error.value = ''
+  }
   try {
     const result = props.id
       ? { items: [await waitlistApi.detail(props.id)], total: 1 }
@@ -30,22 +47,36 @@ async function load() {
     if (active === generation) {
       rows.value = result.items
       total.value = result.total
+      error.value = ''
     }
   } catch (failure) {
-    if (active === generation)
+    if (active === generation && !quiet)
       error.value =
         failure instanceof Error ? failure.message : '候补记录加载失败'
   } finally {
-    if (active === generation) loading.value = false
+    if (active === generation) {
+      loading.value = false
+      if (!document.hidden && hasActiveEntry()) timer = setTimeout(() => void load(true), 5000)
+    }
   }
 }
+document.addEventListener('visibilitychange', refreshWhenVisible)
+onBeforeUnmount(() => {
+  generation++
+  clearTimeout(timer)
+  document.removeEventListener('visibilitychange', refreshWhenVisible)
+})
 watch(
-  () => props.id,
+  [() => props.id, () => auth.user?.id],
   () => {
+    generation++
+    loading.value = false
     rows.value = []
     page.value = 1
+    total.value = 0
     notice.value = ''
-    void load()
+    if (auth.authenticated) void load()
+    else clearTimeout(timer)
   },
   { immediate: true },
 )
@@ -80,6 +111,11 @@ function changePage(value: number) {
   page.value = value
   void load()
 }
+
+function waitingForPayment(entry: WaitlistEntry) {
+  return entry.status === 'ALLOCATED' && entry.orderStatus === 'PENDING' &&
+    !!entry.orderExpiresAt && Date.parse(entry.orderExpiresAt) > Date.now()
+}
 </script>
 <template>
   <div class="orders-page">
@@ -88,7 +124,7 @@ function changePage(value: number) {
         <span class="eyebrow"><span></span>等待下一次相遇</span>
         <h1>{{ id ? '候补详情' : '候补记录' }}</h1>
       </div>
-      <ElButton :loading="loading" :disabled="busy" @click="load"
+      <ElButton :loading="loading" :disabled="busy" @click="load()"
         >刷新候补</ElButton
       >
     </div>
@@ -96,7 +132,7 @@ function changePage(value: number) {
       >← 返回我的候补</RouterLink
     >
     <p>
-      候补不保证成功。等待期间不占库存或购票额度，分配时重新校验；获得订单后请及时完成支付。可刷新查看最新状态。
+      候补不保证成功。等待期间不占库存或购票额度，分配时重新校验。页面会自动更新，请在订单截止前完成支付。
     </p>
     <p v-if="notice" class="success-notice" role="status">{{ notice }}</p>
     <p v-if="error" class="inline-error" role="alert">{{ error }}</p>
@@ -139,11 +175,9 @@ function changePage(value: number) {
           </div>
         </dl>
         <p v-if="entry.status === 'PROCESSING'" class="order-note">正在为你分配订单，请等待结果后操作；此时暂不能取消候补。</p>
-        <p v-if="entry.status === 'ALLOCATED'" class="order-note">
-          已获得真实待支付订单，请前往订单核对金额并支付。支付截止
-          {{
-            entry.orderExpiresAt ? formatTime(entry.orderExpiresAt) : ''
-          }}（北京时间）。
+        <p v-if="entry.status === 'ALLOCATED' && entry.orderExpiresAt" class="order-note">
+          {{ waitingForPayment(entry) ? '候补成功，请前往订单支付。截止' : '此候补订单的支付截止时间为' }}
+          {{ formatTime(entry.orderExpiresAt) }}（北京时间）。
         </p>
         <p v-if="entry.status === 'COMPLETED'" class="order-note">
           候补订单已支付，可前往「我的票夹」查看电子票。
@@ -157,7 +191,7 @@ function changePage(value: number) {
           ><RouterLink
             v-if="entry.reservedOrderId"
             :to="'/orders/' + entry.reservedOrderId"
-            >查看候补订单<span v-if="entry.orderStatus"
+            >{{ waitingForPayment(entry) ? '前往支付' : '查看候补订单' }}<span v-if="entry.orderStatus && !waitingForPayment(entry)"
               >（{{ orderStatusText[entry.orderStatus] }}）</span
             ></RouterLink
           ><RouterLink :to="'/activities/' + entry.activityId"

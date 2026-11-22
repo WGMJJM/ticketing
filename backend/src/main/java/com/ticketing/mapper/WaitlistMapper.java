@@ -53,6 +53,14 @@ public interface WaitlistMapper extends BaseMapper<WaitlistEntry> {
     List<WaitlistView> listOwned(
             @Param("userId") long userId, @Param("size") int size, @Param("offset") long offset);
 
+    @Select(VIEW + """
+            WHERE w.user_id=#{userId} AND w.status='ALLOCATED' AND o.status='PENDING'
+              AND a.status='PUBLISHED' AND s.status='SCHEDULED'
+              AND o.expires_at>UTC_TIMESTAMP(6) AND s.ends_at>UTC_TIMESTAMP(6)
+            ORDER BY order_expires_at,w.id LIMIT 1
+            """)
+    WaitlistView nextPayment(long userId);
+
     @Select(
             "SELECT * FROM waitlist_entry WHERE sku_id=#{skuId} AND status IN ('WAITING','PROCESSING') ORDER BY id"
                     + " LIMIT 1")

@@ -42,6 +42,8 @@ export const waitlistApi = {
     }),
   detail: (id: string) =>
     useAuthStore().request<WaitlistEntry>({ url: '/waitlist/' + id }),
+  nextPayment: (signal: AbortSignal) =>
+    useAuthStore().request<WaitlistEntry | null>({ url: '/waitlist/next-payment', signal }),
   cancel: (id: string) =>
     useAuthStore().request<WaitlistEntry>({
       method: 'POST',

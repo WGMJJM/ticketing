@@ -174,6 +174,7 @@ Spring Scheduling默认开启，启动即扫描MySQL的 `PENDING AND expires_at<
 | --- | --- |
 | POST /waitlist | JSON `{ "skuId": "10001", "quantity": 2 }`；拒绝userId、状态、截止等未知字段；创建或返回本人同SKU同数量的有效记录 |
 | GET /waitlist | page默认1、size默认10，上限分别10000/50，返回本人分页记录 |
+| GET /waitlist/next-payment | 查本人最早截止且仍可支付的候补订单，返回对应 WaitlistView，无结果为 null；站内提醒使用 |
 | GET /waitlist/{id} | 本人候补详情，非本人或不存在404 WAITLIST_NOT_FOUND |
 | POST /waitlist/{id}/cancel | 等待中和已选中但尚未预扣的候补可以取消；重复CANCELLED原样返回，已预扣返回409，ALLOCATED需走关联订单取消 |
 

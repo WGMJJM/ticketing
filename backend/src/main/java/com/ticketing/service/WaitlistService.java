@@ -144,6 +144,11 @@ public class WaitlistService {
         return view(userId, id);
     }
 
+    @Transactional(readOnly = true)
+    public WaitlistView nextPayment(long userId) {
+        return waitlists.nextPayment(userId);
+    }
+
     private WaitlistView view(long userId, long id) {
         WaitlistView view = waitlists.owned(id, userId);
         if (view == null) {

@@ -4,6 +4,7 @@ import { useAuthStore } from './stores/auth'
 import { useRoute } from 'vue-router'
 import { siteName, siteTagline } from './config/site'
 import SiteIcon from './components/SiteIcon.vue'
+import WaitlistReminder from './components/WaitlistReminder.vue'
 const auth = useAuthStore()
 const route = useRoute()
 function closeOperations(event: MouseEvent) {
@@ -61,6 +62,7 @@ function closeOperations(event: MouseEvent) {
         </details>
       </nav>
       <main id="main-content">
+        <WaitlistReminder />
         <div v-if="auth.sessionError" class="session-error" role="alert">
           {{ auth.sessionError }}
           <ElButton @click="auth.restore(true)">重新获取登录状态</ElButton>

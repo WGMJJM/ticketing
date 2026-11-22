@@ -7,6 +7,7 @@ import com.ticketing.security.AccountPrincipal;
 import com.ticketing.service.WaitlistService;
 import com.ticketing.vo.WaitlistView;
 
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -34,6 +35,12 @@ public class WaitlistController {
             @RequestParam(defaultValue="1") @Min(1) @Max(10000) int page,
             @RequestParam(defaultValue="10") @Min(1) @Max(50) int size) {
         return ApiResponse.success(service.list(user.getId(),page,size));
+    }
+    @GetMapping("/next-payment")
+    public ApiResponse<WaitlistView> nextPayment(@AuthenticationPrincipal AccountPrincipal user,
+            HttpServletResponse response) {
+        response.setHeader("Cache-Control", "no-store");
+        return ApiResponse.success(service.nextPayment(user.getId()));
     }
     @GetMapping("/{id}")
     public ApiResponse<WaitlistView> detail(@AuthenticationPrincipal AccountPrincipal user,@PathVariable @Positive long id) {

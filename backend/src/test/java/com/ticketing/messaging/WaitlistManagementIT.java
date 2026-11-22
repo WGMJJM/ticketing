@@ -120,14 +120,25 @@ class WaitlistManagementIT {
         long id=request(entry);assertThat(stocks.find(id).idempotencyOperation()).isEqualTo("WAITLIST_CONFIRM");
         assertThat(stocks.find(id).waitlistEntryId()).isEqualTo(Long.parseLong(entry.id()));
         assertThat(requests.find(id)).isNull();assertThat(status(entry)).isEqualTo("PROCESSING");
+        String reminder = "/waitlist/next-payment";
+        assertThat(buyer.call("GET", reminder, null, null, 200).path("data").isNull()).isTrue();
         start();long order=awaitAllocated(entry);assertThat(requests.find(id).orderId()).isEqualTo(order);
         assertThat(db.queryForObject("SELECT idempotency_operation FROM ticket_order WHERE id=?",String.class,order)).isEqualTo("WAITLIST_CONFIRM");
         assertThat(db.queryForObject("SELECT status FROM ticket_order WHERE id=?",String.class,order)).isEqualTo("PENDING");
+        var payment = buyer.call("GET", reminder, null, null, 200).path("data");
+        assertThat(payment.path("reservedOrderId").asText()).isEqualTo(Long.toString(order));
+        assertThat(other.call("GET", reminder, null, null, 200).path("data").isNull()).isTrue();
+        db.update("""
+                UPDATE ticket_order SET created_at=TIMESTAMPADD(MINUTE,-20,UTC_TIMESTAMP(6)),
+                  expires_at=TIMESTAMPADD(SECOND,-1,UTC_TIMESTAMP(6)) WHERE id=?
+                """, order);
+        assertThat(buyer.call("GET", reminder, null, null, 200).path("data").isNull()).isTrue();
         var sessionEnd = db.queryForObject("SELECT ends_at FROM activity_session WHERE id=?",java.time.LocalDateTime.class,session);
         db.update("UPDATE ticket_order SET expires_at=? WHERE id=?",sessionEnd.plusMinutes(5),order);
         assertThat(waitlists.detail(buyer.id,Long.parseLong(entry.id())).orderExpiresAt())
                 .isEqualTo(sessionEnd.toInstant(java.time.ZoneOffset.UTC));
         orderService.pay(buyer.id,order);assertThat(status(entry)).isEqualTo("COMPLETED");
+        assertThat(buyer.call("GET", reminder, null, null, 200).path("data").isNull()).isTrue();
         assertThat(db.queryForObject("SELECT COUNT(*) FROM electronic_ticket WHERE order_id=?",Integer.class,order)).isEqualTo(1);
         dispatcher.dispatch(sku);assertThat(priority()).isEqualTo("0");stock(0,1);
     }
