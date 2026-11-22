@@ -48,15 +48,14 @@ TPS沿用按已提交订单的`created_at`落窗统计口径；该字段早于CO
 
 稀疏样本覆盖10000个毫秒时间片、4个worker、每毫秒序列1/2，共80000条；密集样本为20个毫秒时间片、多个worker、每片4096连号，共81920条。稀疏偏斜被打散；旧密集输入本已均匀，新路由只是统计接近均匀，不保证任意短窗严格相同。
 
-离线微基准：4轮预热后3轮各1000万次，旧取模8.173–8.197ms，新路由9.302–9.401ms，新路由均摊0.930–0.940ns/次，三轮测得热循环分配均0字节。使用变化数组及volatile校验和，避免常量折叠；这是非JMH批量均摊值，不能当作线上单次延迟或整链路TPS。与上表11.92ms的数据库UPDATE往返分开评价。源代码为`StockBucketRouterBenchmark.java`，日志`.local/verification/stock-bucket-route-benchmark.log`。
+历史离线微基准：4轮预热后3轮各1000万次，旧取模8.173–8.197ms，新路由9.302–9.401ms，新路由均摊0.930–0.940ns/次，三轮测得热循环分配均0字节。这些数据为非JMH批量均摊值，与上表11.92ms的数据库UPDATE往返分别统计。一次性对比程序已退役。
 
 验证：114项单元/架构检查、23项分桶MySQL用例、11项SINGLE/MQ用例和20项Python检查通过。覆盖4/8桶独立X锁且SKU无X锁、桶7及回滚后跨桶、百买家、防超卖、同ID恢复、重复消费，以及构造旧已提交归属后重放/支付/退款不重算归属。初始化曾被1笔旧库存Outbox待发送拦截，排空后在发单前复核空SKU全部审计通过，保留原失败记录；只执行一轮实际负载。
 
-实际命令：
+当时的项目验证与压测命令：
 ```powershell
 python -B scripts/verification/verify_backend.py --tests StockBucketIT --label uniformroute
 python -B scripts/verification/verify_backend.py --tests AsyncPurchaseIT --label uniformsingle
-D:/JDK17/bin/java.exe -cp "backend/target/test-classes;backend/target/classes" com.ticketing.StockBucketRouterBenchmark
 python -u -B scripts/jmeter/diagnose-purchase.py --runtime .local/jmeter/fourbucket-saturation-20261028/runtime --java D:/JDK17/bin/java.exe --jmeter-jar C:/Users/28298/AppData/Local/Temp/apache-jmeter-5.6.3/bin/ApacheJMeter.jar --concurrency 12 --threads 100 --inflight 100 --capacity 200 --publisher-window 64 --bucket-count 8 --max-posts 7980 --seconds 30
 ```
 

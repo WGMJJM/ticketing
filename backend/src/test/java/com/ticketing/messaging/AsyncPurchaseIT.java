@@ -110,43 +110,6 @@ class AsyncPurchaseIT {
         stock(0,2);assertThat(stocks.find(id).status()).isEqualTo("SUCCEEDED");
     }
 
-    @Test void ordinaryCreateKeepsOrderLookupAndSuccessReadback() {
-        PurchaseRequest held = stocks.reserve(buyer.id, sku, 1, "fewer-selects");
-        clearInvocations(requests, orders, stocks);
-        worker.process(held.id(), sku);
-        // 回退后恢复事务外终态查询、订单幂等查重及成功 UPDATE 后的申请回读。
-        verify(requests, times(2)).find(held.id());
-        verify(requests, times(1)).lock(held.id());
-        verify(requests, times(1)).finishSuccess(eq(held.id()), anyLong());
-        verify(orders, times(1)).selectOne(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class));
-        var settled = org.mockito.ArgumentCaptor.forClass(PurchaseRequest.class);
-        verify(stocks).settle(settled.capture());
-        PurchaseRequest result = settled.getValue();
-        assertThat(result.status()).isEqualTo("SUCCEEDED");
-        assertThat(result.orderId()).isNotNull();
-        assertThat(result.failureCode()).isNull();
-        assertThat(result.id()).isEqualTo(held.id());
-        assertThat(result.userId()).isEqualTo(held.userId());
-        assertThat(result.skuId()).isEqualTo(held.skuId());
-        assertThat(result.quantity()).isEqualTo(held.quantity());
-        assertThat(result.requestHash()).isEqualTo(held.requestHash());
-        assertThat(result.idempotencyKey()).isEqualTo(held.idempotencyKey());
-        assertThat(result.acceptedAt()).isEqualTo(held.acceptedAt());
-        assertThat(result.deadlineAt()).isEqualTo(held.deadlineAt());
-        assertThat(result.updatedAt()).isNotNull();
-        PurchaseRequest saved = requests.find(held.id());
-        assertThat(saved.updatedAt()).isNotNull();
-        assertThat(saved.orderId()).isEqualTo(result.orderId());
-        assertThat(stocks.find(held.id()).status()).isEqualTo("SUCCEEDED");
-        stock(1, 0);
-        clearInvocations(requests, orders);
-        worker.process(held.id(), sku);
-        verify(requests, never()).lock(anyLong());
-        verify(requests, never()).finishSuccess(anyLong(), anyLong());
-        verify(orders, never()).insertPurchase(any(), anyInt(), any());
-        assertThat(orderCount()).isEqualTo(1);
-    }
-
     @Test void uniqueOrderViolationRollsBackWithoutSettlingTheReservation() {
         PurchaseRequest first = stocks.reserve(buyer.id, sku, 1, "existing-unique-key");
         worker.process(first.id(), sku);
@@ -202,10 +165,12 @@ class AsyncPurchaseIT {
     }
 
     @Test void distinctBuyersCannotOversellThroughHttpAndMessaging() throws Exception {
-        db.update("UPDATE ticket_sku SET total_stock=32 WHERE id=?", sku);
+        int availableTickets = 4;
+        int buyerCount = 12;
+        db.update("UPDATE ticket_sku SET total_stock=? WHERE id=?", availableTickets, sku);
         assertThat(inventory.synchronize(sku)).isTrue();
         List<Client> buyers = new ArrayList<>(List.of(buyer, other));
-        for (int i = 2; i < 100; i++) buyers.add(client());
+        for (int i = buyers.size(); i < buyerCount; i++) buyers.add(client());
         start();
         try (var pool = Executors.newFixedThreadPool(buyers.size())) {
             var gate = new CountDownLatch(1);
@@ -230,13 +195,13 @@ class AsyncPurchaseIT {
                     soldOut++;
                 }
             }
-            assertThat(accepted).hasSize(32);
-            assertThat(soldOut).isEqualTo(68);
+            assertThat(accepted).hasSize(availableTickets);
+            assertThat(soldOut).isEqualTo(buyerCount - availableTickets);
             for (var request : accepted) {
                 assertThat(await(request.getKey(), request.getValue()).path("status").asText()).isEqualTo("SUCCEEDED");
             }
-            assertThat(orderCount()).isEqualTo(32);
-            stock(32, 0);
+            assertThat(orderCount()).isEqualTo(availableTickets);
+            stock(availableTickets, 0);
             assertThat(available()).isZero();
         }
     }

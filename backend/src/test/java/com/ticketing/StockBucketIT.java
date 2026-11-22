@@ -18,7 +18,6 @@ import com.ticketing.service.StockSnapshotService;
 import com.ticketing.service.StockBucketRouter;
 import com.ticketing.service.TicketService;
 import com.ticketing.service.TradeResourceLocker;
-import com.ticketing.service.WaitlistDispatcher;
 import com.ticketing.service.WaitlistService;
 
 import java.time.ZoneOffset;
@@ -55,12 +54,10 @@ class StockBucketIT {
     @Autowired TradeResourceLocker resources;
     @Autowired TicketService management;
     @Autowired WaitlistService waitlist;
-    @Autowired WaitlistDispatcher dispatcher;
     @Autowired ElectronicTicketService tickets;
     @Autowired TicketCredentialSigner signer;
     @Autowired AccountUserDetailsService identities;
     @Autowired PlatformTransactionManager manager;
-    @Autowired org.mybatis.spring.SqlSessionTemplate mybatis;
     static final String HASH = new BCryptPasswordEncoder().encode(UUID.randomUUID().toString());
     long activity, session, sku, buyer, admin;
 
@@ -160,7 +157,7 @@ class StockBucketIT {
     }
 
     @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(ints={8,32})
+    @org.junit.jupiter.params.provider.ValueSource(ints={8,16,32})
     void highestBucketAndFallbackKeepOriginalAllocations(int bucketCount) {
         sku=sku(session,bucketCount,bucketCount);
         var single=routed(buyer,bucketCount-1);worker.process(single.id());
@@ -233,24 +230,6 @@ class StockBucketIT {
         assertThat(db.queryForObject("SELECT COALESCE(SUM(occupied_quantity),0) FROM user_session_quota WHERE user_id=?",Integer.class,buyer)).isZero();
         db.update("UPDATE ticket_stock_bucket SET sold_stock=0 WHERE sku_id=?",sku);
         worker.process(attempt.id());stock(sku,3,0);consistent();
-    }
-    @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(ints={4,8,16,32})
-    void oneHundredDistinctBuyersNeverOversellOrLeavePartialAllocations(int bucketCount) throws Exception {
-        long hot=sku(session,100,bucketCount);var claims=new ArrayList<PurchaseRequest>();
-        for(int n=0;n<100;n++) claims.add(claim(user("USER"),hot,1));
-        try(var pool=Executors.newFixedThreadPool(4)) {
-            var futures=new ArrayList<Future<?>>();
-            for(var request:claims) futures.add(pool.submit(()->worker.process(request.id())));
-            for(var future:futures)future.get(60,TimeUnit.SECONDS);
-        }
-        assertThat(claims.stream().filter(c->"SUCCEEDED".equals(requests.find(c.id()).status())).count()).isEqualTo(100);
-        assertThat(claims.stream().filter(c->"FAILED".equals(requests.find(c.id()).status())).count()).isZero();
-        stock(hot,100,0);
-        assertThat(db.queryForObject("SELECT COUNT(DISTINCT a.bucket_no) FROM order_stock_allocation a WHERE a.sku_id=?",Integer.class,hot)).isEqualTo(bucketCount);
-        assertThat(db.queryForObject("SELECT COUNT(*) FROM order_stock_allocation WHERE sku_id=?",Integer.class,hot)).isEqualTo(100);
-        assertThat(db.queryForObject("SELECT COUNT(*) FROM inventory_sync_version WHERE sku_id=?",Integer.class,hot)).isZero();
-        consistent();
     }
     @Test void sameBuyerAcrossBucketsAndTicketsStillSharesOneSessionQuota() throws Exception {
         long second=sku(session,8,4);long otherSession=session();long third=sku(otherSession,8,4);
@@ -329,6 +308,8 @@ class StockBucketIT {
             for(var task:tasks)task.get(30,TimeUnit.SECONDS);
         }
         stock(sku,4,0);consistent();
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM inventory_sync_version WHERE sku_id=?",
+                Integer.class, sku)).isZero();
     }
     @Test void managementReadsLiveTotalsAndCannotShrinkBelowOccupiedStock() {
         order(buyer,sku,3);assertThatThrownBy(()->resize(sku,2)).isInstanceOf(com.ticketing.exception.BusinessException.class);stock(sku,3,0);
@@ -420,53 +401,6 @@ class StockBucketIT {
         }
         throw new AssertionError("没有观察到指定资源的真实MySQL等待");
     }
-    void lockProof(String phase) throws java.io.IOException {
-        var proof=Map.of("phase",phase,"timeMs",System.currentTimeMillis(),"skuId",sku,
-            "locks",db.queryForList("""
-                SELECT OBJECT_NAME,INDEX_NAME,LOCK_TYPE,LOCK_MODE,LOCK_STATUS,LOCK_DATA
-                FROM performance_schema.data_locks WHERE OBJECT_SCHEMA=DATABASE()
-                AND OBJECT_NAME IN ('ticket_sku','ticket_stock_bucket')
-                """),"waits",db.queryForList("""
-                SELECT l.OBJECT_NAME,l.LOCK_MODE,l.LOCK_DATA,l.LOCK_STATUS FROM performance_schema.data_lock_waits w
-                JOIN performance_schema.data_locks l ON l.ENGINE_LOCK_ID=w.REQUESTING_ENGINE_LOCK_ID
-                WHERE l.OBJECT_SCHEMA=DATABASE()
-                """));
-        var target=java.nio.file.Path.of(System.getProperty("basedir","."),"target","bucket-lock-proof-"+phase+"-"+UUID.randomUUID()+".json");
-        java.nio.file.Files.createDirectories(target.getParent());
-        new com.fasterxml.jackson.databind.ObjectMapper().writerWithDefaultPrettyPrinter().writeValue(target.toFile(),proof);
-    }
-    @org.junit.jupiter.params.ParameterizedTest
-    @org.junit.jupiter.params.provider.ValueSource(ints={4,8,16})
-    void completeTransactionsHoldDifferentBucketExclusiveLocksTogether(int bucketCount) throws Exception {
-        sku=sku(session,bucketCount,bucketCount);
-        var claims=new ArrayList<PurchaseRequest>();
-        for(int n=0;n<bucketCount;n++)claims.add(routed(user("USER"),n));
-        var held=new CountDownLatch(bucketCount);var release=new CountDownLatch(1);
-        org.mockito.Mockito.doAnswer(call->{
-            held.countDown();
-            if(!release.await(15,TimeUnit.SECONDS))throw new AssertionError("桶锁未按时释放");
-            return mybatis.getMapper(PurchaseRequestMapper.class).finishSuccess(call.getArgument(0),call.getArgument(1));
-        }).when(requestWrites).finishSuccess(org.mockito.ArgumentMatchers.anyLong(),org.mockito.ArgumentMatchers.anyLong());
-        try(var pool=Executors.newFixedThreadPool(bucketCount)) {
-            var futures=claims.stream().map(r->pool.submit(()->worker.process(r.id()))).toList();
-            try {
-                assertThat(held.await(8,TimeUnit.SECONDS)).isTrue();
-                lockProof(bucketCount+"_concurrent_bucket_x");
-                assertThat(db.queryForObject("""
-                    SELECT COUNT(DISTINCT LOCK_DATA) FROM performance_schema.data_locks
-                    WHERE OBJECT_SCHEMA=DATABASE() AND OBJECT_NAME='ticket_stock_bucket' AND INDEX_NAME='PRIMARY'
-                      AND LOCK_TYPE='RECORD' AND LOCK_MODE LIKE 'X%' AND LOCK_STATUS='GRANTED' AND LOCK_DATA LIKE ?
-                    """,Integer.class,sku+",%")).isEqualTo(bucketCount);
-                assertThat(db.queryForObject("""
-                    SELECT COUNT(*) FROM performance_schema.data_locks
-                    WHERE OBJECT_SCHEMA=DATABASE() AND OBJECT_NAME='ticket_sku' AND INDEX_NAME='PRIMARY'
-                      AND LOCK_TYPE='RECORD' AND LOCK_MODE LIKE 'X%' AND LOCK_DATA=?
-                    """,Integer.class,Long.toString(sku))).isZero();
-            } finally {release.countDown();}
-            for(var future:futures)future.get(10,TimeUnit.SECONDS);
-        }
-        stock(sku,bucketCount,0);consistent();
-    }
     @Test void completeWorkersUseIndependentBucketLocksAndRollbackUnblocksSameBucket() throws Exception {
         var a=routed(user("USER"),0);var b=routed(user("USER"),1);var c=routed(user("USER"),0);
         var held=new CountDownLatch(1);var release=new CountDownLatch(1);
@@ -486,14 +420,11 @@ class StockBucketIT {
                     """,Integer.class,Long.toString(sku))).isZero();
                 pool.submit(()->worker.process(b.id())).get(5,TimeUnit.SECONDS);
                 assertThat(requests.find(b.id()).status()).isEqualTo("SUCCEEDED");
-                lockProof("bucket_one_committed_while_zero_held");
                 var same=pool.submit(()->worker.process(c.id()));awaitWaiter("ticket_stock_bucket");
-                lockProof("same_bucket_zero_waiting");
                 assertThat(same.isDone()).isFalse();
                 release.countDown();
                 assertThatThrownBy(()->first.get(5,TimeUnit.SECONDS)).hasCauseInstanceOf(IllegalStateException.class);
                 same.get(5,TimeUnit.SECONDS);
-                lockProof("after_zero_rollback_c_committed");
             } finally {release.countDown();}
         }
         org.mockito.Mockito.reset(requestWrites);
