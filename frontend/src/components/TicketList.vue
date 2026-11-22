@@ -97,7 +97,8 @@ onBeforeUnmount(() => controller?.abort())
         />
         <WaitlistPanel
           v-if="
-            ticket.saleStatus === 'SELLING' || ticket.saleStatus === 'SOLD_OUT'
+            ticket.waitlistSupported &&
+            (ticket.saleStatus === 'SELLING' || ticket.saleStatus === 'SOLD_OUT')
           "
           :ticket="ticket"
         />

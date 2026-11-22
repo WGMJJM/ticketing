@@ -333,6 +333,7 @@ class StockBucketIT {
     @Test void managementReadsLiveTotalsAndCannotShrinkBelowOccupiedStock() {
         order(buyer,sku,3);assertThatThrownBy(()->resize(sku,2)).isInstanceOf(com.ticketing.exception.BusinessException.class);stock(sku,3,0);
         resize(sku,8);var view=management.publicList(activity,session).stream().filter(t->t.id().equals(Long.toString(sku))).findFirst().orElseThrow();
+        assertThat(view.waitlistSupported()).isFalse();
         assertThat(view.lockedStock()).isEqualTo(3);assertThat(view.availableStock()).isEqualTo(5);
         assertThat(db.queryForObject("SELECT SUM(total_stock) FROM ticket_stock_bucket WHERE sku_id=?",Integer.class,sku)).isEqualTo(8);consistent();
     }

@@ -105,6 +105,8 @@ CSRF保存在HttpSession，保留默认XOR保护。客户端先GET csrf，把响
 
 响应包含 id/sessionId/name/priceCents、totalStock/lockedStock/soldStock/availableStock、saleStartsAt/saleEndsAt、maxQuantityPerOrder、status/saleStatus/serverTime/version。价格分与ID为字符串，库存和版本为整数，时间返回UTC带Z；金额在前端用BigInt展示为人民币元。
 
+`waitlistSupported` 表明库存策略是否支持新候补，分桶票档为 false。前端只在支持候补且票档正在售票或售罄时显示候补入口。
+
 窗口统一为 `场次开售 <= 票档开售 < 票档停售 <= 场次开始`，实际销售区间左闭右开。场次开售是最早允许时间，不要求所有票档同一时刻开售。修改场次会检查所有已有票档（包含草稿、下架），冲突409，不会静默修改票档时间。已取消、已开始、已结束的场次不能新建、编辑或启用票档，但已有启用票档仍可下架。发布时销售窗口必须尚未结束；活动未发布时允许准备票档，但销售状态为不可售。
 
 ON_SALE仅为管理状态。后端先判断活动发布、场次正常且未结束、票档启用及父子窗口一致，否则UNAVAILABLE（暂不可售）；然后判断停售边界STOPPED（已停售）、未开售NOT_STARTED（暂未开售）、可售量为0 SOLD_OUT（已售罄），最后为SELLING（正在售票）。活动隐藏时公开接口404；已取消/结束的公开场次可返回ON_SALE票档，但只会显示暂不可售。前端不得用本机时钟重算销售状态；提交订单必须再次在事务锁内检查，列表展示不能保证随后下单成功。

@@ -78,6 +78,7 @@ class TicketManagementIT {
         publicGet().andExpect(jsonPath("$.data.length()").value(2))
                 .andExpect(jsonPath("$.data[0].name").value("普通票"))
                 .andExpect(jsonPath("$.data[0].saleStatus").value("SELLING"))
+                .andExpect(jsonPath("$.data[0].waitlistSupported").value(true))
                 .andExpect(jsonPath("$.data[0].serverTime").isString());
         mvc.perform(get(base()).with(user(administrator))).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].lockedStock").value(0)).andExpect(jsonPath("$.data[0].soldStock").value(0));

@@ -19,6 +19,7 @@ export interface TicketSku {
   maxQuantityPerOrder: number
   status: TicketStatus
   saleStatus: SaleStatus
+  waitlistSupported: boolean
   serverTime: string
   version: number
 }
