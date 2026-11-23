@@ -242,7 +242,7 @@ class StockBucketIT {
         assertThat(db.queryForObject("SELECT occupied_quantity FROM user_session_quota WHERE user_id=? AND session_id=?",Integer.class,buyer,session)).isEqualTo(4);
         assertThat(db.queryForObject("SELECT occupied_quantity FROM user_session_quota WHERE user_id=? AND session_id=?",Integer.class,buyer,otherSession)).isEqualTo(2);consistent();
     }
-    @Test void bucketedWaitlistIsExplicitlyRejected() {
+    @Test void fourBucketWaitlistIsExplicitlyRejected() {
         assertThatThrownBy(()->waitlist.join(buyer,new JoinWaitlistRequest(Long.toString(sku),1)))
                 .isInstanceOf(BusinessException.class);
     }

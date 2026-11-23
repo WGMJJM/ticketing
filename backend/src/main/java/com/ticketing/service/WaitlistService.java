@@ -162,7 +162,8 @@ public class WaitlistService {
     public WaitlistEntry prepare(long skuId) {
         WaitlistEntry initial = waitlists.head(skuId);
         if (initial == null) {
-            resources.lockSale(skuId);
+            if (!stocks.hasWaitlistPriority(skuId)) return null;
+            resources.lockWaitlistSale(skuId);
             if (waitlists.head(skuId) == null) stocks.closePriority(skuId);
             return null;
         }

@@ -67,6 +67,11 @@ public class TicketSku {
     public Integer getBucketCount() { return bucketCount; }
     public void setBucketCount(Integer bucketCount) { this.bucketCount = bucketCount; }
     public boolean bucketed() { return "BUCKETED".equals(inventoryStrategy); }
+    public boolean supportsWaitlist() { return supportsWaitlist(inventoryStrategy, bucketCount); }
+
+    public static boolean supportsWaitlist(String strategy, int bucketCount) {
+        return "SINGLE".equals(strategy) || ("BUCKETED".equals(strategy) && bucketCount == 32);
+    }
 
     public LocalDateTime getSaleStartsAt() { return saleStartsAt; }
     public void setSaleStartsAt(LocalDateTime saleStartsAt) { this.saleStartsAt = saleStartsAt; }

@@ -16,6 +16,6 @@ public record TicketView(String id, String sessionId, String name, String priceC
                 sku.getPriceCents().toString(), sku.getTotalStock(), sku.getLockedStock(), sku.getSoldStock(),
                 sku.getTotalStock() - sku.getLockedStock() - sku.getSoldStock(),
                 sku.getSaleStartsAt().toInstant(ZoneOffset.UTC), sku.getSaleEndsAt().toInstant(ZoneOffset.UTC),
-                sku.getMaxQuantityPerOrder(), TicketStatus.valueOf(sku.getStatus()), saleStatus, !sku.bucketed(), now, sku.getVersion());
+                sku.getMaxQuantityPerOrder(), TicketStatus.valueOf(sku.getStatus()), saleStatus, sku.supportsWaitlist(), now, sku.getVersion());
     }
 }

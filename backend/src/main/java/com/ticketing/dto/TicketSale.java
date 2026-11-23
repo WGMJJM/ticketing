@@ -29,7 +29,7 @@ public record TicketSale(
         String inventoryStrategy,
         int bucketCount) {
 
-    /** 仅供分桶新建单的窗口事实使用；未读取余额时禁止对外提供库存语义。 */
+    /** 分桶建单及候补协调可使用窗口事实；未读取余额时禁止对外提供库存语义。 */
     private static final int BALANCE_NOT_LOADED = -1;
 
     public static TicketSale from(Activity activity, ActivitySession session, TicketSku sku) {
@@ -60,6 +60,7 @@ public record TicketSale(
     }
 
     public boolean bucketed() { return "BUCKETED".equals(inventoryStrategy); }
+    public boolean supportsWaitlist() { return TicketSku.supportsWaitlist(inventoryStrategy, bucketCount); }
 
     public int availableStock() {
         if (availableStock == BALANCE_NOT_LOADED) {

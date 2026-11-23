@@ -19,6 +19,8 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.*;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mybatis.spring.SqlSessionTemplate;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -113,6 +115,66 @@ class WaitlistManagementIT {
         assertThatThrownBy(()->stocks.reserve(third.id,sku,1,"steal")).isInstanceOfSatisfying(BusinessException.class,e->assertThat(e.getCode()).isEqualTo("WAITLIST_PRIORITY"));
         total(2);assertThat(dispatcher.dispatch(sku)).isEqualTo(1);start();awaitAllocated(a);
         assertThat(status(b)).isEqualTo("WAITING");assertThat(status(c)).isEqualTo("WAITING");stock(2,0);
+    }
+
+    @Test void thirtyTwoBucketWaitlistUsesFifoAcrossBucketsAndReleasesOriginalAllocation() throws Exception {
+        thirtyTwoBucketStock(4);
+        Client oneTicket = client();
+        Client threeTickets = client();
+        var firstHold = stocks.reserve(oneTicket.id, sku, 1, "one-held");
+        var secondHold = stocks.reserve(threeTickets.id, sku, 3, "three-held");
+        var head = joinThroughHttp(buyer, 2);
+        var follower = joinThroughHttp(other, 1);
+        assertThat(Long.parseLong(head.id())).isLessThan(Long.parseLong(follower.id()));
+        assertThat(buyer.call("GET", "/activities/" + activity + "/sessions/" + session + "/tickets",
+                null, null, 200).path("data").get(0).path("waitlistSupported").asBoolean()).isTrue();
+
+        worker.process(firstHold.id(), sku);
+        worker.process(secondHold.id(), sku);
+        long firstOrder = requests.find(firstHold.id()).orderId();
+        long secondOrder = requests.find(secondHold.id()).orderId();
+        orderService.cancel(oneTicket.id, firstOrder);
+        assertThat(dispatcher.dispatch(sku)).isZero();
+        assertThat(status(head)).isEqualTo("WAITING");
+        assertThat(status(follower)).isEqualTo("WAITING");
+        assertThat(available()).isEqualTo(1);
+        assertThat(oneTicket.call("POST", "/orders", Map.of("skuId", Long.toString(sku), "quantity", 1),
+                "blocked-by-queue", 409).path("code").asText()).isEqualTo("WAITLIST_PRIORITY");
+
+        orderService.cancel(threeTickets.id, secondOrder);
+        assertThat(dispatcher.dispatch(sku)).isEqualTo(1);
+        long requestId = request(head);
+        assertThat(dispatcher.dispatch(sku)).isZero();
+        assertThat(request(head)).isEqualTo(requestId);
+        buyer.call("POST", "/waitlist/" + head.id() + "/cancel", null, null, 409);
+
+        start();
+        long orderId = awaitAllocated(head);
+        worker.process(requestId, sku);
+        assertThat(requests.find(requestId).orderId()).isEqualTo(orderId);
+        var allocation = db.queryForList("""
+                SELECT bucket_no FROM order_stock_allocation WHERE order_id=? AND sku_id=? AND quantity=1
+                ORDER BY bucket_no
+                """, Integer.class, orderId, sku);
+        assertThat(allocation).containsExactly(0, 1);
+        assertThat(orderCount()).isEqualTo(3);
+        assertThat(status(follower)).isEqualTo("WAITING");
+        bucketStock(2, 0);
+
+        orderService.cancel(buyer.id, orderId);
+        assertThat(dispatcher.dispatch(sku)).isEqualTo(1);
+        long followerOrder = awaitAllocated(follower);
+        worker.process(request(follower), sku);
+        orderService.pay(other.id, followerOrder);
+        assertThat(status(head)).isEqualTo("EXPIRED");
+        assertThat(status(follower)).isEqualTo("COMPLETED");
+        assertThat(orderCount()).isEqualTo(4);
+        assertThat(db.queryForList("SELECT bucket_no FROM order_stock_allocation WHERE order_id=? ORDER BY bucket_no",
+                Integer.class, orderId)).isEqualTo(allocation);
+        assertThat(dispatcher.dispatch(sku)).isZero();
+        assertThat(available()).isEqualTo(3);
+        assertThat(priority()).isEqualTo("0");
+        bucketStock(0, 1);
     }
 
     @Test void headUsesSameLuaQueueConsumerAndCommitsOrderAndAllocationTogether() throws Exception {
@@ -278,17 +340,50 @@ class WaitlistManagementIT {
         worker.process(fresh);assertThat(status(retried)).isEqualTo("ALLOCATED");
     }
 
-    @Test void cancellationExpiryAndConcurrentEnqueueCannotLeavePriorityOpen() throws Exception {
-        total(0);var entry=join(buyer,1);waitlists.cancel(buyer.id,Long.parseLong(entry.id()));
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void cancellationExpiryAndConcurrentEnqueueCannotLeavePriorityOpen(boolean bucketed) throws Exception {
+        if (bucketed) thirtyTwoBucketStock(0);
+        else total(0);
+        var entry = join(buyer, 1);
+        waitlists.cancel(buyer.id, Long.parseLong(entry.id()));
+        assertThat(priority()).isEqualTo("1");
         var closing=new CountDownLatch(1);var release=new CountDownLatch(1);
         doAnswer(call->{closing.countDown();assertThat(release.await(10,TimeUnit.SECONDS)).isTrue();return call.callRealMethod();}).when(stocks).closePriority(sku);
         try(var pool=Executors.newFixedThreadPool(2)) {
-            var close=pool.submit(()->dispatcher.dispatch(sku));assertThat(closing.await(5,TimeUnit.SECONDS)).isTrue();
+            // 直接检查空队列关门禁路径，库存快照也可以先在持锁状态下关闭门禁。
+            var close=pool.submit(()->waitlists.prepare(sku));assertThat(closing.await(5,TimeUnit.SECONDS)).isTrue();
             var joining=pool.submit(()->join(other,1));Thread.sleep(80);assertThat(joining.isDone()).isFalse();release.countDown();close.get(10,TimeUnit.SECONDS);
             var next=joining.get(10,TimeUnit.SECONDS);assertThat(priority()).isEqualTo("1");reset(stocks);
             db.update("UPDATE waitlist_entry SET created_at=TIMESTAMPADD(MINUTE,-2,UTC_TIMESTAMP(6)),expires_at=TIMESTAMPADD(SECOND,-1,UTC_TIMESTAMP(6)) WHERE id=?",Long.parseLong(next.id()));
             dispatcher.dispatch(sku);assertThat(status(next)).isEqualTo("EXPIRED");assertThat(priority()).isEqualTo("0");
         } finally {release.countDown();}
+    }
+
+    void thirtyTwoBucketStock(int count) {
+        for (int bucket = 0; bucket < 32; bucket++) {
+            db.update("INSERT INTO ticket_stock_bucket(sku_id,bucket_no,total_stock) VALUES(?,?,?)",
+                    sku, bucket, count / 32 + (bucket < count % 32 ? 1 : 0));
+        }
+        db.update("UPDATE ticket_sku SET inventory_strategy='BUCKETED',bucket_count=32,total_stock=? WHERE id=?",
+                count, sku);
+        assertThat(inventory.synchronize(sku)).isTrue();
+    }
+
+    void bucketStock(int locked, int sold) {
+        var totals = db.queryForMap("""
+                SELECT SUM(total_stock) total,SUM(locked_stock) locked,SUM(sold_stock) sold FROM ticket_stock_bucket WHERE sku_id=?
+                """, sku);
+        int total = db.queryForObject("SELECT total_stock FROM ticket_sku WHERE id=?", Integer.class, sku);
+        assertThat(((Number) totals.get("total")).intValue()).isEqualTo(total);
+        assertThat(((Number) totals.get("locked")).intValue()).isEqualTo(locked);
+        assertThat(((Number) totals.get("sold")).intValue()).isEqualTo(sold);
+        com.ticketing.PurchaseTestSupport.assertQuotaConsistent(db, session);
+    }
+
+    com.ticketing.vo.WaitlistView joinThroughHttp(Client who, int quantity) throws Exception {
+        return json.treeToValue(who.call("POST", "/waitlist", Map.of("skuId", Long.toString(sku), "quantity", quantity),
+                null, 200).path("data"), com.ticketing.vo.WaitlistView.class);
     }
 
     void total(int count){db.update("UPDATE ticket_sku SET total_stock=? WHERE id=?",count,sku);assertThat(inventory.synchronize(sku)).isTrue();}

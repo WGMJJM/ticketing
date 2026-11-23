@@ -22,7 +22,7 @@ public class WaitlistPurchaseLifecycle implements PurchaseLifecycle {
     @Override
     public void validate(PurchaseRequest request) {
         if (request.waitlistEntryId() == null) return;
-        // SKU 锁已串行化队首变化，不提前锁候补行，保持订单→候补锁序。
+        // 建单持 SKU 锁，互斥入队、取消和挑选队首；候补行留到订单写入后更新。
         WaitlistEntry head = waitlists.head(request.skuId());
         if (head == null || !head.getId().equals(request.waitlistEntryId())
                 || !"PROCESSING".equals(head.getStatus()) || head.getUserId() != request.userId()

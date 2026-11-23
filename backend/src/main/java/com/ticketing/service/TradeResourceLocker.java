@@ -38,7 +38,7 @@ public class TradeResourceLocker {
     private final MeterRegistry meters;
     private final TicketInventory inventory;
 
-    private enum SaleFacts { FULL_BALANCE, PURCHASE_WINDOW }
+    private enum SaleFacts { FULL_BALANCE, PURCHASE_WINDOW, WAITLIST_QUEUE }
 
     public TradeResourceLocker(
             UserAccountMapper users,
@@ -92,7 +92,7 @@ public class TradeResourceLocker {
                 lockSaleForQuota(userId, skuId));
     }
 
-    /** 仅供普通异步CREATE_ORDER新建单；SINGLE仍取完整余额，分桶只取窗口与配置事实。 */
+    /** 异步新建单，SINGLE 取余额，分桶只取窗口与配置事实。 */
     public TradeContext lockNewPurchase(long userId, long skuId) {
         UserAccount account = account(userId, true);
         return new TradeContext(userId, "ACTIVE".equals(account.getStatus()), "ADMIN".equals(account.getRole()),
@@ -100,7 +100,13 @@ public class TradeResourceLocker {
     }
 
     public TradeContext lockWaitlistPurchase(long userId, long skuId, boolean requireActive) {
-        return lockPurchase(userId, skuId, requireActive);
+        UserAccount account = account(userId, requireActive);
+        return new TradeContext(userId, "ACTIVE".equals(account.getStatus()), "ADMIN".equals(account.getRole()),
+                lockWaitlistSale(skuId));
+    }
+
+    public TicketSale lockWaitlistSale(long skuId) {
+        return sale(skuId, null, SaleFacts.WAITLIST_QUEUE);
     }
 
     public TicketSale lockSaleForQuota(long userId, long skuId) {
@@ -125,7 +131,7 @@ public class TradeResourceLocker {
         return sale(skuId, null, SaleFacts.FULL_BALANCE);
     }
 
-    /** 用户SHARE→活动SHARE→场次SHARE→可选额度UPDATE→SINGLE票档UPDATE或BUCKETED票档SHARE→桶→订单，禁止后置补锁额度。 */
+    /** 账号→活动→场次→可选额度→SKU→桶→订单。SINGLE 和候补队首协调用 SKU 写锁。 */
     private TicketSale sale(long skuId, Long quotaUser, SaleFacts facts) {
         TicketSku initial = tickets.selectById(skuId);
         if (initial == null) {
@@ -158,12 +164,13 @@ public class TradeResourceLocker {
                 tickets.selectOne(
                         new LambdaQueryWrapper<TicketSku>()
                                 .eq(TicketSku::getId, skuId)
-                                .last(configuration.bucketed() ? "FOR SHARE" : "FOR UPDATE"));
+                                .last(configuration.bucketed() && facts != SaleFacts.WAITLIST_QUEUE
+                                        ? "FOR SHARE" : "FOR UPDATE"));
         } finally { meters.timer("ticketing.trade.lock.duration","resource","stock").record(System.nanoTime()-started,TimeUnit.NANOSECONDS); }
         if (sku == null || !sku.getSessionId().equals(session.getId()) || !session.getActivityId().equals(activity.getId())) {
             throw new BusinessException(HttpStatus.CONFLICT, "TICKET_UNAVAILABLE", "票档所属活动或场次不存在");
         }
-        if (facts == SaleFacts.PURCHASE_WINDOW && sku.bucketed()) {
+        if (facts != SaleFacts.FULL_BALANCE && sku.bucketed()) {
             return TicketSale.forBucketedPurchase(activity, session, sku);
         }
         return TicketSale.from(activity, session, inventory.balance(sku));

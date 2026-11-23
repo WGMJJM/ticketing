@@ -366,6 +366,10 @@ public class RedisStockReservationService {
         }
     }
 
+    public boolean hasWaitlistPriority(long skuId) {
+        return "1".equals(text(redis.opsForHash().get(skuKey(skuId), "waitlistPriority")));
+    }
+
     public boolean closePriority(long skuId) { return priority(skuId, "close", "", "") == 1; }
 
     private long priority(long skuId, String action, String value, String queued) {

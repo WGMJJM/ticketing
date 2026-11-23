@@ -69,9 +69,8 @@ public class OrderReservation {
 
     public boolean eligibleForWaitlist(TradeContext context, int quantity, LocalDateTime now) {
         TicketSale sale = context.sale();
-        SaleStatus status = sale.statusAt(now);
-        if (!context.active() || sale.bucketed()
-                || (status != SaleStatus.SELLING && status != SaleStatus.SOLD_OUT)
+        if (!context.active() || !sale.supportsWaitlist()
+                || sale.windowStatusAt(now) != SaleStatus.SELLING
                 || quantity < 1
                 || quantity > sale.maxQuantityPerOrder()
                 || quantity > remaining(context.userId(), sale.sessionId())) {
@@ -108,8 +107,8 @@ public class OrderReservation {
             String key,
             byte[] hash,
             TicketSale sale, Long requestId, boolean orderedBuckets) {
-        if (sale.bucketed() && operation == OrderOperation.WAITLIST_CONFIRM) {
-            throw conflict("TICKET_UNAVAILABLE", "分桶票档暂不支持新候补分配");
+        if (operation == OrderOperation.WAITLIST_CONFIRM && !sale.supportsWaitlist()) {
+            throw conflict("TICKET_UNAVAILABLE", "该票档暂不支持候补分配");
         }
         // 汇总快照不仲裁已预扣申请是否售罄；分桶库存由锁后条件 SQL 最终判断。
         LocalDateTime now = orders.databaseNow();
