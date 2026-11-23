@@ -48,6 +48,7 @@ function closeOperations(event: MouseEvent) {
           <RouterLink to="/purchase-requests">购票进度</RouterLink>
           <RouterLink to="/followed-activities">关注演出</RouterLink>
           <RouterLink to="/waitlist">候补记录</RouterLink>
+          <RouterLink to="/notifications">消息中心</RouterLink>
           <RouterLink to="/tickets">我的票夹</RouterLink>
         </div>
         <details v-if="auth.canCheckin" class="operations-menu">

@@ -29,6 +29,21 @@ refund包含字符串orderId/refundNo/paymentNo/amountCents/operatorId（系统N
 
 统一前缀 /api/v1。成功响应为ApiResponse的code=OK、message=操作成功、data=结果；业务错误沿用同一结构，data为null。使用400参数错误、401未认证或账号失效、403无权限或CSRF无效、404资源不存在或订单不属于本人、409库存/限购/幂等/状态/版本冲突、500服务内部异常。错误文案为中文，不返回SQL或堆栈。
 
+## 票务消息中心
+
+消息中心只读取当前用户的消息。首页导航进入「消息中心」后可切换全部和未读，单条或批量标记已读，并进入对应订单。
+
+| 方法与路径（均在 /api/v1 下） | 说明 |
+| --- | --- |
+| GET /me/notifications | 支持 `unread`、`page`、`size`。每条返回消息 ID、类型、订单 ID、活动标题、场次标题、创建时间、已读时间及当前支付提示。 |
+| GET /me/notifications/unread-count | 返回当前账号的未读条数。 |
+| PUT /me/notifications/{id}/read | 幂等标记本人消息为已读，使用原有 CSRF。查不到本人消息时也返回成功。 |
+| PUT /me/notifications/read | 标记本人当前全部未读消息，使用原有 CSRF。 |
+
+`WAITLIST_ALLOCATED` 在候补建单与分配事务内写入。`SESSION_CANCELLED` 在订单取消善后时写入，当场次取消后售后处理需要重试或人工介入，消息也会引导用户查看该笔订单。每个订单、每种通知只保留一条。
+
+V18 新建消息表，从启用时开始记录通知。可用 `TICKETING_NOTIFICATION_MAIL_ENABLED=true` 开启候补邮件，并复用 `SMTP_HOST`、`SMTP_FROM` 等邮件设置。后台每轮最多处理 5 条，失败最多尝试 3 次。后台发送前检查账号验证状态、订单支付状态与截止时间。SMTP 接收邮件后进程如果中断，恢复时可能再次投递，站内消息仍由唯一键去重。
+
 ## 已实现公开读取
 
 | 方法与路径（均在 /api/v1 下） | 说明 |
