@@ -2,6 +2,9 @@ package com.ticketing;
 
 import com.ticketing.security.AccountPrincipal;
 import com.ticketing.service.AccountService;
+import com.ticketing.service.ActivityPopularService;
+import com.ticketing.service.ActivitySocialService;
+import com.ticketing.vo.PopularActivityView;
 import com.ticketing.service.AccountUserDetailsService;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -17,6 +20,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.test.context.transaction.TestTransaction;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.*;
@@ -32,6 +36,8 @@ class ActivityManagementIT {
     @Autowired private ObjectMapper json;
     @Autowired private AccountService accounts;
     @Autowired private AccountUserDetailsService identities;
+    @Autowired private ActivityPopularService popular;
+    @Autowired private ActivitySocialService social;
     private AccountPrincipal administrator;
 
     @BeforeEach
@@ -125,6 +131,43 @@ class ActivityManagementIT {
         mutate(post(admin(id) + "/sessions"), session("开售错误", "2030-05-01T20:00:00+08:00", "2030-05-01T22:00:00+08:00", "2030-05-01T20:00:00+08:00", 0), 400);
         mutate(post(admin(id) + "/sessions"), session("没有时区", "2030-05-01T20:00:00", "2030-05-01T22:00:00+08:00", "2030-04-01T10:00:00+08:00", 0), 400);
         mutate(post(admin("899999999") + "/sessions"), session("不存在活动", "2030-05-01T20:00:00+08:00", "2030-05-01T22:00:00+08:00", "2030-04-01T10:00:00+08:00", 0), 404);
+    }
+
+    @Test
+    void rankingFreezesLikesButChecksSessionEligibilityOnEachRead() throws Exception {
+        String id = create("榜单快照", "上海", "STAGE").path("id").asText();
+        long activityId = Long.parseLong(id);
+        var now = java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC);
+        var future = session("未开售", now.plusDays(3).toString(), now.plusDays(4).toString(),
+                now.plusDays(1).toString(), 0);
+        var past = session("已结束", now.minusDays(2).toString(), now.minusDays(1).toString(),
+                now.minusDays(3).toString(), 0);
+        mutate(post(admin(id) + "/publish"), Map.of("version", 0), 200);
+        mutate(post(admin(id) + "/sessions"), past, 200);
+        social.like(administrator.getId(), activityId);
+        try {
+            popular.refresh();
+            assertThat(popular.popular(10)).noneMatch(row -> row.activity().id().equals(id));
+
+            String sessionId = data(mutate(post(admin(id) + "/sessions"), future, 200)).path("id").asText();
+            popular.refresh();
+            assertThat(popular.popular(10)).filteredOn(row -> row.activity().id().equals(id))
+                    .extracting(PopularActivityView::likeCount).containsExactly(1L);
+
+            social.unlike(administrator.getId(), activityId);
+            assertThat(social.engagement(activityId, administrator.getId()).likeCount()).isZero();
+            assertThat(popular.popular(10)).filteredOn(row -> row.activity().id().equals(id))
+                    .extracting(PopularActivityView::likeCount).containsExactly(1L);
+            popular.refresh();
+            assertThat(popular.popular(10)).filteredOn(row -> row.activity().id().equals(id))
+                    .extracting(PopularActivityView::likeCount).containsExactly(0L);
+
+            mutate(post("/api/v1/admin/sessions/" + sessionId + "/cancel"), Map.of("version", 0), 200);
+            assertThat(popular.popular(10)).noneMatch(row -> row.activity().id().equals(id));
+        } finally {
+            TestTransaction.end();
+            popular.refresh();
+        }
     }
 
     @Test

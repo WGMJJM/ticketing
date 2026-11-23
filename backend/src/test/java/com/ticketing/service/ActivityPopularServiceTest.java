@@ -1,7 +1,6 @@
 package com.ticketing.service;
 
 import com.ticketing.entity.Activity;
-import com.ticketing.mapper.ActivityMapper;
 import com.ticketing.mapper.ActivitySocialMapper;
 import com.ticketing.vo.ActivityLikeCountView;
 import com.ticketing.vo.PopularActivityView;
@@ -14,7 +13,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.ZSetOperations;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -26,9 +24,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ActivityPopularServiceTest {
     @Mock private ActivitySocialMapper socialMapper;
-    @Mock private ActivityMapper activityMapper;
     @Mock private StringRedisTemplate redis;
-    @Mock private ValueOperations<String, String> values;
     @Mock private ZSetOperations<String, String> sortedSet;
 
     @Test
@@ -36,33 +32,36 @@ class ActivityPopularServiceTest {
         var high = tuple("20", 9.0);
         var low = tuple("10", 4.0);
         Set<ZSetOperations.TypedTuple<String>> ranking = new LinkedHashSet<>(List.of(high, low));
-        when(socialMapper.countPublishedActivities()).thenReturn(2L);
-        when(redis.opsForValue()).thenReturn(values);
-        when(values.get("ticketing:activity:popular:v1:published-count")).thenReturn("2");
         when(redis.opsForZSet()).thenReturn(sortedSet);
-        when(sortedSet.zCard("ticketing:activity:popular:v1")).thenReturn(2L);
-        when(sortedSet.reverseRangeWithScores("ticketing:activity:popular:v1", 0, 99)).thenReturn(ranking);
-        when(activityMapper.selectBatchIds(List.of(20L, 10L))).thenReturn(List.of(activity(10), activity(20)));
+        when(sortedSet.reverseRangeWithScores("ticketing:activity:popular:v2", 0, 99)).thenReturn(ranking);
+        when(socialMapper.selectRankableActivities(List.of(20L, 10L), 2)).thenReturn(List.of(activity(20), activity(10)));
 
         List<PopularActivityView> result = service().popular(2);
 
         assertThat(result).extracting(item -> item.activity().id()).containsExactly("20", "10");
         assertThat(result).extracting(PopularActivityView::likeCount).containsExactly(9L, 4L);
-        verify(sortedSet, never()).rangeWithScores("ticketing:activity:popular:v1", 0, 99);
+        verify(socialMapper, never()).selectPopular(2);
     }
 
     @Test
     void redisFailureFallsBackToBoundedMySqlRanking() {
-        when(socialMapper.countPublishedActivities()).thenReturn(2L);
-        when(redis.opsForValue()).thenThrow(new org.springframework.data.redis.RedisConnectionFailureException("offline"));
+        when(redis.opsForZSet()).thenThrow(new org.springframework.data.redis.RedisConnectionFailureException("offline"));
         when(socialMapper.selectPopular(2)).thenReturn(List.of(
                 new ActivityLikeCountView(20L, 9), new ActivityLikeCountView(10L, 4)));
-        when(activityMapper.selectBatchIds(List.of(20L, 10L))).thenReturn(List.of(activity(10), activity(20)));
+        when(socialMapper.selectRankableActivities(List.of(20L, 10L), 2)).thenReturn(List.of(activity(20), activity(10)));
 
         List<PopularActivityView> result = service().popular(2);
 
         assertThat(result).extracting(item -> item.activity().id()).containsExactly("20", "10");
         assertThat(result).extracting(PopularActivityView::likeCount).containsExactly(9L, 4L);
+    }
+
+    @Test
+    void publishedEmptySnapshotDoesNotRecomputeTheRanking() {
+        when(redis.opsForZSet()).thenReturn(sortedSet);
+        when(redis.hasKey("ticketing:activity:popular:v2:empty")).thenReturn(true);
+        assertThat(service().popular(10)).isEmpty();
+        verify(socialMapper, never()).selectPopular(10);
     }
 
     @SuppressWarnings("unchecked")
@@ -74,7 +73,7 @@ class ActivityPopularServiceTest {
     }
 
     private ActivityPopularService service() {
-        return new ActivityPopularService(socialMapper, activityMapper, redis);
+        return new ActivityPopularService(socialMapper, redis);
     }
 
     private Activity activity(long id) {

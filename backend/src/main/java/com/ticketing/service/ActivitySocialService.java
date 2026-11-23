@@ -20,8 +20,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 public class ActivitySocialService {
@@ -29,16 +27,13 @@ public class ActivitySocialService {
     private final ActivityMapper activityMapper;
     private final ActivitySessionMapper sessionMapper;
     private final ActivitySocialMapper socialMapper;
-    private final ActivityPopularService popularActivities;
 
     public ActivitySocialService(ActivityService activities, ActivityMapper activityMapper,
-            ActivitySessionMapper sessionMapper, ActivitySocialMapper socialMapper,
-            ActivityPopularService popularActivities) {
+            ActivitySessionMapper sessionMapper, ActivitySocialMapper socialMapper) {
         this.activities = activities;
         this.activityMapper = activityMapper;
         this.sessionMapper = sessionMapper;
         this.socialMapper = socialMapper;
-        this.popularActivities = popularActivities;
     }
 
     public ActivityEngagementView engagement(long activityId, Long userId) {
@@ -49,14 +44,14 @@ public class ActivitySocialService {
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public ActivityEngagementView like(long userId, long activityId) {
         requirePublished(activities.lockActivityForShare(activityId));
-        if (socialMapper.insertLike(userId, activityId) == 1) adjustPopularAfterCommit(activityId, 1);
+        socialMapper.insertLike(userId, activityId);
         return socialMapper.engagement(activityId, userId);
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public ActivityEngagementView unlike(long userId, long activityId) {
         activities.lockActivityForShare(activityId);
-        if (socialMapper.deleteLike(userId, activityId) == 1) adjustPopularAfterCommit(activityId, -1);
+        socialMapper.deleteLike(userId, activityId);
         return socialMapper.engagement(activityId, userId);
     }
 
@@ -103,17 +98,5 @@ public class ActivitySocialService {
         if (!ActivityStatus.PUBLISHED.name().equals(activity.getStatus())) {
             throw new BusinessException(HttpStatus.NOT_FOUND, "ACTIVITY_NOT_FOUND", "活动不存在或暂未开放");
         }
-    }
-
-    private void adjustPopularAfterCommit(long activityId, int delta) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-            throw new IllegalStateException("点赞排行榜更新必须关联数据库事务");
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                popularActivities.adjust(activityId, delta);
-            }
-        });
     }
 }

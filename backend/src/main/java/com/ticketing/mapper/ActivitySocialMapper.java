@@ -1,5 +1,6 @@
 package com.ticketing.mapper;
 
+import com.ticketing.entity.Activity;
 import com.ticketing.vo.ActivityEngagementView;
 import com.ticketing.vo.ActivityLikeCountView;
 import java.util.List;
@@ -53,13 +54,18 @@ public interface ActivitySocialMapper {
     List<Long> selectFollowedIds(@Param("userId") long userId, @Param("limit") int limit,
                                  @Param("offset") long offset);
 
-    @Select("SELECT COUNT(*) FROM activity WHERE status = 'PUBLISHED'")
-    long countPublishedActivities();
+    String RANKABLE = """
+            a.status = 'PUBLISHED' AND EXISTS (
+                SELECT 1 FROM activity_session s
+                WHERE s.activity_id = a.id AND s.status = 'SCHEDULED' AND s.ends_at > UTC_TIMESTAMP(6)
+            )
+            """;
 
     @Select("""
             SELECT a.id AS activity_id, COUNT(l.user_id) AS like_count
             FROM activity a LEFT JOIN activity_like l ON l.activity_id = a.id
-            WHERE a.status = 'PUBLISHED'
+            WHERE
+            """ + RANKABLE + """
             GROUP BY a.id
             ORDER BY like_count DESC, CAST(a.id AS CHAR) DESC
             LIMIT #{limit}
@@ -70,22 +76,9 @@ public interface ActivitySocialMapper {
     })
     List<ActivityLikeCountView> selectPopular(@Param("limit") int limit);
 
-    @Select("SELECT COALESCE(MAX(id), 0) FROM activity WHERE status = 'PUBLISHED'")
-    long maxPublishedId();
+    String RANKED_IDS = "<foreach collection='ids' item='id' separator=','>#{id}</foreach>";
 
-    @Select("""
-            SELECT a.id AS activity_id, COUNT(l.user_id) AS like_count
-            FROM activity a LEFT JOIN activity_like l ON l.activity_id = a.id
-            WHERE a.status = 'PUBLISHED' AND a.id > #{afterId} AND a.id <= #{maxId}
-            GROUP BY a.id
-            ORDER BY a.id ASC
-            LIMIT #{limit}
-            """)
-    @ConstructorArgs({
-            @Arg(column = "activity_id", javaType = Long.class),
-            @Arg(column = "like_count", javaType = long.class)
-    })
-    List<ActivityLikeCountView> selectPublishedCountsAfter(@Param("afterId") long afterId,
-                                                            @Param("maxId") long maxId,
-                                                            @Param("limit") int limit);
+    @Select("<script>SELECT a.* FROM activity a WHERE " + RANKABLE + " AND a.id IN (" + RANKED_IDS
+            + ") ORDER BY FIELD(a.id, " + RANKED_IDS + ") LIMIT #{limit}</script>")
+    List<Activity> selectRankableActivities(@Param("ids") List<Long> ids, @Param("limit") int limit);
 }
