@@ -37,7 +37,7 @@ Lua 一次完成销售资格、Redis 时间窗口、单笔数量、场次内用�
 
 ## MySQL 消费与三道幂等
 
-普通分桶购票支持 4、8、16 或 32 桶。首次路由使用 `StockBucketRouter.route(requestId, bucketCount)`，以 MurmurHash3 的 64 位 finalizer 混合原申请 ID，再掩码映射桶号。消费事务持 SKU SHARE，目标桶的条件 UPDATE 获取独立 X 锁。单桶不足时，整笔事务先回滚，再按桶号升序走跨桶路径。订单、明细、不可变 allocation 和申请终态原子提交，后续履约沿用原 allocation。新候补适用于 `SINGLE`。早期验收见[四桶库存实现](jmeter/four-bucket-implementation.md)。
+普通分桶购票支持 4、8、16 或 32 桶。首次路由使用 `StockBucketRouter.route(requestId, bucketCount)`，以 MurmurHash3 的 64 位 finalizer 混合原申请 ID，再掩码映射桶号。消费事务持 SKU SHARE，目标桶的条件 UPDATE 获取独立 X 锁。单桶不足时，整笔事务先回滚，再按桶号升序走跨桶路径。订单、明细、不可变 allocation 和申请终态原子提交，后续履约沿用原 allocation。单库存和 32 桶票档支持新候补，32 桶候补建单复用这套分桶事务。早期验收见[四桶库存实现](jmeter/four-bucket-implementation.md)。
 
 库存同步以 SKU X 与普通分桶 SKU S 互斥，在 pause/pending 排空之后校验并汇总该 SKU 的全部桶，再发布绝对 Redis 可售余额。Redis 命令默认超时为 1s，连接超时为 500ms，允许环境变量覆盖；AOF always 不变。锁冲突的三次有界重试发生在完整事务之间，重试耗尽保留原申请与预扣，不转换为无票失败。
 
@@ -72,7 +72,7 @@ Redis 继续使用 AOF、`appendfsync always` 和 `noeviction`。Redis、RabbitM
 
 候补现在只负责持久 FIFO 与优先级调度，不创建订单、不另扣 MySQL 库存。旧 `allocateHead()`、`reserveWaitlist()`、`pauseForWaitlist()` 路径已删除。`PurchaseAdmission.submit(PurchaseIntent)` 由普通 HTTP 与可信候补调度共同调用，来源贯通 Redis、申请终态与正式订单；HTTP DTO 不能指定 WAITLIST_CONFIRM。
 
-同 SKU 入队、挑选队首、取消/过期与清空门禁都使用原账号→父资源→SKU 锁序。入队持 SKU 锁，在 Lua 中原子检查真实 Redis 可预扣余额并先开启 `waitlistPriority`，之后提交 WAITING；回滚只可能留下保守门禁，由同一 SKU 恢复扫描确认空队列后关闭。普通 Lua 先处理幂等重放，再检查门禁，开启前已预扣请求继续有效。关门禁也必须在 SKU 锁内重查没有 WAITING/PROCESSING，且 Redis waitlistPending 为零。队首重查禁用 MyBatis 本地查询缓存，不能把加锁前的空结果用于加锁后的判断。
+同 SKU 入队、挑选队首、取消/过期与清空门禁按原账号→父资源→SKU 顺序加锁，使用 SKU UPDATE 串行化队首变更。入队在 Lua 中原子检查 Redis 可预扣余额并先开启 `waitlistPriority`，之后提交 WAITING；回滚只可能留下保守门禁，由恢复扫描确认空队列后关闭。普通 Lua 先处理幂等重放，再检查门禁，开启前已预扣请求继续有效。关门禁须在 SKU 写锁内重查没有 WAITING/PROCESSING，且 Redis waitlistPending 为零。队首重查禁用 MyBatis 本地查询缓存。
 
 `WaitlistDispatcher` 在短事务中以最小 ID 选择 WAITING/PROCESSING；合格 WAITING 变 PROCESSING，绑定持久 attemptNo、requestId 和 `waitlist-{id}-{attemptNo}` 键。事务外调用统一入口并尝试发送购票消息，不等待发布确认。库存不足不跳队，PROCESSING 未决时不能分配下一位。
 
@@ -84,7 +84,7 @@ ALLOCATED 支付后 COMPLETED，取消/订单超时后 EXPIRED，退款保留已
 
 ## 原业务边界
 
-交易先按账号 SHARE → 活动 SHARE → 场次 SHARE → 需要写额度时的用户场次额度 UPDATE 加锁。普通分桶建单再取 SKU SHARE 和实际涉及的桶 X 锁，`SINGLE` 及库存维护使用 SKU UPDATE。涉及已有订单时，随后按订单、候补、电子票的顺序加锁。购票消费的请求唯一键协调先于资源锁链。候补失效仲裁按请求、账号、父资源、SKU、候补顺序加锁。管理员及多账号操作遵守原升序账号协议，核销不占买家额度。
+交易先按账号 SHARE → 活动 SHARE → 场次 SHARE → 需要写额度时的用户场次额度 UPDATE 加锁。分桶建单再取 SKU SHARE 和实际涉及的桶 X 锁，`SINGLE`、库存维护和候补队首变更使用 SKU UPDATE。涉及已有订单时，随后按订单、候补、电子票的顺序加锁。购票消费的请求唯一键协调先于资源锁链。候补失效仲裁按请求、账号、父资源、SKU、候补顺序加锁。管理员及多账号操作遵守原升序账号协议，核销不占买家额度。
 
 MySQL 是订单和最终库存权威。默认每用户每场四张，PENDING/PAID 占额，取消/到期/退款条件释放，支付不重复占额。金额由服务端人民币分整数乘算并保存快照。订单截止、状态条件更新、整单模拟退款、场次取消善后、原 paid_at 和核销历史保持。
 

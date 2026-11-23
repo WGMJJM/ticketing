@@ -18,6 +18,6 @@
 
 - 取消、订单过期、退款、销售资格和库存配置等需要同步的变化，与 `inventory_sync_version` 递增同事务。普通建单已通过 Redis 预扣反映余额，失败申请依原凭据直接结算。
 - `PurchaseRecoveryJob` 分批比较 MySQL 版本与 Redis `inventoryVersion`，并在无在途预扣时核对余额。需要同步时，`StockSnapshotService` 在 SKU 锁内暂停新受理，等当前预扣结算完毕后再发布 MySQL 的绝对可售余额。已配置的 4、8、16、32 桶票档以所有桶的权威余额为准。
-- `WaitlistCompensation` 周期扫描同一 `SINGLE` SKU 的队首。等待时不占库存或额度。调度器选定队首并记录尝试后，通过同一个 `PurchaseAdmission`、Redis 预扣和 RabbitMQ 消费者建单。未决队首挡住后续候补，既有普通预扣继续结算。
+- `WaitlistCompensation` 周期扫描单库存和 32 桶票档的队首。等待时不占库存或额度。调度器选定队首并记录尝试后，通过同一个 `PurchaseAdmission`、Redis 预扣和 RabbitMQ 消费者建单。32 桶候补按实际使用的桶保存分配，后续支付、释放及退款沿用原分配。未决队首挡住后续候补，既有普通预扣继续结算。
 
 V14 移除了 MySQL 购票受理阶段的容量表和购票 Outbox 记录。V16 移除了库存 Outbox 表及库存通知队列的应用配置。整体协作见[当前架构](01-architecture.md)，历史库升级见[V16 切换检查](41-inventory-sync-migration.md)。

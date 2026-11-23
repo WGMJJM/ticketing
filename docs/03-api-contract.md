@@ -113,7 +113,7 @@ CSRF保存在HttpSession，保留默认XOR保护。客户端先GET csrf，把响
 
 响应包含 id/sessionId/name/priceCents、totalStock/lockedStock/soldStock/availableStock、saleStartsAt/saleEndsAt、maxQuantityPerOrder、status/saleStatus/serverTime/version。价格分与ID为字符串，库存和版本为整数，时间返回UTC带Z；金额在前端用BigInt展示为人民币元。
 
-`waitlistSupported` 表明库存策略是否支持新候补，分桶票档为 false。前端只在支持候补且票档正在售票或售罄时显示候补入口。
+`waitlistSupported` 表明库存策略是否支持新候补，单库存和 32 桶票档为 true，4、8、16 桶为 false。前端只在支持候补且票档正在售票或售罄时显示候补入口。
 
 窗口统一为 `场次开售 <= 票档开售 < 票档停售 <= 场次开始`，实际销售区间左闭右开。场次开售是最早允许时间，不要求所有票档同一时刻开售。修改场次会检查所有已有票档（包含草稿、下架），冲突409，不会静默修改票档时间。已取消、已开始、已结束的场次不能新建、编辑或启用票档，但已有启用票档仍可下架。发布时销售窗口必须尚未结束；活动未发布时允许准备票档，但销售状态为不可售。
 
@@ -142,7 +142,7 @@ ON_SALE仅为管理状态。后端先判断活动发布、场次正常且未结�
 
 限额读取 MySQL 用户场次独立额度，跨该场次全部票档共享。PENDING 与 PAID 占额，支付不重复占额，取消、过期或退款成功才同事务释放；WAITING 及未建单请求不占额。HTTP 受理不写 MySQL 申请行。
 
-Redis Lua 按已初始化的 SKU 配置、销售时间、可售量和容量原子检查并预扣。余额不足或销售窗口无效返回409 TICKET_UNAVAILABLE；Redis 不可用或账本无法证明时返回503 PURCHASE_ADMISSION_UNAVAILABLE。配置和父级资格变化通过事务内库存版本触发后台快照；MySQL 消费者仍最终校验资格、库存和限额。普通购票支持 SINGLE 和4/8/16桶，分桶新候补不开放。
+Redis Lua 按已初始化的 SKU 配置、销售时间、可售量和容量原子检查并预扣。余额不足或销售窗口无效返回409 TICKET_UNAVAILABLE；Redis 不可用或账本无法证明时返回503 PURCHASE_ADMISSION_UNAVAILABLE。配置和父级资格变化通过事务内库存版本触发后台快照；MySQL 消费者最终校验资格、库存和限额。普通购票支持 SINGLE 和 4/8/16/32 桶，32 桶候补复用同一预扣入口。
 
 POST原安全429/故障503仍可能先于业务查重，不因同键而放宽。丢失首次响应时可登录后用上述只读lookup恢复既有事实；404才表示当前读取时尚无已提交申请，重试写入仍须原键。客户端不自动循环重发写请求。取消响应超时或提交后详情读取失败也不代表取消未发生，应查询订单状态；CANCELLED可安全重试取消而不再次释放库存或额度。
 
@@ -192,7 +192,7 @@ WaitlistView字段：id/skuId/sessionId/activityId/activityTitle/sessionTitle/sk
 
 状态映射：WAITING等待候补、ALLOCATED已分配待支付、COMPLETED候补完成、CANCELLED已取消候补、EXPIRED候补已过期或失效。ALLOCATED的支付截止以orderExpiresAt为准，原expiresAt仅是等待申请截止。支付成功→COMPLETED；预留订单主动取消或自动过期→EXPIRED，状态联动与库存同事务。已分配不可直接取消候补，重复支付仍返回原流水。
 
-同SKU有效队列按ID升序，队首数量不足不跳过；队首过期、账号禁用、父级下架/取消、停售或额度不足转EXPIRED后继续。入队及分配在同SKU锁内串行；分配按账号SHARE→活动SHARE→场次SHARE→用户场次额度UPDATE→SKU UPDATE→订单→候补，入队只读额度预检而不锁额度。候补订单固定WAITLIST_CONFIRM域，服务端唯一键waitlist-{候补ID}，复用服务端金额和库存条件更新。FIFO只承诺同SKU候补内部顺序，不保证优先于所有直接购票请求。
+同 SKU 有效队列按 ID 升序，队首数量不足时继续等待。队首过期、账号禁用、父级下架或取消、停售或额度不足时转为 EXPIRED 后处理下一位。入队、选队首和取消持 SKU 写锁，入队只读额度预检。分配建单按账号→活动→场次→用户场次额度→SKU→必要的库存桶→订单→候补顺序加锁。候补订单使用 WAITLIST_CONFIRM 域及 `waitlist-{id}-{attemptNo}` 键，32 桶候补保存实际分配的库存桶。既有普通预扣继续建单，候补优先门禁限制新的普通预扣。
 
 ## 候补消息与补偿
 
