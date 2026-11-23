@@ -30,7 +30,7 @@ onBeforeUnmount(() => controller.abort())
   <section id="popular" class="popular-section" aria-labelledby="popular-title">
     <div class="section-heading">
       <div><span class="section-kicker">每一份喜欢，都算数</span><h2 id="popular-title">人气榜单<span class="heading-dot">.</span></h2></div>
-      <span class="section-aside">按点赞数排序 · 最多 10 场</span>
+      <span class="section-aside">按累计点赞数定时更新 · 前 10 名</span>
     </div>
     <div v-if="loading" class="content-state" role="status">正在加载人气榜单…</div>
     <div v-else-if="error" class="content-state error-state" role="alert">
@@ -44,6 +44,6 @@ onBeforeUnmount(() => controller.abort())
         <span class="popular-likes"><SiteIcon name="heart" />{{ item.likeCount }}<small>人喜欢</small></span>
       </RouterLink>
     </div>
-    <div v-else class="content-state">还没有已发布的演出，稍后再来看看。</div>
+    <div v-else class="content-state">暂无可上榜的演出，稍后再来看看。</div>
   </section>
 </template>

@@ -35,8 +35,11 @@ refund包含字符串orderId/refundNo/paymentNo/amountCents/operatorId（系统N
 | --- | --- |
 | GET /system/status | 原系统状态接口，表示 HTTP 可访问 |
 | GET /activities | 已发布活动分页，支持 keyword/category/city/page/size |
+| GET /activities/popular | limit 为 1 至 10，默认 10。按累计点赞数排名，仅展示仍有正常且未结束场次的已发布活动，未开售也可入榜。 |
 | GET /activities/{id} | 已发布活动详情，草稿或下架均返回404 |
 | GET /activities/{id}/sessions | 已发布活动下场次，按开始时间、ID升序；包含取消状态供用户识别 |
+
+首页榜单默认每 5 分钟发布一次 Redis 快照。每次读取时重新检查活动和场次资格，已失效名次由快照内后续活动递补。快照缺失或 Redis 不可用时按相同资格查询 MySQL。活动详情的点赞数直接取自 MySQL，提交点赞或取消点赞后即可看到新值。
 
 分页默认 page=1、size=12，页码1至10000，每页1至50条。data 为 items/total/page/size。关键词按名称字面包含匹配，城市精确匹配，类别为 CONCERT/FESTIVAL/STAGE/EXHIBITION/ESPORTS。公开列表固定 PUBLISHED，按最近发布时间、ID降序，传入 status 也不能读取隐藏活动。
 
