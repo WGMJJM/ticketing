@@ -45,6 +45,8 @@ import static org.mockito.ArgumentMatchers.*;
     "ticketing.purchase.consumer.concurrency=2", "spring.rabbitmq.listener.simple.auto-startup=false",
     "spring.rabbitmq.listener.simple.retry.max-attempts=2", "spring.rabbitmq.listener.simple.retry.initial-interval=100ms"})
 class WaitlistManagementIT {
+    @Autowired private com.ticketing.mapper.TicketNotificationMapper notifications;
+    @Autowired private org.springframework.transaction.PlatformTransactionManager transactions;
     static final String QUEUE="ticketing.purchase.waitlist.it.orders";
     @LocalServerPort int port;
     @Autowired JdbcTemplate db;
@@ -190,11 +192,24 @@ class WaitlistManagementIT {
         var payment = buyer.call("GET", reminder, null, null, 200).path("data");
         assertThat(payment.path("reservedOrderId").asText()).isEqualTo(Long.toString(order));
         assertThat(other.call("GET", reminder, null, null, 200).path("data").isNull()).isTrue();
+        var inbox = buyer.call("GET", "/me/notifications", null, null, 200).path("data").path("items");
+        assertThat(inbox.size()).isEqualTo(1);
+        var notification = inbox.get(0);
+        assertThat(notification.path("kind").asText()).isEqualTo("WAITLIST_ALLOCATED");
+        assertThat(notification.path("orderId").asText()).isEqualTo(Long.toString(order));
+        assertThat(notification.path("paymentAvailable").asBoolean()).isTrue();
+        String messagePath = "/me/notifications/" + notification.path("id").asText() + "/read";
+        other.call("PUT", messagePath, null, null, 200);
+        assertThat(buyer.call("GET", "/me/notifications/unread-count", null, null, 200).path("data").asLong()).isEqualTo(1);
+        buyer.call("PUT", messagePath, null, null, 200);
+        assertThat(buyer.call("GET", "/me/notifications?unread=true", null, null, 200).path("data").path("total").asLong()).isZero();
         db.update("""
                 UPDATE ticket_order SET created_at=TIMESTAMPADD(MINUTE,-20,UTC_TIMESTAMP(6)),
                   expires_at=TIMESTAMPADD(SECOND,-1,UTC_TIMESTAMP(6)) WHERE id=?
                 """, order);
         assertThat(buyer.call("GET", reminder, null, null, 200).path("data").isNull()).isTrue();
+        assertThat(buyer.call("GET", "/me/notifications", null, null, 200).path("data").path("items")
+                .get(0).path("paymentAvailable").asBoolean()).isFalse();
         var sessionEnd = db.queryForObject("SELECT ends_at FROM activity_session WHERE id=?",java.time.LocalDateTime.class,session);
         db.update("UPDATE ticket_order SET expires_at=? WHERE id=?",sessionEnd.plusMinutes(5),order);
         assertThat(waitlists.detail(buyer.id,Long.parseLong(entry.id())).orderExpiresAt())
@@ -211,10 +226,46 @@ class WaitlistManagementIT {
         dispatcher.dispatch(sku);long id=request(entry);dispatcher.dispatch(sku);dispatcher.dispatch(sku);
         assertThat(request(entry)).isEqualTo(id);assertThat(available()).isZero();
         start();long order=awaitAllocated(entry);worker.process(id);assertThat(orderCount()).isEqualTo(2);stock(1,0);
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM ticket_notification WHERE order_id=?", Integer.class, order)).isEqualTo(1);
         db.update("UPDATE ticket_order SET expires_at=TIMESTAMPADD(SECOND,-1,UTC_TIMESTAMP(6)),created_at=TIMESTAMPADD(MINUTE,-20,UTC_TIMESTAMP(6)) WHERE id=?",order);
         assertThat(orderService.expire(other.id,order)).isTrue();assertThat(status(entry)).isEqualTo("EXPIRED");
         dispatcher.dispatch(sku);dispatcher.dispatch(sku);
         assertThat(available()).isEqualTo(1);assertThat(priority()).isEqualTo("0");stock(0,0);
+    }
+
+    @Test void notificationRollsBackAndMailFailureCanBeRetriedFromTheInboxRecord() throws Exception {
+        total(1);
+        var held = stocks.reserve(buyer.id, sku, 1, "mail-test");
+        worker.process(held.id());
+        long order = requests.find(held.id()).orderId();
+        var transaction = new org.springframework.transaction.support.TransactionTemplate(transactions);
+        transaction.executeWithoutResult(status -> {
+            notifications.waitlistAllocated(buyer.id, order, true);
+            status.setRollbackOnly();
+        });
+        assertThat(notifications.count(buyer.id, false)).isZero();
+
+        String email = "buyer-" + buyer.id + "@example.test";
+        db.update("UPDATE user_account SET email=?, email_verified_at=UTC_TIMESTAMP(6) WHERE id=?", email, buyer.id);
+        notifications.waitlistAllocated(buyer.id, order, true);
+        var sender = mock(org.springframework.mail.javamail.JavaMailSender.class);
+        @SuppressWarnings("unchecked")
+        org.springframework.beans.factory.ObjectProvider<org.springframework.mail.javamail.JavaMailSender> provider =
+                mock(org.springframework.beans.factory.ObjectProvider.class);
+        when(provider.getIfAvailable()).thenReturn(sender);
+        doThrow(new org.springframework.mail.MailSendException("isolated SMTP failure"))
+                .doNothing().when(sender).send(any(org.springframework.mail.SimpleMailMessage.class));
+        var job = new com.ticketing.task.TicketNotificationMailJob(notifications, provider, "tickets@example.test", "localhost");
+        job.deliver();
+        assertThat(notifications.count(buyer.id, true)).isEqualTo(1);
+        assertThat(notifications.dueMail(5)).isEmpty();
+        db.update("UPDATE ticket_notification SET mail_next_at=UTC_TIMESTAMP(6) WHERE order_id=?", order);
+        job.deliver();
+        assertThat(db.queryForObject("SELECT mail_status FROM ticket_notification WHERE order_id=?", String.class, order))
+                .isEqualTo("SENT");
+        var sent = org.mockito.ArgumentCaptor.forClass(org.springframework.mail.SimpleMailMessage.class);
+        verify(sender, times(2)).send(sent.capture());
+        assertThat(sent.getValue().getTo()).containsExactly(email);
     }
 
     @Test void aPreparedHeadCanCancelBeforeRedisReserves() throws Exception {
@@ -322,6 +373,7 @@ class WaitlistManagementIT {
         doThrow(new org.springframework.dao.DataAccessResourceFailureException("isolated rollback")).when(orders).insertItem(any(),any(),anyInt());
         assertThatThrownBy(()->worker.process(id)).isInstanceOf(org.springframework.dao.DataAccessResourceFailureException.class);
         assertThat(requests.find(id)).isNull();assertThat(status(entry)).isEqualTo("PROCESSING");stock(0,0);
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM ticket_notification WHERE user_id=?", Integer.class, buyer.id)).isZero();
         reset(orders);db.update("UPDATE user_account SET status='DISABLED' WHERE id=?",buyer.id);
         doReturn(false).when(stocks).settle(any());worker.process(id);
         assertThat(requests.find(id).status()).isEqualTo("FAILED");assertThat(status(entry)).isEqualTo("EXPIRED");

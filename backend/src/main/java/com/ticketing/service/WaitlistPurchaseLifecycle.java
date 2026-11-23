@@ -15,8 +15,11 @@ public class WaitlistPurchaseLifecycle implements PurchaseLifecycle {
     private final WaitlistMapper waitlists;
     private final TradeResourceLocker resources;
     private final InventoryVersionService versions;
-    public WaitlistPurchaseLifecycle(WaitlistMapper waitlists, TradeResourceLocker resources, InventoryVersionService versions) {
+    private final TicketNotificationService notifications;
+    public WaitlistPurchaseLifecycle(WaitlistMapper waitlists, TradeResourceLocker resources,
+            InventoryVersionService versions, TicketNotificationService notifications) {
         this.waitlists = waitlists; this.resources = resources; this.versions = versions;
+        this.notifications = notifications;
     }
 
     @Override
@@ -39,6 +42,7 @@ public class WaitlistPurchaseLifecycle implements PurchaseLifecycle {
                 throw new IllegalStateException("候补分配关联未提交");
             }
             versions.changed(result.skuId());
+            notifications.waitlistAllocated(result.userId(), result.orderId());
         }
     }
     @Override

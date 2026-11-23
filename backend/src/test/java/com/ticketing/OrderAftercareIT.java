@@ -234,6 +234,13 @@ class OrderAftercareIT {
         assertThat(orders.limits(extra.id,sessionId).usedQuantity()).isZero();
         parallel(4, i -> { service.processCancelledSession(first); service.processCancelledSession(second); return true; });
         assertThat(count("refund_record","order_id=?",first)).isEqualTo(1); stock(0,0);
+        assertThat(count("ticket_notification", "order_id=? AND kind='SESSION_CANCELLED'", first)).isEqualTo(1);
+        var inbox = extra.call("GET", "/me/notifications", null, 200).path("data").path("items");
+        assertThat(inbox.size()).isEqualTo(2);
+        assertThat(inbox.get(0).path("kind").asText()).isEqualTo("SESSION_CANCELLED");
+        extra.call("PUT", "/me/notifications/read", null, 200);
+        assertThat(extra.call("GET", "/me/notifications/unread-count", null, 200).path("data").asLong()).isZero();
+        buyer.call("GET", "/me/notifications", null, 401);
     }
 
     @Test

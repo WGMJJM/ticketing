@@ -38,10 +38,12 @@ public class OrderRefundService {
     private final List<OrderLifecycle> participants;
     private final AuditWriter audit;
     private final UserSessionQuotaService quotas;
+    private final TicketNotificationService notifications;
 
     public OrderRefundService(OrderMapper orders, PaymentMapper payments, RefundMapper refunds,
             AftercareMapper aftercare, TradeResourceLocker resources, TicketInventory inventory,
-            InventoryVersionService versions, OrderStateService states, List<OrderLifecycle> participants, AuditWriter audit, UserSessionQuotaService quotas) {
+            InventoryVersionService versions, OrderStateService states, List<OrderLifecycle> participants,
+            AuditWriter audit, UserSessionQuotaService quotas, TicketNotificationService notifications) {
         this.orders = orders;
         this.payments = payments;
         this.refunds = refunds;
@@ -53,6 +55,7 @@ public class OrderRefundService {
         this.participants = List.copyOf(participants);
         this.audit = audit;
         this.quotas = quotas;
+        this.notifications = notifications;
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -63,6 +66,9 @@ public class OrderRefundService {
             throw conflict("场次未取消，请选择正确的售后原因");
         }
         RefundResult result = refundLocked(locked, operatorId, reason);
+        if (locked.sessionStatus() == SessionStatus.CANCELLED && locked.status() == OrderStatus.PAID) {
+            notifications.sessionCancelled(locked.order().getUserId(), orderId);
+        }
         audit.record(operatorId, AuditAction.ORDER_REFUND, "ORDER", orderId,
                 Map.of("orderStatus", locked.status().name()),
                 Map.of("orderStatus", result.refund() == null ? locked.status().name() : OrderStatus.REFUNDED.name(),
@@ -97,6 +103,9 @@ public class OrderRefundService {
         if (existing != null && !"RETRY".equals(existing.status())) {
             return;
         }
+        if (locked.status() == OrderStatus.PENDING || locked.status() == OrderStatus.PAID) {
+            notifications.sessionCancelled(locked.order().getUserId(), orderId);
+        }
         if (locked.sale() == null) {
             manual(orderId, new OrderLifecycle.RefundBlock("ORDER_ITEM_MISSING", "订单明细缺失，需要人工核对库存与售后"));
             return;
@@ -117,6 +126,7 @@ public class OrderRefundService {
                 && (locked.status() == OrderStatus.PENDING || locked.status() == OrderStatus.PAID)
                 && (existing == null || "RETRY".equals(existing.status()))) {
             aftercare.failure(orderId, delaySeconds, maxAttempts);
+            notifications.sessionCancelled(locked.order().getUserId(), orderId);
         }
     }
 

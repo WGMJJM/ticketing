@@ -95,9 +95,10 @@ public class SecurityConfig {
                 paths.matcher(HttpMethod.PUT, "/api/v1/activities/*/follow"),
                 paths.matcher(HttpMethod.DELETE, "/api/v1/activities/*/follow"));
         var followedActivities = paths.matcher(HttpMethod.GET, "/api/v1/me/followed-activities");
+        var notifications = paths.matcher("/api/v1/me/notifications/**");
         var protectedRequests = new OrRequestMatcher(accountSecurity, administration, orderRequests,
                 waitlistRequests, ticketRequests, checkinRequests, purchaseRequests,
-                activityLikeRequests, activityFollowRequests, followedActivities);
+                activityLikeRequests, activityFollowRequests, followedActivities, notifications);
         var contexts = new DelegatingSecurityContextRepository(
                 new RequestAttributeSecurityContextRepository(), new HttpSessionSecurityContextRepository());
         var sessionCookie = new CookieClearingLogoutHandler("JSESSIONID");
@@ -117,6 +118,7 @@ public class SecurityConfig {
                         .requestMatchers(waitlistRequests).authenticated()
                         .requestMatchers(ticketRequests).authenticated()
                         .requestMatchers(activityLikeRequests, activityFollowRequests, followedActivities).authenticated()
+                        .requestMatchers(notifications).authenticated()
                         .requestMatchers(checkinRequests).hasAnyRole("ADMIN", "CHECKIN_STAFF")
                         .requestMatchers(administration).hasRole("ADMIN")
                         .requestMatchers("/error").permitAll()
