@@ -119,7 +119,7 @@ async function purchase() {
 function definitivelyRejected(failure: unknown) {
   return isAxiosError(failure) && [
     'INVALID_SKU_ID', 'TICKET_NOT_FOUND', 'TICKET_UNAVAILABLE', 'WAITLIST_PRIORITY',
-    'PURCHASE_LIMIT', 'PURCHASE_QUEUE_FULL', 'TOO_MANY_REQUESTS', 'RATE_LIMIT_UNAVAILABLE',
+    'PURCHASE_LIMIT', 'PURCHASE_QUEUE_FULL', 'PURCHASE_PUBLISH_UNAVAILABLE', 'TOO_MANY_REQUESTS', 'RATE_LIMIT_UNAVAILABLE',
   ].includes(String(failure.response?.data?.code))
 }
 </script>

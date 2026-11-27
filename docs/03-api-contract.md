@@ -309,6 +309,7 @@ HTTP路径、请求字段、Session与CSRF、HTTP状态码及响应字符串状�
 | --- | --- | --- |
 | 409 | `TICKET_UNAVAILABLE` | MySQL销售资格无效或Redis可售余额不足，未写申请 |
 | 503 | `PURCHASE_ADMISSION_UNAVAILABLE` | Redis库存预扣不可用、SKU冻结或状态无法安全核对 |
+| 503 | `PURCHASE_PUBLISH_UNAVAILABLE` | 消息发送连续异常，新申请未预扣，默认 `Retry-After: 5`，原幂等键仍可查询或重放 |
 | 503 | `PURCHASE_QUEUE_FULL` | Redis原子受理容量已满，未写申请 |
 
 上述响应均为no-store，不生成新的受理记录或Outbox；已执行但未关联申请的Redis token由恢复扫描安全释放。旧安全过滤器仍可先返回429 `TOO_MANY_REQUESTS`或503 `RATE_LIMIT_UNAVAILABLE`，包括对已有键的提交；已有同参键只读回放，同键异参仍409。前端保留原幂等键，不把入口拒绝显示成已排队。
