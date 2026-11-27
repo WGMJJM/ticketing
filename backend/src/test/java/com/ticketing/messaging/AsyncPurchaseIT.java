@@ -38,6 +38,7 @@ import static org.mockito.ArgumentMatchers.*;
 @SpringBootTest(webEnvironment=SpringBootTest.WebEnvironment.RANDOM_PORT,properties={
     "server.servlet.session.cookie.secure=false", "ticketing.admin-bootstrap.enabled=false",
     "ticketing.purchase.queue-seconds=5",
+    "ticketing.purchase.probe-delay-ms=100",
     "ticketing.purchase.recovery-seconds=1", "ticketing.purchase.messaging-enabled=true",
     "ticketing.purchase.jobs-enabled=false", "ticketing.waitlist.jobs.enabled=false",
     "ticketing.purchase.exchange=ticketing.purchase.direct.it", "ticketing.purchase.queue=ticketing.purchase.direct.it.orders",
@@ -318,6 +319,60 @@ class AsyncPurchaseIT {
         assertThat(broker.getQueueInfo(QUEUE).getMessageCount()).isEqualTo(1);
         start();assertThat(await(buyer,held.id()).path("status").asText()).isEqualTo("SUCCEEDED");
         assertThat(orderCount()).isEqualTo(1);stock(1,0);
+    }
+
+    @Test void prolongedPublishFailureStopsNewReservationsWhileOldRequestsExpireOrRecover() throws Exception {
+        var unavailable = new org.springframework.amqp.AmqpConnectException(new ConnectException("isolated fault"));
+        doThrow(unavailable).when(rabbit).send(anyString(), anyString(), any(Message.class));
+        doThrow(unavailable).when(rabbit).execute(any(org.springframework.amqp.rabbit.core.ChannelCallback.class));
+        var body = Map.of("skuId", Long.toString(sku), "quantity", 1);
+        long first = accept(buyer, 1, "outage-first").path("requestId").asLong();
+        long expiring = accept(buyer, 1, "outage-expiring").path("requestId").asLong();
+        long third = accept(other, 1, "outage-third").path("requestId").asLong();
+        var recovery = new PurchaseRecoveryJob(stocks, worker, publisher, inventory, properties);
+        try {
+            var rejected = other.send("POST", "/orders", body, "outage-refused");
+            assertThat(rejected.statusCode()).isEqualTo(503);
+            assertThat(rejected.headers().firstValue("Retry-After")).contains("5");
+            assertThat(json.readTree(rejected.body()).path("code").asText()).isEqualTo("PURCHASE_PUBLISH_UNAVAILABLE");
+            assertThat(stocks.lookup(other.id, "outage-refused")).isNull();
+            assertThat(accept(buyer, 1, "outage-first").path("requestId").asLong()).isEqualTo(first);
+            assertThat(buyer.call("GET", "/purchase-requests/" + first, null, null, 200)
+                    .path("data").path("status").asText()).isEqualTo("QUEUED");
+            assertThat(available()).isEqualTo(5);
+
+            long now = System.currentTimeMillis();
+            redis.opsForHash().put(stocks.requestKey(expiring), "acceptedAt", Long.toString(now - 2000));
+            redis.opsForHash().put(stocks.requestKey(expiring), "deadlineAt", Long.toString(now - 1000));
+            redis.opsForZSet().add(stocks.recoveryKey(), sku + ":" + expiring, 0);
+            Thread.sleep(120);
+            recovery.probePublisher();
+            verify(rabbit).execute(any(org.springframework.amqp.rabbit.core.ChannelCallback.class));
+            assertThat(publisher.admitting()).isFalse();
+            recovery.scan();
+            assertThat(requests.find(expiring).status()).isEqualTo("EXPIRED");
+            assertThat(available()).isEqualTo(6);
+            verify(rabbit, times(3)).send(anyString(), anyString(), any(Message.class));
+        } finally {
+            reset(rabbit);
+            long until = System.nanoTime() + TimeUnit.SECONDS.toNanos(3);
+            while (!publisher.admitting() && System.nanoTime() < until) {
+                recovery.probePublisher();
+                if (!publisher.admitting()) Thread.sleep(25);
+            }
+        }
+        assertThat(publisher.admitting()).isTrue();
+
+        redis.opsForZSet().add(stocks.recoveryKey(), sku + ":" + first, 0);
+        redis.opsForZSet().add(stocks.recoveryKey(), sku + ":" + third, 0);
+        recovery.scan();
+        long fresh = accept(other, 1, "outage-refused").path("requestId").asLong();
+        publisher.publish(first, sku);
+        start();
+        for (long id : new long[]{first, third, fresh}) awaitSettlement(id, "SUCCEEDED");
+        assertThat(orderCount()).isEqualTo(3);
+        assertThat(available()).isEqualTo(5);
+        stock(3, 0);
     }
 
     @Test void crashAfterReservationBeforeSendIsRecoveredWithoutASecondReservation() throws Exception {

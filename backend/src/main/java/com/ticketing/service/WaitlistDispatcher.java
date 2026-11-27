@@ -56,7 +56,7 @@ public class WaitlistDispatcher {
                             service.finishAttempt(head.getId(), head.getPurchaseRequestId(), true);
                     case "TICKET_UNAVAILABLE", "PURCHASE_LIMIT" ->
                             service.finishAttempt(head.getId(), head.getPurchaseRequestId(), false);
-                    case "WAITLIST_ATTEMPT_STALE", "PURCHASE_ADMISSION_UNAVAILABLE" -> { }
+                    case "WAITLIST_ATTEMPT_STALE", "PURCHASE_ADMISSION_UNAVAILABLE", "PURCHASE_PUBLISH_UNAVAILABLE" -> { }
                     default -> throw exception;
                 }
             }

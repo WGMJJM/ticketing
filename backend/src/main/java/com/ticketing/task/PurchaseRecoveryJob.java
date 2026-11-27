@@ -26,6 +26,12 @@ public class PurchaseRecoveryJob {
             PurchasePublisher publisher, StockSnapshotService inventory, PurchaseProperties properties) {
         this.stocks = stocks; this.worker = worker; this.publisher = publisher; this.inventory = inventory; this.properties = properties;
     }
+
+    @Scheduled(fixedDelayString="${ticketing.purchase.scan-delay-ms:1000}")
+    public void probePublisher() {
+        publisher.probeRecovery();
+    }
+
     @Scheduled(fixedDelayString="${ticketing.purchase.scan-delay-ms:1000}")
     public synchronized void scan() {
         try {

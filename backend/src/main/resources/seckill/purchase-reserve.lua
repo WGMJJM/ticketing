@@ -4,6 +4,7 @@ if redis.call('EXISTS', KEYS[2]) == 1 then
     if redis.call('HGET', KEYS[2], 'requestHash') ~= ARGV[6] then return {-6} end
     return {2, redis.call('HGET', KEYS[2], 'id')}
 end
+if ARGV[16] == '0' then return {-15} end
 if redis.call('HGET', KEYS[1], 'ready') ~= '1' or redis.call('EXISTS', KEYS[5]) == 0 then return {-3} end
 local priority = redis.call('HGET', KEYS[1], 'waitlistPriority')
 local version = redis.call('HGET', KEYS[1], 'inventoryVersion')

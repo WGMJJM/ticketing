@@ -21,7 +21,7 @@ class PurchasePublisherTest {
     void sendsPersistentCommandWithoutWaitingForAConfirm() throws Exception {
         RabbitTemplate rabbit = mock(RabbitTemplate.class);
         ObjectMapper json = new ObjectMapper();
-        var publisher = new PurchasePublisher(rabbit, json, "purchase", 120, new SimpleMeterRegistry());
+        var publisher = new PurchasePublisher(rabbit, json, "purchase", "orders", 120, 5000, new SimpleMeterRegistry());
         publisher.publish(12, 34);
         var sent = ArgumentCaptor.forClass(Message.class);
         verify(rabbit).send(org.mockito.ArgumentMatchers.eq("purchase"),
@@ -37,7 +37,9 @@ class PurchasePublisherTest {
         RabbitTemplate rabbit = mock(RabbitTemplate.class);
         var metrics = new SimpleMeterRegistry();
         doThrow(new AmqpException("offline")).when(rabbit).send(anyString(), anyString(), any(Message.class));
-        new PurchasePublisher(rabbit, new ObjectMapper(), "purchase", 120, metrics).publish(12, 34);
+        var publisher = new PurchasePublisher(rabbit, new ObjectMapper(), "purchase", "orders", 120, 5000, metrics);
+        publisher.publish(12, 34);
+        assertThat(publisher.admitting()).isTrue();
         assertThat(metrics.get("ticketing.purchase.publish.failure").counter().count()).isEqualTo(1);
     }
 }

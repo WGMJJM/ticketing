@@ -89,6 +89,10 @@ public class RedisStockReservationService {
     }
 
     public PurchaseRequest reserve(PurchaseIntent intent) {
+        return reserve(intent, true);
+    }
+
+    public PurchaseRequest reserve(PurchaseIntent intent, boolean allowNew) {
         long userId = intent.userId(), skuId = intent.skuId();
         int quantity = intent.quantity();
         String key = intent.key(), operation = intent.operation();
@@ -114,7 +118,7 @@ public class RedisStockReservationService {
                         Integer.toString(properties.recoverySeconds()), operation,
                         intent.waitlistEntryId() == null ? "" : intent.waitlistEntryId().toString(),
                         intent.waitlistEntryId() == null ? "" : intent.waitlistEntryId() + ":" + intent.attemptNo(),
-                        intent.expiresAt() == null ? "0" : Long.toString(epoch(intent.expiresAt())));
+                        intent.expiresAt() == null ? "0" : Long.toString(epoch(intent.expiresAt())), allowNew ? "1" : "0");
                 if (result == null || result.isEmpty() || !(result.getFirst() instanceof Number number)) {
                     throw new IllegalStateException("预扣脚本返回格式异常");
                 }
@@ -132,6 +136,8 @@ public class RedisStockReservationService {
             if (code == -12) throw failure(HttpStatus.CONFLICT, "WAITLIST_PRIORITY", "该票档正在优先处理候补，请加入候补队列");
             if (code == -13) throw failure(HttpStatus.CONFLICT, "WAITLIST_ATTEMPT_STALE", "候补分配状态已变化");
             if (code == -14) throw failure(HttpStatus.CONFLICT, "WAITLIST_QUOTA_PENDING", "同场次购票请求正在结算");
+            if (code == -15) throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "PURCHASE_PUBLISH_UNAVAILABLE", "购票通道暂不可用，请稍后重试", 5L);
             if (code == -1) throw failure(HttpStatus.CONFLICT, "CREATE_ORDER".equals(operation) ? "TICKET_UNAVAILABLE" : "STOCK_UNAVAILABLE", "票档当前可预扣库存不足");
             if (code == -6) throw failure(HttpStatus.CONFLICT, "IDEMPOTENCY_CONFLICT", "同一幂等键不能用于不同票档或数量");
             if (code == -11) throw failure(HttpStatus.CONFLICT, "PURCHASE_LIMIT", "购买数量超过票档或本场入口限额");

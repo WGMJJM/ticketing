@@ -36,7 +36,7 @@ public class PurchaseAdmission {
 
     @Transactional(propagation = Propagation.NEVER)
     public PurchaseRequest submit(PurchaseIntent intent) {
-        PurchaseRequest request = stocks.reserve(intent);
+        PurchaseRequest request = stocks.reserve(intent, publisher.admitting());
         if (!request.terminal()) publisher.publish(request.id(), request.skuId());
         return request;
     }
