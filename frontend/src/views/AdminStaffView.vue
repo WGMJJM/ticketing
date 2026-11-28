@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PaginationBar from '../components/PaginationBar.vue'
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { staffApi, staffRoleText, type StaffAccount, type StaffPermission } from '../api/staff'
@@ -88,14 +89,16 @@ onBeforeUnmount(() => { generation++; permissionGeneration++ })
         </div></td></tr>
       </tbody></table>
     </div>
-    <div class="pagination"><ElButton :disabled="page <= 1 || loading || busy" @click="page--; load()">上一页</ElButton><span>第 {{ page }} 页 · 共 {{ total }} 个账号</span><ElButton :disabled="page * 10 >= total || loading || busy" @click="page++; load()">下一页</ElButton></div>
+    <PaginationBar :page="page" :total="total" :disabled="loading || busy" unit="个账号"
+      @change="page = $event; load()" />
     <section v-if="selected" class="order-card">
       <h2>{{ selected.username }} · 场次授权</h2><p>场次编号可在活动与场次管理中查看。撤权后旧会话不能继续核销该场次。</p>
       <form v-if="selected.role === 'CHECKIN_STAFF' && selected.status === 'ACTIVE'" class="admin-order-filters" @submit.prevent="grant('grant')" @invalid.capture="chineseValidation" @input.capture="clearValidation"><label>场次编号<input v-model="sessionId" required inputmode="numeric" pattern="[1-9][0-9]*" placeholder="请输入需要授权的场次编号" /></label><ElButton type="primary" native-type="submit" :loading="busy">分配核销场次</ElButton></form>
       <p v-if="permissionError" class="inline-error" role="alert">{{ permissionError }}</p><p v-if="permissionLoading" role="status">正在加载授权记录…</p>
       <p v-else-if="!permissionError && !permissions.length">尚无场次授权记录。</p>
       <ul v-else-if="!permissionError" class="permission-list"><li v-for="permission in permissions" :key="permission.sessionId"><div><strong>{{ permission.activityTitle }} · {{ permission.sessionTitle }}</strong><p>场次 {{ permission.sessionId }} · {{ sessionStatusText[permission.sessionStatus] }} · {{ formatTime(permission.startsAt) }}（北京时间）</p><p>{{ permission.revokedAt ? '已撤销' : '已授权' }} · 授权时间 {{ permission.grantedAt ? formatTime(permission.grantedAt) : '' }}<span v-if="permission.revokedAt"> · 撤销时间 {{ formatTime(permission.revokedAt) }}</span></p></div><ElButton v-if="!permission.revokedAt" :disabled="busy" @click="grant('revoke', permission.sessionId)">撤销场次授权</ElButton></li></ul>
-      <div class="pagination"><ElButton :disabled="permissionPage <= 1 || permissionLoading || busy" @click="permissionPage--; loadPermissions()">上一页</ElButton><span>第 {{ permissionPage }} 页 · 共 {{ permissionTotal }} 条授权</span><ElButton :disabled="permissionPage * 10 >= permissionTotal || permissionLoading || busy" @click="permissionPage++; loadPermissions()">下一页</ElButton></div>
+      <PaginationBar :page="permissionPage" :total="permissionTotal" :disabled="permissionLoading || busy"
+        unit="条授权" @change="permissionPage = $event; loadPermissions()" />
     </section>
   </section>
 </template>

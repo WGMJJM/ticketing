@@ -1,6 +1,5 @@
-import { client } from './client'
+import { client, type ApiResponse } from './client'
 import type { AxiosRequestConfig } from 'axios'
-import type { ApiResponse } from './system'
 
 export interface CurrentUser {
   id: string

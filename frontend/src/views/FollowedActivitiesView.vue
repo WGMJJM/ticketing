@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PaginationBar from '../components/PaginationBar.vue'
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import {
   listFollowedActivities,
@@ -121,11 +122,10 @@ onBeforeUnmount(() => controller?.abort())
         </div>
       </article>
     </div>
-    <div v-if="total > size" class="pagination" aria-label="关注列表分页">
-      <ElButton :disabled="loading || page <= 1" @click="changePage(page - 1)">上一页</ElButton>
-      <span>第 {{ page }} / {{ Math.ceil(total / size) }} 页</span>
-      <ElButton :disabled="loading || page >= Math.ceil(total / size)" @click="changePage(page + 1)">下一页</ElButton>
-    </div>
+    <PaginationBar v-if="total > size" :page="page" :total="total" :page-size="size"
+      :disabled="loading" aria-label="关注列表分页" @change="changePage">
+      第 {{ page }} / {{ Math.ceil(total / size) }} 页
+    </PaginationBar>
     </template>
   </div>
 </template>

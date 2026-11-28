@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PaginationBar from '../components/PaginationBar.vue'
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { notificationApi, type TicketNotification } from '../api/notifications'
 import SiteIcon from '../components/SiteIcon.vue'
@@ -115,11 +116,8 @@ onBeforeUnmount(() => controller.abort())
         </div>
       </li>
     </ul>
-    <div v-if="total > 10" class="pagination">
-      <ElButton :disabled="page === 1 || loading || saving" @click="goToPage(page - 1)">上一页</ElButton>
-      <span>第 {{ page }} 页 · 共 {{ total }} 条</span>
-      <ElButton :disabled="page * 10 >= total || loading || saving" @click="goToPage(page + 1)">下一页</ElButton>
-    </div>
+    <PaginationBar v-if="total > 10" :page="page" :total="total"
+      :disabled="loading || saving" @change="goToPage" />
   </section>
 </template>
 

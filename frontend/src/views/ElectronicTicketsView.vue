@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PaginationBar from '../components/PaginationBar.vue'
 import { onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import TicketCredential from '../components/TicketCredential.vue'
@@ -153,15 +154,7 @@ function filterTickets() {
         </div>
       </article>
     </template>
-    <div v-if="!id && total > 10" class="pagination">
-      <ElButton :disabled="page === 1 || loading" @click="changePage(page - 1)"
-        >上一页</ElButton
-      ><span>第 {{ page }} 页 · 共 {{ total }} 张</span
-      ><ElButton
-        :disabled="page * 10 >= total || loading"
-        @click="changePage(page + 1)"
-        >下一页</ElButton
-      >
-    </div>
+    <PaginationBar v-if="!id && total > 10" :page="page" :total="total"
+      :disabled="loading" unit="张" @change="changePage" />
   </div>
 </template>

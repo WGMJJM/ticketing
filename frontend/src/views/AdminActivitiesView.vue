@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PaginationBar from '../components/PaginationBar.vue'
 import { onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
@@ -273,20 +274,10 @@ onMounted(() => load())
         </tbody>
       </table>
     </div>
-    <div v-if="total > query.size" class="pagination">
-      <ElButton
-        :disabled="loading || query.page <= 1"
-        @click="page(query.page - 1)"
-        >上一页</ElButton
-      ><span
-        >第 {{ query.page }} / {{ Math.ceil(total / query.size) }} 页，共
-        {{ total }} 条</span
-      ><ElButton
-        :disabled="loading || query.page >= Math.ceil(total / query.size)"
-        @click="page(query.page + 1)"
-        >下一页</ElButton
-      >
-    </div>
+    <PaginationBar v-if="total > query.size" :page="query.page" :total="total"
+      :page-size="query.size" :disabled="loading" @change="page">
+      第 {{ query.page }} / {{ Math.ceil(total / query.size) }} 页，共 {{ total }} 条
+    </PaginationBar>
     <p class="admin-footnote">
       已发布活动须先下架再编辑。场次取消后不可恢复。可从场次进入票档管理，锁定库存由订单事务维护。
     </p>

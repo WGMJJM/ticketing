@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PaginationBar from '../components/PaginationBar.vue'
 import { onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { adminOrdersApi, type AdminOrder, type AdminOrderQuery } from '../api/adminOrders'
@@ -66,7 +67,8 @@ function changePage(value: number) { query.page = value; void load() }
           <tbody><tr v-for="row in rows" :key="row.order.id"><td><strong>{{ row.order.orderNo }}</strong><small>{{ row.username }} · {{ row.userId }}</small></td><td>{{ row.order.activityTitle }}<small>{{ row.order.sessionTitle }} · {{ formatTime(row.order.sessionStartsAt) }}</small></td><td>{{ row.order.skuName ?? '明细缺失，待核对' }}<template v-if="row.order.quantity != null"> × {{ row.order.quantity }}</template><small>单价 {{ row.order.unitPriceCents == null ? '待核对' : formatCents(row.order.unitPriceCents) }}</small></td><td><strong>{{ formatCents(row.order.totalAmountCents) }}</strong><small class="order-state" :data-status="row.order.status">{{ orderStatusText[row.order.status] }}</small></td><td><small>创建 {{ formatTime(row.order.createdAt) }}</small><small>截止 {{ formatTime(row.order.expiresAt) }}</small><small v-if="row.paidAt">支付 {{ formatTime(row.paidAt) }}</small></td><td><RouterLink :to="'/admin/orders/' + row.order.id">查看详情 ↗</RouterLink></td></tr></tbody>
         </table>
       </div>
-      <div class="pagination"><ElButton :disabled="query.page === 1 || loading" @click="changePage(query.page - 1)">上一页</ElButton><span>第 {{ query.page }} 页 · 共 {{ total }} 笔</span><ElButton :disabled="query.page * query.size >= total || loading" @click="changePage(query.page + 1)">下一页</ElButton></div>
+      <PaginationBar :page="query.page" :total="total" :page-size="query.size"
+        :disabled="loading" unit="笔" @change="changePage" />
     </template>
   </section>
 </template>

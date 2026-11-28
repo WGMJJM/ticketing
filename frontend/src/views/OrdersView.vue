@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PaginationBar from '../components/PaginationBar.vue'
 import { ref, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import 'element-plus/es/components/message-box/style/css'
@@ -148,17 +149,7 @@ function changePage(value: number) {
       @cancel="cancel"
       @pay="pay"
     />
-    <div v-if="!id && total > 10" class="pagination">
-      <ElButton
-        :disabled="page === 1 || loading || busy"
-        @click="changePage(page - 1)"
-        >上一页</ElButton
-      ><span>第 {{ page }} 页 · 共 {{ total }} 笔</span
-      ><ElButton
-        :disabled="page * 10 >= total || loading || busy"
-        @click="changePage(page + 1)"
-        >下一页</ElButton
-      >
-    </div>
+    <PaginationBar v-if="!id && total > 10" :page="page" :total="total"
+      :disabled="loading || busy" unit="笔" @change="changePage" />
   </div>
 </template>

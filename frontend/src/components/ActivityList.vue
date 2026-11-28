@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PaginationBar from './PaginationBar.vue'
 import { onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
   categories,
@@ -127,22 +128,8 @@ onBeforeUnmount(() => controller?.abort())
       </div>
     </RouterLink>
   </div>
-  <div
-    v-if="!error && total > query.size"
-    class="pagination"
-    aria-label="活动分页"
-  >
-    <ElButton
-      :disabled="loading || query.page <= 1"
-      @click="changePage(query.page - 1)"
-      >上一页</ElButton
-    ><span
-      >第 {{ query.page }} / {{ Math.ceil(total / query.size) }} 页，共
-      {{ total }} 场活动</span
-    ><ElButton
-      :disabled="loading || query.page >= Math.ceil(total / query.size)"
-      @click="changePage(query.page + 1)"
-      >下一页</ElButton
-    >
-  </div>
+  <PaginationBar v-if="!error && total > query.size" :page="query.page" :total="total"
+    :page-size="query.size" :disabled="loading" aria-label="活动分页" @change="changePage">
+    第 {{ query.page }} / {{ Math.ceil(total / query.size) }} 页，共 {{ total }} 场活动
+  </PaginationBar>
 </template>

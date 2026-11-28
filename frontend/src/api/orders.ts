@@ -118,6 +118,4 @@ export const orderApi = {
       method: 'POST',
       url: '/orders/' + id + '/pay',
     }),
-  payment: (id: string) =>
-    useAuthStore().request<Payment>({ url: '/orders/' + id + '/payment' }),
 }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import PaginationBar from '../components/PaginationBar.vue'
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { auditActionText, auditResourceText, listAudit, type AuditRecord } from '../api/audit'
 import { formatTime, fromBeijingInput } from '../utils/date'
@@ -58,7 +59,8 @@ onBeforeUnmount(() => { generation++ })
       <td><strong>{{ auditActionText[row.action] ?? row.summary }}</strong><small>{{ auditResourceText[row.resourceType] }} · {{ row.resourceId }}</small></td><td>{{ row.operatorName }}<small>用户 {{ row.operatorId }}</small><small>{{ formatTime(row.occurredAt) }}</small></td>
       <td><details v-if="snapshot(row.beforeValues).length"><summary>查看变更前字段</summary><small v-for="item in snapshot(row.beforeValues)" :key="item">{{ item }}</small></details><span v-else>无历史值</span></td><td><details><summary>查看变更后字段</summary><small v-for="item in snapshot(row.afterValues)" :key="item">{{ item }}</small></details></td><td><small>{{ row.requestId }}</small></td>
     </tr></tbody></table></div>
-    <div class="pagination"><ElButton :disabled="page <= 1 || loading" @click="page--; load()">上一页</ElButton><span>第 {{ page }} 页 · 共 {{ total }} 条</span><ElButton :disabled="page * 10 >= total || loading" @click="page++; load()">下一页</ElButton></div>
+    <PaginationBar :page="page" :total="total" :disabled="loading"
+      @change="page = $event; load()" />
   </section>
 </template>
 <style scoped>

@@ -1,6 +1,5 @@
-import { client } from './client'
+import { client, type ApiResponse } from './client'
 import { sessionRequest } from './auth'
-import type { ApiResponse } from './system'
 
 export const categories = [
   { value: 'CONCERT', label: '演唱会', symbol: '♫', theme: 'purple' },

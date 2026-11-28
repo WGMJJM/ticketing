@@ -1,5 +1,4 @@
-import { client } from './client'
-import type { ApiResponse } from './system'
+import { client, type ApiResponse } from './client'
 import { useAuthStore } from '../stores/auth'
 
 export type TicketStatus = 'DRAFT' | 'ON_SALE' | 'OFF_SALE'

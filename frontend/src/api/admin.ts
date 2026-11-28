@@ -14,8 +14,6 @@ export const adminApi = {
       url: '/admin/activities',
       params,
     }),
-  detail: (id: string) =>
-    useAuthStore().request<Activity>({ url: `/admin/activities/${id}` }),
   create: (data: ActivityInput) =>
     useAuthStore().request<Activity>({
       method: 'POST',
