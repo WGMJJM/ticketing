@@ -2,8 +2,6 @@ package com.ticketing.service;
 
 import com.ticketing.common.PageResponse;
 import com.ticketing.dto.StaffQuery;
-import com.ticketing.entity.Activity;
-import com.ticketing.entity.ActivitySession;
 import com.ticketing.enums.AuditAction;
 import com.ticketing.exception.BusinessException;
 import com.ticketing.mapper.ActivityMapper;
@@ -11,8 +9,6 @@ import com.ticketing.mapper.ActivitySessionMapper;
 import com.ticketing.mapper.StaffMapper;
 import com.ticketing.vo.StaffAccountView;
 import com.ticketing.vo.StaffPermissionView;
-
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -118,15 +114,8 @@ public class StaffService {
         if (initial == null) {
             throw new BusinessException(HttpStatus.NOT_FOUND, "SESSION_NOT_FOUND", "场次不存在");
         }
-        activities.selectOne(
-                new LambdaQueryWrapper<Activity>()
-                        .eq(Activity::getId, initial.getActivityId())
-                        .last("FOR SHARE"));
-        var session =
-                sessions.selectOne(
-                        new LambdaQueryWrapper<ActivitySession>()
-                                .eq(ActivitySession::getId, sessionId)
-                                .last("FOR SHARE"));
+        activities.selectByIdForShare(initial.getActivityId());
+        var session = sessions.selectByIdForShare(sessionId);
         if (!"SCHEDULED".equals(session.getStatus())) {
             throw conflict("只能授权正常场次");
         }

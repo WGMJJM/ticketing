@@ -2,6 +2,7 @@ package com.ticketing.mapper;
 
 import com.ticketing.entity.ActivitySession;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -10,6 +11,10 @@ import java.util.List;
 
 @Mapper
 public interface ActivitySessionMapper extends BaseMapper<ActivitySession> {
+    default ActivitySession selectByIdForShare(long id) {
+        return selectOne(new LambdaQueryWrapper<ActivitySession>().eq(ActivitySession::getId, id).last("FOR SHARE"));
+    }
+
     @Select("<script>SELECT * FROM activity_session WHERE activity_id IN "
             + "<foreach collection='activityIds' item='activityId' open='(' separator=',' close=')'>"
             + "#{activityId}</foreach> ORDER BY starts_at ASC, id ASC</script>")

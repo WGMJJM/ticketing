@@ -148,6 +148,10 @@ class StaffAuditIT {
                         username,
                         "password",
                         UUID.randomUUID().toString(),
+                        "email",
+                        username + "@example.test",
+                        "code",
+                        "123456",
                         "role",
                         "CHECKIN_STAFF"),
                 400);
@@ -890,14 +894,11 @@ class StaffAuditIT {
                 "staff_it_" + UUID.randomUUID().toString().replace("-", "").substring(0, 20);
         client.password = UUID.randomUUID().toString();
         client.csrf();
-        if (administrator)
+        if (administrator) {
             accounts.initializeAdmin(new AdminCredentials(client.username, client.password));
-        else
-            client.call(
-                    "POST",
-                    "/auth/register",
-                    Map.of("username", client.username, "password", client.password),
-                    200);
+        } else {
+            AccountTestSupport.legacyUser(jdbc, client.username, client.password);
+        }
         client.id =
                 jdbc.queryForObject(
                         "SELECT id FROM user_account WHERE username=?",

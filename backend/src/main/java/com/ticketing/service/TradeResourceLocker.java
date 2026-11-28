@@ -119,10 +119,8 @@ public class TradeResourceLocker {
         if (initial == null) {
             throw new BusinessException(HttpStatus.NOT_FOUND, "SESSION_NOT_FOUND", "场次不存在");
         }
-        activities.selectOne(new LambdaQueryWrapper<Activity>()
-                .eq(Activity::getId, initial.getActivityId()).last("FOR SHARE"));
-        ActivitySession session = sessions.selectOne(new LambdaQueryWrapper<ActivitySession>()
-                .eq(ActivitySession::getId, sessionId).last("FOR SHARE"));
+        activities.selectByIdForShare(initial.getActivityId());
+        ActivitySession session = sessions.selectByIdForShare(sessionId);
         return SessionStatus.valueOf(session.getStatus());
     }
 
@@ -141,16 +139,8 @@ public class TradeResourceLocker {
         if (parent == null) {
             throw new BusinessException(HttpStatus.NOT_FOUND, "SESSION_NOT_FOUND", "场次不存在");
         }
-        Activity activity =
-                activities.selectOne(
-                        new LambdaQueryWrapper<Activity>()
-                                .eq(Activity::getId, parent.getActivityId())
-                                .last("FOR SHARE"));
-        ActivitySession session =
-                sessions.selectOne(
-                        new LambdaQueryWrapper<ActivitySession>()
-                                .eq(ActivitySession::getId, parent.getId())
-                                .last("FOR SHARE"));
+        Activity activity = activities.selectByIdForShare(parent.getActivityId());
+        ActivitySession session = sessions.selectByIdForShare(parent.getId());
         if (activity == null || session == null) {
             throw new BusinessException(HttpStatus.CONFLICT, "TICKET_UNAVAILABLE", "票档所属活动或场次不存在");
         }

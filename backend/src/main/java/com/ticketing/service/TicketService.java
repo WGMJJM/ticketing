@@ -291,10 +291,7 @@ public class TicketService implements SessionWindowGuard {
             if (parent == null) {
                 throw notFound("SESSION_NOT_FOUND", "场次不存在");
             }
-            activities.selectOne(
-                    new LambdaQueryWrapper<Activity>()
-                            .eq(Activity::getId, parent.getActivityId())
-                            .last("FOR SHARE"));
+            activities.selectByIdForShare(parent.getActivityId());
         }
         var query = new LambdaQueryWrapper<ActivitySession>().eq(ActivitySession::getId, id);
         if (lock) {

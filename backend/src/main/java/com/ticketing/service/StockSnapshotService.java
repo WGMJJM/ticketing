@@ -42,10 +42,8 @@ public class StockSnapshotService {
         TicketSku initial = tickets.selectById(skuId);
         if (initial == null) return false;
         ActivitySession parent = sessions.selectById(initial.getSessionId());
-        Activity activity = activities.selectOne(new LambdaQueryWrapper<Activity>()
-                .eq(Activity::getId, parent.getActivityId()).last("FOR SHARE"));
-        ActivitySession session = sessions.selectOne(new LambdaQueryWrapper<ActivitySession>()
-                .eq(ActivitySession::getId, parent.getId()).last("FOR SHARE"));
+        Activity activity = activities.selectByIdForShare(parent.getActivityId());
+        ActivitySession session = sessions.selectByIdForShare(parent.getId());
         TicketSku sku = tickets.selectOne(new LambdaQueryWrapper<TicketSku>().eq(TicketSku::getId, skuId).last("FOR UPDATE"));
         boolean initialized = tickets.redisInitialized(skuId);
         long pending = stocks.pause(skuId);

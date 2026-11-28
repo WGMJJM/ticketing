@@ -2,7 +2,6 @@ package com.ticketing.service;
 
 import com.ticketing.cache.CatalogCache;
 import com.ticketing.dto.SessionWriteRequest;
-import com.ticketing.entity.Activity;
 import com.ticketing.entity.ActivitySession;
 import com.ticketing.enums.AuditAction;
 import com.ticketing.enums.SessionStatus;
@@ -162,10 +161,7 @@ public class SessionService {
 
     private ActivitySession lockSession(long id) {
         ActivitySession parent = requireSession(id);
-        activities.selectOne(
-                new LambdaQueryWrapper<Activity>()
-                        .eq(Activity::getId, parent.getActivityId())
-                        .last("FOR SHARE"));
+        activities.selectByIdForShare(parent.getActivityId());
         ActivitySession session =
                 mapper.selectOne(
                         new LambdaQueryWrapper<ActivitySession>()

@@ -69,12 +69,6 @@ public record TicketSale(
         return availableStock;
     }
 
-    public TicketSale withAvailableStock(int available) {
-        return new TicketSale(skuId,sessionId,name,priceCents,available,maxQuantityPerOrder,status,
-                activityStatus,sessionStatus,saleStartsAt,saleEndsAt,sessionSaleStartsAt,
-                sessionStartsAt,sessionEndsAt,inventoryStrategy,bucketCount);
-    }
-
     public SaleStatus statusAt(LocalDateTime now) {
         int available = availableStock();
         SaleStatus eligibility = windowStatusAt(now);
